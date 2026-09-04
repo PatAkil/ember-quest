@@ -2,55 +2,133 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Retrovibe</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <title>Ember Quest</title>
     <style>
+      /* One markup, three states:
+         1. Desktop cabinet (≥1100×700 CSS px): marquee + bezel + hint around a
+            letterboxed 16:9 screen.
+         2. Phone landscape: the chrome is gone, black ground, the screen fills
+            the viewport (letterboxed to 16:9, centred).
+         3. Phone portrait (≤900 px wide): the #rotate overlay covers everything
+            and asks for landscape. */
       :root { color-scheme: dark; }
       html, body {
         margin: 0; height: 100%;
-        background: #0b0b0f;
+        background: #000;
         font-family: ui-monospace, "SF Mono", Menlo, monospace;
         overflow: hidden;
+        /* The page IS a game surface: no pan/zoom gestures, no rubber-banding,
+           no text selection, no long-press callout. */
+        touch-action: none;
+        overscroll-behavior: none;
+        -webkit-user-select: none; user-select: none;
+        -webkit-touch-callout: none;
       }
-      /* Arcade cabinet chrome around the screen. */
+      /* State 2 is the base: nothing but the screen. dvh (where supported)
+         tracks the phone's collapsing browser bar; vh is the fallback. */
       #cabinet {
-        height: 100%;
+        height: 100vh; height: 100dvh;
         display: flex; flex-direction: column;
         align-items: center; justify-content: center;
-        gap: 14px;
-        padding: 20px; box-sizing: border-box;
+        gap: 0; padding: 0; box-sizing: border-box;
       }
-      #marquee {
-        color: #ffec27; letter-spacing: 0.35em; font-size: 13px;
-        text-transform: uppercase; text-shadow: 0 0 8px rgba(255,236,39,0.5);
-        user-select: none;
-      }
-      #bezel {
-        padding: 18px; border-radius: 18px;
-        background: linear-gradient(160deg, #23232c, #131318);
-        box-shadow: inset 0 0 0 2px #34343f, 0 20px 60px rgba(0,0,0,0.6);
-        max-width: 100%; max-height: 82vh;
-      }
+      #marquee, #hint { display: none; }
+      #bezel { padding: 0; }
       /* The game module creates <canvas> and appends it here. */
-      #screen {
-        display: block; border-radius: 8px; overflow: hidden;
-        background: #000; line-height: 0;
-      }
+      #screen { display: block; background: #000; line-height: 0; }
+      /* An HD 16:9 frame. It scales SMOOTH — the pixelated plane lives inside
+         the frame — and the width formula keeps it inside both 100vw and 100vh
+         at its own ratio, so the max-* clamps never squash it. object-fit keeps
+         a bitmap of any other ratio (the v2 game) letterboxed, not stretched. */
       #screen canvas {
-        display: block; image-rendering: pixelated;
-        max-width: 100%; height: auto;
+        display: block; image-rendering: auto; object-fit: contain;
+        touch-action: none; outline: none;
+        width: min(100vw, calc(100vh * 16 / 9)); width: min(100dvw, calc(100dvh * 16 / 9));
+        height: auto; aspect-ratio: 16 / 9;
+        max-width: 100vw; max-height: 100vh;
       }
-      #hint {
-        color: #5f574f; font-size: 11px; letter-spacing: 0.1em; user-select: none;
+
+      /* State 1: the arcade cabinet, only where it has room. */
+      @media (min-width: 1100px) and (min-height: 700px) {
+        html, body { background: #0b0b0f; }
+        #cabinet { gap: 14px; padding: 20px; }
+        #marquee {
+          display: block;
+          color: #ffec27; letter-spacing: 0.35em; font-size: 13px;
+          text-transform: uppercase; text-shadow: 0 0 8px rgba(255,236,39,0.5);
+        }
+        #bezel {
+          padding: 18px; border-radius: 18px;
+          background: linear-gradient(160deg, #23232c, #131318);
+          box-shadow: inset 0 0 0 2px #34343f, 0 20px 60px rgba(0,0,0,0.6);
+        }
+        #screen { border-radius: 8px; overflow: hidden; }
+        /* Leave room for the chrome: 2 × (20 cabinet + 18 bezel) across,
+           marquee + hint + gaps + padding (~150 px) down. */
+        #screen canvas { width: min(100vw - 76px, calc((100vh - 150px) * 16 / 9)); }
+        #hint { display: block; color: #5f574f; font-size: 11px; letter-spacing: 0.1em; }
+      }
+
+      /* State 3: a phone held upright — the game is landscape only. */
+      #rotate {
+        display: none; position: fixed; inset: 0; z-index: 10;
+        background: #0b0b0f; color: #ffec27;
+        flex-direction: column; align-items: center; justify-content: center; gap: 26px;
+        font-size: 13px; letter-spacing: 0.25em; text-transform: uppercase; text-align: center;
+      }
+      /* A phone outline that turns on its side and back: the whole message. */
+      #rotate .phone {
+        width: 30px; height: 54px; box-sizing: border-box;
+        border: 3px solid #ffec27; border-radius: 6px;
+        box-shadow: inset 0 -6px 0 -3px #ffec27;
+        animation: rotate-phone 2.4s ease-in-out infinite;
+      }
+      @keyframes rotate-phone {
+        0%, 20% { transform: rotate(0deg); }
+        55%, 80% { transform: rotate(-90deg); }
+        100% { transform: rotate(0deg); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #rotate .phone { animation: none; transform: rotate(-90deg); }
+      }
+      @media (orientation: portrait) and (max-width: 900px) {
+        #rotate { display: flex; }
       }
     </style>
   </head>
   <body>
     <div id="cabinet">
-      <div id="marquee">▚ Retrovibe</div>
+      <div id="marquee">▚ Ember Quest</div>
       <div id="bezel"><div id="screen"></div></div>
       <div id="hint">click the screen &amp; press a key to start</div>
     </div>
+    <div id="rotate"><div class="phone"></div><div>rotate to landscape</div></div>
+    <script>
+      // Fullscreen on the first tap, small screens only. Capture phase so the
+      // gesture is still fresh; once, so a desktop click never asks. iOS Safari
+      // has no requestFullscreen — that is expected and swallowed, never fatal.
+      (function () {
+        document.addEventListener(
+          'pointerdown',
+          function () {
+            try {
+              if (!window.matchMedia('(max-width: 900px)').matches) return;
+              var el = document.documentElement;
+              if (typeof el.requestFullscreen !== 'function') return;
+              var pending = el.requestFullscreen({ navigationUI: 'hide' });
+              if (pending && typeof pending.catch === 'function') pending.catch(function () {});
+            } catch (e) {
+              /* no fullscreen here — the game runs in the page as it is */
+            }
+          },
+          { once: true, capture: true }
+        );
+      })();
+    </script>
     <script type="module" src="/game/main.ts"></script>
   </body>
 </html>

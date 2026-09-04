@@ -6,6 +6,8 @@ export type { GameLoop, LoopCallbacks, LoopOptions } from './loop';
 
 export { createInput, controlHints, BUTTON_KEY } from './input';
 export type { Input, InputOptions, ButtonName, ActionDecl } from './input';
+export { createHitRegions, pointerHints, TAP_MIN } from './input';
+export type { HitRegions, HitRegionOptions, PointerState } from './input';
 
 export { createScenes } from './scenes';
 export type { SceneMachine, Scene } from './scenes';
