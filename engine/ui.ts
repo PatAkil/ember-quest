@@ -10,8 +10,8 @@
 //     overlay reads as a layer above the game instead of fighting it.
 // Both are switchable per call: `{ shadow: false }`, `{ plate: false }`.
 
-import type { PixelCanvas } from './draw';
-import { drawText, textWidth } from './draw';
+import type { BitmapFont, PixelCanvas } from './draw';
+import { FONT_RETRO, drawText, textWidth } from './draw';
 
 /** Logical-pixel inset all HUD elements keep from the screen edge. */
 export const SAFE_MARGIN = 8;
@@ -19,6 +19,8 @@ export const SAFE_MARGIN = 8;
 export interface HudOptions {
   color?: string;
   scale?: number;
+  /** Face to draw with (default FONT_RETRO; the 720p HUD passes FONT_HD). */
+  font?: BitmapFont;
   /** 1-px drop shadow under the glyphs. Default ON for all HUD helpers. */
   shadow?: boolean | string;
   /**
@@ -99,6 +101,7 @@ export function drawScore(pc: PixelCanvas, score: number, opts: HudOptions = {})
   drawText(pc.ctx, `SCORE ${score}`, SAFE_MARGIN, SAFE_MARGIN, {
     color: opts.color ?? '#FFF1E8',
     scale: opts.scale ?? 1,
+    font: opts.font,
     shadow: opts.shadow ?? true,
   });
 }
@@ -107,10 +110,11 @@ export function drawScore(pc: PixelCanvas, score: number, opts: HudOptions = {})
 export function drawLives(pc: PixelCanvas, lives: number, opts: HudOptions = {}): void {
   const scale = opts.scale ?? 1;
   const text = `LIVES ${lives}`;
-  const x = pc.width - SAFE_MARGIN - textWidth(text, scale);
+  const x = pc.width - SAFE_MARGIN - textWidth(text, scale, 1, opts.font);
   drawText(pc.ctx, text, x, SAFE_MARGIN, {
     color: opts.color ?? '#FFF1E8',
     scale,
+    font: opts.font,
     shadow: opts.shadow ?? true,
   });
 }
@@ -131,8 +135,8 @@ export function hudText(
   opts: HudOptions = {},
 ): void {
   const scale = opts.scale ?? 1;
-  const w = textWidth(text, scale);
-  const glyphH = 5 * scale;
+  const w = textWidth(text, scale, 1, opts.font);
+  const glyphH = (opts.font ?? FONT_RETRO).glyphH * scale;
   let x: number;
   if (h === 'left') x = SAFE_MARGIN;
   else if (h === 'right') x = pc.width - SAFE_MARGIN - w;
@@ -153,6 +157,7 @@ export function hudText(
   drawText(pc.ctx, text, x, y, {
     color: opts.color ?? '#FFF1E8',
     scale,
+    font: opts.font,
     shadow: opts.shadow ?? true,
   });
 }

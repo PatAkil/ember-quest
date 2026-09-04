@@ -41,6 +41,8 @@ export type {
   DitherPattern,
   LogoOptions,
 } from './draw';
+export { FONT_RETRO, FONT_HD, bakeSprite, drawBaked, tintSprite } from './draw';
+export type { BitmapFont, DrawBakedOptions } from './draw';
 
 export { PICO8, GAMEBOY, DUSK, NEON, SUNSET, OCEAN, PALETTES, swapPalette, contrast } from './palette';
 export type { Palette } from './palette';
