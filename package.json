@@ -1,0 +1,18 @@
+{
+  "name": "ember-quest",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Ember Quest — a roguelike JRPG built with Retrovibe (TypeScript + Canvas 2D).",
+  "scripts": {
+    "dev": "vite",
+    "check": "tsc --noEmit",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "typescript": "5.9.3",
+    "vite": "7.3.6"
+  }
+}
