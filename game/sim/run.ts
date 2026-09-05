@@ -30,7 +30,7 @@ import { createBattle, isOver, matchup, nextReady, runTurn, spawnPack, battleOut
 import type { ActFn, ActPolicy, Battle, BattleCtx, BattleEvent } from './battle';
 import {
   cardCount, compare, derive, equip, forge, forgeOptions, isCapped, mainsWorn, partyWorn,
-  rebrandSets, relicLevels, rollCards, rollRelic, rollSetPool, setsWorn, sharpenCandidates, sharpenMember, wornRelics,
+  rebrandSets, refitHp, relicLevels, rollCards, rollRelic, rollSetPool, setsWorn, sharpenCandidates, sharpenMember, wornRelics,
 } from './relics';
 import type { DeriveCtx, ForgeCtx, ForgeChoice, RollCtx } from './relics';
 
@@ -197,7 +197,9 @@ function resolveBoss(ctx: Ctx, biome: Biome): RoomOutcome {
 
 // ========================================================== non-battle rooms ==
 /** REST: full party heal, or +1 on up to SHARPEN_RELICS uncapped relics one member wears (relics.ts's own
- * `sharpenMember`/`sharpenCandidates`); an illegal sharpen answer decides HEAL. */
+ * `sharpenMember`/`sharpenCandidates`); an illegal sharpen answer decides HEAL. A level-up is one of
+ * Derivation's maxHp-changing triggers (an HP-main relic on the sharpened member), so hp is re-fit around it
+ * exactly like `equip`/`unequip` do — capture the pre-sharpen max, then `refitHp` after. */
 function resolveRest(ctx: Ctx): void {
   const dctx = deriveCtxFor(ctx);
   const answer = ctx.policy.rest(runStateFor(ctx), ctx.rng);
@@ -205,7 +207,10 @@ function resolveRest(ctx: Ctx): void {
   const legalSharpen = typeof answer === 'object' && answer !== null &&
     Number.isInteger(answer.sharpen) && candidates.includes(answer.sharpen);
   if (legalSharpen && typeof answer === 'object') {
-    sharpenMember(ctx.party.members[answer.sharpen], { ascension: ctx.ascension }, ctx.rng);
+    const member = ctx.party.members[answer.sharpen];
+    const maxOld = derive(member, dctx).HP;
+    sharpenMember(member, { ascension: ctx.ascension }, ctx.rng);
+    refitHp(member, maxOld, dctx);
     ctx.rests.push('SHARPEN');
   } else {
     for (const m of ctx.party.members) fullHeal(m, dctx);
@@ -218,17 +223,29 @@ function resolveLoot(ctx: Ctx): void {
   resolveRelicCards(ctx, cards);
 }
 /** SHRINE: one pact drawn uniformly among untaken ones; accept (curse + boon, rest of run) or walk past (no
- * mend either way) — a FORGE when none remain untaken. */
+ * mend either way) — a FORGE when none remain untaken. A taken pact is one of Derivation's maxHp-changing
+ * triggers only for SCHISM (LEADER_OFF/LEADER_SELF re-route every member's leader-skill context the instant
+ * it's taken), but the refit runs for any taken pact — a no-op for the other five, which never touch HP. */
 function resolveShrine(ctx: Ctx): void {
   const untaken = PACT_IDS.filter((id) => !ctx.pactsTaken.includes(id));
   if (untaken.length === 0) { resolveForge(ctx); return; }
   const id = untaken[pick(untaken.length, ctx.rng)];
   const taken = ctx.policy.shrine(PACTS[id], runStateFor(ctx), ctx.rng);
   ctx.shrines.push({ pact: id, taken });
-  if (taken) ctx.pactsTaken.push(id);
+  if (taken) {
+    const dctxBefore = deriveCtxFor(ctx);
+    const maxOld = ctx.party.members.map((m) => derive(m, dctxBefore).HP);
+    ctx.pactsTaken.push(id);
+    const dctxAfter = deriveCtxFor(ctx);
+    ctx.party.members.forEach((m, i) => refitHp(m, maxOld[i], dctxAfter));
+  }
 }
 /** FORGE: LEVEL (uncapped only) / RECAST / REBRAND on any worn relic; walking past (or an illegal answer) does
- * nothing; a FORGE with nothing to offer is skipped. relics.ts's `forge()` re-validates the choice itself. */
+ * nothing; a FORGE with nothing to offer is skipped. relics.ts's `forge()` re-validates the choice itself.
+ * LEVEL is one of Derivation's maxHp-changing triggers (an HP-main relic on its wearer) — `forge()` only
+ * mutates the bare `Relic`, so this call site (the one place that still knows the owning member) captures the
+ * pre-forge max and `refitHp`s it after, same as `equip`/`unequip`; harmless no-op for RECAST/REBRAND or a
+ * relic that never touches HP, since `refitHp` only moves hp when the derived max actually changed. */
 function resolveForge(ctx: Ctx): void {
   const worn = partyWorn(ctx.party);
   if (forgeOptions(worn, ctx.pactsTaken).length === 0) return;
@@ -236,7 +253,12 @@ function resolveForge(ctx: Ctx): void {
   if (!answer || !Number.isInteger(answer.relic) || answer.relic < 0 || answer.relic >= worn.length) return;
   const fctx: ForgeCtx = { ascension: ctx.ascension, pool: ctx.pool, pacts: ctx.pactsTaken };
   const choice: ForgeChoice = { mode: answer.mode, substat: answer.substat, set: answer.set };
-  forge(worn[answer.relic], choice, fctx, ctx.rng);
+  const relic = worn[answer.relic];
+  const owner = ctx.party.members.find((m) => wornRelics(m).includes(relic));
+  const dctx = deriveCtxFor(ctx);
+  const maxOld = owner ? derive(owner, dctx).HP : 0;
+  const applied = forge(relic, choice, fctx, ctx.rng);
+  if (applied && owner) refitHp(owner, maxOld, dctx);
 }
 /** SUMMON: rolled regardless of party size. Under three, a plain recruit index (declining mends nothing, ever).
  * At three: 0 = an EPIC card (levelled as a FIGHT card — rollRelic('SUMMON', ...) already does this), or a
@@ -269,11 +291,19 @@ function resolveSummon(ctx: Ctx, stage: number | undefined): void {
   const outMaxHp = derive(outgoing, dctx).HP;
   const fraction = outMaxHp > 0 ? outgoing.hp / outMaxHp : 0;
   const wasLeader = ctx.party.leader === out;
+  // `leader` is one of Derivation's maxHp-changing triggers: if the outgoing member held the seat, the moment
+  // its slot holds `incoming` instead the seat's LeaderSkill identity changes too (party.leader, an index, is
+  // untouched, but party.members[party.leader] is now a different character) — every OTHER member's derived
+  // maxHp moves with it. Captured before the slot is touched; refit after `incoming` settles in.
+  const others = wasLeader ? ctx.party.members.filter((_, i) => i !== out) : [];
+  const othersMaxOld = others.map((m) => derive(m, dctx).HP);
   const incoming: PartyMember = { def: offers[swap].def, hp: 0, relics: outgoing.relics, awakened: false };
   if (outgoing.awakened) { applyAwaken(incoming); ctx.awakenedLog.push(incoming.def.id); }
   ctx.party.members[out] = incoming;
-  incoming.hp = SWAP_FRESH ? derive(incoming, dctx).HP : Math.round(fraction * derive(incoming, dctx).HP);
-  if (wasLeader) ctx.party.leader = out;
+  if (wasLeader) ctx.party.leader = out; // a no-op on the index (already `out`) but marks the seat's occupant changed
+  const dctxForIncoming = wasLeader ? deriveCtxFor(ctx) : dctx; // incoming's own leader skill, if any, now applies to itself
+  incoming.hp = SWAP_FRESH ? derive(incoming, dctxForIncoming).HP : Math.round(fraction * derive(incoming, dctxForIncoming).HP);
+  others.forEach((m, i) => refitHp(m, othersMaxOld[i], dctxForIncoming));
   ctx.swaps += 1;
 }
 /** ALTAR: awaken one un-awakened member; a FORGE when none remain (later laps). An illegal answer falls to the
@@ -639,6 +669,13 @@ export function simulateRun(config: RunConfig, policy: Policy, rng: Rng): RunRes
     party.members.push(recruit);
   }
   party.leader = clampIdx(policy.leader(party, rng), party.members.length);
+  // `leader` is one of Derivation's maxHp-changing triggers: for any policy whose `leader()` doesn't just
+  // echo back index 0 (RANDOM's uniform pick, SPEED's GALE-seeking, MONO's elemental search), the seat can
+  // land on a member other than the one both fullHeals above assumed, re-pointing every member's leader-skill
+  // context. No battle has run yet, so every member is still exactly at their (possibly now-stale) max — a
+  // fresh fullHeal against the finalized leader is exact, not merely a refit that happens to agree here.
+  const dctxAfterOpeningLeader = deriveCtxFor(ctx);
+  for (const m of party.members) fullHeal(m, dctxAfterOpeningLeader);
 
   let won = false;
   let deathKind: '' | 'WIPE' | 'STALL' = '';
@@ -688,12 +725,14 @@ export function simulateRun(config: RunConfig, policy: Policy, rng: Rng): RunRes
 // =================================================== fresh members & heal ==
 /**
  * `RunConfig.spdDelta` baked into a cloned CharacterDef's base SPD, rather than threaded through `DeriveCtx`
- * (relics.ts's own mechanism for it): `sim/battle.ts`'s `createBattle` calls `buildHeroes(party, pacts)` without
- * forwarding a third `spdDelta` argument even though `buildHeroes`/`buildHeroActor` both accept one, so a value
- * placed only in `DeriveCtx.spdDelta` would apply to this file's own scoring but never reach an actual battle
- * Actor. Baking it into `base.spd` instead reaches `derive()` identically everywhere (its formula is `def.base.spd
- * + (ctx.spdDelta ?? 0)` — the same addition either way) and needs no change in a file this phase does not own.
- * See this file's Contract notes.
+ * (relics.ts's own mechanism for it) or `sim/battle.ts`'s `BattleCtx.spdDelta` (which `createBattle` now does
+ * forward into `buildHeroes` — phase 8 closed that gap for the `--battles` fixture path, which has no
+ * `RunConfig` of its own to bake a delta into). A full run still bakes it here instead of also setting
+ * `BattleCtx.spdDelta` on every `runRoomBattle` call: every member's own `def.base.spd` already carries it via
+ * this function, so setting `ctx.spdDelta` too on top would add it a second time (`derive()`'s formula is
+ * `def.base.spd + (ctx.spdDelta ?? 0)` — additive, not idempotent). Baking it into `base.spd` also reaches every
+ * plain `derive()` call this file itself makes outside a battle (e.g. `compare`'s SPD-weighted scoring)
+ * identically to a real battle Actor's, which a `BattleCtx`-only placement would not.
  */
 function withSpdDelta(id: string, spdDelta?: number): CharacterDef {
   const def = CHARACTERS[id];

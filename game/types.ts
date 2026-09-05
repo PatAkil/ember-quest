@@ -44,7 +44,7 @@ export type Matchup = 'ADVANTAGE' | 'NEUTRAL' | 'DISADVANTAGE';
  * from its matchup — only the GLANCE debuff makes it glance, at the neutral rate.
  */
 export const ELEMENT_CRIT = 15;
-export const ELEMENT_CRIT_LD = 15;
+export const ELEMENT_CRIT_LD = 10;
 export const GLANCE_CHANCE = 0.5;
 export const GLANCE_MULT = 0.7;
 /** The GLANCE debuff's glance chance per matchup for the holder's hits. */
@@ -373,7 +373,7 @@ export const PITY_AFTER = 2;
 /** Declining every card mends the party this fraction of max HP. */
 export const SKIP_MEND = 0.15;
 /** balanced.rest heals when any living member is below this fraction, else sharpens. */
-export const REST_HEAL_AT = 0.5;
+export const REST_HEAL_AT = 0.3;
 /** REST sharpen: +1 on up to this many uncapped relics one member wears, slot order (phase 8's lever). */
 export const SHARPEN_RELICS = 6;
 /** balanced.route enters an ELITE only while every member is at or above this fraction. */

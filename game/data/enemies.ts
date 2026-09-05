@@ -139,7 +139,7 @@ export const BIOMES: Biome[] = [
       ['CINDER_IMP', 'CRYPT_WARDEN', 'ASH_HOUND'],
       ['DUST_WRAITH', 'CRYPT_WARDEN', 'CINDER_IMP'],
     ],
-    elites: [['PYRE_KNIGHT'], ['PYRE_KNIGHT', 'CINDER_IMP']],
+    elites: [['PYRE_KNIGHT', 'ASH_HOUND'], ['PYRE_KNIGHT', 'CINDER_IMP']],
     boss: 'HOLLOW_KING',
   },
   {
@@ -151,7 +151,7 @@ export const BIOMES: Biome[] = [
       ['BOG_TOAD', 'MARSH_HAG', 'FEN_FIRE'],
       ['FROST_WISP', 'MARSH_HAG', 'SILT_CRAB'],
     ],
-    elites: [['DROWNED_KNIGHT'], ['DROWNED_KNIGHT', 'FROST_WISP']],
+    elites: [['DROWNED_KNIGHT', 'BOG_TOAD'], ['DROWNED_KNIGHT', 'FROST_WISP']],
     boss: 'PALE_SAINT',
   },
   {
@@ -217,13 +217,13 @@ export const BIOME_PLAN: readonly { name: string; dominant: Biome['dominant']; f
 // --- Scale ------------------------------------------------------------------------
 /** Per act (index 0 = act 1). HP grows slower than ATK because enemy DEF ×3 already eats hero damage growth. */
 export const ACT_MULT = {
-  hp: [1, 1.16, 1.4, 1.64, 1.88, 2.16],
-  atk: [1, 1.2, 1.57, 2.0, 2.4, 2.83],
-  def: [1, 1.27, 1.6, 2.0, 2.47, 3.0],
+  hp: [1.15, 1.68, 1.4, 1.64, 1.88, 2.16],
+  atk: [1.1, 1.6, 1.57, 2.0, 2.4, 2.83],
+  def: [1.08, 1.45, 1.6, 2.0, 2.47, 3.0],
 } as const;
 /** Boss HP is authored per act rather than derived. */
-export const BOSS_HP: readonly number[] = [4700, 5800, 8000, 10000, 12000, 14000];
-export const ELITE_MULT = { hp: 2.5, atk: 1.35, def: 1.25, spd: 5 } as const;
+export const BOSS_HP: readonly number[] = [4700, 5800, 5000, 8500, 8600, 10600];
+export const ELITE_MULT = { hp: 1.9, atk: 2.2, def: 1.25, spd: 5 } as const;
 /** Bosses take HP from BOSS_HP; the multipliers cover the rest. */
 export const BOSS_MULT = { hp: 1, atk: 1.7, def: 1.6, spd: 10 } as const;
 export const KIND_MULT: Record<EnemyKind, { hp: number; atk: number; def: number; spd: number }> = {
@@ -232,4 +232,4 @@ export const KIND_MULT: Record<EnemyKind, { hp: number; atk: number; def: number
   BOSS: BOSS_MULT,
 };
 /** Per lap, compounding, on top of the run's ascension. */
-export const LAP_MULT = { hp: 1.5, atk: 1.5, def: 1.2 } as const;
+export const LAP_MULT = { hp: 2.7, atk: 2.5, def: 2.1 } as const;

@@ -49,7 +49,7 @@ export const CHARACTERS: Record<string, CharacterDef> = {
     base: { hp: 2500, atk: 320, def: 120, spd: 100 },
     skills: ['LANCE', 'RADIANCE', 'JUDGEMENT'],
     awakening: { name: 'Verdict', upgrades: { slot: 2, to: 'JUDGEMENT_REFUND' } },
-    leader: { stat: 'CRIT', amount: 15 },
+    leader: { stat: 'CRIT', amount: 35 },
   },
 };
 

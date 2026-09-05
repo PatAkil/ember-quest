@@ -171,7 +171,7 @@ FIRE ▸ WIND ▸ WATER ▸ FIRE, and LIGHT ⇄ DARK mutually.
 
 | Matchup | Crit chance | Glance chance |
 |---|---|---|
-| advantage (the triangle's winner; LIGHT vs DARK either way) | +`ELEMENT_CRIT = 15` pts (`ELEMENT_CRIT_LD = 15` for the LIGHT ⇄ DARK pair) | 0 |
+| advantage (the triangle's winner; LIGHT vs DARK either way) | +`ELEMENT_CRIT = 15` pts (`ELEMENT_CRIT_LD = 10` for the LIGHT ⇄ DARK pair) | 0 |
 | neutral (LIGHT or DARK against the triangle, or against its own element) | — | 0 |
 | disadvantage (the triangle's loser only) | — | `GLANCE_CHANCE = 0.50` |
 
@@ -422,7 +422,7 @@ EnemyId[][]`, `boss`); on entry a room draws uniformly among packs of width ≤
 `members + 1`; the pack shape rules are `validateData`'s.
 
 **Scale.** `KIND_MULT = { NORMAL: { hp 1, atk 1, def 1, spd 0, res 0 },
-ELITE: { hp 2.5, atk 1.35, def 1.25, spd 5, res 10 }, BOSS: { hp —, atk 1.7,
+ELITE: { hp 1.9, atk 2.2, def 1.25, spd 5, res 10 }, BOSS: { hp —, atk 1.7,
 def 1.6, spd 10, res 20 } }` (the layout's `ELITE_MULT` / `BOSS_MULT`; in code the `res` column is
 `ENEMY_RES_KIND` beside `KIND_MULT`). `hp =
 round(base.hp × ACT_MULT.hp × KIND_MULT.hp × (1 + 0.10 A) × LAP_MULT.hp^(lap−1)
@@ -430,30 +430,47 @@ round(base.hp × ACT_MULT.hp × KIND_MULT.hp × (1 + 0.10 A) × LAP_MULT.hp^(lap
 KIND_MULT.hp` is replaced by `BOSS_HP[act − 1]`; `atk` the same with its own
 columns and `× (FURY ? 1.15 : 1)` inside the round; `def` the same without
 the A, CLEAR and FURY terms; `spd = round((base + 3(act−1) + KIND_MULT.spd +
-5(lap−1)) × (A ≥ 7 ? 1.08 : 1) × (HASTE ? 1.1 : 1))`; `RES = (pts.RES ?? 15)
+5(lap−1)) × (A ≥ 7 ? 1.08 : 1) × (HASTE ? 1.06 : 1))`; `RES = (pts.RES ?? 15)
 + 3(act−1) + KIND_MULT.res + 5 × max(0, A − 1)`, plus `WILL_RES` for an A10
 boss. `CLEAR_GROWTH = 0.03` counts FIGHT and ELITE clears, resets per act,
 and the boss carries the act's final count. On laps `ACT_MULT`, the biome,
 the landmark and the clear counter read the lap's act; `LOOT_WEIGHTS` and
 `DROP_LEVEL` read the act-6 row.
 
+**Invariant, written down so a future ELITE win-rate pass doesn't
+re-discover it the hard way (phase 8, 2026-09-05): an elite's scaled HP must
+stay at or below 0.75× the same act's `BOSS_HP`.** `KIND_MULT.ELITE.hp` at
+6.1 satisfied the ELITE-win-rate guard (DESIGN.md → Difficulty targets)
+while quietly putting elite HP above its own act's boss in all six acts
+(2.2× at act 2) — a first-act elite outlasting its own boss in actor turns.
+If the ELITE win rate needs another pass, reach for `ELITE_MULT.atk`/`def`,
+`ENEMY_RES_KIND.ELITE`, `ELITE_ENTER_AT`, or the pack shape (a second body)
+before `ELITE_MULT.hp` — the win-rate guard bends far more to "deadlier"
+than to "spongier" (§ Balance state has the numbers). A second, matching
+intent: **an act's elite fight should run no longer than that act's boss
+fight** (`--battles` reports actor turns per pack; check the elite rows
+against the `BOSS` row of the same act before calling an ELITE_MULT change
+done).
+
 | Act | NORMAL hp / atk / def / spd (base 1250 / 300 / 150 / 95 through the formula) | ELITE | BOSS (`BOSS_HP` authored) |
 |---|---|---|---|
-| 1 | 1250 / 300 / 150 / 95 | 3125 / 405 / 188 / 100 | 4700 / 510 / 240 / 105 |
-| 2 | 1450 / 360 / 191 / 98 | 3625 / 486 / 238 / 103 | 5800 / 612 / 305 / 108 |
-| 3 | 1750 / 471 / 240 / 101 | 4375 / 636 / 300 / 106 | 8000 / 801 / 384 / 111 |
-| 4 | 2050 / 600 / 300 / 104 | 5125 / 810 / 375 / 109 | 10000 / 1020 / 480 / 114 |
-| 5 | 2350 / 720 / 371 / 107 | 5875 / 972 / 463 / 112 | 12000 / 1224 / 593 / 117 |
-| 6 | 2700 / 849 / 450 / 110 | 6750 / 1146 / 563 / 115 | 14000 / 1443 / 720 / 120 |
+| 1 | 1438 / 330 / 162 / 95 | 2731 / 726 / 203 / 100 | 4700 / 561 / 259 / 105 |
+| 2 | 2100 / 480 / 218 / 98 | 3990 / 1056 / 272 / 103 | 5800 / 816 / 348 / 108 |
+| 3 | 1750 / 471 / 240 / 101 | 3325 / 1036 / 300 / 106 | 5000 / 801 / 384 / 111 |
+| 4 | 2050 / 600 / 300 / 104 | 3895 / 1320 / 375 / 109 | 8500 / 1020 / 480 / 114 |
+| 5 | 2350 / 720 / 371 / 107 | 4465 / 1584 / 463 / 112 | 8600 / 1224 / 593 / 117 |
+| 6 | 2700 / 849 / 450 / 110 | 5130 / 1868 / 563 / 115 | 10600 / 1443 / 720 / 120 |
 
-`ACT_MULT = { hp: [1, 1.16, 1.40, 1.64, 1.88, 2.16], atk: [1, 1.20, 1.57,
-2.00, 2.40, 2.83], def: [1, 1.27, 1.60, 2.00, 2.47, 3.00] }`, `LAP_MULT = {
-hp 1.5, atk 1.5, def 1.2 }`. The reference party for every paper estimate in
+`ACT_MULT = { hp: [1.15, 1.68, 1.40, 1.64, 1.88, 2.16], atk: [1.10, 1.60, 1.57,
+2.00, 2.40, 2.83], def: [1.08, 1.45, 1.60, 2.00, 2.47, 3.00] }`, `LAP_MULT = {
+hp 2.7, atk 2.5, def 2.1 }`. The reference party for every paper estimate in
 this document is the expected-gear `balanced` party: at act 6 a mid hero of
 HP 4650 · ATK 394 · DEF 284 · SPD 167 · CRIT 42 · CDMG 57 · ACC 38, which
-kills an act-1 normal in ≈ 5 actions and dies in ≈ 12 hits, kills an act-6
-normal in ≈ 7, and takes ≈ 46 actions on the act-6 boss (27 with an ATK
-leader and DEF_BREAK up), at a kit-average skill multiplier of 1.4 per action.
+kills an act-1 normal in ≈ 6 actions and dies in ≈ 11 hits (act 1's own
+`ACT_MULT` row moved 1.00/1.00/1.00 → 1.15/1.10/1.08 in phase 8), kills an
+act-6 normal in ≈ 7, and takes ≈ 35 actions on the act-6 boss (20 with an ATK
+leader and DEF_BREAK up — `BOSS_HP[5]` moved 14000 → 10600), at a
+kit-average skill multiplier of 1.4 per action.
 
 **Biomes.** Each has a dominant element (two thirds of its pool) and a foil;
 bosses alternate DARK and LIGHT. Names ≤ 12.
@@ -647,7 +664,7 @@ lowers every top by 1):
 
 **Levels come from three places.** Drops arrive **pre-levelled by act**:
 level = uniform integer in `DROP_LEVEL = [[0,1], [0,2], [1,3], [2,4], [3,5],
-[4,6]][lap > 1 ? 5 : act − 1]`, +1 for an ELITE or BOSS card, +1 more for an
+[4,6]][lap > 1 ? 5 : act − 1]`, +1 for an ELITE or BOSS card, +2 more for an
 EPIC under VEIL, then `min(level, cap)` (6; LEGENDARY 4). FORGE adds +2 and
 REST's *sharpen* +1, each firing the events of every threshold crossed,
 never past the cap; only uncapped relics are offered for either.
@@ -748,7 +765,7 @@ phase 8's.
 | TIDE | WATER | healer | Ripple ATK ×0.9, leech 0.20 / Tidepool LOWEST_HP_ALLY heal 0.18 (3) / Undertow ALL_ALLIES heal 0.10 + cleanse all (5) | Undertow also grants IMMUNITY 1 | HP +20 %, WATER +30 % |
 | BASALT | FIRE | DEF wall | Bash DEF ×1.2 / Bulwark SELF DEF_UP + COUNTER (3) / Quake ALL_ENEMIES DEF ×1.0 + DEF_BREAK 0.50 (5) | Bulwark also shields the party 0.20 (`target: ALL_ALLIES`) | DEF +25 % |
 | SABLE | DARK | ACC debuffer | Hex ATK ×0.8 + ATK_BREAK 0.75 / Mire ALL_ENEMIES SLOW + HEAL_BLOCK 0.50 (3) / Eclipse ATK ×1.2 + STUN 0.75 + SILENCE 0.75 (5) | Hex extends every debuff on the target by 1 turn | ACC +20 |
-| LUMEN | LIGHT | crit sniper | Lance ATK ×1.4 / Radiance SELF CRIT_UP + ATK_UP (3) / Judgement ATK ×3.5, ×1.5 vs DEF_BREAK (5) | a Judgement kill refunds its cooldown | CRIT +15 |
+| LUMEN | LIGHT | crit sniper | Lance ATK ×1.4 / Radiance SELF CRIT_UP + ATK_UP (3) / Judgement ATK ×3.5, ×1.5 vs DEF_BREAK (5) | a Judgement kill refunds its cooldown | CRIT +35 |
 
 Flare first, Inferno second, Cinder to focus the support: one of skills 2–3
 per character is situational, which is what keeps a turn from collapsing into
@@ -841,10 +858,10 @@ pacts stack across the run):
 
 | Id | Curse (rest of run) | Boon (rest of run) |
 |---|---|---|
-| HASTE | enemies +10 % SPD | +1 card on every relic screen |
+| HASTE | enemies +6 % SPD | +1 card on every relic screen |
 | FURY | enemies +15 % ATK | party ATK +15 % |
-| VEIL | bosses INVINCIBLE 1 at battle start and, once per battle, between steps 5 and 6 of the first boss turn entered with `hp < round(0.5 × maxHp)` (a BURN crossing at step 2 counts, a stunned turn counts) | every EPIC drops +1 |
-| BLIND | party RES −20 | party ACC +25 |
+| VEIL | bosses INVINCIBLE 1 at battle start and, once per battle, between steps 5 and 6 of the first boss turn entered with `hp < round(0.5 × maxHp)` (a BURN crossing at step 2 counts, a stunned turn counts) | every EPIC drops +2 |
+| BLIND | party RES −30 | party ACC +10 |
 | SCHISM | no leader skill (FOCUS still aims at the leader) | each member's own leader skill applies to that member only, at half, unrounded |
 | DEARTH | one fewer card on every relic screen (min 1) | FORGE gives +4 |
 
@@ -934,8 +951,8 @@ in ≥ 5 % of some policy's wins (`leader`); a pact whose takers (runs with it
 `taken` in `shrines`) clear act 6 more than 5 points apart from its
 decliners (offered it, not taken) is re-priced — the harness prints one
 `pact · takers % · decliners % · Δ` row per id; `balanced` answers HEAL in
-25–60 % of its RESTs — outside that band, phase 8 moves `REST_HEAL_AT` (0.50
-→ 0.60 raises it); `balanced` wins 75–90 % of the ELITEs it enters (`rooms`
+25–60 % of its RESTs — outside that band, phase 8 moves `REST_HEAL_AT` (0.30
+→ 0.40 raises it); `balanced` wins 75–90 % of the ELITEs it enters (`rooms`
 in visit order; a lost run whose last room is ELITE lost it) — below 75 %
 phase 8 lowers `KIND_MULT.ELITE.hp`, above 90 % raises it; `swaps ≥ 1` in
 ≥ 5 % of some policy's wins — below that phase 8 sets `SWAP_FRESH = true`
@@ -999,7 +1016,7 @@ Policy roster: **random** · **balanced** (`relic` takes the highest
 pGlance) × (pCrit × (1 + cdmg / 100) + 1 − pCrit))`, both probabilities from
 the damage block — preferring a heal that reaches the lowest ally when any
 ally is below 40 %, ties lowest index; `rest`: HEAL when any living member is
-below `REST_HEAL_AT = 0.50`, else sharpen the member with the most uncapped
+below `REST_HEAL_AT = 0.30`, else sharpen the member with the most uncapped
 relics, tie lowest index; `shrine`: 50/50; `route`: REST when any member is
 below `REST_HEAL_AT`, else the first present of ELITE (only while every
 member is ≥ `ELITE_ENTER_AT = 0.60`), LOOT, SHRINE, FORGE, SUMMON, FIGHT,
@@ -1237,20 +1254,324 @@ parallel once 4 lands, 6a follows both; 7a–7c each ship alone.
 
 ## Balance state
 
-Not yet measured — v3 has no numbers behind it. The v2 table is retired with
-the v2 rules. Paper numbers last moved in the round-3 review (2026-09-05):
-`ENRAGE_TURN` 40 → 100, `VIOLENT_CHANCE` 0.30 → 0.40, `WILL_TURNS` 2 → 3,
-`LEGENDARY_MAIN_MULT` 1.2 → 1.5, `COMPARE_WEIGHTS.DEF` 0.6 → 0.25, GUARD +15
-→ +30 % DEF, SCHISM's curse ×0.5 → ×0; round 4 (same day): `DESTROY_DEALT`
-0.30 → 0.40 and the 2+2+2 fallback cap at one application; round 5 (same
-day): `NEMESIS_ATB` 0.15 → 0.40, HASTE's curse ×1.2 → ×1.1. The owner's
-element model (same day) softens the wrong-element penalty from ≈ 70 % to
-≈ 78 % of neutral expected damage at CRIT 42 / CDMG 57 — intended; `GLANCE_MULT`
-and `GLANCE_CHANCE` are the levers if phase 8 wants the old severity back. Phase 2's `--battles` fixtures (2026-09-05): the bare slice party beats
-every act-1 pack at A0 under both `random` and `balanced` play, ending at
-62–94 % HP, the boss in 40–45 actor turns; act 1's ≥ 80 % target is a
-full-run number and is measured at 6a. This section gets rewritten at phase
-8 and dated.
+**Phase 8, measured and dated 2026-09-05.** Pre-phase-8 paper numbers (kept
+for the record; superseded by the Monte Carlo work below): round-3 review
+(2026-09-05) moved `ENRAGE_TURN` 40 → 100, `VIOLENT_CHANCE` 0.30 → 0.40,
+`WILL_TURNS` 2 → 3, `LEGENDARY_MAIN_MULT` 1.2 → 1.5, `COMPARE_WEIGHTS.DEF`
+0.6 → 0.25, GUARD +15 → +30 % DEF, SCHISM's curse ×0.5 → ×0; round 4 (same
+day): `DESTROY_DEALT` 0.30 → 0.40 and the 2+2+2 fallback cap at one
+application; round 5 (same day): `NEMESIS_ATB` 0.15 → 0.40, HASTE's curse
+×1.2 → ×1.1 (the +10 % this phase's own retune starts from below). The
+owner's element model (same day) softened the wrong-element penalty from
+≈ 70 % to ≈ 78 % of neutral expected damage at CRIT 42 / CDMG 57 — intended.
+Phase 2's `--battles` fixtures (2026-09-05, pre-retune): the bare slice
+party beat every act-1 pack at A0 under `random` and `balanced` play, ending
+at 62–94 % HP, the boss in 40–45 actor turns.
+
+**Two run.ts gaps closed first** (STATUS.md's "Honest state"): (a) a
+level-up on a worn HP-main relic (REST's sharpen, FORGE's LEVEL) never
+called `refitHp`, so a sharpened or forged wearer's `hp` stayed at the
+pre-level-up number instead of scaling with the new `maxHp` — `resolveRest`
+and `resolveForge` in `game/sim/run.ts` now capture `maxOld` before the
+level-up and `refitHp` after, exactly like `equip`/`unequip` already did;
+`resolveForge`'s refit runs after any successful forge (LEVEL, RECAST or
+REBRAND) — RECAST and REBRAND need it too, not just LEVEL: RECAST re-rolls a
+substat's key (can add or drop an HP or HP % roll) and REBRAND changes the
+relic's set (can complete or break a stat-visible 2-piece like ENERGY's
++15 % HP), so both routinely move a wearer's maxHp in play, not only in a
+contrived edge case — a 908-run in-situ check (the verifier's own harness
+pattern, `game/sim/run.ts`'s real `resolveForge` observed through a forcing
+Policy) found RECAST moving maxHp in 378 of 908 observations and REBRAND in
+292 of 959; every one of them still lands on `refitHp`'s exact
+`max(1, round(maxHp_new × hp / maxHp_old))`. (b) `RunConfig.spdDelta` reached `--runs` (baked
+into each drafted member's cloned `base.spd`) but never `--battles`'
+`BATTLE_FIXTURES`, because `BattleCtx` had no `spdDelta` field and
+`createBattle` didn't forward one to `buildHeroes` even though `buildHeroes`
+already accepted it — `game/sim/battle.ts`'s `BattleCtx` gained `spdDelta?:
+number` and `createBattle` now passes `ctx.spdDelta` through; `sim/run.mjs`
+gained a `--battles` flag (so `--spd n` can select the fixture path instead
+of always forcing `--runs` mode) and threads `SPD_VALUE` into
+`simulateBattle`'s `ctx`, printing `spd +n` in both modes' headers. Verified:
+a standalone check equips an ARMOR (flat-HP-main) relic, sharpens and
+FORGE-LEVELs it, and asserts `hp` lands exactly on
+`max(1, round(maxHp_new × hp / maxHp_old))` each time (plus the `hp === 0`
+branch on a fallen member); `node sim/run.mjs --battles --spd 10` now prints
+`spd +10` and a direct `createBattle` check confirms every fixture hero's
+derived SPD moves by exactly the given delta with `--spd` omitted or 0
+leaving it unchanged. `npm run check`, `build` and `smoke` green before and
+after.
+
+**The refit sweep, completed.** `refitHp`'s own doc (`game/sim/relics.ts`)
+names eight triggers — equip, unequip, move, swap, leader, awakening, pact,
+a level — and three more sites silently skipped it, all three able to leave
+`hp > maxHp` on a live party member: the opening `party.leader =
+policy.leader(...)` assignment in `simulateRun` (both opening `fullHeal`s
+run while `party.leader` is still 0, so any policy whose `leader()` doesn't
+just echo that index back — RANDOM's uniform pick, SPEED's GALE search,
+MONO's elemental search — re-points every member's leader-skill context
+after the fact); a SUMMON `{swap, out}` landing on the leader's own slot in
+`resolveSummon` (the instant `party.members[out]` becomes the newcomer, the
+seat's LeaderSkill identity changes with it, for every *other* member); and
+a taken SCHISM in `resolveShrine` (`LEADER_OFF`/`LEADER_SELF` re-route every
+member's leader context the moment it's taken). All three now capture every
+affected member's `maxOld` first and `refitHp` (or, for the opening
+assignment specifically, a fresh `fullHeal` — provably identical there,
+since no room has resolved yet and every member is still exactly at 100 %)
+once the change lands. Verified with the same in-situ technique as above,
+extended to these three sites (a forcing Policy wrapping `BALANCED_POLICY`
+— `RANDOM_POLICY` for the opening-leader case, since it reassigns on every
+run — that snapshots hp/derived-max right when each site fires and settles
+the comparison on the very next policy callback, reading `simulateRun`'s own
+live `Party`/`RunState` references, nothing reimplemented): opening leader
+(TIDE, whose leader skill is HP-flavored, vs. EMBER, whose leader skill
+isn't, on a 2-character roster under RANDOM) — 906 observations, 184 of
+which would have read `hp > maxHp` under the pre-fix code; SUMMON swap onto
+the leader's slot under `balanced` play — 812 observations, 333 would-be
+overshoots; SCHISM taken under `balanced` play — 1337 observations, 115
+would-be overshoots. Every one of the 3055 observations across all three
+sites now lands exactly on `refitHp`'s formula. The gap STATUS.md named is
+closed in full now, not just at its two originally-cited call sites.
+
+**The elite HP retune.** The first pass at the ELITE win-rate guard (below)
+moved `KIND_MULT.ELITE.hp` from 2.5 to 6.1 — closing the guard's *win-rate*
+number while breaking an unstated but obviously-intended invariant: at 6.1,
+an act-1 `PYRE_KNIGHT` carries 8769 HP against `HOLLOW_KING`'s own 4700 (the
+elite outweighing its act's boss in all six acts, 2.2× at act 2, 1.7× at act
+6), and `--battles` showed it: `PYRE_KNIGHT+CINDER_IMP` ran 66.7 actor turns
+against `BOSS HOLLOW_KING`'s 41.2 — a first-act elite closing in on
+`ENRAGE_TURN = 100`, the turn-count DESIGN.md reserves for a battle that has
+gone unusually long. Re-tuned under an explicit, written rule instead:
+**an elite's scaled HP stays at or below 0.75× the same act's BOSS_HP**, and
+the 75–90 % ELITE-win band is hit with "deadlier, not spongier" levers —
+`ELITE_MULT.atk` (raw HP barely moved the win rate at all: a first probe at
+3.5× only took it from 99.1 % to 97.5 %, confirming heroes had far more
+burst margin than a modest HP bump could touch; `ELITE_MULT.atk` alone, by
+contrast, took it from 98.2 % to 79.2 % in one step) and the elite pack
+shape (EMBER_CRYPT's and FROST_MARSH's lone-elite row — the only two
+biomes that ever sent a NORMAL-kind-scaled elite in 1v3 alone — now always
+pairs it with a second body, matching every other biome). **Fight-length
+intent, written down for the next pass to check against: an act's elite
+fight should run no longer than that act's boss fight** (`--battles`,
+`balanced`: act-1 elites now run 23.3–23.4 actor turns against the boss's
+41.2 — comfortably under, where the pre-retune elite ran *longer* than the
+boss). `ELITE_MULT.hp` 6.1 is rejected and named here so a future pass does
+not silently re-discover it; `2.5 → 1.9` is the number that actually shipped
+(§ levers below).
+
+**The ladder — 5000 runs, seed 1, A0, POST elite retune** (`npm run sim --
+--runs 5000`), act N = act-N boss killed on lap 1:
+
+| | win | act 1 | act 2 | act 3 | act 4 | act 5 | act 6 |
+|---|---|---|---|---|---|---|---|
+| target | — | ≥ 80 % | ≈ 57 % | ≈ 41 % | ≈ 29 % | ≈ 21 % | ≈ 15 % |
+| `balanced`, seed 1 | 15.1 % | 98.1 % | 55.0 % | 39.7 % | 30.2 % | 23.2 % | 15.1 % |
+| `balanced`, seed 2 (2000 runs) | 16.1 % | 97.9 % | 56.6 % | 41.0 % | 31.1 % | 23.5 % | 16.1 % |
+
+Every act on both seeds lands within 2.5 points of target except act 1,
+which clears its floor with a lot of room (as intended — act 1 is a `≥`, not
+a `≈`); the two seeds agree with each other within 1.6 points on every act,
+so the ladder reads as reproducible, not a seed-1 artifact. Before this
+phase's levers (2000 runs, seed 1, same two original gap fixes already
+applied): `balanced` 14.1 % win, 99.9 / 98.5 / 32.9 / 27.8 / 18.4 / 14.1 —
+acts 1–2 were nearly free and act 3 was a cliff (SKYFALLEN_KING killed ≈
+70 % of the runs that reached it). A first retune pass hit this same ladder
+almost exactly using `KIND_MULT.ELITE.hp` 2.5 → 6.1 as its acts-1–2 lever —
+but broke an unstated invariant doing it (the elite HP retune above); the
+numbers in this table are POST that correction, with `ELITE_MULT.atk` doing
+the work `ELITE_MULT.hp` did before.
+
+**Every other guard, verbatim (5000 runs, seed 1, unless noted):**
+
+| Guard | Target | Result |
+|---|---|---|
+| random win | < 3 % | 0.1 % |
+| stall, every policy | ≤ 0.5 % | 0.0–0.1 % (`random` and `lapper` both 0.1 % at 5000 runs; the pre-retune 5000-run pass also read `control` at 0.1 %, under-reported at the time — this pass's own `control` reads 0.0 % at seeds 1–4242, but the rate is rare-tail enough on any policy that 0.0 % here is not a claim it can never recur) |
+| lap-2 clear, `lapper` | ≈ 8 % | 9.8 % of 721 runs that took another lap (seed 1); 8.0 %/11.6 %/11.7 % at seeds 2/4242/3 — noisier around its target than the other guards, expected for a rare-tail metric over a few hundred lap-takers |
+| `--spd` gate | Δ ≥ 20 pts | Δ 33.6 pts (act3 +10 57.0 % / −10 23.4 %) |
+| `balanced` REST heal | 25–60 % | 49.9 % |
+| `balanced` ELITE win | 75–90 % | 80.7 % (76.3–81.5 % across seeds 1/2/3/4242 — comfortably mid-band now; the pre-elite-retune-fix version of this same guard sat at 74–76 %, seed-thin against the 75 % floor) |
+| swap ≥ 1, some policy's wins | ≥ 5 % | **seven** policies, not six: `random` 50 % (n = 6, a small-sample caveat worth naming), `balanced` 77.2 %, `speed` 69.3 %, `glass` 76.2 %, `tank` 72.0 %, `control` 78.3 %, `pairs` 66.9 % (`mono` 0.1 % does not qualify; `lapper` has no wins) |
+| every character leads, some policy | ≥ 5 % | EMBER 21.0 (control) · GALE 33.2 (speed) · TIDE 75.4 (mono) · BASALT 30.0 (control) · SABLE 48.6 (glass) · LUMEN 9.3 (`balanced`) — LUMEN cleared the floor with real margin this time, not the 5.1–6.1 % the leader-amount lever alone produced; the elite retune's "deadlier, not spongier" meta rewards LUMEN's burst further on top |
+| every 4-piece set, some policy | ≥ 5 % | VIOLENT 6.9 (speed) · DESPAIR 5.7 (control) · BULWARK 5.7 (tank) · DESTROY 5.0 (glass) clear the floor this pass; VAMPIRE 1.6 · WILL 3.0 · NEMESIS 1.6 · REVENGE 3.4 do not — see below, still not fixable with numbers, and *which four* clear 5 % keeps changing seed to seed |
+| every pact, \|Δ\| | ≤ 5 pts | HASTE −3.7 · FURY −2.0 · VEIL −4.0 · BLIND +3.9 · SCHISM −1.4 · DEARTH −1.2 |
+| SABLE/LUMEN vs any triangle char, `balanced` wins | < 1.5× | **triggered** — see below, corrected |
+| Vault + 3 kindled relics, act-1 clear | ≤ 97 % | **triggered**, worse than first measured — see below, corrected |
+| ≥ 2 mains per open slot, pooled wins | ≥ 2 | 4–5 distinct mains on every one of BOOTS/NECKLACE/TOME |
+
+`--battles` (act-1 fixtures, bare stats): every pack still wins 99.3–100 %
+under `random` and `balanced`, ending 40–93 % HP; under `balanced`,
+`PYRE_KNIGHT+ASH_HOUND`/`PYRE_KNIGHT+CINDER_IMP` now run 23.3–23.4 actor
+turns ending 62–63 % HP — comfortably *under* `BOSS HOLLOW_KING`'s 41.2 turns
+(59 % HP), matching the fight-length intent stated above. Not a target this
+mode measures on its own (act 1's ≥ 80 % is the full-run number above), but
+the elite/boss turn ordering is now the right way around, where the
+`ELITE_MULT.hp = 6.1` version had it backwards (66.7 vs 41.2).
+
+**Levers moved, in the order applied, each isolated before the next:**
+
+1. **Acts 1–2 far too soft** (baseline act 1 99.9 %, act 2 98.5 % against
+   ≥ 80 % / ≈ 57 %) and **`balanced` ELITE win 99.1–99.2 %** against
+   75–90 %. First attempt — since rejected, kept here so it is not
+   silently retried: `KIND_MULT.ELITE.hp` 2.5 → 6.1 (a 3.5 probe barely
+   moved ELITE win, 99.1 → 97.5 %, before landing on 6.1 for 76.3–76.8 %)
+   closed the win-rate number but put elite HP at up to 2.2× the same act's
+   boss HP — rejected once that surfaced (the elite HP retune, above).
+   **Shipped instead**: `ELITE_MULT.hp` 2.5 → 1.9 (solving
+   `max_act(elite.hp / BOSS_HP[act]) ≤ 0.75` for the tightest act, act 2,
+   at the ACT_MULT values below: `1.9 × 1250 × 1.68 / 5800 = 0.688`), the
+   EMBER_CRYPT/FROST_MARSH lone-elite pack row gaining a second body
+   (`['PYRE_KNIGHT']` → `['PYRE_KNIGHT', 'ASH_HOUND']`, `['DROWNED_KNIGHT']`
+   → `['DROWNED_KNIGHT', 'BOG_TOAD']` — barely moved ELITE win alone, 99.1 →
+   98.2 %), then `ELITE_MULT.atk` 1.35 → 2.2 (98.2 → 79.2 % in one step —
+   the "deadlier" lever the HP one never was). `ACT_MULT.hp/atk/def` for
+   act 1 and act 2 only (acts 3–6 untouched — a separate lever below owns
+   the act-3 cliff): `[1, 1.16, …]` / `[1, 1.20, …]` / `[1, 1.27, …]` → act
+   1 `1.15 / 1.10 / 1.08`, act 2 `1.68 / 1.60 / 1.45`. Landed act 1 ≈ 98 %,
+   act 2 ≈ 55–57 %, ELITE win ≈ 79–81 %.
+2. **The act-3 cliff** (baseline act 3 20.1 % against ≈ 41 %, a ≈ 33 %
+   conditional survival rate for parties that actually reached
+   SKYFALLEN_KING). `BOSS_HP[2]` 8000 → 5000, landing 39.7–41.8 % across
+   seeds. Checking `BOSS_HP[3..5]`'s 0.72 slope: `BOSS_HP[3]` 10000 → 8500,
+   `BOSS_HP[4]` 12000 → 8600, `BOSS_HP[5]` 14000 → 10600, landing act 4
+   ≈ 30–32 %, act 5 ≈ 23–24 %, act 6 ≈ 15–16 % (the act 5/6 values moved a
+   second time, up from the first pass's 8000/9800, once the elite retune
+   above eased overall act 1–2 attrition and needed a touch more late-game
+   bite to hold the slope).
+3. **REST heal too high** (baseline 70–77 % against 25–60 %).
+   `REST_HEAL_AT` 0.50 → 0.30 (0.35 read 65.4 %, still over; 0.25 overshot
+   to 17.7 %; 0.30 centred the band at 45–50 %). The ladder barely moved
+   through this lever.
+4. **`lapper` lap-2 far too easy (72.6–81.5 % against ≈ 8 %) and its stall
+   rate over gate (0.85–0.90 % against ≤ 0.5 %) — the same root cause**:
+   `LAP_MULT` compounds every lap, and a too-gentle rate both leaves lap 2
+   nearly free and, over the rare long chain of laps a persistent `lapper`
+   survives, eventually produces a boss whose HP has compounded past what
+   500 actor-turns of hero damage can drain — a stall, not a loss. Raised
+   `LAP_MULT.hp/atk/def` 1.5/1.5/1.2 → 2.9/2.65/2.25 during the first pass,
+   then re-tuned once more after the elite retune shifted act 1's own
+   difficulty (lap 2 replays act 1 under `LAP_MULT`) to `2.7/2.5/2.1`,
+   landing 6.8–11.7 % lap-2 across seeds with 0.0–0.1 % stall.
+5. **Guards pass.** `balanced`/`lapper`'s `--spd` gate improved from Δ 13.2
+   pts (below the ≥ 20 floor) to Δ 33.6 pts as a side effect of the above —
+   no dedicated lever needed; a clear rate nearer 40–55 % instead of a
+   crushed ≈ 20–33 % put every guarded act in the regime where a flat SPD
+   swing moves outcomes more. **LUMEN's leader share** never broke 2.5 % of
+   any policy's wins pre-retune (its base stats are the roster's lowest
+   HP/DEF, so leading — and drawing FOCUS fire — was a bad trade against
+   its old flat `leader.amount`); `game/data/characters.ts`'s LUMEN
+   `leader: { stat: 'CRIT', amount }` 15 → 35 raised it to 5.1–6.1 % before
+   the elite retune, 9.3 % after (the "deadlier, not spongier" elite meta
+   independently favours LUMEN's burst). **Pact deltas**: baseline had
+   `BLIND` at Δ +7.4 to +9.7 and `HASTE`/`VEIL` drifting to Δ −5.0 to −5.6
+   (just outside ±5). `game/data/pacts.ts`: `BLIND`'s curse `PARTY_RES`
+   −20 → −30 and boon `PARTY_ACC` 25 → 10; `HASTE`'s curse
+   `ENEMY_SPD_PCT` 10 → 6; `VEIL`'s boon `EPIC_DROP_LEVEL` 1 → 2. Final:
+   every pact within ±4.0 points, holding after the elite retune too
+   (±3.9). **`ELEMENT_CRIT_LD`** 15 → 10 — the contract's own prescribed
+   response to the SABLE/LUMEN-vs-triangle guard tripping; applied, but it
+   did not close the guard (below) — the guard's own stated cause turned
+   out not to be the measured cause.
+
+**Two guards this phase could not close, and why numbers can't do it —
+corrected from the previous pass, which mis-measured both:**
+
+- **Every 4-piece set in ≥ 5 % of some policy's wins.** VIOLENT (6.9 %,
+  `speed`), DESPAIR (5.7 %, `control`), BULWARK (5.7 %, `tank`) and DESTROY
+  (5.0 %, `glass`) clear the floor at this pass's measurement; VAMPIRE
+  (1.6 %), WILL (3.0 %), NEMESIS (1.6 %) and REVENGE (3.4 %) do not — but
+  *which four* clear it keeps changing: an earlier, numerically-identical
+  5000-run pass (differing only in `ELEMENT_CRIT_LD`, which never touches
+  FIRE/WIND/WATER combat) read VIOLENT 7.8 %, DESTROY 5.2 %, DESPAIR 9.3 %
+  as the passers and BULWARK at 3.1 % as a failer. The root cause is
+  structural, not numeric: `compare()`'s score (DESIGN.md → Relics) is
+  defined purely over the eight derived Stats, so it is blind to every
+  "battle hook" `SetBonus` — EXTRA_TURN, STUN_ON_HIT, LEECH, ATB_ON_HIT,
+  COUNTER, SHIELD_START, DESTROY — seven of the eight 4-piece sets (WILL's
+  `IMMUNITY_START` RES bump is the only stat-visible one, and a flat +20
+  RES rarely wins "best card" against everything else on offer). A relic
+  completing DESTROY's fourth piece scores identically to one that
+  doesn't, so no non-`random`, non-`pairs` policy can deliberately chase
+  it; five of the nine policies (`speed`→SWIFT/VIOLENT, `glass`→FATAL/RAGE/
+  BLADE/DESTROY, `tank`→GUARD/ENERGY/BULWARK/WILL/REVENGE, `control`→FOCUS/
+  DESPAIR) carry a small hand-authored scoring nudge toward their named
+  sets in DESIGN.md's own Policy roster prose, which is enough to
+  *sometimes* clear 5 % but not reliably; VAMPIRE and NEMESIS are named in
+  *no* policy's bias at all, so their ~1–2 % is pure chance with nothing to
+  move. **Also tested and rejected as a lever**: `SET_POOL.four` 2 → 4 (more
+  4-piece sets in a run's pool at once) — the blind verifier ran this and
+  found it moves the wrong things: one additional set clears 5 % but
+  NEMESIS's chance drops to near zero (fewer runs draw it into the pool at
+  all when four other sets compete for the same slots) and overall win
+  rates fall 20–40 points (a much bigger, harder-to-defend pool dilutes
+  the compare-visible 2-piece sets too), so it is rejected, not merely
+  unowned. No constant in `game/types.ts` or `game/data/*.ts` fixes the
+  underlying blindness — `VIOLENT_CHANCE`, `VAMPIRE_FRACTION`,
+  `NEMESIS_ATB`, `REVENGE_CHANCE`, `BULWARK_SHIELD/TURNS` and
+  `DESTROY_DEALT/FRACTION/FLOOR` all govern how strong a set is *once
+  worn*, never how likely a policy is to complete it. **Proposed rule
+  change** (not made — out of BUG FIXES / NUMBERS scope): give
+  `compare()`'s score a term for "this pick moves a member toward
+  completing an already-partial 4-piece set," so a policy's existing
+  archetype bias can actually bite on behavioral sets the way it already
+  does on stat ones; and/or name VAMPIRE and NEMESIS in some policy's
+  contracted bias list (DESIGN.md's Policy roster prose currently gives
+  every other 4-piece set a champion and leaves these two with none).
+- **SABLE/LUMEN vs the triangle** (`ELEMENT_CRIT_LD` 15 → 10, the
+  contract's own prescribed fix, applied — SABLE/TIDE and LUMEN/TIDE
+  ratios moved from 13.3×/6.7× to 15.1×/9.8×, i.e. *worse*, not better,
+  since the elite retune's separate effect on the leader mix outweighed
+  it). **The earlier write-up of this guard's measurement was wrong and is
+  corrected here.** Measured directly (the standard report doesn't print
+  party membership, so a one-off script tallied `RunResult.party` across
+  5000 `balanced` wins): membership share was EMBER 54.6 %, GALE 81.3 %,
+  BASALT 53.8 %, SABLE 64.2 %, LUMEN 41.8 %, **TIDE 4.2 %** — the previous
+  pass's claims "every triangle-vs-triangle ratio sits at 0.4–1.1×" and
+  "51–86 % for everyone else [besides TIDE]" were both false: TIDE *is* a
+  triangle character (WATER) and is the outlier against **every** other
+  character, not just SABLE/LUMEN — GALE/TIDE 19.4×, EMBER/TIDE 13.0×,
+  BASALT/TIDE 12.8×, alongside SABLE/TIDE 15.1× and LUMEN/TIDE 9.8× — and
+  LUMEN's own 41.8 % sits well under the "51–86 % for everyone else" range
+  claimed before. This strengthens rather than changes the diagnosis:
+  `ELEMENT_CRIT_LD` governs the LIGHT⇄DARK crit bonus, which has nothing to
+  do with why a healer built around a 40 %-HP heal threshold and no
+  offensive scoring in `balanced.act`'s "maximise expected `dealt`"
+  heuristic gets kept far less often than every other kit regardless of
+  element — the guard's stated cause (SABLE/LUMEN's boss-crit edge) and
+  the measured cause (TIDE's kit is a bad fit for a damage-maximising AI)
+  are different things, and lowering `ELEMENT_CRIT_LD` further would only
+  keep punishing SABLE and LUMEN's actual combat performance for a problem
+  neither of them is causing. **Proposed rule change** (not made — TIDE's
+  kit is exactly "a kit's shape" and `balanced.act`/`balanced.rest`'s
+  scoring heuristics live in `game/sim/run.ts`'s BUG-FIXES-only remit):
+  either give `balanced`'s policies some non-zero value for a heal/cleanse
+  option outside the reactive "any ally < 40 %" trigger (closer to how
+  `speed`/`glass`/`tank`/`control` already score their own archetype's
+  relics), or accept TIDE's rarity in `balanced`-family play as intended
+  and drop this guard's premise.
+- **Vault + three kindled relics, act-1 clear ≤ 97 %** — triggered, and
+  worse post-retune (99.4–99.5 % → 100.0 % at 5000 runs; `balanced`'s
+  overall win rate under the same scenario jumps from its normal 15.1 % to
+  65.1 %). `RunConfig.vault`/`vaultSlots` **is** the harness seam for this
+  — the gap was only ever a missing CLI flag, not a missing mechanism —
+  so `sim/run.mjs` now has `--vault N` (0–3): three already-kindled EPIC/
+  +6/sigil relics, one per fixed-main slot (WEAPON/ARMOR/CHALICE), a
+  stat-only set (FATAL) so no set-completion side effect confounds the
+  read; `node sim/run.mjs --runs 5000 --vault 3 --policy balanced` is now
+  how anyone reproduces this guard from the command line. The contract's
+  prescribed response — "the Vault starts raising the run's minimum
+  ascension by one per relic worn" — remains a new mechanic, not a number:
+  nothing in `game/sim/run.ts` or `RunConfig` computes a Vault-derived
+  ascension floor (ascension is a fixed input the *player* picks before
+  `simulateRun` runs), and enforcing a floor is a menu-level concern that
+  would live in `screens/vault.ts` / `main.ts`, both outside this phase's
+  file ownership and outside a BUG-FIXES-only edit to `run.ts`. **Marking
+  this rule NOT IMPLEMENTED as of 2026-09-05** — it lands with the
+  phase-5/6a Vault screen; the guard stays triggered until it does.
+  `RunConfig` (or its caller) would need to derive `minAscension =
+  countKindled(vault equipped)` and the ascension-select screen enforce it.
+
+This section supersedes every number above it for v3; the pre-phase-8 paper
+figures stay only as history.
 
 ## Open questions
 

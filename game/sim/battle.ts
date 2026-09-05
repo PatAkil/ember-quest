@@ -105,12 +105,16 @@ export interface ActPolicy {
 }
 
 /** Extra battle-start context beyond the fixed (party, enemies, policy, rng) contract: optional so the
- * harness's four-argument call is untouched; a full run (phase 6a) will pass all four. */
+ * harness's four-argument call is untouched; a full run (phase 6a) will pass all four. `spdDelta` is the
+ * harness's --spd on the BATTLE_FIXTURES path (DESIGN.md → Difficulty targets: "the --battles fixtures
+ * included") — sim/run.ts's own RunConfig.spdDelta reaches `derive` by baking into each member's cloned
+ * CharacterDef.base.spd instead (see that file's Contract notes), so a real run never sets this field. */
 export interface BattleCtx {
   pacts?: readonly PactId[];
   ascension?: number;
   act?: number;
   lap?: number;
+  spdDelta?: number;
 }
 
 /** What the enemy turn ribbon shows: the skill about to fire, or that the actor is stunned. Never the target. */
@@ -1051,7 +1055,7 @@ function grantBattleStartBuffs(battle: Battle, row: AscensionRow): void {
 export function createBattle(party: Party, enemies: Actor[], policy: ActPolicy, rng: Rng, ctx: BattleCtx = {}): Battle {
   const pacts = ctx.pacts ?? [];
   const ascension = ctx.ascension ?? 0;
-  const heroes = buildHeroes(party, pacts);
+  const heroes = buildHeroes(party, pacts, ctx.spdDelta);
   for (const a of [...heroes, ...enemies]) { a.cooldowns = a.cooldowns.map(() => 0); a.statuses = []; } // battle start: cooldowns 0, no statuses
 
   const battle: Battle = {

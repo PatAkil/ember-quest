@@ -10,6 +10,12 @@
 //   node sim/run.mjs --runs 2000 --policy balanced,lapper
 //   node sim/run.mjs --spd 10                          # --runs mode with RunConfig.spdDelta = 10, "spd +10" per row
 //   node sim/run.mjs --spd                             # bare: the SPD gate — balanced at +10 then -10, same seed, act-3 Δ
+//   node sim/run.mjs --battles --spd 10                # --battles mode with the same flat SPD delta, "spd +10" per row
+//   node sim/run.mjs --battles --runs 5000             # --battles mode, 5000 battles per cell (--runs is an alias for
+//                                                       #   --n here unless --n is ALSO given, in which case --n wins)
+//   node sim/run.mjs --runs 2000 --vault 3              # --runs mode, RunConfig.vault/vaultSlots seeded with 3
+//                                                       #   already-kindled relics (WEAPON/ARMOR/CHALICE) — the Vault
+//                                                       #   guard (DESIGN.md -> Difficulty targets) from the CLI
 //   node sim/run.mjs --json                            # machine-readable, for diffing before/after
 //
 // DESIGN.md → Difficulty targets. The --battles mode runs each selected
@@ -22,10 +28,13 @@
 // for bit, and prints the act ladder, pact take/decline deltas, leader share,
 // REST/ELITE/swap/sets/mains rows described in DESIGN.md → Difficulty
 // targets. Both modes exit non-zero when any stall rate is above STALL_MAX
-// (0.5%); --spd is --runs-only (RunConfig.spdDelta is only ever read by
-// game/sim/run.ts's derive calls — game/sim/battle.ts's BATTLE_FIXTURES have
-// no spdDelta hook to extend without editing that file, which is out of this
-// file's scope; see this module's owner's Contract notes).
+// (0.5%). --spd's flat delta reaches both modes (DESIGN.md: "the --battles
+// fixtures included") — in --runs mode it rides RunConfig.spdDelta into
+// game/sim/run.ts's own derive calls; in --battles mode this file passes it
+// as game/sim/battle.ts's BattleCtx.spdDelta, which createBattle forwards
+// into buildHeroes for the fixture heroes. A bare --spd (no number) always
+// selects --runs mode for the SPD gate — pass --battles explicitly to keep
+// --spd's numeric form on the battles path instead (see the example above).
 //
 // Refusal rules (DESIGN.md → Module layout), never weakened: the harness will
 // not run if the sim bundle mentions `window`, `document`, `localStorage` or
@@ -47,24 +56,34 @@ const numOpt = (name, def) => {
   const n = raw !== undefined ? Number(raw) : NaN;
   return Number.isFinite(n) ? n : def;
 };
-const N = Number(opt('n', 2000));
 const RUNS = numOpt('runs', 2000);
 const SEED = Number(opt('seed', 1));
 const ONLY = opt('policy', 'all');
 const FIXTURES = opt('fixture', 'all');
 const JSON_OUT = has('json');
+const VAULT_N = has('vault') ? numOpt('vault', 0) : 0;
 /** Stall rate above which the harness exits non-zero — per battle in --battles, per run in --runs. */
 const STALL_MAX = 0.005;
 
-// --spd: `--spd n` (n consumed as RunConfig.spdDelta for every selected policy); a bare `--spd` (no numeric
-// value right after it) instead runs the SPD gate. Either form selects --runs mode.
+// --spd: `--spd n` (n consumed as a flat SPD delta for every selected policy — RunConfig.spdDelta in --runs
+// mode, BattleCtx.spdDelta in --battles mode); a bare `--spd` (no numeric value right after it) instead runs
+// the SPD gate, which only exists in --runs mode. Either form selects --runs mode UNLESS --battles is also
+// given, in which case --battles wins and a numeric --spd applies to the fixture battles instead (a bare
+// --spd alongside --battles has no gate to run and is silently a no-op delta, same as omitting --spd).
+const BATTLES = has('battles');
 const spdArgIndex = args.indexOf('--spd');
 const spdPresent = spdArgIndex >= 0;
 const spdNextRaw = spdPresent ? args[spdArgIndex + 1] : undefined;
 const spdHasValue = spdNextRaw !== undefined && !spdNextRaw.startsWith('--') && Number.isFinite(Number(spdNextRaw));
 const SPD_VALUE = spdHasValue ? Number(spdNextRaw) : undefined;
-const SPD_BARE = spdPresent && !spdHasValue;
-const RUNS_MODE = has('runs') || spdPresent;
+const SPD_BARE = spdPresent && !spdHasValue && !BATTLES;
+const RUNS_MODE = !BATTLES && (has('runs') || spdPresent);
+/** " spd +10" / " spd -10" / "" — shared by both modes' headers and JSON. */
+const spdNote = SPD_VALUE !== undefined ? ` spd ${SPD_VALUE >= 0 ? '+' : ''}${SPD_VALUE}` : '';
+// battles-per-cell: --n is the native flag; --runs is accepted as an alias for it in --battles mode (so
+// "--battles --runs 5000" means 5000 battles per cell, not a silently-ignored value) UNLESS --n was ALSO
+// given explicitly, in which case --n wins.
+const N = BATTLES && has('runs') && !has('n') ? RUNS : Number(opt('n', 2000));
 
 // --- bundle ---------------------------------------------------------------
 /** A refusal is reported as one line and exit 1; anything else is a bug and keeps its stack. */
@@ -197,7 +216,21 @@ async function runRunsMode({ bundle: bundleFn, data, mulberry32 }) {
   if (typeof simulateRun !== 'function') throw new Error('game/sim/run.ts must export simulateRun');
   if (!POLICIES) throw new Error('game/sim/run.ts must export POLICIES');
   const roster = data.ROSTER;
-  const config = (spdDelta) => ({ ascension: 0, vault: [], vaultSlots: 0, roster: [...roster], spdDelta });
+  // --vault N: RunConfig.vault/vaultSlots IS the harness seam for the Vault-guard scenario (DESIGN.md ->
+  // Difficulty targets: "a balanced party wearing three kindled Vault relics") — only the CLI lacked a flag
+  // for it. Three already-kindled (EPIC, +6, sigil-bearing) relics, one per fixed-main slot, matching the
+  // slot's real RELIC_MAIN_BASE (data/relics.ts); a stat-only set (FATAL) so no set-completion side effect
+  // confounds the measurement. N beyond 3 is accepted but only these three exist to equip.
+  const VAULT_RELICS = [
+    { id: 'cli-vault-weapon', slot: 'WEAPON', rarity: 'EPIC', set: 'FATAL', level: 6, kindled: true,
+      main: { key: 'ATK', base: 36 }, subs: [{ key: 'CRIT', value: 20, rolls: 4 }, { key: 'SPD', value: 15, rolls: 3 }], sigil: 'OPENER' },
+    { id: 'cli-vault-armor', slot: 'ARMOR', rarity: 'EPIC', set: 'FATAL', level: 6, kindled: true,
+      main: { key: 'HP', base: 450 }, subs: [{ key: 'DEF', value: 30, rolls: 4 }, { key: 'RES', value: 16, rolls: 3 }], sigil: 'BASTION' },
+    { id: 'cli-vault-chalice', slot: 'CHALICE', rarity: 'EPIC', set: 'FATAL', level: 6, kindled: true,
+      main: { key: 'DEF', base: 36 }, subs: [{ key: 'HP', value: 500, rolls: 3 }, { key: 'ACC', value: 20, rolls: 4 }], sigil: 'MENDING' },
+  ];
+  const vault = VAULT_N > 0 ? VAULT_RELICS.slice(0, Math.min(3, VAULT_N)) : [];
+  const config = (spdDelta) => ({ ascension: 0, vault, vaultSlots: VAULT_N, roster: [...roster], spdDelta });
 
   if (SPD_BARE) {
     const balanced = POLICIES.balanced;
@@ -241,11 +274,11 @@ async function runRunsMode({ bundle: bundleFn, data, mulberry32 }) {
       restHeal: restHealRate(results), elite: eliteStats(results), swap: swapRate(results),
       leader: leaderShare(results), setsWorn: setsWornShare(results),
     }));
-    console.log(JSON.stringify({ mode: 'runs', seed: SEED, runs: RUNS, spdDelta: SPD_VALUE ?? null, policies: json,
+    console.log(JSON.stringify({ mode: 'runs', seed: SEED, runs: RUNS, spdDelta: SPD_VALUE ?? null, vault: VAULT_N || null, policies: json,
       pacts: pactRows(data.PACT_IDS, allResults), mains: mainsPerOpenSlot(allResults) }, null, 2));
   } else {
-    const spdNote = SPD_VALUE !== undefined ? ` spd ${SPD_VALUE >= 0 ? '+' : ''}${SPD_VALUE}` : '';
-    console.log(`runs ${RUNS} per policy, seed ${SEED}${spdNote} — act ladder is act-N boss killed on lap 1`);
+    const vaultNote = VAULT_N > 0 ? ` vault ${Math.min(3, VAULT_N)} kindled` : '';
+    console.log(`runs ${RUNS} per policy, seed ${SEED}${spdNote}${vaultNote} — act ladder is act-N boss killed on lap 1`);
     const wP = Math.max(6, ...names.map((n) => n.length));
     console.log(`${'policy'.padEnd(wP)}   win  act1  act2  act3  act4  act5  act6  stall enrage  killer`);
     for (const { name, results } of byPolicy) {
@@ -344,6 +377,10 @@ try {
       return sum / before.length;
     };
 
+    // --spd's flat delta on the fixture heroes: BattleCtx.spdDelta, forwarded by createBattle into
+    // buildHeroes — see game/sim/battle.ts's BattleCtx doc. undefined when --spd was not given.
+    const battleCtx = { spdDelta: SPD_VALUE };
+
     const rows = [];
     for (const name of names) {
       const policy = { act: acts[name] };
@@ -353,7 +390,7 @@ try {
         for (let i = 0; i < N; i++) {
           const built = make(fixture, rng);
           const before = built.party.members.map((m) => m.hp);
-          const r = sim.simulateBattle(built.party, built.enemies, policy, rng);
+          const r = sim.simulateBattle(built.party, built.enemies, policy, rng, battleCtx);
           if (r.won) s.won++;
           if (r.stall) s.stalls++;
           if (r.enraged) s.enrages++;
@@ -368,9 +405,9 @@ try {
     const wP = Math.max(6, ...rows.map((r) => r.policy.length));
     const wF = Math.max(4, ...rows.map((r) => r.pack.length));
     if (JSON_OUT) {
-      console.log(JSON.stringify({ mode: 'battles', seed: SEED, battles: N, rows }, null, 2));
+      console.log(JSON.stringify({ mode: 'battles', seed: SEED, battles: N, spdDelta: SPD_VALUE ?? null, rows }, null, 2));
     } else {
-      console.log(`battles ${N} per cell, seed ${SEED} (reseeded per cell), act = each policy's act over BATTLE_FIXTURES`);
+      console.log(`battles ${N} per cell, seed ${SEED} (reseeded per cell)${spdNote}, act = each policy's act over BATTLE_FIXTURES`);
       console.log(`${'policy'.padEnd(wP)}  ${'pack'.padEnd(wF)}    win   turns  stall  enrage  hp end`);
       for (const r of rows) {
         console.log(`${r.policy.padEnd(wP)}  ${r.pack.padEnd(wF)} ${pct(r.winRate)} ${r.meanTurns.toFixed(1).padStart(7)} ${pct(r.stallRate)} ${pct(r.enrageRate)} ${pct(r.meanHpFraction, 0).padStart(7)}`);
