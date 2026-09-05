@@ -217,9 +217,9 @@ export const BIOME_PLAN: readonly { name: string; dominant: Biome['dominant']; f
 // --- Scale ------------------------------------------------------------------------
 /** Per act (index 0 = act 1). HP grows slower than ATK because enemy DEF ×3 already eats hero damage growth. */
 export const ACT_MULT = {
-  hp: [1.15, 1.68, 1.4, 1.64, 1.88, 2.16],
-  atk: [1.1, 1.6, 1.57, 2.0, 2.4, 2.83],
-  def: [1.08, 1.45, 1.6, 2.0, 2.47, 3.0],
+  hp: [1.36, 1.64, 1.4, 1.64, 1.88, 2.16],
+  atk: [1.26, 1.56, 1.57, 2.0, 2.4, 2.83],
+  def: [1.17, 1.41, 1.6, 2.0, 2.47, 3.0],
 } as const;
 /** Boss HP is authored per act rather than derived. */
 export const BOSS_HP: readonly number[] = [4700, 5800, 5000, 8500, 8600, 10600];

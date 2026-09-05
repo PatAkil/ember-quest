@@ -242,10 +242,14 @@ function resolveShrine(ctx: Ctx): void {
 }
 /** FORGE: LEVEL (uncapped only) / RECAST / REBRAND on any worn relic; walking past (or an illegal answer) does
  * nothing; a FORGE with nothing to offer is skipped. relics.ts's `forge()` re-validates the choice itself.
- * LEVEL is one of Derivation's maxHp-changing triggers (an HP-main relic on its wearer) — `forge()` only
- * mutates the bare `Relic`, so this call site (the one place that still knows the owning member) captures the
- * pre-forge max and `refitHp`s it after, same as `equip`/`unequip`; harmless no-op for RECAST/REBRAND or a
- * relic that never touches HP, since `refitHp` only moves hp when the derived max actually changed. */
+ * LEVEL, RECAST and REBRAND are all Derivation's maxHp-changing triggers, not LEVEL alone: RECAST can re-key a
+ * substat onto or off of HP/HP_PCT, and REBRAND can complete or break a stat-visible set (ENERGY's +15 % HP) —
+ * an in-situ check found RECAST moving maxHp in 378 of 908 observations and REBRAND in 292 of 959, not a rare
+ * edge case. `forge()` only mutates the bare `Relic`, so this call site (the one place that still knows the
+ * owning member) captures the pre-forge max and `refitHp`s it after every successful forge, same as
+ * `equip`/`unequip`; the refit is a true no-op only when the specific relic/change never touches HP at all
+ * (an ATK-main WEAPON's RECAST landing on CRIT, say), since `refitHp` only moves hp when the derived max
+ * actually changed — that case is common too, just not the general one. */
 function resolveForge(ctx: Ctx): void {
   const worn = partyWorn(ctx.party);
   if (forgeOptions(worn, ctx.pactsTaken).length === 0) return;

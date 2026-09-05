@@ -61,7 +61,11 @@ const SEED = Number(opt('seed', 1));
 const ONLY = opt('policy', 'all');
 const FIXTURES = opt('fixture', 'all');
 const JSON_OUT = has('json');
-const VAULT_N = has('vault') ? numOpt('vault', 0) : 0;
+/** 0-3: how many already-kindled Vault relics RunConfig.vault/vaultSlots start the run with (--runs mode
+ * only — BATTLE_FIXTURES has no RunConfig at all). Clamped here, not just documented, so an out-of-range
+ * value (negative, or past VAULT_EQUIP_MAX's 3) can't silently pass through as something other than what the
+ * three built-in relics (WEAPON/ARMOR/CHALICE) can actually represent. */
+const VAULT_N = has('vault') ? Math.max(0, Math.min(3, numOpt('vault', 0))) : 0;
 /** Stall rate above which the harness exits non-zero — per battle in --battles, per run in --runs. */
 const STALL_MAX = 0.005;
 
@@ -77,7 +81,14 @@ const spdNextRaw = spdPresent ? args[spdArgIndex + 1] : undefined;
 const spdHasValue = spdNextRaw !== undefined && !spdNextRaw.startsWith('--') && Number.isFinite(Number(spdNextRaw));
 const SPD_VALUE = spdHasValue ? Number(spdNextRaw) : undefined;
 const SPD_BARE = spdPresent && !spdHasValue && !BATTLES;
-const RUNS_MODE = !BATTLES && (has('runs') || spdPresent);
+// --vault N > 0 has no meaning in --battles mode (BATTLE_FIXTURES builds its own party, never touching
+// RunConfig) — refuse the combination outright rather than silently dropping it the way --battles --runs N
+// used to silently drop --runs; --vault alone (no --runs, no --spd) still selects --runs mode on its own.
+if (BATTLES && VAULT_N > 0) {
+  console.error('refusing: --vault has no effect in --battles mode (BATTLE_FIXTURES never reads RunConfig.vault) — drop --battles, or drop --vault');
+  process.exit(1);
+}
+const RUNS_MODE = !BATTLES && (has('runs') || spdPresent || VAULT_N > 0);
 /** " spd +10" / " spd -10" / "" — shared by both modes' headers and JSON. */
 const spdNote = SPD_VALUE !== undefined ? ` spd ${SPD_VALUE >= 0 ? '+' : ''}${SPD_VALUE}` : '';
 // battles-per-cell: --n is the native flag; --runs is accepted as an alias for it in --battles mode (so
@@ -219,14 +230,17 @@ async function runRunsMode({ bundle: bundleFn, data, mulberry32 }) {
   // --vault N: RunConfig.vault/vaultSlots IS the harness seam for the Vault-guard scenario (DESIGN.md ->
   // Difficulty targets: "a balanced party wearing three kindled Vault relics") — only the CLI lacked a flag
   // for it. Three already-kindled (EPIC, +6, sigil-bearing) relics, one per fixed-main slot, matching the
-  // slot's real RELIC_MAIN_BASE (data/relics.ts); a stat-only set (FATAL) so no set-completion side effect
-  // confounds the measurement. N beyond 3 is accepted but only these three exist to equip.
+  // slot's real RELIC_MAIN_BASE (data/relics.ts). Three DIFFERENT 2-piece sets (FATAL/ENDURE/FOCUS), one
+  // relic each, so none of them completes a pair — three of the SAME 2-piece set (FATAL, originally) reads
+  // floor(3/2) = 1 application of its stat bonus (+15 % ATK), which is a set-completion effect baked into
+  // every measurement, not the pure per-relic power this scenario means to isolate. N beyond 3 is accepted
+  // but only these three exist to equip.
   const VAULT_RELICS = [
     { id: 'cli-vault-weapon', slot: 'WEAPON', rarity: 'EPIC', set: 'FATAL', level: 6, kindled: true,
       main: { key: 'ATK', base: 36 }, subs: [{ key: 'CRIT', value: 20, rolls: 4 }, { key: 'SPD', value: 15, rolls: 3 }], sigil: 'OPENER' },
-    { id: 'cli-vault-armor', slot: 'ARMOR', rarity: 'EPIC', set: 'FATAL', level: 6, kindled: true,
+    { id: 'cli-vault-armor', slot: 'ARMOR', rarity: 'EPIC', set: 'ENDURE', level: 6, kindled: true,
       main: { key: 'HP', base: 450 }, subs: [{ key: 'DEF', value: 30, rolls: 4 }, { key: 'RES', value: 16, rolls: 3 }], sigil: 'BASTION' },
-    { id: 'cli-vault-chalice', slot: 'CHALICE', rarity: 'EPIC', set: 'FATAL', level: 6, kindled: true,
+    { id: 'cli-vault-chalice', slot: 'CHALICE', rarity: 'EPIC', set: 'FOCUS', level: 6, kindled: true,
       main: { key: 'DEF', base: 36 }, subs: [{ key: 'HP', value: 500, rolls: 3 }, { key: 'ACC', value: 20, rolls: 4 }], sigil: 'MENDING' },
   ];
   const vault = VAULT_N > 0 ? VAULT_RELICS.slice(0, Math.min(3, VAULT_N)) : [];
