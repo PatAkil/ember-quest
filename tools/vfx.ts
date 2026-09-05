@@ -17,8 +17,16 @@
 //                       bloom for the overview)
 //   ages=N              frames per strip (default 8)
 //   cell=N              cell size in px (default 190 detail / 150 overview)
-//   bg=RRGGBB           the ground colour (default the stage navy, 1d2b53)
+//   bg=RRGGBB           the wall colour (default the stage navy, 1d2b53)
+//   floor=RRGGBB        the floor plane (default 131d3a) — set it warm to check
+//                       a warm family against a warm ground
 //   actor=ID            who stands in the cell (default CINDER_IMP)
+//   bounds=1            stroke each effect's vfxBounds rect over the raw strip
+//   envelope=1          measure what each archetype ACTUALLY draws (alpha bbox
+//                       per frame, unioned over the life) and print it beside
+//                       the BOUNDS table vfx.ts declares, in the same units and
+//                       order — paste-ready. Rasterises and reads back every
+//                       frame of every row, so it is opt-in.
 //
 // The per-archetype render cost lands in window.__lineup.metrics (read by
 // tools/capture.mjs) and as a table under the canvas.
@@ -30,6 +38,14 @@ import type { SkillId } from '../game/types';
 
 const params = new URLSearchParams(location.search);
 const bg = '#' + (params.get('bg') ?? '1d2b53').replace('#', '');
+/**
+ * The FLOOR, separately from the wall. It was hardcoded navy, which quietly
+ * made "does this effect read on a warm ground?" untestable here: the ground
+ * wash and every impact land on the floor plane, and on EMBER_CRYPT that plane
+ * is lit amber (#ff9436 key, #ffb15c pool). `floor=2a1a12` puts the crypt's
+ * own warm floor under the effect.
+ */
+const floor = '#' + (params.get('floor') ?? '131d3a').replace('#', '');
 const actorId = params.get('actor') ?? 'CINDER_IMP';
 const AGES = Math.max(2, Math.min(16, Number(params.get('ages') ?? 8)));
 /** Stroke each effect's vfxBounds rect over the raw strip (bounds=1). */
@@ -133,7 +149,7 @@ function drawGround(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   const fy = floorY();
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = '#131d3a';
+  ctx.fillStyle = floor;
   ctx.fillRect(0, fy, w, h - fy);
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.fillRect(0, fy, w, 2);
@@ -244,6 +260,77 @@ function flush(ctx: CanvasRenderingContext2D): void {
   ctx.getImageData(0, 0, 1, 1);
 }
 
+// --- The measured envelope -------------------------------------------------------
+//
+// vfx.ts's BOUNDS table is what the light plane treats as an effect's glow
+// source, and its comment calls the rows "the measured envelopes of the built
+// particle systems" — but nothing here ever measured them, so every retune left
+// them a little more wrong. This does measure them, off PIXELS rather than off
+// the particle records: the effect is drawn alone on a transparent canvas at
+// each 60 Hz step, the alpha bounding box of that frame is read back, and the
+// union over the whole life is the envelope. No coupling to the module's
+// internals (shape ids, stretch semantics, which extras a renderer blits) — it
+// simply asks what got drawn.
+//
+// Reported in multiples of `size` around the origin, in BOUNDS' own order and
+// sign convention, so a row can be pasted straight into the table.
+
+/** Alpha at or above this counts as drawn — under it is fringe the eye never sees. */
+const ENV_ALPHA = 10;
+
+interface Envelope {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+function measureEnvelope(row: Row, seed: number): Envelope | null {
+  const probe = at(row, seed, 0);
+  const v = probe[0];
+  const s = v.size;
+  // Room for the widest archetype (a light pillar stands 3.4 sizes) plus the
+  // ground wash below and a wide shockwave either side.
+  const half = Math.ceil(s * 5 + 80);
+  const size = half * 2;
+  const c = makeCanvas(size, size);
+  const ctx = ctxOf(c);
+  const list: VfxInstance[] = [];
+  spawnVfx(list, row.skill, half, half, { from: { x: half - CELL * 0.9, y: half + CELL * 0.12 }, seed });
+  let l = Infinity;
+  let t = Infinity;
+  let r = -Infinity;
+  let b = -Infinity;
+  let guard = 0;
+  while (list.length > 0 && guard++ < 400) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = 'copy';
+    ctx.clearRect(0, 0, size, size);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    renderVfx(ctx, list);
+    const px = ctx.getImageData(0, 0, size, size).data;
+    for (let y = 0; y < size; y++) {
+      const row0 = y * size * 4;
+      for (let x = 0; x < size; x++) {
+        if (px[row0 + x * 4 + 3] < ENV_ALPHA) continue;
+        if (x < l) l = x;
+        if (x > r) r = x;
+        if (y < t) t = y;
+        if (y > b) b = y;
+      }
+    }
+    updateVfx(list, STEP);
+  }
+  if (l === Infinity) return null;
+  return {
+    left: (l - half) / s,
+    top: (t - half) / s,
+    right: (r - half) / s,
+    bottom: (b - half) / s,
+  };
+}
+
 /** The rect vfxBounds reports, so the bloom feed's extent can be eyeballed against what is actually drawn. */
 function drawBounds(ctx: CanvasRenderingContext2D, b: VfxBounds): void {
   ctx.save();
@@ -270,6 +357,20 @@ export interface VfxMetrics {
   duration: number;
   /** Mean ms for one renderVfx call at mid-life over RENDER_REPS draws, INCLUDING rasterisation (the batch is flushed inside the timed region). */
   msRender: number;
+  /**
+   * The WORST of PEAK_SWEEP, which is where the budget question actually lives:
+   * the contact flash, the shockwave ring, the eight radial sparks and most
+   * families' own burst are all on screen inside the first 120 ms and every one
+   * of them is gone by mid-life, so measuring only the middle of an effect
+   * flatters it by up to a factor of two. Swept rather than sampled at one
+   * fixed age because the peak is not in the same place for every family: a
+   * projectile is an empty frame at t 16 % and does not land until t 42 %.
+   */
+  msPeak: number;
+  /** Where in the life msPeak was found, 0..1. */
+  peakAt: number;
+  /** Live particles there — what msPeak is actually drawing. */
+  peakParts: number;
   /** Mean ms for one updateVfx call, over RENDER_REPS steps. */
   msUpdate: number;
   /** vfxBounds' rect for this archetype at `size`, in px — the bloom feed's extent. */
@@ -277,27 +378,63 @@ export interface VfxMetrics {
   boundsH: number;
 }
 
-const RENDER_REPS = 300;
+const RENDER_REPS = 240;
+/** Ages swept for the cost peak, as fractions of the life. */
+const PEAK_SWEEP = [0.06, 0.16, 0.3, 0.46, 0.62];
 
-/** Cost of one archetype at mid-life, drawn into an offscreen the size of a cell. */
-function measure(row: Row, seed: number): VfxMetrics {
-  const c = makeCanvas(CELL, CELL);
-  const ctx = ctxOf(c);
+/** A fresh instance of `row`, stepped to `frac` of its life. */
+function at(row: Row, seed: number, frac: number): VfxInstance[] {
   const cx = CELL / 2;
   const cy = floorY() - VFX_OFFSET;
   const list: VfxInstance[] = [];
   spawnVfx(list, row.skill, cx, cy, { from: { x: cx - CELL * 0.9, y: cy + CELL * 0.12 }, seed });
-  const v = list[0];
-  const particles = v.count;
-  const dark = v.darkCount;
-  stepTo(list, v.duration * 0.5);
+  stepTo(list, list[0].duration * frac);
+  return list;
+}
+
+/** Live particles in an instance right now — the ones drawPart will not skip. */
+function liveParts(v: VfxInstance): number {
+  let n = 0;
+  for (let i = 0; i < v.count; i++) {
+    const p = v.parts[i];
+    const t = v.age - p.born;
+    if (t >= 0 && t < p.life) n++;
+  }
+  return n;
+}
+
+/** Mean ms of one renderVfx over RENDER_REPS draws, rasterisation included. */
+function timeRender(ctx: CanvasRenderingContext2D, list: VfxInstance[]): number {
   // Warm the JIT and the sprite atlas before the clock starts.
   for (let i = 0; i < 30; i++) renderVfx(ctx, list);
   flush(ctx);
   const t0 = performance.now();
   for (let i = 0; i < RENDER_REPS; i++) renderVfx(ctx, list);
   flush(ctx);
-  const msRender = (performance.now() - t0) / RENDER_REPS;
+  return (performance.now() - t0) / RENDER_REPS;
+}
+
+/** Cost of one archetype at its peak and at mid-life, into an offscreen the size of a cell. */
+function measure(row: Row, seed: number): VfxMetrics {
+  const c = makeCanvas(CELL, CELL);
+  const ctx = ctxOf(c);
+  let msPeak = 0;
+  let peakAt = 0;
+  let peakParts = 0;
+  for (const frac of PEAK_SWEEP) {
+    const probe = at(row, seed, frac);
+    if (probe.length === 0) continue;
+    const ms = timeRender(ctx, probe);
+    if (ms <= msPeak) continue;
+    msPeak = ms;
+    peakAt = frac;
+    peakParts = liveParts(probe[0]);
+  }
+  const list = at(row, seed, 0.5);
+  const v = list[0];
+  const particles = v.count;
+  const dark = v.darkCount;
+  const msRender = timeRender(ctx, list);
   // updateVfx on a list that never expires: age is rewound each step.
   const u0 = performance.now();
   for (let i = 0; i < RENDER_REPS; i++) {
@@ -315,6 +452,9 @@ function measure(row: Row, seed: number): VfxMetrics {
     size: v.size,
     duration: v.duration,
     msRender: Math.round(msRender * 1000) / 1000,
+    msPeak: Math.round(msPeak * 1000) / 1000,
+    peakAt,
+    peakParts,
     msUpdate: Math.round(msUpdate * 1000) / 1000,
     boundsW: Math.round(b.w),
     boundsH: Math.round(b.h),
@@ -388,15 +528,46 @@ function render(): VfxMetrics[] {
 }
 
 function table(metrics: VfxMetrics[]): string {
-  const head = 'archetype      skill          parts  dark  size  dur    render ms  update ms   bounds w x h';
+  const head = 'archetype      skill          parts  dark  size  dur    peak ms   at%  live  mid ms  update ms   bounds w x h';
   const body = metrics.map((m) =>
     `${m.kind.padEnd(14)} ${m.skill.padEnd(14)} ${String(m.particles).padStart(5)} ${String(m.dark).padStart(5)} ` +
-    `${String(m.size).padStart(5)} ${m.duration.toFixed(2).padStart(5)} ${m.msRender.toFixed(3).padStart(10)} ` +
+    `${String(m.size).padStart(5)} ${m.duration.toFixed(2).padStart(5)} ${m.msPeak.toFixed(3).padStart(8)} ` +
+    `${String(Math.round(m.peakAt * 100)).padStart(4)} ${String(m.peakParts).padStart(5)} ${m.msRender.toFixed(3).padStart(7)} ` +
     `${m.msUpdate.toFixed(3).padStart(9)}   ${m.boundsW} x ${m.boundsH}`);
-  const worst = metrics.reduce((a, m) => Math.max(a, m.msRender), 0);
-  return [head, ...body, '', `worst mean render: ${worst.toFixed(3)} ms (budget: <= 0.5 ms; means include rasterisation)`].join('\n');
+  const worstPeak = metrics.reduce((a, m) => Math.max(a, m.msPeak), 0);
+  const worstMid = metrics.reduce((a, m) => Math.max(a, m.msRender), 0);
+  return [
+    head,
+    ...body,
+    '',
+    `worst mean render: ${worstPeak.toFixed(3)} ms at each family's own peak, ` +
+    `${worstMid.toFixed(3)} ms at mid-life (budget: <= 0.5 ms; means include rasterisation)`,
+  ].join('\n');
+}
+
+/**
+ * The measured envelope beside the one vfx.ts declares, in BOUNDS' own units
+ * and order — paste-ready. Opt-in (`envelope=1`) because it rasterises and
+ * reads back every frame of every row.
+ */
+function envelopeTable(): string {
+  const head = 'archetype      skill            measured [l, t, r, b] x size          declared';
+  const lines = ROWS.map((row, i) => {
+    const e = measureEnvelope(row, SEED_BASE + i);
+    if (!e) return `${row.kind.padEnd(14)} ${row.skill.padEnd(14)} (nothing drawn)`;
+    const list: VfxInstance[] = [];
+    spawnVfx(list, row.skill, 0, 0, { seed: SEED_BASE + i });
+    const v = list[0];
+    const d = vfxBounds(v);
+    const f = (n: number): string => (n >= 0 ? ' ' : '') + n.toFixed(2);
+    return `${row.kind.padEnd(14)} ${row.skill.padEnd(14)} ` +
+      `[${f(e.left)}, ${f(e.top)}, ${f(e.right)}, ${f(e.bottom)}]   ` +
+      `[${f(d.x / v.size)}, ${f(d.y / v.size)}, ${f((d.x + d.w) / v.size)}, ${f((d.y + d.h) / v.size)}]`;
+  });
+  return ['', 'measured drawn envelope vs vfxBounds (multiples of size, y negative up):', head, ...lines].join('\n');
 }
 
 const metrics = render();
-out.textContent = `vfx sheet · ${ROWS.length} row(s) · ages=${AGES} · cell=${CELL} · mode=${mode}\n${table(metrics)}`;
+const envelopes = params.get('envelope') === '1' ? envelopeTable() : '';
+out.textContent = `vfx sheet · ${ROWS.length} row(s) · ages=${AGES} · cell=${CELL} · mode=${mode}\n${table(metrics)}${envelopes}`;
 (window as unknown as { __lineup: { ready: boolean; metrics: VfxMetrics[] } }).__lineup = { ready: true, metrics };
