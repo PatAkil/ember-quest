@@ -172,7 +172,7 @@ FIRE ▸ WIND ▸ WATER ▸ FIRE, and LIGHT ⇄ DARK mutually.
 | Matchup | Crit chance | Glance chance |
 |---|---|---|
 | advantage (the triangle's winner; LIGHT vs DARK either way) | +`ELEMENT_CRIT = 15` pts (`ELEMENT_CRIT_LD = 15` for the LIGHT ⇄ DARK pair) | 0 |
-| neutral | — | 0 |
+| neutral (LIGHT or DARK against the triangle, or against its own element) | — | 0 |
 | disadvantage (the triangle's loser only) | — | `GLANCE_CHANCE = 0.50` |
 
 There is no elemental damage multiplier. The upside of the right element is
@@ -182,9 +182,11 @@ element is punished harder than the right one is rewarded. The **GLANCE**
 debuff raises the holder's glance chance to `GLANCE_DEBUFF = { advantage:
 0, neutral: 0.50, disadvantage: 1.0 }` — wrong element plus the debuff
 always glances. LIGHT and DARK are neutral against the triangle and
-advantaged against each other **both ways**: a LIGHT or DARK attacker never
-glances, and since every boss is LIGHT or DARK, SABLE and LUMEN carry the
-crit bonus into every boss fight — the edge phase 8 watches (below). Every
+against their own element, and advantaged against each other **both ways**:
+a LIGHT or DARK attacker never glances from its matchup (only the GLANCE
+debuff makes it glance, at the neutral rate), and since every boss is LIGHT
+or DARK, SABLE and LUMEN carry the crit bonus into half the boss fights
+with no glance risk in the other half — the edge phase 8 watches (below). Every
 biome has a dominant element *and* a foil: a mono-element party is a bet
 on the route. Elements are also the visual identity: every actor's palette is an
 element tint applied per sprite layer.
@@ -362,7 +364,7 @@ Per hit, on each living target, in this order:
 ```
 raw    = statEff(attacker, skill.scale) × skill.mult × (target.has(bonusVs.status) ? bonusVs.mult : 1)
 glance = p > 0 && rng() < p, p = attacker.has(GLANCE) ? GLANCE_DEBUFF[matchup] : matchup == disadvantage ? GLANCE_CHANCE : 0   // no draw at p = 0
-crit   = !glance && rng() × 100 < clamp(critPts(attacker) + (matchup == advantage ? ELEMENT_CRIT : 0), 0, CAP_CRIT)   // no draw on a glance
+crit   = !glance && rng() × 100 < clamp(critPts(attacker) + (matchup == advantage ? (lightDark ? ELEMENT_CRIT_LD : ELEMENT_CRIT) : 0), 0, CAP_CRIT)   // no draw on a glance; lightDark = one LIGHT, one DARK
 raw   ×= glance ? GLANCE_MULT : crit ? 1 + cdmg / 100 : 1
 raw   ×= target.has(BRAND) ? 1.25 : 1
 defEff = statEff(target, 'DEF')                                                            // DEF_UP + DEF_BREAK cancel
@@ -465,7 +467,7 @@ the WARDEN; numbers are phase 8's):
 | CINDER IMP | FIRE | normal SPREAD | Scorch ×1.0 / Kindle ×0.8 + BURN 0.75 (3) |
 | ASH HOUND | FIRE | normal FOCUS, spd +10 | Bite ×1.1 / Rend 2 × 0.6 + BRAND 0.75 (3) |
 | CRYPT WARDEN | FIRE | normal support | Cudgel ×0.8 / Rally ALL_ALLIES SPD_UP (4) / Mend LOWEST_HP_ALLY 0.20 (3) |
-| DUST WRAITH | WIND | normal SPREAD | Wail ×0.9 + GLANCE 0.50 / Choke ×0.7 + SILENCE 0.75 (3) |
+| DUST WRAITH | WIND | normal SPREAD | Wail ×0.9 + GLANCE 0.75 / Choke ×0.7 + SILENCE 0.75 (3) |
 | PYRE KNIGHT | FIRE | elite FOCUS | Shield Bash DEF ×1.3 / Brace SELF DEF_UP + COUNTER (4) / Immolate ALL_ENEMIES ×0.7 + BURN 0.50 (5) |
 | HOLLOW KING | DARK | boss FOCUS | Reap ×1.2 / Dread Wail ALL_ENEMIES ×0.8 + SLOW 0.50 (3) / Shroud SELF INVINCIBLE 1 (5) / A5: Doom ×2.0 + HEAL_BLOCK 0.75 (4) |
 
@@ -907,8 +909,9 @@ index; `relic`, `summon`, `forge` and `rest` with any illegal field decline
 highest-level worn relics (tie rarity, member, slot).
 
 Policy roster: **random** · **balanced** (`relic` takes the highest
-`compare.score` when positive; `act` maximises expected `dealt` with crit at
-its probability, preferring a heal that reaches the lowest ally when any
+`compare.score` when positive; `act` maximises expected `dealt` — `raw × (pGlance × GLANCE_MULT + (1 −
+pGlance) × (pCrit × (1 + cdmg / 100) + 1 − pCrit))`, both probabilities from
+the damage block — preferring a heal that reaches the lowest ally when any
 ally is below 40 %, ties lowest index; `rest`: HEAL when any living member is
 below `REST_HEAL_AT = 0.50`, else sharpen the member with the most uncapped
 relics, tie lowest index; `shrine`: 50/50; `route`: REST when any member is
@@ -1141,7 +1144,10 @@ the v2 rules. Paper numbers last moved in the round-3 review (2026-09-05):
 `LEGENDARY_MAIN_MULT` 1.2 → 1.5, `COMPARE_WEIGHTS.DEF` 0.6 → 0.25, GUARD +15
 → +30 % DEF, SCHISM's curse ×0.5 → ×0; round 4 (same day): `DESTROY_DEALT`
 0.30 → 0.40 and the 2+2+2 fallback cap at one application; round 5 (same
-day): `NEMESIS_ATB` 0.15 → 0.40, HASTE's curse ×1.2 → ×1.1. This section gets
+day): `NEMESIS_ATB` 0.15 → 0.40, HASTE's curse ×1.2 → ×1.1. The owner's
+element model (same day) softens the wrong-element penalty from ≈ 70 % to
+≈ 78 % of neutral expected damage at CRIT 42 / CDMG 57 — intended; `GLANCE_MULT`
+and `GLANCE_CHANCE` are the levers if phase 8 wants the old severity back. This section gets
 rewritten at phase 8 and dated.
 
 ## Open questions

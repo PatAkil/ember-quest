@@ -633,3 +633,14 @@ the loop closed.
 | X1 | BLOCKING | GLANCE had no `StatusKind` in the Types block; Squall's and Wail's rows did not show it | The union and both kit rows updated (code already carried it) |
 | X2 | GAP | Act 1's ELITE gate ran once at `buildMap`, before the landmark SUMMON grew the party, so the act-1 elite was unreachable | The gate applies to stages before the SUMMON landmark; an ELITE entered short-handed is played as a FIGHT |
 | X3 | GAP | Hero-panel status icons had no overflow rule | Past six: five icons and a "+N" chip |
+
+### Elements and guards
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| D1 | BLOCKING | `ELEMENT_CRIT_LD` defined but never read by the crit line | The crit line branches on the LIGHT/DARK pair |
+| D2 | BLOCKING | `GLANCE_DEBUFF[neutral]` let a LIGHT/DARK attacker glance while the prose said never | The prose: never from its matchup; the debuff still works at the neutral rate |
+| B1 | GAP | LIGHT vs LIGHT and DARK vs DARK undefined | Neutral (as Summoners War); the "every boss fight" claim corrected to half |
+| N1 | NUMBERS | `balanced.act`'s expected `dealt` ignored the glance | The two-branch formula |
+| N2 | NUMBERS | The new penalty is ≈ 78 % of neutral against the old ≈ 70 % | Intended (the owner found the old swing too strong); logged in Balance state with the levers |
+| — | — | Wail's GLANCE at the secondary chance broke the file's convention for single-target debuffs | Wail 0.75; Squall's stays 0.50 as its second debuff |

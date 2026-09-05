@@ -81,7 +81,7 @@ export const SKILLS: Record<SkillId, SkillDef> = {
     applies: [{ status: 'SPD_UP', chance: 1, turns: T.SPD_UP }], verb: 'rallies' },
   MEND: { id: 'MEND', name: 'Mend', cooldown: 3, mult: 0, hits: 0, scale: 'ATK', kind: 'MAGIC', target: 'LOWEST_HP_ALLY', heal: 0.2, verb: 'mends' },
   WAIL: { id: 'WAIL', name: 'Wail', cooldown: 0, mult: 0.9, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY',
-    applies: [{ status: 'GLANCE', chance: CHANCE_SECONDARY, turns: T.GLANCE }], verb: 'wails at' },
+    applies: [{ status: 'GLANCE', chance: CHANCE_PRIMARY, turns: T.GLANCE }], verb: 'wails at' },
   CHOKE: { id: 'CHOKE', name: 'Choke', cooldown: 3, mult: 0.7, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY',
     applies: [{ status: 'SILENCE', chance: CHANCE_PRIMARY, turns: T.SILENCE }], verb: 'chokes' },
   SHIELD_BASH: { id: 'SHIELD_BASH', name: 'Shield Bash', cooldown: 0, mult: 1.3, hits: 1, scale: 'DEF', kind: 'PHYSICAL', target: 'ENEMY', verb: 'slams' },

@@ -40,7 +40,8 @@ export type Matchup = 'ADVANTAGE' | 'NEUTRAL' | 'DISADVANTAGE';
 /**
  * There is no elemental damage multiplier. Advantage adds crit points; disadvantage
  * risks a GLANCE — no crit, GLANCE_MULT damage. LIGHT ⇄ DARK is advantage both ways
- * (ELEMENT_CRIT_LD), so a LIGHT or DARK attacker never glances.
+ * (ELEMENT_CRIT_LD) and same-element is neutral, so a LIGHT or DARK attacker never glances
+ * from its matchup — only the GLANCE debuff makes it glance, at the neutral rate.
  */
 export const ELEMENT_CRIT = 15;
 export const ELEMENT_CRIT_LD = 15;
