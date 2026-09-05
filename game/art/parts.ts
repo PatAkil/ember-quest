@@ -491,7 +491,15 @@ function hemShift(rows: readonly string[], from: number, ch: string, grow = 2, c
 }
 
 /**
- * A TORSO DRIVEN OFF THE BLOW. Round 4's recoils on TIDE (21.8 % aligned
+ * A TORSO DRIVEN OFF THE BLOW — bent about `pivot`, which is the row that
+ * STAYS PUT. Round 5 pivoted every one of these at the belt, so only the chest
+ * above it moved and a floor-length robe (TIDE, the Pale Saint) or a cloak
+ * (SABLE) kept the whole of its silhouette: hurt frame 0 measured 83-87 %
+ * against the idle. The pivot belongs where the figure is PLANTED — the hem
+ * for a robe, the knee for a cloak, the pelvis for a skeleton — so the entire
+ * standing mass leans off the blow and the outline genuinely changes.
+ *
+ * Round 4's recoils on TIDE (21.8 % aligned
  * change) and BASALT (29.6 %) were translations — the arms rig swapped, but the
  * body held its idle shape, so nothing about the figure changed except where it
  * stood. Shearing the body about the belt (every row above `pivot` offset by
@@ -652,7 +660,7 @@ const tideBase = turn(stampRows(stampRows(selfShadow([...tideTop, ...tideHem], '
 const tideRows = [...hemShift(tideBase.slice(0, 34), 12, 'A', 2), ...tideBase.slice(34).map((r) => shiftX(r, 2))];
 const BODY_TIDE = part(tideRows, bodyAnchors(BULK, 38, 16));
 /** Struck: the robe's whole upper half is bent back off the hit while the hem holds the floor. */
-const BODY_TIDE_HURT = bodyRecoil(tideRows, bodyAnchors(BULK, 38, 16), 14, 4);
+const BODY_TIDE_HURT = bodyRecoil(tideRows, bodyAnchors(BULK, 38, 16), 31, 8);
 
 const hagAnchors: Partial<Record<AnchorName, Point>> = { head: { x: BULK + 3, y: 0 }, hand: { x: BULK + 2, y: 4 }, capePin: { x: BULK + 2, y: 3 }, feet: { x: BULK, y: 37 }, hit: { x: BULK, y: 18 } };
 // The hag shares TIDE's cone but not its hem: hers is unshifted and gone to
@@ -708,7 +716,7 @@ const basaltRows = [
 ];
 const BODY_BASALT = part(basaltRows, bodyAnchors(PLATE, 38, 15));
 /** Struck: the whole armoured upper body is bent four cells back over planted sabatons. */
-const BODY_BASALT_HURT = bodyRecoil(basaltRows, bodyAnchors(PLATE, 38, 15), 15, 4);
+const BODY_BASALT_HURT = bodyRecoil(basaltRows, bodyAnchors(PLATE, 38, 15), 26, 7);
 
 // PYRE KNIGHT — TALL AND NARROW, and no shield at all: three horizontal
 // plate rows over a long scale skirt, straps running down-RIGHT, and a tabard
@@ -796,6 +804,7 @@ const sableBodyRows = [
   ...legsTurned(W_WIDE + 2, 8, { pad: 4, w: 6, leg: '{', knee: '{', boot: '{', cuff: '4' }, { pad: 5, w: 7, leg: '4', knee: '4', boot: '4', cuff: 'L' }, 3),
 ];
 const BODY_SABLE = part(sableBodyRows, bodyAnchors(WIDE, 38, 15));
+const BODY_SABLE_HURT = bodyRecoil(sableBodyRows, bodyAnchors(WIDE, 38, 15), 26, 8);
 
 // LUMEN — TWO gold shoulder plates joined to the tunic by a one-cell seam
 // (round 3 left a dark GAP there, which read as a floating cap), a long
@@ -818,8 +827,14 @@ const lumenTop = bands(WIDE, [
 const BODY_LUMEN = part(
   [
     ...turn(stampRows(selfShadow(shoulderDrop(lumenTop, 6, WIDE, '6', 2, 1), '[', 3, [7, 11], [5, 21]), 13, 23, [19, '22']), { top: 3, bottom: 6, ch: 'A' }),
-    // matched boots: same ramp both sides, the far one one step darker
-    ...legsTurned(W_WIDE + 2, 9, { pad: 4, w: 5, leg: '[', knee: '[', boot: '{', cuff: '4' }, { pad: 5, w: 6, leg: 'c', knee: 'c', boot: '4', cuff: 'l' }, 3),
+    // MATCHED BOOTS, second asking. Round 5 matched the two BOOTS and left the
+    // two SHINS two steps apart: the far leg ran cloth DEEP (L 13) from the
+    // hem to the cuff while the near one sat on cloth SHADOW (L 55), a 40 L*
+    // split on the same row that read as one leg missing and one lit. Both
+    // shins are on the cloth ramp now and both boots on the leather ramp, the
+    // far side exactly ONE step darker on each — the same pairing EMBER's legs
+    // have carried since round 4.
+    ...legsTurned(W_WIDE + 2, 9, { pad: 4, w: 5, leg: 'c', knee: '[', boot: '{', cuff: '4' }, { pad: 5, w: 6, leg: 'C', knee: 'c', boot: '4', cuff: 'l' }, 3),
   ],
   bodyAnchors(WIDE, 38, 15),
 );
@@ -992,16 +1007,18 @@ const drownedHeadRows = [
     sym(HLH, hb(HLH, 2, 'M'), 'M'),
     sym(HLH, hb(HLH, 2, 'M'), 'M'),
     sym(HLH, hb(HLH, 2, 'm'), 'm'),
-    // Round 4 left a nasal bar between two ink slots and a matched pair of
-    // streaks down the cheeks: five verticals in a row, which is a mandible.
-    // ONE slot now, with a single surviving bar off centre, one dim light
-    // behind it, and the corrosion asymmetric — a hole rusted through the far
-    // cheek and a second, lower, through the near one.
-    stamp(sym(HLH, '..#########', '#'), [8, '5']),
-    stamp(sym(HLH, '..#########', '#'), [8, '5'], [14, 'g']),
-    stamp(sym(HLH, hb(HLH, 2, 'M'), 'M'), [6, '#'], [7, '5']),
-    stamp(sym(HLH, hb(HLH, 2, 'M'), 'M'), [6, '5']),
-    stamp(sym(HLH, hb(HLH, 2, 'm'), 'm'), [15, '}#']),
+    // Rounds 4 and 5 both left VERTICALS under the visor — a bar at col 8 with
+    // two more marks at cols 6 and 7 directly below it — and three verticals in
+    // a row on a helm is a mandible however they are shaded. The slot is
+    // narrower now (four cells in from each side rather than two), it carries
+    // ONE surviving bar with a dim light behind it, and the corrosion is two
+    // HOLES rather than streaks: a two-by-two rusted through the far cheek and a
+    // single higher one through the near, neither in the bar's column.
+    stamp(sym(HLH, '....#######', '#'), [9, '5']),
+    stamp(sym(HLH, '....#######', '#'), [9, '5'], [14, 'g']),
+    stamp(sym(HLH, hb(HLH, 2, 'M'), 'M'), [16, '#5']),
+    stamp(sym(HLH, hb(HLH, 2, 'M'), 'M'), [5, '##']),
+    stamp(sym(HLH, hb(HLH, 2, 'm'), 'm'), [5, '#}']),
     sym(HLH, hb(HLH, 3, 'M'), 'M'),
     sym(HLH, hb(HLH, 3, 'M'), 'M'),
     sym(HLH, hb(HLH, 4, 'm'), 'm'),
@@ -1021,17 +1038,21 @@ const sableHeadRows = [
     sym(HLH, hb(HLH, 9, '!'), '!'),
     ...crown('!', [7, 5, 4]),
     ...crown('A', [3, 1, 0]),
-    sym(HLH, 'AAADDDDDDDD', 'D'),
-    sym(HLH, 'AAD]]]]]]]]', ']'), // the cowl's mouth, widest under the brow
-    // Round 4 socketed each eye in its own mid-tone frame with a bridge
-    // between, which is exactly the construction of a pair of spectacles. The
-    // hood's interior is ONE unbroken shadow now and the eyes are two unequal
-    // lights sitting IN it — the near one a cell bigger and a row higher than
-    // the far one, so the head reads as turned.
-    stamp(sym(HLH, 'AA3]]]]]]]]', ']'), [15, 'GG']),
-    stamp(sym(HLH, 'AAA3]]]]]]]', ']'), [6, 'G'], [15, 'G@']),
-    stamp(sym(HLH, 'AAAA3]]]]]]', ']'), [6, 'g']),
-    sym(HLH, 'AAAAA3]]]]]', ']'), // and closing to the chin, so the shadow is an ARCH rather than a visor slot ruled across the face
+    // THE SLOT. Rounds 4, 5 and 6 all asked the same thing of this hood: the
+    // opening was SEVENTEEN cells across a twenty-three-cell head, which at two
+    // screen pixels reads as a blindfold with two lit dots on it, whatever is
+    // inside. It is eight cells now — two three-cell eye slots with a two-cell
+    // bridge of hood between them — with the cloak's own cloth carried across
+    // the rest of the face and a shadow rim around the opening, so the hood has
+    // a FRONT to it and the darkness is a hole in that front rather than the
+    // whole of it. The eyes stay unequal: the near one is a cell bigger and a
+    // row higher than the far, which is what turns the head.
+    'AAADDDDD3333333DDDDDAAA',
+    'AAADDDD3]]]33]]]3DDDAAA',
+    'AAADDDD3]]]33]GG3DDDAAA',
+    'AAADDDD3]G]33]G@3DDDAAA',
+    'AAADDDD3]g]33]]]3DDDAAA',
+    'AAAADDDD3333333DDDDAAAA', // and the hood closes under the chin
     // and the cowl does not stop on a curve: it DRAPES, spilling two cells
     // wider onto the near shoulder than the far one and torn at its edge.
     pair(HLH, hb(HLH, 2, 'A'), 'A', hb(HLH, 0, 'A')),
@@ -1270,22 +1291,44 @@ for (let i = 0; i < 14; i++) {
   row = stamp(row, [fp + 4, '6'], [ROBE_W - np - nw, '6']); // the underside of each sleeve, dark
   armsRobeRows.push(row);
 }
-const ARMS_ROBE = part(
-  [
-    ...armsRobeRows,
-    ...[
-      '.........66666.....66666.........',
-      '..........2222222222222..........',
-      '..........SSSSSSSSSSSSS..........',
-      '..........SSSSSSSSSSSSS..........',
-      '...........SSSSSSSSSSS...........',
-      '...........S#SSSSS#SSS...........',
-      '............SSSSSSSSS............',
-      '.............(((((((.............',
-    ].map((r) => shiftX(r, ROBE_CUP)),
-  ],
-  { hand: { x: RLH, y: 0 }, weaponGrip: { x: RLH + ROBE_CUP, y: 16 } },
-);
+/** The two cupped palms every orb bearer carries, shared by the idle arms and the recoil ones so the cradle is the SAME hands wherever the hit throws them. */
+const robeCradle: readonly string[] = [
+  '.........66666.....66666.........',
+  '..........2222222222222..........',
+  '..........SSSSSSSSSSSSS..........',
+  '..........SSSSSSSSSSSSS..........',
+  '...........SSSSSSSSSSS...........',
+  '...........S#SSSSS#SSS...........',
+  '............SSSSSSSSS............',
+  '.............(((((((.............',
+];
+const ARMS_ROBE = part([...armsRobeRows, ...robeCradle.map((r) => shiftX(r, ROBE_CUP))], { hand: { x: RLH, y: 0 }, weaponGrip: { x: RLH + ROBE_CUP, y: 16 } });
+
+/**
+ * THE CRADLE KNOCKED OPEN. A robed figure carries its whole recoil in its
+ * sleeves — a bell has no legs to shift a weight onto and nothing else outside
+ * its own outline — and round 5 gave the two orb bearers no hurt arms at all,
+ * so TIDE and the Pale Saint took a hit by translating: hurt frame 0 measured
+ * 85-87 % against the idle silhouette. Here the far sleeve is thrown OUT and
+ * DOWN, ending clear of the robe's edge where the idle tucks it in; the near
+ * one is driven across the body; and the cradle — the same two palms, not a
+ * different pair of hands — drops two rows and slides five cells onto the far
+ * side, carrying the orb with it, because `weaponGrip` moves with the hands and
+ * a cradled prop holds still against the hands that carry it.
+ */
+const armsRobeHurtRows: string[] = [];
+for (let i = 0; i < 16; i++) {
+  const fp = Math.max(0, 5 - Math.round((i * 5) / 15)); // the far sleeve swings out and down
+  const np = Math.round((i * 9) / 15); // the near one comes in across the body
+  const nw = i >= 3 && i <= 9 ? 7 : 6;
+  let row = stanceRow(ROBE_W, fp, 5, 'A', np, nw, 'A');
+  row = stamp(row, [fp + 4, '6'], [ROBE_W - np - nw, '6']);
+  armsRobeHurtRows.push(row);
+}
+const ARMS_ROBE_HURT = part([...armsRobeHurtRows, ...robeCradle.map((r) => shiftX(r, ROBE_CUP - 5))], {
+  hand: { x: RLH, y: 0 },
+  weaponGrip: { x: RLH + ROBE_CUP - 5, y: 18 },
+});
 
 // --- Weapons ------------------------------------------------------------------
 // Weapons are proportionally large — a staff taller than its bearer, a bow
@@ -1510,7 +1553,14 @@ const MACE = part(mace.rows, { weaponGrip: { x: mace.off(MACE_GRIP_Y) + 1, y: MA
 // on a two-handed haft laid across the whole body at about sixty degrees, so
 // the arm of the silhouette that BASALT fills with a shield this one fills
 // with a weapon.
-const polearm = diagonalHaft(48, 30, 26, (i, put) => {
+// ROUND 6 — FOUR ROWS SHORTER BELOW THE GRIP. At 48 its ferrule landed on the
+// ground line at exactly the row the near boot does, three cells from it, and
+// lying across the far boot: two critics running have read that shaft as the
+// Pyre Knight's second leg and both his soles as level. Ending it at the second
+// wrap puts the butt four rows clear of the floor, which is where a guard's
+// polearm is when he is not leaning on it — and leaves the foot line to the two
+// boots, whose soles are two rows apart.
+const polearm = diagonalHaft(44, 30, 24, (i, put) => {
   if (i === 0) {
     put(1, 'M');
     return;
@@ -1526,7 +1576,7 @@ const polearm = diagonalHaft(48, 30, 26, (i, put) => {
     return;
   }
   const grip = (i >= 22 && i <= 29) || (i >= 34 && i <= 41); // TWO wraps: this is held in two fists
-  for (let k = 0; k < 3; k++) put(k, i >= 46 ? '}' : k === 0 ? '~' : grip ? '{' : k === 2 ? '{' : '4');
+  for (let k = 0; k < 3; k++) put(k, i >= 42 ? '}' : k === 0 ? '~' : grip ? '{' : k === 2 ? '{' : '4');
 });
 const POLEARM = part(polearm.rows, { weaponGrip: { x: polearm.off(26) + 1, y: 26 } });
 
@@ -1696,21 +1746,50 @@ const cane = diagonalHaft(38, 18, 11, (i, put) => {
 });
 const CANE = part(cane.rows, { weaponGrip: { x: cane.off(22) + 1, y: 22 } });
 
-// CLAW — the Hollow King (boss scale): a bony wrist and palm at the grip,
-// four long talons that HOOK inward at the tip rather than hanging straight.
-const CLL = 8;
-const clawRows = bands(CLL, [
-  [3, hb(CLL, 5, 'B'), 'B'], // wrist
-  [5, hb(CLL, 1, 'B'), 'B'], // palm
-  [4, hg2(CLL, 1, 2, 5, 2, 'B'), 'B'],
-  [5, hg2(CLL, 2, 2, 5, 2, 'B'), '.'],
-  [3, hg2(CLL, 3, 2, 5, 2, 'B'), '.'],
-  [2, hg2(CLL, 4, 2, 6, 1, 'B'), '.'],
-]);
-const hooked = [...clawRows, sym(CLL, hg2(CLL, 5, 2, 7, 1, 'B'), '.'), sym(CLL, hg2(CLL, 6, 2, 7, 1, '%'), '.'), sym(CLL, hg2(CLL, 7, 1, 8, 1, '%'), '.')];
-const CLAW = part(hooked, { weaponGrip: { x: CLL, y: 2 } });
-/** The king's other hand — literally placed, so both arms end in talons. */
-const CLAW_LEFT = part(hooked.map((r) => [...r].reverse().join('')));
+// CLAW — the Hollow King's hands (boss scale). Rounds 1, 4 and 5 all drew this
+// as a TWENTY-FIVE ROW fringe of four one-cell talons hanging off the wrist,
+// and all three critics read the same thing: a broom. Stacked on the body's own
+// bone arm it made one unbroken bundle from the shoulder girdle to the knee —
+// forty-two rows with no joint in them — on the largest sprite in the game.
+//
+// A hand is a HAND: a wrist that meets the forearm, a knuckled back four rows
+// deep with two creases across it, and talons that are FOUR CELLS long, two
+// cells wide at their base so each one carries its own lit edge and dark side
+// rather than reading as a hair. Ten rows, not twenty-five — so the arm above
+// it (four-cell upper arm, one-cell elbow notch, three-cell forearm inset a
+// cell toward the torso, four-row hand: `kingShaded` below) is what the
+// silhouette shows, with the claw as its terminus instead of its bulk.
+//
+// The two hands are DIFFERENT hands, which is also the king's asymmetry: the
+// weapon side hangs open with its talons splayed, the far side is closed into a
+// fist with the claw tips folded back under the knuckles.
+const clawOpen = [
+  '...BBB...', //  0  the wrist, into the forearm's own bone
+  '..BBBBB..', //  1  knuckles
+  '.BB%BBBB.', //  2  the back of the hand, its top-left knuckle on the key — THE GRIP ROW
+  '.BBBBBBB.', //  3
+  '.B8BB8BB.', //  4  two finger creases across it
+  '.BBBBBBB.', //  5  the heel of the palm
+  '.BB.BB.BB', //  6  three talons, two cells each, springing from under the knuckles
+  '.BB.BB.BB', //  7
+  '..B..B..B', //  8  tapering
+  '..&..&..&', //  9  to hooked points
+];
+const clawFist = [
+  '...BBB...', //  0  the same wrist
+  '..BBBBB..', //  1
+  '.BB%BBBB.', //  2  THE GRIP ROW — the two hands share it, so they hang from one rig
+  '.BBBBBBB.', //  3
+  '.B8BB8BB.', //  4
+  '.BBBBBBB.', //  5
+  '..BBBBB..', //  6  but this one is CLOSED: the talons fold back under the knuckles
+  '..B8B8B..', //  7
+  '...BBB...', //  8
+  '...&&&...', //  9
+];
+const CLAW = part(clawOpen, { weaponGrip: { x: 4, y: 2 } });
+/** The king's other hand — literally placed, closed, and three rows lower, so his two arms are neither level nor the same shape. */
+const CLAW_LEFT = part(clawFist.map((r) => [...r].reverse().join('')), { weaponGrip: { x: 4, y: 2 } });
 
 // --- The collapse: re-authored parts, never a rotated standing sprite ----------
 // A death frame is the one pose a rotation cannot fake. Turning the standing
@@ -1920,13 +1999,39 @@ const FALLEN_FOLD: FallenShape = {
   anchors: { head: { x: 5, y: 11 }, hand: { x: 11, y: 12 }, capePin: { x: 13, y: 10 }, feet: { x: 15, y: 19 }, hit: { x: 15, y: 14 } },
 };
 
-function fallenBody(o: FallenOpts, shape: FallenShape = FALLEN_KNEEL): PartDef {
+/**
+ * FLIPPING A COLLAPSE. Four of the six shapes are strongly asymmetric — the
+ * hips are high on one side, the head is down on the other, the fold runs one
+ * way — so mirroring one is a genuinely different death, not a recolour of the
+ * same one. Round 5 had four armoured figures sharing KNEEL and two robed ones
+ * sharing CRUMPLE, and the critic measured three pairs at 82-84 % pairwise
+ * silhouette. Mirroring reverses the rows AND the anchors, so the head, the
+ * flung arm, the ground contact and the dropped weapon all move with it.
+ */
+function mirrorRows(rows: readonly string[]): string[] {
+  const w = Math.max(...rows.map((r) => r.length));
+  return rows.map((r) => [...r.padEnd(w, '.')].reverse().join(''));
+}
+function mirrorAnchors(a: Partial<Readonly<Record<AnchorName, Point>>>, w: number): Partial<Record<AnchorName, Point>> {
+  const out: Partial<Record<AnchorName, Point>> = {};
+  for (const name of ['hand', 'head', 'weaponGrip', 'capePin', 'feet', 'hit'] as const) {
+    const p = a[name];
+    if (p) out[name] = { x: w - 1 - p.x, y: p.y };
+  }
+  return out;
+}
+
+function fallenBody(o: FallenOpts, shape: FallenShape = FALLEN_KNEEL, flip = false): PartDef {
   const rows = shape.rows.map((r) => r.replace(/G/g, o.g).replace(/D/g, o.dark).replace(/P/g, o.deep).replace(/B/g, o.boot).replace(/K/g, o.bootDeep));
   // The far arm is flung forward onto the ground past the shoulder — the one
   // limb a folded torso cannot hide, and the read that says "dropped".
   const y = shape.anchors.hit?.y ?? 10;
-  const out = stampRows(stampRows(stampRows(rows, y - 1, y - 1, [1, o.g.repeat(4)]), y, y, [0, o.dark.repeat(4)]), y + 1, y + 1, [1, o.deep.repeat(3)]);
-  return { ...part(out), anchors: shape.anchors };
+  let out = stampRows(stampRows(stampRows(rows, y - 1, y - 1, [1, o.g.repeat(4)]), y, y, [0, o.dark.repeat(4)]), y + 1, y + 1, [1, o.deep.repeat(3)]);
+  // The mirror happens AFTER the flung arm is stamped, so the arm goes out on
+  // the head's own side rather than off the corpse's feet.
+  const w = Math.max(...out.map((r) => r.length));
+  if (flip) out = mirrorRows(out);
+  return { ...part(out), anchors: flip ? mirrorAnchors(shape.anchors, w) : shape.anchors };
 }
 
 /**
@@ -1959,6 +2064,10 @@ function fallenHeadRows(o: { crown: string; dark: string; face?: string; eye?: s
     '.....' + p.repeat(9) + '.....',
   ];
 }
+function fallenHeadFlip(o: { crown: string; dark: string; face?: string; eye?: string; deep?: string }): PartDef {
+  const rows = mirrorRows(fallenHeadRows(o));
+  return { ...part(rows), anchors: { head: { x: rows[0].length - 10, y: 5 } } };
+}
 function fallenHead(o: { crown: string; dark: string; face?: string; eye?: string; deep?: string }): PartDef {
   return { ...part(fallenHeadRows(o)), anchors: { head: { x: 15, y: 3 } } };
 }
@@ -1969,12 +2078,12 @@ function fallenHead(o: { crown: string; dark: string; face?: string; eye?: strin
  * rim and the anchor from the new silhouette — so the light still falls from
  * the upper left and no keyline is left pointing the wrong way.
  */
-function headTilt(rows: readonly string[], k = 0.34): PartDef {
+function headTilt(rows: readonly string[], k = 0.34, cx = HLH): PartDef {
   const pad = 6;
   const w = Math.max(...rows.map((r) => r.length)) + 2 * pad;
   const h = rows.length;
   const out = rows.map((r, y) => shiftX(('.'.repeat(pad) + r).padEnd(w, '.'), Math.round((h - 1 - y) * k)));
-  return part(out, { head: { x: HLH + pad, y: h - 1 } });
+  return part(out, { head: { x: cx + pad, y: h - 1 } });
 }
 
 /**
@@ -2003,10 +2112,22 @@ const FALLEN_EMBER = fallenBody({ g: 'A', dark: '6', deep: '<', boot: '4', bootD
 const FALLEN_GALE = fallenBody({ g: 'A', dark: '6', deep: '<', boot: '4', bootDeep: '{' }, FALLEN_HEAP);
 const FALLEN_TIDE = fallenBody({ g: 'A', dark: '6', deep: '<', boot: '6', bootDeep: '<' }, FALLEN_CRUMPLE);
 const FALLEN_PLATE = fallenBody({ g: 'M', dark: '5', deep: '}', boot: '5', bootDeep: '}' }, FALLEN_KNEEL);
+/**
+ * ROUND 6 — four armoured figures cannot die the same death. Round 5 gave
+ * BASALT, the Pyre Knight, the Drowned Knight and the Crypt Warden one KNEEL
+ * between them, and the critic measured BASALT-DROWNED at 83.5 % and
+ * WARDEN-PYRE at 82.4 % pairwise. The Pyre Knight now goes down the OTHER WAY
+ * (hips high on the left, the polearm out to the right), the Drowned Knight
+ * pitches flat out instead of folding — he is not kneeling, he is dropped —
+ * and the Warden curls the other way into his hide.
+ */
+const FALLEN_PLATE_FLIP = fallenBody({ g: 'M', dark: '5', deep: '}', boot: '5', bootDeep: '}' }, FALLEN_KNEEL, true);
+const FALLEN_PLATE_FLAT = fallenBody({ g: 'M', dark: '5', deep: '}', boot: '5', bootDeep: '}' }, FALLEN_SPRAWL);
 const FALLEN_SABLE = fallenBody({ g: 'A', dark: '6', deep: '<', boot: '4', bootDeep: '{' }, FALLEN_FOLD);
 const FALLEN_LUMEN = fallenBody({ g: 'C', dark: '2', deep: '[', boot: '4', bootDeep: '{' }, FALLEN_BACK);
-const FALLEN_HIDE = fallenBody({ g: 'C', dark: '2', deep: '[', boot: '4', bootDeep: '{' }, FALLEN_KNEEL);
-const FALLEN_HAG = fallenBody({ g: 'A', dark: '6', deep: '<', boot: '2', bootDeep: '[' }, FALLEN_CRUMPLE);
+const FALLEN_HIDE = fallenBody({ g: 'C', dark: '2', deep: '[', boot: '4', bootDeep: '{' }, FALLEN_SPRAWL, true);
+/** The Hag does not crumple into a cone the way TIDE does — she goes down UNDER her hood, a long low mound with the empty hood at its far end, which is the one fold direction nothing else in the marsh uses. */
+const FALLEN_HAG = fallenBody({ g: 'A', dark: '6', deep: '<', boot: '2', bootDeep: '[' }, FALLEN_FOLD, true);
 
 const HEAD_EMBER_DOWN = fallenHead({ crown: 'H', dark: '1', face: 'S', deep: '(' });
 const HEAD_GALE_DOWN = fallenHead({ crown: 'H', dark: '1', face: 'S', deep: '(' });
@@ -2015,6 +2136,9 @@ const HEAD_LUMEN_DOWN = fallenHead({ crown: 'H', dark: '1', face: 'S', deep: '('
 const HEAD_SABLE_DOWN = fallenHead({ crown: 'A', dark: '6', face: ']', eye: ']', deep: ']' });
 const HEAD_HELM_DOWN = fallenHead({ crown: 'M', dark: '5', face: 'M', eye: '#', deep: '}' });
 const HEAD_HAG_DOWN = fallenHead({ crown: 'C', dark: '2', face: 's', deep: '[' });
+/** The three mirrored collapses take mirrored heads, so a face-down skull still faces the way its body went. */
+const HEAD_HELM_DOWN_FLIP = fallenHeadFlip({ crown: 'M', dark: '5', face: 'M', eye: '#', deep: '}' });
+const HEAD_HAG_DOWN_FLIP = fallenHeadFlip({ crown: 'C', dark: '2', face: 's', deep: '[' });
 
 /** The two bosses collapse at their own density: the same drawing, half again as large. */
 function fallenBoss(o: FallenOpts, shape: FallenShape = FALLEN_KNEEL): PartDef {
@@ -2048,8 +2172,8 @@ const HEAD_SAINT_DOWN = fallenHeadBoss({ crown: 'C', dark: '2', face: 'S', deep:
  * the tilt a recoil takes — is a hair mass lagging behind a head, and the
  * matching one-cell shift of a hem is a robe lagging behind a hip.
  */
-function headSway(rows: readonly string[], k = 0.13): PartDef {
-  return headTilt(rows, k);
+function headSway(rows: readonly string[], k = 0.13, cx = HLH): PartDef {
+  return headTilt(rows, k, cx);
 }
 /** A garment's hem, a cell behind the body it hangs on. */
 function hemSway(rows: readonly string[], from: number, anchors: Partial<Record<AnchorName, Point>>): PartDef {
@@ -2169,9 +2293,15 @@ const holyProfile: readonly (readonly [n: number, lp: number, rp: number, ch: st
   [2, 20, 3, 'C'],
   [3, 23, 5, '2'],
 ];
+const holyRows = holyProfile.flatMap(([n, lp, rp, ch]) => rep(n, pair(BCL, hbf(BCL, lp, ch, '6', [2, 6], 'DD'), ch, hbf(BCL, rp, ch, '6', [2, 7], 'DD'))));
 const CLOAK_HOLY = part(
   // the creases sit near each OUTER edge, where the mantle actually shows past the robe — a fold buried under the robe is a fold nobody sees
-  holyProfile.flatMap(([n, lp, rp, ch]) => rep(n, pair(BCL, hbf(BCL, lp, ch, '6', [2, 6], 'DD'), ch, hbf(BCL, rp, ch, '6', [2, 7], 'DD')))),
+  holyRows,
+  { capePin: { x: BCL, y: 2 } },
+);
+/** The mantle a frame behind the shoulders: everything below the shoulder blades drags a cell, and the trimmed hem two, so the CAPE'S own outline changes between idle frames. */
+const CLOAK_HOLY_SWAY = part(
+  holyRows.map((r, i) => (i >= 40 ? shiftX(r, 4) : i >= 24 ? shiftX(r, 3) : i >= 14 ? shiftX(r, 2) : i >= 6 ? shiftX(r, 1) : r)),
   { capePin: { x: BCL, y: 2 } },
 );
 
@@ -2570,21 +2700,28 @@ const houndBase: string[] = [
 ];
 /** The hound's four legs, each a thigh over a knee over a shin over a paw. `bend` is which way the knee steps. */
 function houndLegs(): string[] {
-  const legs: readonly (readonly [x: number, bend: number])[] = [
-    [5, 1],
-    [11, 1],
-    [21, -1],
-    [27, -1],
+  // ROUND 6 — A HOUND IS NOT A TABLE. Round 5's knee pinch was right and every
+  // leg still stood at the same pitch on the same four-cell thigh, so the four
+  // read as four identical bars. The HIND pair (this hound faces right, so
+  // those are the two on the left) now carries a HAUNCH — a cell wider than the
+  // leg under it, with its own dark band — and its shin steps a cell BACKWARD
+  // off that haunch while the fore pair steps forward, which is the pitch a
+  // standing quadruped actually has.
+  const legs: readonly (readonly [x: number, bend: number, haunch: boolean])[] = [
+    [5, -1, true],
+    [11, -1, true],
+    [21, 1, false],
+    [27, 1, false],
   ];
   const rows: string[][] = [];
   for (let i = 0; i < 10; i++) rows.push(new Array<string>(HOUND_W + 1).fill('.'));
   const put = (y: number, x: number, run: string): void => {
     for (let k = 0; k < run.length; k++) if (x + k >= 0 && x + k < rows[y].length) rows[y][x + k] = run[k];
   };
-  for (const [x, bend] of legs) {
-    put(0, x, 'cCCC'); // thigh
-    put(1, x, 'cCCC');
-    put(2, x, 'c22C'); // and the shade band across it
+  for (const [x, bend, haunch] of legs) {
+    put(0, haunch ? x - 1 : x, haunch ? 'ccCCC' : 'cCCC'); // thigh — the hind pair on a haunch
+    put(1, haunch ? x - 1 : x, haunch ? 'cCCCC' : 'cCCC');
+    put(2, haunch ? x - 1 : x, haunch ? 'c222C' : 'c22C'); // and the shade band across it
     put(3, x + bend, 'CcC'); // the knee, a cell fore or aft
     put(4, x + bend, 'CCC'); // shin
     put(5, x + bend, 'ccc');
@@ -2619,9 +2756,38 @@ const HOUND_BODY_B = part(
   ),
   HOUND_ANCH,
 );
+/**
+ * IDLE C — THE HEAD COMES UP. Round 5's C moved four cells of the hound's top
+ * third (a tail tip and one shaded row), so at 12 fps the front half of the
+ * animal was a photograph: 7.5 % of the sprite changed between frames 0 and 2
+ * against 17-28 % for the rest of the cast. Now the EARS prick and sweep back
+ * two cells, the MUZZLE lifts a whole row off the jaw line, the dark belly band
+ * is drawn up a row as the ribs fill, the tail hangs and a forepaw comes off
+ * the floor — four separate parts of the outline, and a third of the sprite.
+ */
 const HOUND_BODY_C = part(
   houndTail(
-    stampRows(stampRows(stampRows(houndBase, 5, 5, [10, '.'], [21, 'C']), 16, 16, [6, '[[[[[[[[[[[[[[[[[[[[[[[']), 24, 27, [5, '.....'], [10, '....']),
+    stampRows(
+      stampRows(
+        stampRows(
+          stampRows(
+            stampRows(stampRows(stampRows(houndBase, 0, 0, [26, '..C....C..']), 1, 1, [26, '.CC...CC..']), 2, 2, [26, 'CCC..CCC..']), // the ears prick and sweep back
+            8,
+            8,
+            [36, '#BBBB'],
+          ), // the muzzle lifts a row
+          10,
+          10,
+          [35, '......'],
+        ),
+        12,
+        13,
+        [6, 'c'.repeat(24)],
+      ), // and the belly band is drawn up under the ribs
+      14,
+      14,
+      [5, '['.repeat(26)],
+    ),
     -1,
   ),
   HOUND_ANCH,
@@ -2761,8 +2927,20 @@ function wraithArms(rows: readonly string[], y: number, reach: number): string[]
  * what makes a shroud a cylinder.
  */
 function wraithLit(rows: readonly string[]): string[] {
+  // ROUND 6 — the flattest interior in the cast, twice named. Round 5 gave the
+  // shroud a two-cell lit panel, a two-cell shade band and four ruled fold
+  // lines, and everything between them was one mid-lavender mass: the figure
+  // cleared its interior-dark bar on the hem tatters alone. Three things fix a
+  // cylinder. The SHADE SIDE is four cells wide, not two. A wedge of the same
+  // shadow step falls UNDER THE HOOD across the chest, widening as it drops —
+  // the cast shadow a cowl throws on the body under it, which is the read the
+  // whole figure was missing. And the LIT FOLD travels: a two-cell highlight
+  // that drifts three cells across the shroud as it falls, so the garment has a
+  // form rather than a stripe.
   let out = stampRows(stampRows(stampRows(rows, 13, 27, [8, '++']), 16, 24, [10, '+']), 6, 7, [10, 'GG'], [17, 'GG']);
-  out = stampRows(out, 12, 30, [WRAITH_W - 8, 'aa']); // the shade side stays in the LEGAL step: two full-height rows of the anchor tone put 48 % of this figure under 3:1
+  for (let y = 11; y <= 17; y++) out = stampRows(out, y, y, [WRL - 2, 'a'.repeat(Math.min(9, 2 + y - 11))]); // the cowl's shadow on the chest
+  for (let y = 14; y <= 27; y++) out = stampRows(out, y, y, [7 + ((y - 14) >> 2), '!!']); // and a lit fold that travels
+  out = stampRows(out, 12, 30, [WRAITH_W - 9, 'aaaa']); // the shade side stays in the LEGAL step: full-height rows of the anchor tone put 48 % of this figure under 3:1
   out = stampRows(out, 15, 28, [WRAITH_W - 6, '6']); // and only the seam at its edge goes dark
   return out;
 }
@@ -2771,7 +2949,21 @@ const WRAITH_BODY = part(wraithBase, { feet: { x: WRL, y: 39 }, hit: { x: WRL, y
 /** The shroud fills and the sleeves drift out from the body. */
 const WRAITH_BODY_B = part(wraithLit(wraithArms(stampRows(bands(WRL, wraithBands), 29, 30, [5, '6'], [WRAITH_W - 6, '6']), 13, 2)), { feet: { x: WRL, y: 39 }, hit: { x: WRL, y: 20 } });
 /** And empties: the sleeves fold in against it, the hood dips, the fray lifts. */
-const WRAITH_BODY_C = part(wraithLit(wraithArms(stampRows(bands(WRL, wraithBands), 33, 35, [5, '..'], [WRAITH_W - 7, '..']), 11, -2)), { feet: { x: WRL, y: 39 }, hit: { x: WRL, y: 20 } });
+const WRAITH_BODY_C = part(
+  wraithLit(
+    wraithArms(
+      stampRows(
+        stampRows(stampRows(bands(WRL, wraithBands), 33, 35, [5, '..'], [WRAITH_W - 7, '..']), 0, 1, [WRL - 2, '.....']), // the hood's peak DIPS two rows into the cowl
+        9,
+        10,
+        [WRL - 5, 'CCCCCCCCCCC'],
+      ), // and the cowl fills where it fell
+      11,
+      -3,
+    ),
+  ),
+  { feet: { x: WRL, y: 39 }, hit: { x: WRL, y: 20 } },
+);
 /** The wraith draws in: both sleeves gathered up against the shroud, the hood low. */
 const WRAITH_WIND = part(fit([...shiftRows(wraithBase.slice(0, 11), -2), ...wraithLit(wraithArms(bands(WRL, wraithBands), 1, -3)).slice(11)], WRAITH_W, WRAITH_H), {
   feet: { x: WRL, y: 39 },
@@ -2938,9 +3130,30 @@ const TOAD_BODY_B = part(
   stampRows(stampRows(stampRows(toadBase, 11, 11, [12, '!!!!!!!!!!!']), 1, 2, [5, 'aaaa'], [26, 'aaaa']), 0, 0, [5, '......'], [24, '......']),
   { feet: { x: TDL, y: 27 }, hit: { x: TDL, y: 13 } },
 );
-/** And empties: the belly drops a row, the deep band eats into it and the toad settles onto its hind legs. */
+/**
+ * And empties — AND THE HEAD SINKS. Round 5's C changed nothing above the
+ * waist: zero cells of the toad's top third moved between idle 0 and idle 2,
+ * which at 12 fps is a statue with a breathing belly. The whole eye-and-brow
+ * block now drops a row into the shoulders (one duplicated brow row is spent
+ * to buy it, so the grid stays 28 tall and the feet anchor cannot drift), the
+ * mouth line falls with it, the belly empties, the deep band eats up into it
+ * and the toad settles onto its hind legs.
+ */
+const toadSettle: string[] = ['.'.repeat(TOAD_W), ...toadBase.slice(0, 4), ...toadBase.slice(5)];
 const TOAD_BODY_C = part(
-  stampRows(stampRows(stampRows(toadBase, 14, 14, [8, 'AAAAAAAAAAAAAAAAAAA']), 18, 18, [6, '<<<<<<<<<<<<<<<<<<<<<<<']), 22, 23, [2, '....'], [29, '....']),
+  stampRows(
+    stampRows(
+      stampRows(stampRows(stampRows(toadSettle, 14, 14, [8, 'AAAAAAAAAAAAAAAAAAA']), 18, 18, [6, '<<<<<<<<<<<<<<<<<<<<<<<']), 22, 23, [2, '....'], [29, '....']),
+      2,
+      2,
+      [5, 'aaaaaa'],
+      [24, 'aaaaaa'],
+    ), // the lids come half down over the pupils
+    3,
+    3,
+    [6, '%##%'],
+    [25, '%##%'],
+  ),
   { feet: { x: TDL, y: 27 }, hit: { x: TDL, y: 13 } },
 );
 /** The toad loads: mouth clamped, body hunched a row lower over gathered legs. */
@@ -3059,21 +3272,32 @@ const wispShard: readonly string[] = [
  * The last three rows are two loose motes guttering off the end of it.
  */
 function wispTail(k: number): string[] {
-  const sway = [0, 1, 1, 0, -1, -1, 0, 1, 1, 0, -1];
-  const width = [3, 3, 3, 2, 2, 2, 1, 1, 1, 0, 0];
+  // ROUND 6 — A RIBBON, NOT A ZIGZAG. Round 5's tail swayed each row of the
+  // trail independently, so by the time it had tapered to one cell it was a
+  // stack of single pixels stepping left and right: the critic read a cut gem
+  // with dust under it, for the third round running. This is SIX ROWS of one
+  // connected shape — three cells wide where it leaves the shard's own foot at
+  // column 7, two, then one — and the whole ribbon LEANS as a unit (`k` is the
+  // idle frame: straight down, then out one way, then the other) so it flutters
+  // without ever coming apart. Two motes gutter off its end, and they are the
+  // only loose pixels in the sprite.
+  const width = [3, 3, 3, 2, 2, 1];
+  const dir = k === 1 ? 1 : k === 2 ? -1 : 0;
+  const foot = 7; // the shard's last painted column — the ribbon leaves from it
   const rows: string[] = [];
   for (let i = 0; i < 11; i++) {
     const cells: string[] = new Array(WISP_W).fill('.');
-    const n = width[i];
-    const c = WSL + sway[(i + k) % sway.length];
-    const ch = i < 5 ? 'g' : i < 8 ? '7' : '>'; // it fades DOWN the ribbon, not off a cliff two cells from the shard
-    for (let j = 0; j < n; j++) {
-      const x = c - ((n - 1) >> 1) + j;
-      if (x >= 0 && x < WISP_W) cells[x] = n > 2 && (j === 0 || j === n - 1) ? '7' : ch;
-    }
-    if (i >= 8) {
-      const m = WSL + 3 - ((i + k) % 3);
-      if (m >= 0 && m < WISP_W) cells[m] = '>'; // and two motes guttering off its end
+    if (i < width.length) {
+      const n = width[i];
+      const c = foot + Math.round((dir * i) / 2);
+      const ch = i < 2 ? 'g' : i < 4 ? '7' : '>'; // it fades DOWN the ribbon, not off a cliff two cells from the shard
+      for (let j = 0; j < n; j++) {
+        const x = c - ((n - 1) >> 1) + j;
+        if (x >= 0 && x < WISP_W) cells[x] = n > 2 && j === n - 1 ? '7' : ch;
+      }
+    } else if (i === 7 || i === 9) {
+      const m = foot + dir * 2 + (i === 7 ? 1 : -1);
+      if (m >= 0 && m < WISP_W) cells[m] = '>'; // two motes guttering off its end
     }
     rows.push(cells.join(''));
   }
@@ -3217,11 +3441,17 @@ function shadeOnly(row: string, x: number, run: string): string {
  * is a WEDGE that widens as it falls and creeps leftward with it, with the
  * accent's dark under that and the lit crown left standing at the upper left.
  */
-function crabDome(rows: readonly string[]): string[] {
+function crabDome(rows: readonly string[], slide = 0): string[] {
   return rows.map((r, y) => {
-    if (y < 11 || y > 20) return r;
-    let out = shadeOnly(r, 26 - (y - 11), 'a'.repeat(Math.min(13, 2 * (y - 10))));
-    if (y >= 14) out = shadeOnly(out, 31 - ((y - 14) >> 1), '6'.repeat(Math.min(7, y - 12)));
+    if (y < 10 || y > 20) return r;
+    const t = y - 10; // how far down the dome this row is
+    // THREE BANDS, each starting a cell further left than the one above, so the
+    // shell turns away continuously instead of stopping on a ruled seam. Round
+    // 5 painted a flat lit crown, one shadow wedge and one dark wedge, and the
+    // critic read the carapace as a trapezoid with a line across it.
+    let out = shadeOnly(r, 22 - t + slide, 'A'.repeat(Math.min(20, 3 + 2 * t))); // the lit crown gives way to the mid
+    out = shadeOnly(out, 26 - t + slide, 'a'.repeat(Math.min(15, 1 + 2 * t))); // to the shadow side
+    if (t >= 3) out = shadeOnly(out, 30 - ((t - 3) >> 1) + slide, '6'.repeat(Math.min(8, t - 2))); // and to the dark rim
     return out;
   });
 }
@@ -3237,10 +3467,32 @@ const CRAB_BODY_B = part(
   crabDome(crabEyes(stampRows(stampRows(stampRows(crabShell, 3, 3, [2, 'AA'], [CRAB_W - 4, 'AA']), 1, 1, [4, '..'], [CRAB_W - 6, '..']), 0, 2, [0, '..'], [CRAB_W - 2, '..']), -1)),
   { feet: { x: CBL, y: CRAB_H - 1 }, hit: { x: CBL, y: 17 } },
 );
-/** And rears: the pincers gape wider, the stalks come up and the shell lifts off its front legs. */
+/**
+ * And REARS. The stalks come up three rows — clear of the carapace, where an
+ * eye on a stalk is meant to be — the pincer jaws gape a row further apart, the
+ * shell lifts off its front legs and the dome's lit crown slides with the tilt.
+ * Round 5's C moved 31 cells of the top third and 6.9 % of the sprite, which
+ * read as a still frame beside every other creature on the sheet.
+ */
 const CRAB_BODY_C = part(
   crabDome(
-    crabEyes(stampRows(stampRows(stampRows(crabShell, 0, 0, [0, '.....'], [CRAB_W - 5, '.....']), 27, 27, [3, '.....'], [CRAB_W - 8, '.....']), 5, 7, [0, 'AA'], [CRAB_W - 2, 'AA']), 1),
+    crabEyes(
+      stampRows(
+        stampRows(
+          stampRows(stampRows(stampRows(crabShell, 0, 0, [0, '.....'], [CRAB_W - 5, '.....']), 27, 27, [3, '.....'], [CRAB_W - 8, '.....']), 5, 7, [0, 'AA'], [CRAB_W - 2, 'AA']),
+          3,
+          3,
+          [2, '....'],
+          [CRAB_W - 6, '....'],
+        ), // the jaws gape: the hinge row opens out
+        4,
+        4,
+        [0, '..AAAA'],
+        [CRAB_W - 6, 'AAAA..'],
+      ),
+      3,
+    ),
+    -4, // and the whole dome turns with it: the shadow wedge creeps four cells across the shell
   ),
   { feet: { x: CBL, y: CRAB_H - 1 }, hit: { x: CBL, y: 17 } },
 );
@@ -3482,14 +3734,18 @@ kingShaded = stampRows(kingShaded, 3, 12, [38, 'BBB'], [37, '&']); // the near u
 kingShaded = stampRows(kingShaded, 13, 13, [39, 'B']); // its elbow
 kingShaded = stampRows(kingShaded, 14, 20, [37, 'BBB'], [36, '&']);
 kingShaded = stampRows(kingShaded, 21, 21, [37, 'bbb']);
-const KING_BODY = part(stampRows(kingShaded, 22, 25, [37, 'BBBB']), {
+const kingBodyRows = stampRows(kingShaded, 22, 25, [37, 'BBBB']);
+const kingAnchors: Partial<Record<AnchorName, Point>> = {
   head: { x: KBL, y: 0 },
   hand: { x: KBL, y: 4 },
   weaponGrip: { x: 38, y: 24 },
   capePin: { x: KBL, y: 3 },
   feet: { x: KBL, y: kingRows.length - 1 },
   hit: { x: KBL, y: 28 },
-});
+};
+const KING_BODY = part(kingBodyRows, kingAnchors);
+/** The cage driven back off the blow: everything above the pelvis sheared five cells, so the ribs lean and the arms swing with them. */
+const KING_BODY_HURT = bodyRecoil(kingBodyRows, kingAnchors, 40, 13);
 
 const kingHeadRows = bands(KHL, [
   [1, hb(KHL, 10, '%'), '%'], // the cranium takes the key — the skull IS the top quarter of this figure
@@ -3516,6 +3772,9 @@ kingHeadRows[15] = stamp(kingHeadRows[15], [13, 'b##b'], [0, '']); // the nasal 
 kingHeadRows[20] = stamp(kingHeadRows[20], [9, '#'], [12, '#'], [15, '#'], [18, '#'], [21, '#']);
 kingHeadRows[21] = stamp(kingHeadRows[21], [9, '#'], [12, '#'], [15, '#'], [18, '#'], [21, '#']);
 const KING_HEAD = part(kingHeadRows, { head: { x: KHL, y: 27 } });
+const HEAD_KING_TILT = headTilt(kingHeadRows, 0.3, KHL);
+const HEAD_KING_SWAY = headSway(kingHeadRows, 0.1, KHL);
+const HEAD_KING_SWAY2 = headSway(kingHeadRows, -0.09, KHL);
 
 // The Pale Saint: a pale mantle with a gold placket, sash, collar and hem —
 // the gold is trim on white, never the whole garment — creased down its
@@ -3568,8 +3827,8 @@ const saintRows = ((): string[] => {
     saintNarrow.map((r) => '....' + r.padEnd(2 * KBL + 1, '.') + '....'),
     16,
     'C',
-    6,
-    3,
+    9,
+    5,
   );
   const h = out.length;
   for (let y = h - 8; y < h; y++) {
@@ -3587,19 +3846,54 @@ const saintRows = ((): string[] => {
     if (a > b) continue;
     out[y] = stamp(out[y], [Math.max(0, a - far), ch.repeat(far)], [b + 1, ch.repeat(near)]);
   }
+  // THE HEM GIVES OUT ON BOTH SIDES. Round 5 bit three steps out of the FAR
+  // half and left the near half — twenty-two of forty-four columns — sitting
+  // dead flat on the last row, which is half a ruled edge and reads as one.
+  // The near side now gives out in two bites of its own, at different depths
+  // from the far side's three, and a notch is taken out of the middle of the
+  // last row, so no run of the foot line is longer than eight columns.
   out[h - 3] = stamp(out[h - 3], [0, '.'.repeat(13)]);
   out[h - 2] = stamp(out[h - 2], [0, '.'.repeat(21)]);
   out[h - 1] = stamp(out[h - 1], [0, '.'.repeat(27)]);
+  {
+    let b = w - 1;
+    while (b >= 0 && out[h - 1][b] === '.') b--;
+    // the near corner gives out in ONE wide shallow bite, where the far side
+    // gave out in three deep ones — the two halves fail differently, which is
+    // the whole point of stepping the second one
+    out[h - 1] = stamp(out[h - 1], [b - 7, '........']);
+    // and a TEAR three rows deep, half way along the near half
+    for (let i = 1; i <= 3; i++) out[h - i] = stamp(out[h - i], [b - 15 - i, '....']);
+    // with a notch out of the last row a third of the way in from it
+    out[h - 1] = stamp(out[h - 1], [b - 25, '...']);
+  }
   return out;
 })();
-const SAINT_BODY = part(stampRows(saintRows, 10, 14, [SAINT_LH + 3, 'AAAA'], [SAINT_LH + 4, 'A!!A']), {
+const saintBodyRows = stampRows(saintRows, 10, 14, [SAINT_LH + 3, 'AAAA'], [SAINT_LH + 4, 'A!!A']);
+const saintAnchors: Partial<Record<AnchorName, Point>> = {
   head: { x: SAINT_LH, y: 0 },
   hand: { x: SAINT_LH, y: 3 },
   weaponGrip: { x: SAINT_LH, y: 30 },
   capePin: { x: SAINT_LH, y: 2 },
   feet: { x: SAINT_LH, y: saintRows.length - 1 },
   hit: { x: SAINT_LH, y: 30 },
-});
+};
+const SAINT_BODY = part(saintBodyRows, saintAnchors);
+/**
+ * The Saint's recoil. A bell has no legs to shift and nothing outside its own
+ * outline, so a hit has to move the BELL: the mantle bends about its own hem
+ * (eighteen cells at the collar, nothing at the floor) and the skirt LIFTS off
+ * the ground on the struck side, seven rows of it swinging clear in a widening
+ * bite. Round 5 pivoted this at the sash, so only the collar moved and 85 % of
+ * the standing silhouette survived the blow.
+ */
+const saintHurtRows = ((): string[] => {
+  const rows = saintBodyRows.slice();
+  const h = rows.length;
+  for (let i = 1; i <= 7; i++) rows[h - i] = stamp(rows[h - i], [0, '.'.repeat(11 + 3 * i)]);
+  return rows;
+})();
+const SAINT_BODY_HURT = bodyRecoil(saintHurtRows, saintAnchors, saintRows.length - 3, 18);
 
 const saintHeadRows = bands(KHL, [
   [1, hb(KHL, 10, 'C'), 'C'], // veil crown
@@ -3621,16 +3915,19 @@ const saintHeadRows = bands(KHL, [
 // across the near one, so the whole face mass slides a cell toward the weapon
 // side and the head reads as turned rather than as a doll's.
 const saintTurnedHead = stampRows(saintHeadRows, 11, 21, [1, 'CCCC'], [27, 'S']);
-const SAINT_HEAD = part(
-  stampRows(
-    stampRows(stampRows(saintTurnedHead, 14, 14, [7, '####'], [20, '####']), 15, 15, [7, '#$$#'], [20, '#$$#']),
-    16,
-    16,
-    [8, '##'],
-    [21, '##'],
-  ).map((r, i) => (i === 19 ? stamp(r, [12, 'sssssss']) : r)), // chin shadow
-  { head: { x: KHL, y: 27 } },
-);
+const saintHeadFinal = stampRows(
+  stampRows(stampRows(saintTurnedHead, 14, 14, [7, '####'], [20, '####']), 15, 15, [7, '#$$#'], [20, '#$$#']),
+  16,
+  16,
+  [8, '##'],
+  [21, '##'],
+).map((r, i) => (i === 19 ? stamp(r, [12, 'sssssss']) : r)); // chin shadow
+const SAINT_HEAD = part(saintHeadFinal, { head: { x: KHL, y: 27 } });
+/** Sheared off the neck for the recoil — from the FINISHED head, so the eyes, the veil's parting and the chin shadow come with it. */
+const HEAD_SAINT_TILT = headTilt(saintHeadFinal, 0.3, KHL);
+/** And the same shear at a tenth of it, one way then the other: the veil swings a cell late on each breath instead of the head holding still for three frames. */
+const HEAD_SAINT_SWAY = headSway(saintHeadFinal, 0.1, KHL);
+const HEAD_SAINT_SWAY2 = headSway(saintHeadFinal, -0.14, KHL);
 
 // The Pale Saint's sleeves: the same cradle as TIDE's at boss width, and
 // asymmetric for the same reason — the far sleeve swings in off a dropped
@@ -3649,23 +3946,32 @@ for (let i = 0; i < 20; i++) {
   row = stamp(row, [fp + 7, '2'], [BOSS_ROBE_W - np - nw, '2']); // each sleeve's dark underside
   armsRobeBossRows.push(row);
 }
-const ARMS_ROBE_BOSS = part(
-  [
-    ...armsRobeBossRows,
-    ...stampRows(
-      bands(SLH, [
-        [3, hb(SLH, 13, '6'), '6'], // gold cuffs meeting, dark
-        [4, hb(SLH, 14, 'S'), 'S'], // cupped palms
-        [2, hb(SLH, 15, 'S'), 'S'],
-      ]),
-      8,
-      10,
-      [16, '#'],
-      [22, '#'],
-    ).map((r) => shiftX(r, BOSS_CUP)),
-  ],
-  { hand: { x: SLH, y: 0 }, weaponGrip: { x: SLH + BOSS_CUP, y: 22 } },
+const bossCradle = stampRows(
+  bands(SLH, [
+    [3, hb(SLH, 13, '6'), '6'], // gold cuffs meeting, dark
+    [4, hb(SLH, 14, 'S'), 'S'], // cupped palms
+    [2, hb(SLH, 15, 'S'), 'S'],
+  ]),
+  8,
+  10,
+  [16, '#'],
+  [22, '#'],
 );
+const ARMS_ROBE_BOSS = part([...armsRobeBossRows, ...bossCradle.map((r) => shiftX(r, BOSS_CUP))], { hand: { x: SLH, y: 0 }, weaponGrip: { x: SLH + BOSS_CUP, y: 22 } });
+/** The same break at boss width: the far sleeve out and down, the near one across the mantle, the cradle three rows lower and seven cells onto the far side. */
+const armsRobeBossHurtRows: string[] = [];
+for (let i = 0; i < 23; i++) {
+  const fp = Math.max(0, 8 - Math.round((i * 8) / 22));
+  const np = Math.round((i * 13) / 22);
+  const nw = i >= 5 && i <= 13 ? 10 : 9;
+  let row = stanceRow(BOSS_ROBE_W, fp, 8, 'C', np, nw, 'C');
+  row = stamp(row, [fp + 7, '2'], [BOSS_ROBE_W - np - nw, '2']);
+  armsRobeBossHurtRows.push(row);
+}
+const ARMS_ROBE_BOSS_HURT = part([...armsRobeBossHurtRows, ...bossCradle.map((r) => shiftX(r, BOSS_CUP - 7))], {
+  hand: { x: SLH, y: 0 },
+  weaponGrip: { x: SLH + BOSS_CUP - 7, y: 25 },
+});
 
 // CLOAK_SHORT — SABLE: a hero-scale drape hung behind the body, wider and
 // longer than it so a cloak silhouette actually shows past the shoulders and
@@ -3738,7 +4044,9 @@ export const PART_LIBRARY = {
   arms_mantle_hurt: ARMS_MANTLE_HURT,
   arms_plate_hurt: ARMS_PLATE_HURT,
   arms_robe: ARMS_ROBE,
+  arms_robe_hurt: ARMS_ROBE_HURT,
   arms_robe_boss: ARMS_ROBE_BOSS,
+  arms_robe_boss_hurt: ARMS_ROBE_BOSS_HURT,
   fingers_skin: FINGERS_SKIN,
   fingers_glove: FINGERS_GLOVE,
   fingers_plate: FINGERS_PLATE,
@@ -3751,6 +4059,8 @@ export const PART_LIBRARY = {
   fallen_sable: FALLEN_SABLE,
   fallen_lumen: FALLEN_LUMEN,
   fallen_hide: FALLEN_HIDE,
+  fallen_plate_flip: FALLEN_PLATE_FLIP,
+  fallen_plate_flat: FALLEN_PLATE_FLAT,
   fallen_hag: FALLEN_HAG,
   fallen_king: FALLEN_KING,
   fallen_saint: FALLEN_SAINT,
@@ -3762,6 +4072,8 @@ export const PART_LIBRARY = {
   head_lumen_down: HEAD_LUMEN_DOWN,
   head_sable_down: HEAD_SABLE_DOWN,
   head_helm_down: HEAD_HELM_DOWN,
+  head_helm_down_flip: HEAD_HELM_DOWN_FLIP,
+  head_hag_down_flip: HEAD_HAG_DOWN_FLIP,
   head_hag_down: HEAD_HAG_DOWN,
   head_ember_tilt: HEAD_EMBER_TILT,
   head_gale_tilt: HEAD_GALE_TILT,
@@ -3799,6 +4111,7 @@ export const PART_LIBRARY = {
   body_hag: BODY_HAG,
   body_hag_sway: BODY_HAG_SWAY,
   body_sable_sway: BODY_SABLE_SWAY,
+  body_sable_hurt: BODY_SABLE_HURT,
   // weapons
   staff: STAFF,
   dagger: DAGGER,
@@ -3822,6 +4135,7 @@ export const PART_LIBRARY = {
   scarf: SCARF,
   scarf_sway: SCARF_SWAY,
   cloak_short_sway: CLOAK_SHORT_SWAY,
+  cloak_holy_sway: CLOAK_HOLY_SWAY,
   cloak_short: CLOAK_SHORT,
   cloak_ragged: CLOAK_RAGGED,
   cloak_holy: CLOAK_HOLY,
@@ -3887,9 +4201,17 @@ export const PART_LIBRARY = {
   fenfire_dead_b: FENFIRE_DEAD_B,
   // boss scale
   king_body: KING_BODY,
+  king_body_hurt: KING_BODY_HURT,
   king_head: KING_HEAD,
+  head_king_tilt: HEAD_KING_TILT,
+  head_king_sway: HEAD_KING_SWAY,
+  head_king_sway2: HEAD_KING_SWAY2,
   saint_body: SAINT_BODY,
+  saint_body_hurt: SAINT_BODY_HURT,
   saint_head: SAINT_HEAD,
+  head_saint_tilt: HEAD_SAINT_TILT,
+  head_saint_sway: HEAD_SAINT_SWAY,
+  head_saint_sway2: HEAD_SAINT_SWAY2,
 } satisfies Record<string, PartDef>;
 
 export type PartId = keyof typeof PART_LIBRARY;
