@@ -265,7 +265,14 @@ function ramp(h: number, s: number, l: number): Ramp {
   return [
     hsl(cool, clamp(sat - 14, 14, 44), clamp(mid - 44, 11, 15)), // 0 deep — self-shadow
     hsl(towards(h, COOL, 24), clamp(sat - 10, 14, 50), clamp(mid - 30, 25, 32)), // 1 dark — the anchor mass
-    legal(towards(h, COOL, 10), Math.max(14, sat - 4), mid - 13), // 2 shadow
+    // ROUND 7 — the SHADOW step's saturation floor was 14, and a shadow is the
+    // single most-painted step on a sprite: cutting a garment's midtone below
+    // 18 moved its mid and its lit end and left its shadow exactly where it
+    // was, which is why SABLE's plum would not come down however far its ramp
+    // was cut. The floor is 9 now, so a garment authored quiet is quiet all the
+    // way through — `legal` still lifts every one of these until it clears
+    // 3.2:1 against the stage, so nothing here can cost the contrast criterion.
+    legal(towards(h, COOL, 10), Math.max(9, sat - 4), mid - 13), // 2 shadow
     legal(h, sat, mid), // 3 mid
     legal(towards(h, WARM, 12), Math.max(12, sat - 14), clamp(mid + 14, 76, 84)), // 4 lit
     legal(towards(h, WARM, 20), Math.max(8, sat - 30), clamp(mid + 24, 85, 93)), // 5 spec
@@ -291,11 +298,11 @@ function glowRamp(h: number, s = 84, top = 92): Ramp {
 
 const NEUTRAL: Palette = {
   skin: ramp(24, 40, 63),
-  hair: ramp(266, 14, 48),
+  hair: ramp(266, 8, 48),
   cloth: ramp(220, 22, 54),
   cloth2: ramp(296, 24, 52),
   leather: ramp(28, 30, 50),
-  metal: ramp(222, 15, 58),
+  metal: ramp(222, 11, 58),
   accent: ramp(6, 48, 55),
   glow: glowRamp(26),
   bone: ramp(46, 14, 64),
@@ -318,8 +325,18 @@ const ELEMENT_RAMPS: Record<Element, { accent: Ramp; glow: Ramp }> = {
  * his colour is the MANE, which is a fifth of the sprite at 54 % saturation.
  * Hair and vest both come down a quarter here, which is the cut round 5 asked
  * for and spent on the wrong region.
+ *
+ * ROUND 7 takes another FIFTH off the seven highest garments in the cast —
+ * CINDER_IMP (18.4, the highest and unmoved since round 4), PYRE_KNIGHT 16.6,
+ * SABLE 16.5, EMBER 16.4, FROST_WISP 16.0, BASALT 15.9, MARSH_HAG 15.9 —
+ * against a reference line-up whose whole sprite band means 7.0 (p90 13.5,
+ * p98 19.2). It is spent on the ramp each of them is actually MADE of: the
+ * imp's hide and wing, the tabard both fire knights wear, the dark accent
+ * SABLE's cloak and body are cut from, EMBER's mane and vest, the frost core
+ * and the hag's moss. FEN_FIRE (41.9) is the one licensed light source and is
+ * not touched.
  */
-const EMBER_HAIR: Ramp = ramp(17, 40, 46);
+const EMBER_HAIR: Ramp = ramp(17, 21, 46);
 const GOLD_HAIR: Ramp = ramp(43, 34, 60);
 const FLAX_HAIR: Ramp = ramp(58, 31, 58);
 const DARK_HAIR: Ramp = ramp(258, 16, 44);
@@ -328,16 +345,16 @@ const DEEP_TEAL: Ramp = ramp(190, 28, 40);
 const LINEN: Ramp = ramp(38, 24, 66);
 const OLIVE: Ramp = ramp(96, 22, 50);
 const WHITE_CLOTH: Ramp = ramp(228, 12, 70);
-const BLOOD_TABARD: Ramp = ramp(352, 34, 42); // a tenth off: BASALT and the Pyre Knight were the two next-highest garments after EMBER
+const BLOOD_TABARD: Ramp = ramp(352, 21, 42); // round 7: another fifth off — it is BASALT's kite and the Pyre Knight's tabard, the two garments behind CINDER_IMP
 const ASH_HIDE: Ramp = ramp(246, 8, 58);
-const MOSS: Ramp = ramp(104, 22, 46); // and a tenth off the Hag's
+const MOSS: Ramp = ramp(104, 12, 46); // and a tenth off the Hag's, then a fifth more in round 7
 const SILT: Ramp = ramp(34, 22, 52);
-const DUSK_CLOTH: Ramp = ramp(268, 16, 56);
+const DUSK_CLOTH: Ramp = ramp(268, 12, 56);
 /** The Marsh Hag's hood is two steps down from her skin and cooled, so it stops reading as a tan bonnet. */
-const HAG_HOOD: Ramp = ramp(254, 15, 44);
-const HAG_SKIN: Ramp = ramp(74, 16, 56);
+const HAG_HOOD: Ramp = ramp(254, 11, 44);
+const HAG_SKIN: Ramp = ramp(74, 13, 56);
 /** The Pyre Knight's plate: iron the fire has been through. Round 3's hue-6 rust read as bare flesh at helm scale, which is most of why its head looked like a skull with a moustache. */
-const CHARRED_IRON: Ramp = ramp(252, 12, 34);
+const CHARRED_IRON: Ramp = ramp(252, 6, 34);
 const DROWNED_IRON: Ramp = ramp(166, 16, 52);
 /** The two will-o'-wisps are the only actors ALLOWED to be brighter than the cast — and capped, so they read as lit, not blown out. FROST_WISP's own core is cut again below (`WISP_CORE`); the marsh fire keeps its chroma as the stage's one licensed light source. */
 const MARSH_FIRE: Ramp = glowRamp(98, 56, 89);
@@ -351,11 +368,13 @@ const MARSH_FIRE: Ramp = glowRamp(98, 56, 89);
  * off the same midtones `CHROMA` already cut once. FEN_FIRE (42.1) is left
  * alone: it is the one licensed light source on the stage.
  */
-const EMBER_VEST: Ramp = ramp(4, 25, 46);
-const IMP_HIDE: Ramp = ramp(358, 33, 38);
-const IMP_WING: Ramp = ramp(340, 17, 34);
+const EMBER_VEST: Ramp = ramp(4, 16, 46);
+/** SABLE's body and cloak are cut from the DARK element's accent; this is that plum with a fifth of its chroma taken out, so the cut lands on SABLE and not on every DARK caster. */
+const SABLE_PLUM: Ramp = ramp(285, 7, 46);
+const IMP_HIDE: Ramp = ramp(358, 22, 38);
+const IMP_WING: Ramp = ramp(340, 12, 34);
 const TOAD_MOSS: Ramp = ramp(104, 18, 46);
-const WISP_CORE: Ramp = glowRamp(192, 44, 90);
+const WISP_CORE: Ramp = glowRamp(192, 26, 90);
 
 const paletteCache = new Map<string, Palette>();
 function paletteFor(recipe: ActorRecipe, element: Element): Palette {
@@ -590,6 +609,17 @@ export function bakedPoseCount(): number {
   return bakedCount;
 }
 
+/**
+ * Diagnostic only (the art loop's chroma pass): the resolved ramps a recipe
+ * paints with, so a measured colour in a bake can be traced back to the
+ * (material, step) that produced it. Every chroma number in ART-REVIEW.md is a
+ * mean over a rendered sprite; without this the only way to know WHICH ramp is
+ * carrying a character's colour is to guess and re-measure.
+ */
+export function paletteOf(recipe: ActorRecipe, element: Element = recipe.element): Record<Material, Ramp> {
+  return paletteFor(recipe, element);
+}
+
 /** A 'dead' pose sinks AND fades — the sink is ordinary dy keyframes; the fade is applied here, since a baked Sprite has no per-pixel alpha. */
 const DEAD_ALPHA: readonly number[] = [0.95, 0.8, 0.5];
 
@@ -660,6 +690,16 @@ interface RigRoles {
   recoil?: PartId;
   /** The BODY a hit swaps in: the torso sheared back off the blow. Without one the recoil is the idle shape translated, which is what the round-4 critic measured on TIDE (21.8 %) and BASALT (29.6 %). */
   recoilBody?: PartId;
+  /**
+   * How far the body is driven on the FIRST hurt frame, when -5 is not enough.
+   * A sheared recoil body (`bodyRecoil`) is authored inside a grid padded on
+   * the side it leans away from, and that pad is paid out of the rig's own
+   * displacement: on SABLE, HOLLOW_KING and PALE_SAINT the pad is 8, 13 and 18
+   * cells, so -5 left their standing hips where they stood and their hurt-0
+   * silhouette measured 73-77 % against the idle where the band is 55-70. This
+   * is the per-recipe number that pays the pad back.
+   */
+  recoilDx?: number;
   /** A weapon too tall to rotate flat inside the bake is planted and driven forward instead. */
   thrust?: boolean;
   /**
@@ -728,7 +768,12 @@ function buildRig(roles: RigRoles): Record<PoseName, LayerKeyframe[][]> {
     // cell late, the hem lags with it, the cape trails and the weapon hangs
     // back a frame. Nothing in the three frames is identical to its neighbour.
     if (isCape) idle.push([{ dx: 0 }, { part: roles.sway?.cape, dx: 2, dy: 1 }, { part: roles.sway?.cape, dx: 1, dy: -1 }]);
-    else if (isHead) idle.push([{ dy: 0 }, { part: roles.sway?.head, dy: -1 }, { part: roles.sway?.head2, dy: 0 }]);
+    // The head's own beat is UP on the breath in and DOWN past rest on the
+    // breath out. Round 6 returned it to exactly its standing height on frame 2,
+    // so on the figures whose hair is a helm rather than a mass — BASALT worst
+    // at 20 % — almost none of the idle's change fell in the top third and the
+    // head end of the silhouette never moved.
+    else if (isHead) idle.push([{ dy: 0 }, { part: roles.sway?.head, dy: -1 }, { part: roles.sway?.head2, dy: 1 }]);
     else if (isWeapon) idle.push([{ dy: 0 }, { dy: 0 }, { dy: -1, dx: -1 }]);
     else if (isBody) idle.push([{ dy: 0 }, { part: roles.sway?.body, dy: 1 }, { dy: 0 }]);
     // A literally-placed extra — a shield, a crest, a plume, a sheathed blade —
@@ -736,7 +781,10 @@ function buildRig(roles: RigRoles): Record<PoseName, LayerKeyframe[][]> {
     // on the settle. Round 5 returned it to dead centre on frame 2, which on
     // BASALT (whose kite is a third of the silhouette) left idle 2 all but
     // identical to idle 0.
-    else if (!roles.anchored[i]) idle.push([{ dy: 0 }, { dy: 1 }, { dx: 1 }]);
+    // ...and it SETTLES with the head rather than holding its height: with the
+    // head's own frame-2 beat a cell down, a crown or a halo left at rest opens
+    // a one-row gap over the skull and bakes as a second component.
+    else if (!roles.anchored[i]) idle.push([{ dy: 0 }, { dy: 1 }, { dx: 1, dy: 1 }]);
     else idle.push(HOLD);
 
     // ATTACK — a weapon short enough to rotate swings through 90-degree steps;
@@ -749,8 +797,15 @@ function buildRig(roles: RigRoles): Record<PoseName, LayerKeyframe[][]> {
     // cell past it the other way, the arms still a cell forward, the weapon two
     // more on top of that and a cell high — a follow-through the idle then
     // recovers from, rather than a cut back to the beginning of the loop.
+    // A THRUST IS AN ARM, NOT A SLIDING WEAPON. Round 6 drove the planted
+    // weapon nine cells forward on its own while the fist that holds it stayed
+    // put, and on LUMEN that pulled the whole bow — 164 cells — clean out of
+    // the glove as a free-floating component on attack frame 1. The travel is
+    // the same; it is just spent where it belongs, four cells of it on the ARMS
+    // (which carry the fist and the finger bands with them) and four on the
+    // haft sliding through the grip.
     if (isWeapon && roles.cradle) attack.push(HOLD);
-    else if (isWeapon && roles.thrust) attack.push([{ dy: -3 }, { dx: 9, dy: -1 }, { dx: 3, dy: -1 }]);
+    else if (isWeapon && roles.thrust) attack.push([{ dy: -3 }, { dx: 4, dy: -1 }, { dx: 2, dy: -1 }]);
     else if (isWeapon) attack.push([{ rot: 270, dx: -2 }, { rot: 90, dx: 4, dy: -2 }, { rot: 0, dx: 2, dy: -1 }]);
     else if (isCape) attack.push([{ dx: -3 }, { dx: 5 }, { dx: 2 }]);
     else if (isHead) attack.push([{ dx: -1 }, { dx: 2 }, { dx: 1 }]);
@@ -759,6 +814,7 @@ function buildRig(roles: RigRoles): Record<PoseName, LayerKeyframe[][]> {
     // pulse (16.9 % changed, the weakest of the twelve) and the Saint's a robe
     // shift. Drawn back three cells, then thrust nine forward and four up.
     else if (rides && roles.cradle && i === roles.arms) attack.push([{ dx: -3, dy: 2 }, { dx: 6, dy: -4 }, { dx: 1, dy: -1 }]);
+    else if (rides && roles.thrust && i === roles.arms) attack.push([{ dx: -1 }, { dx: 4, dy: -1 }, { dx: 1 }]);
     else if (rides) attack.push([{}, {}, { dx: 1 }]);
     else if (roles.weapon === undefined) attack.push([{ dx: -2 }, { dx: 6 }, { dx: -1 }]);
     else attack.push([{ dx: -1 }, { dx: 4 }, { dx: -1 }]);
@@ -793,7 +849,7 @@ function buildRig(roles: RigRoles): Record<PoseName, LayerKeyframe[][]> {
     else if (isCape) hurt.push([{ dx: 6, dy: -1 }, { dx: 4 }, { dx: 1 }]);
     else if (isHead) hurt.push([{ part: roles.tilt, dx: -2, dy: 2 }, { part: roles.tilt, dx: -1, dy: 1 }, { dx: 0 }]);
     else if (rides) hurt.push(i === roles.arms && roles.recoil ? [{ part: roles.recoil }, { part: roles.recoil }, { part: roles.recoil }] : HOLD);
-    else if (isBody && roles.recoilBody) hurt.push([{ part: roles.recoilBody, dx: -5, dy: 1 }, { part: roles.recoilBody, dx: -3 }, { dx: -1 }]);
+    else if (isBody && roles.recoilBody) hurt.push([{ part: roles.recoilBody, dx: roles.recoilDx ?? -5, dy: 1 }, { part: roles.recoilBody, dx: Math.round((roles.recoilDx ?? -5) * 0.6) }, { dx: -1 }]);
     else if (isBody) hurt.push([{ dx: -5, dy: 1 }, { dx: -3 }, { dx: -1 }]);
     else if (roles.props?.includes(i)) hurt.push([{ dx: 4, dy: -2 }, { dx: 2, dy: -1 }, { dx: 0 }]);
     else hurt.push([{ dx: -2 }, { dx: -1 }, { dx: 0 }]);
@@ -962,6 +1018,8 @@ interface HumanoidOpts {
   tilt?: PartId;
   /** The torso sheared back off the blow — for the figures whose arms rig alone cannot carry a recoil. */
   recoilBody?: PartId;
+  /** How far the first hurt frame drives the body, when the shear's own pad eats the default -5. */
+  recoilDx?: number;
   sway?: PartId;
   sway2?: PartId;
   /** A hem that lags the body by a cell on the breath, and a cape whose own outline changes with it. */
@@ -1035,6 +1093,7 @@ function humanoid(opts: HumanoidOpts): ActorRecipe {
     arms: 1,
     recoil: RECOIL_ARMS[opts.arms],
     recoilBody: opts.recoilBody,
+    recoilDx: opts.recoilDx,
     thrust: thrusts(opts.weapon),
     cradle: opts.cradle,
     collapse,
@@ -1100,7 +1159,13 @@ function creature(o: CreatureOpts): ActorRecipe {
     idle: [{ part: o.idle[0] }, { part: o.idle[1], dy: 1 }, { part: o.idle[2] }],
     // A wind-up drawn BACK, a strike thrown forward: the travel is in the
     // parts, and the dx only carries the lunge that follows it.
-    attack: [{ part: o.wind, dx: -3 }, { part: o.strike, dx: 5 }, { part: o.wind, dx: 1 }],
+    // THE SETTLE. Frame 2 used to return to the WIND-UP grid, so a creature's
+    // third attack frame was a third distinct pose: FROST_WISP's measured 96.9 %
+    // different from its idle and SILT_CRAB's 84.2 %, which is a snap into
+    // another shape rather than an ease out of the strike. It is the creature's
+    // own second idle shape now, still carried a couple of cells forward and a
+    // cell high — a follow-through that settles toward rest.
+    attack: [{ part: o.wind, dx: -3 }, { part: o.strike, dx: 5 }, { part: o.idle[1], dx: 1 }],
     hurt: [
       { part: o.hurt, dx: -2, dy: 1 },
       { part: o.hurt, dx: -5, dy: 2 },
@@ -1159,6 +1224,8 @@ interface BossOpts {
   tilt?: PartId;
   /** The torso sheared back off the blow — without one a boss's recoil is its standing pose translated, which is what the round-5 critic measured on both of them. */
   recoilBody?: PartId;
+  /** How far the first hurt frame drives the body, when the shear's own pad eats the default -5. */
+  recoilDx?: number;
   sway?: PartId;
   sway2?: PartId;
   /** A mantle whose own outline drags a frame behind the shoulders — without one a boss's idle is one shape at two heights. */
@@ -1226,6 +1293,7 @@ function boss(opts: BossOpts): ActorRecipe {
     fallen,
     tilt: opts.tilt,
     recoilBody: opts.recoilBody,
+    recoilDx: opts.recoilDx,
     sway: { head: opts.sway, head2: opts.sway2, cape: opts.swayCape },
   });
   for (const [i, kf] of dropped) rigs.dead[i] = [kf, kf, kf];
@@ -1339,9 +1407,10 @@ export const ACTOR_RECIPES: Record<string, ActorRecipe> = {
     sway2: 'head_sable_sway2',
     swayBody: 'body_sable_sway',
     recoilBody: 'body_sable_hurt',
+    recoilDx: -10,
     cape: 'cloak_short',
     swayCape: 'cloak_short_sway',
-    palette: { cloth: DUSK_CLOTH, cloth2: ramp(300, 22, 40) },
+    palette: { accent: SABLE_PLUM, cloth: DUSK_CLOTH, cloth2: ramp(300, 6, 40) },
   }),
   LUMEN: humanoid({
     id: 'LUMEN',
@@ -1450,6 +1519,7 @@ export const ACTOR_RECIPES: Record<string, ActorRecipe> = {
     down: 'head_king_down',
     tilt: 'head_king_tilt',
     recoilBody: 'king_body_hurt',
+    recoilDx: -12,
     sway: 'head_king_sway',
     sway2: 'head_king_sway2',
     extras: [{ part: 'claw_left', at: CLAW_LEFT_AT, z: 2 }],
@@ -1490,7 +1560,7 @@ export const ACTOR_RECIPES: Record<string, ActorRecipe> = {
     sway: 'head_hag_sway',
     sway2: 'head_hag_sway2',
     swayBody: 'body_hag_sway',
-    headOff: { x: 1, y: 2 }, // the hunch
+    headOff: { x: 2, y: 6 }, // THE HUNCH, deepened in round 7: at {1,2} her outline was TIDE's bell with a head on it — the tightest pair in the cast at 77.2 % IoU, 0.8 under the bar and unmoved since round 5. Four rows of neck gone and two cells forward puts her head INTO her shoulders and over her staff.
     palette: { accent: MOSS, cloth: HAG_HOOD, skin: HAG_SKIN, leather: SILT },
   }),
   SILT_CRAB: creature({
@@ -1547,6 +1617,7 @@ export const ACTOR_RECIPES: Record<string, ActorRecipe> = {
     down: 'head_saint_down',
     tilt: 'head_saint_tilt',
     recoilBody: 'saint_body_hurt',
+    recoilDx: -16,
     sway: 'head_saint_sway',
     sway2: 'head_saint_sway2',
     swayCape: 'cloak_holy_sway',

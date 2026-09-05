@@ -325,6 +325,23 @@ function stampRows(rows: readonly string[], from: number, to: number, ...edits: 
   return out;
 }
 
+/**
+ * Lift a COLUMN RANGE of an already-built grid by one row — a head that comes
+ * up off the shoulders while the body under it holds still. The bottom row of
+ * the range keeps its own cells, so the neck thickens by a row instead of
+ * tearing away from the chest.
+ */
+function liftRegion(rows: readonly string[], x0: number, x1: number, from: number, to: number): string[] {
+  const out = rows.map((r) => [...r]);
+  for (let y = from; y <= to && y + 1 < rows.length; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const src = rows[y + 1];
+      out[y][x] = x < src.length ? src[x] : '.';
+    }
+  }
+  return out.map((r) => r.join(''));
+}
+
 /** Shift a RANGE of rows sideways, clipped to their own width — a head driven off a hit, a mass slewed away from a blow. */
 function shiftRows(rows: readonly string[], dx: number, from = 0, to = 1e9): string[] {
   return rows.map((r, i) => (i >= from && i <= to ? shiftX(r, dx) : r));
@@ -451,13 +468,23 @@ function legsTurned(
 ): string[] {
   const out: string[] = [];
   for (let i = 0; i < h; i++) {
-    const farUp = i === 0; // the far hip is RAISED — its leg has not started yet
+    const farUp = i === 0; // the far hip is RAISED — its thigh is narrower here and set back
     const farDown = i >= h - 2; // and its sole is two rows clear of the floor
     const inBoot = i >= bootFrom;
     const cuff = i === bootFrom;
     const fc = cuff ? far.cuff : inBoot ? far.boot : i === bootFrom - 1 ? far.knee : far.leg;
     const nc = cuff ? near.cuff : inBoot ? near.boot : i === bootFrom - 1 ? near.knee : near.leg;
-    out.push(stanceRow(w, far.pad, farUp || farDown ? 0 : far.w, fc, near.pad, near.w, nc));
+    // ROUND 7 — A RAISED HIP IS NOT A HOLE. This row used to drop the far leg
+    // ENTIRELY, and one bare row of stage 8-disconnects everything below it
+    // from the torso above: the far thigh and boot baked as a free-floating
+    // island on EMBER, GALE, SABLE, LUMEN, CRYPT_WARDEN, PYRE_KNIGHT and
+    // DROWNED_KNIGHT — round 6's one blocking failure. The hip still reads
+    // RAISED, because the thigh starts two cells narrower and inset a cell
+    // toward the centre line (a leg turned away carrying no weight), but it is
+    // JOINED to the hip it hangs from.
+    const fw = farDown ? 0 : farUp ? Math.max(2, far.w - 2) : far.w;
+    const fp = farUp ? far.pad + 1 : far.pad;
+    out.push(stanceRow(w, fp, fw, fc, near.pad, near.w, nc));
   }
   return out;
 }
@@ -685,7 +712,20 @@ const hagBodyRows = ((): string[] => {
     ...hem,
   ];
 })();
-const BODY_HAG = part(shoulderDrop(shoulderDrop(hagBodyRows, 5, BULK, 'A', 8, 4), 6, BULK, 'A', 7, 3), hagAnchors);
+/**
+ * THE HUMP. Her outline was a bell with a head on it — feet-aligned IoU 77.2 %
+ * against TIDE, the tightest pair in the cast and unmoved since round 5. A
+ * hunched back rising two rows ABOVE her shoulder line, behind the head that
+ * now sits four rows into it, is what a hag has and a robed caster does not.
+ */
+const hagHunched = stampRows(
+  stampRows(stampRows(stampRows(hagBodyRows, 0, 0, [6, 'AAA']), 1, 1, [5, 'AAAAA']), 2, 2, [4, 'AAAAAAA']),
+  27,
+  37,
+  [0, '..'],
+  [26, '.....'],
+); // ...and the skirt is GATHERED where a bell would flare: wide at the stoop, drawn in at the ground
+const BODY_HAG = part(shoulderDrop(shoulderDrop(hagHunched, 5, BULK, 'A', 8, 4), 6, BULK, 'A', 7, 3), hagAnchors);
 const BODY_HAG_SWAY = hemSway(hagBodyRows, 30, hagAnchors);
 
 // BASALT — WIDE AND SHORT, the first of three knight builds that share
@@ -824,6 +864,19 @@ const lumenTop = bands(WIDE, [
   [1, hb(WIDE, 0, '['), '['], // 25   hem band
   [3, hg(WIDE, 4, 6, 'C'), '.'], // 26-28 legs under the tunic
 ]);
+/** LUMEN's legs, with the boots shaded as boots: cuff, shaft, ankle, sole — near on the leather ramp, far one step behind it. */
+function lumenBoots(): string[] {
+  const rows = legsTurned(W_WIDE + 2, 9, { pad: 4, w: 5, leg: 'c', knee: '[', boot: '{', cuff: '4' }, { pad: 5, w: 6, leg: 'C', knee: 'c', boot: '4', cuff: 'l' }, 3);
+  const FAR = 4; // the far boot's own columns, five wide
+  const NEAR = 18; // and the near boot's, six
+  let out = stampRows(rows, 3, 3, [FAR, 'llll4'], [NEAR, '~~~~ll']); // the cuff, turned down over the shaft
+  out = stampRows(out, 4, 4, [FAR, 'llll4'], [NEAR, '~llll4']); //      the shaft, lit down its outer edge
+  out = stampRows(out, 5, 5, [FAR, '4444{'], [NEAR, 'lllll4']);
+  out = stampRows(out, 6, 6, [FAR, '{{{{{'], [NEAR, '44444{']); //      the ankle turns under
+  out = stampRows(out, 7, 7, [NEAR, '4444{{']); //                      the foot
+  return stampRows(out, 8, 8, [NEAR, '{{{{{{']); //                     and the sole on the floor
+}
+
 const BODY_LUMEN = part(
   [
     ...turn(stampRows(selfShadow(shoulderDrop(lumenTop, 6, WIDE, '6', 2, 1), '[', 3, [7, 11], [5, 21]), 13, 23, [19, '22']), { top: 3, bottom: 6, ch: 'A' }),
@@ -834,7 +887,13 @@ const BODY_LUMEN = part(
     // shins are on the cloth ramp now and both boots on the leather ramp, the
     // far side exactly ONE step darker on each — the same pairing EMBER's legs
     // have carried since round 4.
-    ...legsTurned(W_WIDE + 2, 9, { pad: 4, w: 5, leg: 'c', knee: '[', boot: '{', cuff: '4' }, { pad: 5, w: 6, leg: 'C', knee: 'c', boot: '4', cuff: 'l' }, 3),
+    // ROUND 7 — A BOOT IS NOT A BLOCK. Round 6's were two flat ramps: one solid
+    // near-black column against a far one a single step lighter, named again by
+    // the critic. Both now carry the same four-part construction — a turned
+    // CUFF catching the key, a SHAFT lit down its outer edge and dark down its
+    // inner, an ANKLE a step down and a SOLE in the deep step — with the far
+    // boot exactly one step behind the near one the whole way down.
+    ...lumenBoots(),
   ],
   bodyAnchors(WIDE, 38, 15),
 );
@@ -1007,18 +1066,19 @@ const drownedHeadRows = [
     sym(HLH, hb(HLH, 2, 'M'), 'M'),
     sym(HLH, hb(HLH, 2, 'M'), 'M'),
     sym(HLH, hb(HLH, 2, 'm'), 'm'),
-    // Rounds 4 and 5 both left VERTICALS under the visor — a bar at col 8 with
-    // two more marks at cols 6 and 7 directly below it — and three verticals in
-    // a row on a helm is a mandible however they are shaded. The slot is
-    // narrower now (four cells in from each side rather than two), it carries
-    // ONE surviving bar with a dim light behind it, and the corrosion is two
-    // HOLES rather than streaks: a two-by-two rusted through the far cheek and a
-    // single higher one through the near, neither in the bar's column.
-    stamp(sym(HLH, '....#######', '#'), [9, '5']),
-    stamp(sym(HLH, '....#######', '#'), [9, '5'], [14, 'g']),
-    stamp(sym(HLH, hb(HLH, 2, 'M'), 'M'), [16, '#5']),
-    stamp(sym(HLH, hb(HLH, 2, 'M'), 'M'), [5, '##']),
-    stamp(sym(HLH, hb(HLH, 2, 'm'), 'm'), [5, '#}']),
+    // ROUND 7 — A SLIT, NOT A MANDIBLE. Rounds 4, 5 and 6 each left VERTICALS
+    // in and under this visor: a surviving bar standing in the slot with two
+    // ink holes punched below it, and three verticals in a row on a helm read
+    // as jaws however they are shaded. The slot is now ONE unbroken slit two
+    // rows deep with a dim light somewhere behind it; the plate below it keeps
+    // an unbroken lit lip; and the corrosion is two rust holes in the METAL's
+    // own deep step, one high on the near cheek and one low on the far jaw —
+    // neither under the slit, and neither in ink.
+    sym(HLH, '....#######', '#'),
+    stamp(sym(HLH, '....#######', '#'), [14, 'g']),
+    stamp(sym(HLH, hb(HLH, 2, 'M'), 'M'), [4, '5'], [18, '5']),
+    stamp(sym(HLH, hb(HLH, 2, 'M'), 'M'), [16, '}}']),
+    stamp(sym(HLH, hb(HLH, 2, 'm'), 'm'), [4, '}']),
     sym(HLH, hb(HLH, 3, 'M'), 'M'),
     sym(HLH, hb(HLH, 3, 'M'), 'M'),
     sym(HLH, hb(HLH, 4, 'm'), 'm'),
@@ -1038,21 +1098,21 @@ const sableHeadRows = [
     sym(HLH, hb(HLH, 9, '!'), '!'),
     ...crown('!', [7, 5, 4]),
     ...crown('A', [3, 1, 0]),
-    // THE SLOT. Rounds 4, 5 and 6 all asked the same thing of this hood: the
-    // opening was SEVENTEEN cells across a twenty-three-cell head, which at two
-    // screen pixels reads as a blindfold with two lit dots on it, whatever is
-    // inside. It is eight cells now — two three-cell eye slots with a two-cell
-    // bridge of hood between them — with the cloak's own cloth carried across
-    // the rest of the face and a shadow rim around the opening, so the hood has
-    // a FRONT to it and the darkness is a hole in that front rather than the
-    // whole of it. The eyes stay unequal: the near one is a cell bigger and a
-    // row higher than the far, which is what turns the head.
-    'AAADDDDD3333333DDDDDAAA',
-    'AAADDDD3]]]33]]]3DDDAAA',
-    'AAADDDD3]]]33]GG3DDDAAA',
-    'AAADDDD3]G]33]G@3DDDAAA',
-    'AAADDDD3]g]33]]]3DDDAAA',
-    'AAAADDDD3333333DDDDAAAA', // and the hood closes under the chin
+    // THE SLOT, fourth asking. Round 6 cut the OPENING to eight cells and then
+    // carried the cloak's own cloth2 across the whole rest of the face, so what
+    // the eye actually read was still one dark band ten cells wide on a
+    // twenty-three-cell head — a blindfold with two lit dots on it. The hood's
+    // OWN accent now runs across the face, cheek to cheek, and the only cloth2
+    // on the head is the slot itself: two three-cell eye sockets with a
+    // two-cell bridge of hood between them, rimmed a step down. The eyes stay
+    // unequal — the near one a cell bigger and a row higher than the far —
+    // which is what turns the head.
+    'AAAaaaaaaaaaaaaaaaaaAAA',
+    'AAAaaaa3]]]33]]]3aaaAAA',
+    'AAAaaaa3]]]33]GG3aaaAAA',
+    'AAAaaaa3]G]33]G@3aaaAAA',
+    'AAAaaaa3]g]33]]]3aaaAAA',
+    'AAAAaaaaaaaaaaaaaaaAAAA', // and the hood closes under the chin
     // and the cowl does not stop on a curve: it DRAPES, spilling two cells
     // wider onto the near shoulder than the far one and torn at its edge.
     pair(HLH, hb(HLH, 2, 'A'), 'A', hb(HLH, 0, 'A')),
@@ -2198,8 +2258,12 @@ const HEAD_GALE_SWAY = headSway(galeHeadRows);
 const HEAD_GALE_SWAY2 = headSway(galeHeadRows, -0.11);
 const HEAD_TIDE_SWAY = headSway(tideHeadRows);
 const HEAD_TIDE_SWAY2 = headSway(tideHeadRows, -0.11);
-const HEAD_BASALT_SWAY = headSway(basaltHelm);
-const HEAD_BASALT_SWAY2 = headSway(basaltHelm, -0.11);
+// ROUND 7 — a bucket helm shears less than a hair mass at the same coefficient,
+// and BASALT carries a kite shield a third of his silhouette that moves on every
+// beat, so 80 % of his idle change fell below the top third. The helm rolls
+// twice as far now: the crown travels two cells across the breath.
+const HEAD_BASALT_SWAY = headSway(basaltHelm, 0.2);
+const HEAD_BASALT_SWAY2 = headSway(basaltHelm, -0.18);
 const HEAD_PYRE_SWAY = headSway(pyreHeadRows);
 const HEAD_PYRE_SWAY2 = headSway(pyreHeadRows, -0.11);
 const HEAD_DROWNED_SWAY = headSway(drownedHeadRows);
@@ -2538,10 +2602,28 @@ const IMP_BODY_B = part(
   impTail(stampRows(stampRows(stampRows(impBase, 14, 14, [2, '.'], [20, '.']), 16, 16, [8, '!!!!!!!']), 20, 20, [8, '6666666']), 1),
   { feet: { x: IML, y: 31 }, hit: { x: IML, y: 15 } },
 );
-// And a third: the belly settles, the head sinks a row into the shoulders and
-// the tail hangs — so no two idle frames share an outline.
+/**
+ * And a third. ROUND 7: this frame moved the belly, the neck band and the tail
+ * and NOTHING above them — 0 % of the imp's frame-to-frame change fell in its
+ * top third, so the horns, skull and jaw were a photograph while the body
+ * breathed under them. The whole HEAD now sinks a row into the shoulders (the
+ * grid keeps its height: row 0 is duplicated at the top and the head's own cast
+ * shadow row is spent paying for it) and the horns sweep back a cell as it
+ * goes, which is the same follow-through EMBER's mane and BOG_TOAD's brow
+ * carry.
+ */
+const impSunk = (rows: readonly string[]): string[] => [rows[0], rows[0], ...rows.slice(0, 10), ...rows.slice(12)];
 const IMP_BODY_C = part(
-  impTail(stampRows(stampRows(stampRows(impBase, 12, 12, [7, '<<<<<<<<<']), 17, 17, [8, 'AAAAAAA']), 22, 22, [6, '<<<<<<<<<<<']), 2),
+  impTail(
+    stampRows(
+      stampRows(stampRows(impSunk(impBase), 12, 12, [7, '<<<<<<<<<']), 17, 17, [8, 'AAAAAAA']),
+      1,
+      2,
+      [2, 'BB'],
+      [19, 'BB'],
+    ), // and the horns sweep back off the skull as it drops
+    2,
+  ),
   { feet: { x: IML, y: 31 }, hit: { x: IML, y: 15 } },
 );
 /** The imp rears: claws cocked at the shoulder, jaw shut. */
@@ -2698,37 +2780,60 @@ const houndBase: string[] = [
   // either — so the outline of the hound's underside has four bends in it.
   ...houndLegs(),
 ];
-/** The hound's four legs, each a thigh over a knee over a shin over a paw. `bend` is which way the knee steps. */
+/** The hound's four legs: a rump or shoulder, a joint, a shin and a paw — hind and fore built on different geometry. */
 function houndLegs(): string[] {
-  // ROUND 6 — A HOUND IS NOT A TABLE. Round 5's knee pinch was right and every
-  // leg still stood at the same pitch on the same four-cell thigh, so the four
-  // read as four identical bars. The HIND pair (this hound faces right, so
-  // those are the two on the left) now carries a HAUNCH — a cell wider than the
-  // leg under it, with its own dark band — and its shin steps a cell BACKWARD
-  // off that haunch while the fore pair steps forward, which is the pitch a
-  // standing quadruped actually has.
-  const legs: readonly (readonly [x: number, bend: number, haunch: boolean])[] = [
-    [5, -1, true],
-    [11, -1, true],
-    [21, 1, false],
-    [27, 1, false],
+  // ROUND 7 — THE HIND PAIR IS NOT THE FORE PAIR. Round 6's haunch was one cell
+  // wider than the leg under it and its shin stepped back by one; at two screen
+  // pixels that is four identical bars at one pitch, which is what the critic
+  // read three rounds running. The HIND legs (this hound faces right, so the
+  // two on the left) now carry a RUMP three cells proud of the thigh, a hock
+  // that breaks the line, and a shin that travels FOUR cells BACKWARD from hip
+  // to paw; the FORE pair stands near-vertical under the chest and steps
+  // forward one. And the FAR leg of each pair stops a row short of the floor a
+  // step darker, so the four paws sit on three different rows rather than
+  // ruling one line across the bottom of the animal.
+  const legs: readonly { x: number; hind: boolean; far: boolean }[] = [
+    { x: 6, hind: true, far: false },
+    { x: 13, hind: true, far: true },
+    { x: 21, hind: false, far: false },
+    { x: 27, hind: false, far: true },
   ];
   const rows: string[][] = [];
   for (let i = 0; i < 10; i++) rows.push(new Array<string>(HOUND_W + 1).fill('.'));
   const put = (y: number, x: number, run: string): void => {
+    if (y < 0 || y >= rows.length) return;
     for (let k = 0; k < run.length; k++) if (x + k >= 0 && x + k < rows[y].length) rows[y][x + k] = run[k];
   };
-  for (const [x, bend, haunch] of legs) {
-    put(0, haunch ? x - 1 : x, haunch ? 'ccCCC' : 'cCCC'); // thigh — the hind pair on a haunch
-    put(1, haunch ? x - 1 : x, haunch ? 'cCCCC' : 'cCCC');
-    put(2, haunch ? x - 1 : x, haunch ? 'c222C' : 'c22C'); // and the shade band across it
-    put(3, x + bend, 'CcC'); // the knee, a cell fore or aft
-    put(4, x + bend, 'CCC'); // shin
-    put(5, x + bend, 'ccc');
-    put(6, x + bend, '222');
-    put(7, x + bend - 1, '4444'); // pastern
-    put(8, x + bend - 1, '4444');
-    put(9, x + bend - 1, '{{{{{'); // and a paw wider than the leg above it
+  for (const { x, hind, far } of legs) {
+    // The far leg of each pair is a step darker the whole way down and lifts a
+    // row clear of the floor — the same depth cue the humanoids' far boot has.
+    const lit = far ? 'c' : 'C';
+    const mid = far ? '2' : 'c';
+    const foot = far ? '{' : '4';
+    const drop = far ? -1 : 0;
+    if (hind) {
+      put(0, x - 2, `c${lit.repeat(3)}${mid}c`); // the rump, three cells proud of the thigh
+      put(1, x - 2, `c${lit.repeat(3)}${mid}c`);
+      put(2, x - 2, `c22${mid}${mid}c`); //           its own dark band across the hip
+      put(3, x - 2, `c${lit}${lit}c`); //             the thigh narrows off the back of it
+      put(4, x - 3, `${lit}${mid}${lit}`); //         the hock breaks BACKWARD
+      put(5, x - 4, `${lit}${lit}${mid}`);
+      put(6, x - 4, `${mid}${mid}2`); //              and the shin leans back with it
+      put(7, x - 5, `2${mid}${mid}`);
+      put(8 + drop, x - 5, `${foot}${foot}${foot}`);
+      put(9 + drop, x - 6, `{{{{${foot}`); //         a paw set back under the hock
+    } else {
+      put(0, x, `c${lit}${lit}c`); //                 the shoulder, no rump on it
+      put(1, x, `c${lit}${lit}${lit}`);
+      put(2, x, `c22${mid}`);
+      put(3, x + 1, `${lit}${mid}${lit}`); //         the knee steps a cell forward
+      put(4, x + 1, `${lit}${lit}${mid}`);
+      put(5, x + 1, `${mid}${mid}${mid}`);
+      put(6, x + 1, `2${mid}2`);
+      put(7, x + 1, `${foot}${foot}${foot}`);
+      put(8 + drop, x, `${foot}${foot}${foot}${foot}`);
+      put(9 + drop, x, `{{{{${foot}`); //             and the paw reaches forward under the chest
+    }
   }
   return rows.map((r) => r.join(''));
 }
@@ -2771,7 +2876,27 @@ const HOUND_BODY_C = part(
       stampRows(
         stampRows(
           stampRows(
-            stampRows(stampRows(stampRows(houndBase, 0, 0, [26, '..C....C..']), 1, 1, [26, '.CC...CC..']), 2, 2, [26, 'CCC..CCC..']), // the ears prick and sweep back
+            stampRows(
+              stampRows(
+                stampRows(
+                  // ROUND 7 — THE WHOLE HEAD COMES UP, not just the ears. Round 6
+                  // moved two ear tips and a muzzle row, so only a third of this
+                  // frame's change fell in the animal's top third and the skull
+                  // read as a photograph over a breathing body. Everything from
+                  // the shoulder forward now lifts a row off the neck first.
+                  liftRegion(houndBase, 23, HOUND_W - 1, 0, 9),
+                  0,
+                  0,
+                  [26, '..C....C..'],
+                ),
+                1,
+                1,
+                [26, '.CC...CC..'],
+              ),
+              2,
+              2,
+              [26, 'CCC..CCC..'],
+            ), // the ears prick and sweep back
             8,
             8,
             [36, '#BBBB'],
@@ -2794,39 +2919,42 @@ const HOUND_BODY_C = part(
 );
 /** The hound gathers: head drawn back over the shoulders, jaw shut, haunches loaded. */
 const HOUND_WIND = part(fit([...shiftRows(houndBase.slice(0, 11), -3, 4), ...houndBase.slice(11)], HOUND_W, HOUND_H), { feet: { x: 18, y: 27 }, hit: { x: 20, y: 10 } });
-/** The bite: the head is thrown forward two cells and the lower jaw drops from row 10 to row 17 — seven cells of travel on the striking part. */
+/**
+ * The bite: the head is thrown forward two cells and the lower jaw drops from
+ * row 10 to row 17 — seven cells of travel on the striking part. ROUND 7: the
+ * jaw hangs off a HINGE (the cheek runs on to col 32 at row 14 and the skull
+ * band to col 29 at row 15) instead of floating two cells clear of the skull —
+ * it and the foreleg standing under it baked as a 56-cell island — and the
+ * lunging chest reaches col 27 so the far foreleg stands ON the body.
+ */
 const HOUND_STRIKE = part(
   fit(
-    [
-      '..............................C.....C....',
-      '.............................CC....CC....',
-      '............................CCC...CCC....',
-      '...........................CCCCCCCCCC....',
-      '........................CCCCCCCCCCCCC....',
-      '..........++++++++++CCCCCCCCCCCCCCCCCC...',
-      '.......+++++++++++++CCCCCCCCCCCCCCCCCC...',
-      '.....CCCCCCCCCCCCCCCCCCCCCCCCCCGGCCCCC...',
-      '....CCCCCCCCCCCCCCCCCCCCCCCCCC#GG#CCCCC..',
-      '....CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC#BBB#',
-      '....CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC#BB#..',
-      '....CC2CCCCCCC2CCCCCCCCCCCCCCCCCC##......',
-      '....CC2CCCCCCC2CCCCCCCCCCCCCCCC###.......',
-      '.....C2CCCCCCC2CCCCCCCCCCCCCC####........',
-      '.....ccccccccccccccccccccccc###..........',
-      '.....[[[[[[[[[[[[[[[[[[[[[[##....#B#.....',
-      '......[[[[[[[[[[[[[[[[[[[#....#BBBB#.....',
-      '.......[[[[[[[[[[[[[[[[[....#BBBBB#......',
-      '.....cCCC..cCCC......cCCC..cCC#BB#.......',
-      '.....cCCC..cCCC......cCCC..cCCC..........',
-      '.....c22C..c22C......c22C..c22C..........',
-      '......CCC...CCC.......CCC...CCC..........',
-      '......CCC...CCC.......CCC...CCC..........',
-      '......ccc...ccc.......ccc...ccc..........',
-      '......222...222.......222...222..........',
-      '.....4444..4444......4444..4444..........',
-      '.....4444..4444......4444..4444..........',
-      '....{{{{{.{{{{{.....{{{{{.{{{{{..........',
-    ],
+    stampRows(
+      [
+        '..............................C.....C....',
+        '.............................CC....CC....',
+        '............................CCC...CCC....',
+        '...........................CCCCCCCCCC....',
+        '........................CCCCCCCCCCCCC....',
+        '..........++++++++++CCCCCCCCCCCCCCCCCC...',
+        '.......+++++++++++++CCCCCCCCCCCCCCCCCC...',
+        '.....CCCCCCCCCCCCCCCCCCCCCCCCCCGGCCCCC...',
+        '....CCCCCCCCCCCCCCCCCCCCCCCCCC#GG#CCCCC..',
+        '....CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC#BBB#',
+        '....CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC#BB#..',
+        '....CC2CCCCCCC2CCCCCCCCCCCCCCCCCC##......',
+        '....CC2CCCCCCC2CCCCCCCCCCCCCCCC###.......',
+        '.....C2CCCCCCC2CCCCCCCCCCCCCC####........',
+        '.....ccccccccccccccccccccccc#####........',
+        '.....[[[[[[[[[[[[[[[[[[[[[[###...#B#.....',
+        '......[[[[[[[[[[[[[[[[[[[#....#BBBB#.....',
+        '.......[[[[[[[[[[[[[[[[[[[[[#BBBBB#......',
+        ...houndLegs(),
+      ],
+      18,
+      18,
+      [30, '#BB#'], // the dropped jaw crosses the foreleg row
+    ),
     HOUND_W,
     HOUND_H,
   ),
@@ -2836,7 +2964,9 @@ const HOUND_STRIKE = part(
 const HOUND_HURT = part(
   fit(
     stampRows(
-      [...shiftRows(houndBase.slice(0, 11), -4, 3), ...shiftRows(houndBase.slice(11, 18), -2, 3), ...shiftRows(houndBase.slice(18), 0)],
+      // The belly's LAST row stays where it was (round 7): shifting it back two
+      // with the ribs pulled it clear of the far foreleg standing under it.
+      [...shiftRows(houndBase.slice(0, 11), -4, 3), ...shiftRows(houndBase.slice(11, 18), -2, 3, 5), ...shiftRows(houndBase.slice(18), 0)],
       7,
       8,
       [24, 'CCCC'],
@@ -2942,22 +3072,49 @@ function wraithLit(rows: readonly string[]): string[] {
   for (let y = 14; y <= 27; y++) out = stampRows(out, y, y, [7 + ((y - 14) >> 2), '!!']); // and a lit fold that travels
   out = stampRows(out, 12, 30, [WRAITH_W - 9, 'aaaa']); // the shade side stays in the LEGAL step: full-height rows of the anchor tone put 48 % of this figure under 3:1
   out = stampRows(out, 15, 28, [WRAITH_W - 6, '6']); // and only the seam at its edge goes dark
+  // ROUND 7 — DEPTH INSIDE THE HOOD BAND AND THE HEM, the last thing owed on
+  // this figure and named in rounds 5, 6 and 7. Everything above was a lit
+  // panel, a shade side and four ruled creases with one flat mid-lavender mass
+  // between them. Three more things, all in the SHADOW step so the 3:1 share
+  // does not move: two creases run down the COWL either side of its opening and
+  // fall into a dark lip where the hood closes on the neck; a THIRD fold
+  // travels down the shroud between the other two, drifting a cell every three
+  // rows so no two folds are parallel; and the hem's last rows carry two deep
+  // creases that reach into the fray, so the tatters hang off folds rather than
+  // off a flat edge. `shadeOnly` cannot grow the silhouette, so a crease put on
+  // a row narrower than itself simply lands on fewer cells.
+  for (let y = 3; y <= 10; y++) out[y] = shadeOnly(shadeOnly(out[y], WRL - 5, 'c'), WRL + 5, 'c');
+  out[9] = shadeOnly(out[9], WRL - 4, '2'.repeat(9)); // the cowl's mouth turns under the hood's own edge
+  for (let y = 18; y <= 30; y++) out[y] = shadeOnly(out[y], WRL - 6 + (((y - 18) / 3) | 0), 'a');
+  for (let y = 26; y <= 32; y++) out[y] = shadeOnly(out[y], WRL + 3, 'a');
+  for (let y = 31; y <= 32; y++) out[y] = shadeOnly(shadeOnly(out[y], WRL - 5, '<'), WRL + 3, '<');
   return out;
 }
 const wraithBase = wraithLit(wraithArms(bands(WRL, wraithBands), 11, 0));
 const WRAITH_BODY = part(wraithBase, { feet: { x: WRL, y: 39 }, hit: { x: WRL, y: 20 } });
 /** The shroud fills and the sleeves drift out from the body. */
 const WRAITH_BODY_B = part(wraithLit(wraithArms(stampRows(bands(WRL, wraithBands), 29, 30, [5, '6'], [WRAITH_W - 6, '6']), 13, 2)), { feet: { x: WRL, y: 39 }, hit: { x: WRL, y: 20 } });
-/** And empties: the sleeves fold in against it, the hood dips, the fray lifts. */
+/**
+ * And empties: the sleeves fold in against it, the hood slumps, the fray lifts.
+ * ROUND 7 — only a quarter of this frame's change fell in the wraith's top
+ * third, so the hood held still over a shroud that moved. The peak now dips
+ * THREE rows and the whole cowl LEANS a cell off the neck as it drops, which is
+ * what a hood with nothing inside it does when the shroud under it settles.
+ */
 const WRAITH_BODY_C = part(
   wraithLit(
     wraithArms(
       stampRows(
-        stampRows(stampRows(bands(WRL, wraithBands), 33, 35, [5, '..'], [WRAITH_W - 7, '..']), 0, 1, [WRL - 2, '.....']), // the hood's peak DIPS two rows into the cowl
+        shiftRows(
+          stampRows(stampRows(bands(WRL, wraithBands), 33, 35, [5, '..'], [WRAITH_W - 7, '..']), 0, 2, [WRL - 2, '.....']), // the hood's peak DIPS three rows into the cowl
+          1,
+          3,
+          9,
+        ), // and the cowl leans off the neck with it
         9,
         10,
         [WRL - 5, 'CCCCCCCCCCC'],
-      ), // and the cowl fills where it fell
+      ), // filling where it fell
       11,
       -3,
     ),
@@ -3143,7 +3300,10 @@ const toadSettle: string[] = ['.'.repeat(TOAD_W), ...toadBase.slice(0, 4), ...to
 const TOAD_BODY_C = part(
   stampRows(
     stampRows(
-      stampRows(stampRows(stampRows(toadSettle, 14, 14, [8, 'AAAAAAAAAAAAAAAAAAA']), 18, 18, [6, '<<<<<<<<<<<<<<<<<<<<<<<']), 22, 23, [2, '....'], [29, '....']),
+      // The outer pair is TUCKED, not amputated: round 6 blanked both of its top
+      // rows and left the two feet under them as free-floating islands, so only
+      // the outer half of each is drawn in here.
+      stampRows(stampRows(stampRows(toadSettle, 14, 14, [8, 'AAAAAAAAAAAAAAAAAAA']), 18, 18, [6, '<<<<<<<<<<<<<<<<<<<<<<<']), 22, 23, [2, '..'], [31, '..']),
       2,
       2,
       [5, 'aaaaaa'],
@@ -3272,32 +3432,36 @@ const wispShard: readonly string[] = [
  * The last three rows are two loose motes guttering off the end of it.
  */
 function wispTail(k: number): string[] {
-  // ROUND 6 — A RIBBON, NOT A ZIGZAG. Round 5's tail swayed each row of the
-  // trail independently, so by the time it had tapered to one cell it was a
-  // stack of single pixels stepping left and right: the critic read a cut gem
-  // with dust under it, for the third round running. This is SIX ROWS of one
-  // connected shape — three cells wide where it leaves the shard's own foot at
-  // column 7, two, then one — and the whole ribbon LEANS as a unit (`k` is the
-  // idle frame: straight down, then out one way, then the other) so it flutters
-  // without ever coming apart. Two motes gutter off its end, and they are the
-  // only loose pixels in the sprite.
-  const width = [3, 3, 3, 2, 2, 1];
-  const dir = k === 1 ? 1 : k === 2 ? -1 : 0;
+  // ROUND 7 — A RIBBON THAT CAN BE SEEN. Round 6's tail was connected and
+  // tapered, but it left the shard at the shard's own width, in the glow ramp's
+  // two DARKEST steps, and then ended in two loose motes: against the stage it
+  // read as a two-cell dotted stem with dust under it — the fourth round the
+  // critic has asked for a tail. This one is NINE rows: it leaves the foot
+  // three cells wide in the glow's LIT step, narrows to two and then one as it
+  // falls through dark into deep, and CURVES — each frame owns a different
+  // curve, so the ribbon flutters rather than translating. Every row overlaps
+  // the one above it and there are no motes at all: the wisp is a single
+  // 8-connected component in every pose.
+  const width = [3, 3, 2, 2, 2, 1, 1, 1, 1];
+  const shade = ['@', 'g', 'g', 'g', '7', '7', '7', '>', '>'];
+  const curve: Record<number, readonly number[]> = {
+    0: [0, 0, 1, 1, 1, 2, 2, 2, 3], //  drifting away to the right
+    1: [0, 1, 1, 2, 2, 2, 1, 1, 0], //  an S, bulging out and coming back
+    2: [0, 0, -1, -1, -2, -2, -2, -3, -3], // and away to the left
+  };
+  const offs = curve[k] ?? curve[0];
   const foot = 7; // the shard's last painted column — the ribbon leaves from it
   const rows: string[] = [];
   for (let i = 0; i < 11; i++) {
     const cells: string[] = new Array(WISP_W).fill('.');
     if (i < width.length) {
       const n = width[i];
-      const c = foot + Math.round((dir * i) / 2);
-      const ch = i < 2 ? 'g' : i < 4 ? '7' : '>'; // it fades DOWN the ribbon, not off a cliff two cells from the shard
+      const c = foot + offs[i];
       for (let j = 0; j < n; j++) {
         const x = c - ((n - 1) >> 1) + j;
-        if (x >= 0 && x < WISP_W) cells[x] = n > 2 && j === n - 1 ? '7' : ch;
+        // the trailing edge of a wide row is a step darker, so the ribbon has a lit side like everything else on the sheet
+        if (x >= 0 && x < WISP_W) cells[x] = n > 2 && j === n - 1 ? 'g' : shade[i];
       }
-    } else if (i === 7 || i === 9) {
-      const m = foot + dir * 2 + (i === 7 ? 1 : -1);
-      if (m >= 0 && m < WISP_W) cells[m] = '>'; // two motes guttering off its end
     }
     rows.push(cells.join(''));
   }
@@ -3316,7 +3480,9 @@ const WISP_WIND = part(fit([...rep(4, '.'.repeat(WISP_W)), ...wispShard.slice(0,
 /**
  * The lance: the shard stretches to a spear and drives DOWN, its point
  * travelling from row 16 to row 24 — eight cells on the striking part — with
- * the dark core dragged after it and the tail torn to three motes.
+ * the dark core dragged after it. ROUND 7: the three torn motes under the point
+ * are drawn back into the ribbon's last rows, so the strike is a single
+ * 8-connected component like every other bake in the cast.
  */
 const WISP_STRIKE = part(
   fit(
@@ -3333,9 +3499,9 @@ const WISP_STRIKE = part(
       '.......7>7.......',
       '.......7>7.......',
       '........>........',
-      '........>........',
-      '.....7.......7...',
-      '.........>.......',
+      '.......7>........',
+      '.......>.........',
+      '......>..........',
     ],
     WISP_W,
     WISP_H,
@@ -3418,7 +3584,9 @@ const crabShell: readonly string[] = [
   '....aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa....',
   '.....666666666666666666666666666666......',
   '.......<<<<<<<<<<<<<<<<<<<<<<<<<<<.......',
-  '..........<<<<<<<<<<<<<<<<<<<<<..........',
+  // ROUND 7 — the underside reaches the OUTERMOST pair of legs. It stopped at
+  // col 10 and the leg standing at cols 6-8 baked as a 14-cell island.
+  '........<<<<<<<<<<<<<<<<<<<<<<<<<........',
   '......444..444..444..444..444..444.......',
   '......444..444..444..444..444..444.......',
   '.....4444..444..444..444..444..4444......',
@@ -3482,9 +3650,9 @@ const CRAB_BODY_C = part(
           stampRows(stampRows(stampRows(crabShell, 0, 0, [0, '.....'], [CRAB_W - 5, '.....']), 27, 27, [3, '.....'], [CRAB_W - 8, '.....']), 5, 7, [0, 'AA'], [CRAB_W - 2, 'AA']),
           3,
           3,
-          [2, '....'],
-          [CRAB_W - 6, '....'],
-        ), // the jaws gape: the hinge row opens out
+          [4, '..'],
+          [CRAB_W - 6, '..'],
+        ), // the jaws gape: the hinge row opens out — but the HINGE stays (round 7: emptying this row cut both pincer tips off the arms)
         4,
         4,
         [0, '..AAAA'],
@@ -3492,7 +3660,7 @@ const CRAB_BODY_C = part(
       ),
       3,
     ),
-    -4, // and the whole dome turns with it: the shadow wedge creeps four cells across the shell
+    -2, // and the dome turns with it — two cells, not four: round 6 slid the whole shadow wedge across the shell and left the CLAWS carrying only a third of the frame's change
   ),
   { feet: { x: CBL, y: CRAB_H - 1 }, hit: { x: CBL, y: 17 } },
 );
@@ -3598,10 +3766,13 @@ const fenFlame: readonly string[] = [
   '....7777777......',
   '.....777>7.......',
   '......>>>........',
-  '.....>...>.......',
-  '.......7.........',
-  '......>..>.......',
-  '.......>.........',
+  // ROUND 7 — the drip runs BACK to the flame. Round 6's four rows of embers
+  // were two separate islands under the fire; this is one trail hanging off the
+  // flame's own foot, and ONE loose spark (row 22, col 12) drifting off it.
+  '.....>...@.......',
+  '.....7...........',
+  '....>.......@....',
+  '....>............',
 ];
 /** The tongues lean: every row above the core is sheared by its distance from it, so the flame changes SHAPE between frames instead of bobbing. */
 function fenLean(lean: number): string[] {
