@@ -169,16 +169,20 @@ the `--battles` fixture.
 
 FIRE ▸ WIND ▸ WATER ▸ FIRE, and LIGHT ⇄ DARK mutually.
 
-| Matchup | Damage | Crit chance |
+| Matchup | Crit chance | Glance chance |
 |---|---|---|
-| advantage | ×1.30 | +15 pts |
-| neutral | ×1.00 | — |
-| disadvantage | ×0.75 | −15 pts |
+| advantage | +`ELEMENT_CRIT = 15` pts | 0 |
+| neutral | — | 0 |
+| disadvantage | — | `GLANCE_CHANCE = 0.50` |
 
-`ELEMENT_MULT` and `ELEMENT_CRIT` are these numbers as constants. LIGHT and
-DARK are neutral against the triangle and advantaged against each other. The
-swing is deliberate and large — a FIRE hero does about twice as much into
-WIND as into WATER — which is why every biome has a dominant element *and* a
+There is no elemental damage multiplier. The upside of the right element is
+crit; the downside of the wrong one is the **glance**: a glancing hit
+cannot crit and deals `GLANCE_MULT = 0.70` of its damage, so the wrong
+element is punished harder than the right one is rewarded. The **GLANCE**
+debuff raises the holder's glance chance to `GLANCE_DEBUFF = { advantage:
+0, neutral: 0.50, disadvantage: 1.0 }` — wrong element plus the debuff
+always glances. LIGHT and DARK are neutral against the triangle and
+advantaged against each other. Every biome has a dominant element *and* a
 foil, and every boss is LIGHT or DARK: a mono-element party is a bet on the
 route. Elements are also the visual identity: every actor's palette is an
 element tint applied per sprite layer.
@@ -321,6 +325,7 @@ are `extendDebuffs` and RENDER's kindled +1.
 | BURN | `dmg` per turn, fixed at application: `min(round(maxHp × BURN_FRACTION = 0.05), round(BURN_CAP_ATK = 2.0 × statEff(applier, ATK)))` | 2 | | SHIELD | absorbs `pool` damage, then expires | `SHIELD_TURNS = 2` or until broken |
 | HEAL_BLOCK | every HP gain to the holder is 0 | 2 | | IMMUNITY | blocks all incoming debuffs | 1 |
 | BRAND | +25 % damage taken | 2 | | COUNTER | REVENGE at 100 % (see *Sets*) | 2 |
+| GLANCE | the holder's hits glance at `GLANCE_DEBUFF[matchup]` | 2 |
 | SILENCE | skills 2 and 3 unusable | 2 | | INVINCIBLE | takes no HP loss of any kind; **enemy-only**: a boss's SELF skill or pact 3 | 1 |
 
 Stat statuses modify the stat where it is read, unrounded: `statEff(a, S) =
@@ -331,7 +336,8 @@ zeroed by INVINCIBLE, triggers no counter, and is lethal. Every status has a
 named source in the launch roster or the act-1 pool (SPD_UP: Tailwind and
 Rally; SHIELD: Bulwark, BULWARK, GRUDGE; BRAND: Inferno awakened, Rend;
 SILENCE: Eclipse, Choke; COUNTER: Bulwark, Brace; INVINCIBLE: Shroud, pact 3;
-HEAL_BLOCK: Mire, Doom); a status with no source is cut, not kept.
+HEAL_BLOCK: Mire, Doom; GLANCE: Squall, Wail); a status with no source is
+cut, not kept.
 
 Landing is an ACC/RES check, floored so nothing is ever impossible:
 
@@ -342,7 +348,7 @@ p = clamp(apply.chance + (attacker.acc − defender.res) / 100, STATUS_MIN_CHANC
 Applications on allies or self skip the check; a chance of 1.0 is still
 resistible (RES 50 vs ACC 0 → 0.5). Hits are the outer loop, snapshotted targets in slot order
 the inner: hit 1 on every living target, then hit 2. Per hit and target:
-crit → `applies` in order → the DESPAIR chance roll (drawn whatever SHIELD
+glance → crit → `applies` in order → the DESPAIR chance roll (drawn whatever SHIELD
 or INVINCIBLE did to the hit) → its landing roll (skipped under IMMUNITY) → RENDER on a crit: one landing roll at
 chance 1.0 for a strip of `ATB_TURN × 0.10`, immediately, the kindled
 extension riding on a landed strip.
@@ -353,9 +359,9 @@ Per hit, on each living target, in this order:
 
 ```
 raw    = statEff(attacker, skill.scale) × skill.mult × (target.has(bonusVs.status) ? bonusVs.mult : 1)
-raw   ×= ELEMENT_MULT[matchup]
-crit   = rng() × 100 < clamp(critPts(attacker) + ELEMENT_CRIT[matchup], 0, CAP_CRIT)      // rolled per hit
-raw   ×= crit ? 1 + cdmg / 100 : 1
+glance = p > 0 && rng() < p, p = attacker.has(GLANCE) ? GLANCE_DEBUFF[matchup] : matchup == disadvantage ? GLANCE_CHANCE : 0   // no draw at p = 0
+crit   = !glance && rng() × 100 < clamp(critPts(attacker) + (matchup == advantage ? ELEMENT_CRIT : 0), 0, CAP_CRIT)   // no draw on a glance
+raw   ×= glance ? GLANCE_MULT : crit ? 1 + cdmg / 100 : 1
 raw   ×= target.has(BRAND) ? 1.25 : 1
 defEff = statEff(target, 'DEF')                                                            // DEF_UP + DEF_BREAK cancel
 dealt  = raw × (1 − defEff / (defEff + DEF_K)) × (1 − target.resist[skill.kind] / 100)   // resist in points, heroes 0
@@ -1134,23 +1140,16 @@ rewritten at phase 8 and dated.
 
 Decisions the review could not make for the owner. Each has a default written
 into the contract above so the build never waits; overrule by editing the
-rule, not this list.
+rule, not this list. Decided on 2026-09-05 and folded into the contract: a
+fallen hero returns after a win (the simple default); elements are crit up
+versus the glance, not a damage multiplier; all six characters are unlocked
+at launch.
 
-1. **A fallen hero.** Default: out for the battle, back at `KO_RETURN` after a
-   win; the run ends on a wipe. Alternative: the fallen stay dead for the run,
-   the party fights short-handed until a SUMMON, and REST's second option
-   becomes "revive one". Harsher, truer to "permadeath keeps its teeth", and
-   much harder to balance; recommended: keep the default until phase 8 has
-   numbers.
-2. **Element swing.** ×1.30 / ×0.75 with ±15 crit is a 2× swing one way and
-   ≈ 4× both ways, so a mono party in its foil biome is a coin flip.
-   Alternative: ×1.25 / ×0.80 with ±10. Recommended: keep the numbers, and
-   soften only if the `mono` policy clears act 3 below 60 % of `balanced`.
-3. **The Vault and ascension.** Default: ascension is the player's choice up
-   to the highest unlocked. Alternative: every Vault relic worn raises the
-   run's minimum ascension by one, so three god-rolls are a bet at A3 and the
-   ladder rises to meet the Vault mechanically — at the cost of a casual A0
-   player never using the Vault. Recommended: the alternative, once ascension
-   exists to be tested.
-4. **Roster unlocks.** Default: all six unlocked at launch. Alternative: three
-   at launch, one per win. The sim treats the roster as an input either way.
+1. **The Vault and ascension.** The Vault carries relics from one run into
+   the next; ascension is the difficulty ladder chosen at run start.
+   Default: the two are independent — wear anything banked at any ascension
+   you have unlocked. Alternative: every Vault relic worn raises the run's
+   minimum ascension by one, so the power you bring in raises the enemies
+   to meet it. Recommended for now: the default — it is the simple one,
+   needs nothing built, and phase 8 can measure whether Vault runs at A0
+   are too easy before anything mechanical is added.

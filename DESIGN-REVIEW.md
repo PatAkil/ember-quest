@@ -607,3 +607,12 @@ added, and the balance lane alone declared CONVERGED. The document is at
 the first two rounds found missing, and the review judged each necessary.
 Four questions remain open for the owner (see *Open questions* in
 DESIGN.md); each has a default in the contract so the build never waits.
+
+## Owner decisions — 2026-09-05
+
+After round 5 the owner answered the open questions: (1) a fallen hero
+keeps the simple default; (2) elements become crit up versus the glance
+(no damage multiplier; `GLANCE_CHANCE` 0.50, `GLANCE_MULT` 0.70, a GLANCE
+debuff sourced by Squall and Wail — the paper estimates that used ×1.30
+are re-derived at phase 8); (3) the Vault–ascension link stays open with
+the default recommended; (4) all six characters unlocked at launch.
