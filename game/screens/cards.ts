@@ -17,8 +17,8 @@ import type { Audio, HitRegions, Input, PixelCanvas, TextOptions } from '../../e
 import { FONT_HD, PICO8, drawText, textWidth } from '../../engine';
 import {
   BLURB_LINES_MAX, CANVAS_W, CARD_PAD, CARD_W, CARD_W_FOUR, CARD_X, CARD_X_FOUR, CARD_Y, CARD_H,
-  CONTINUE, HUD_LARGE, HUD_PX, HUD_SMALL, NAME_MAX_CHARACTER, PORTRAIT, SKIP, TEXT_LABEL,
-  WEAR_BTN, WEAR_X, WEAR_Y,
+  CONTINUE, HUD_LARGE, HUD_PX, HUD_SMALL, NAME_MAX_CHARACTER, PAUSE_ICON, PAUSE_ICON_HIT, PORTRAIT, SKIP,
+  TEXT_LABEL, WEAR_BTN, WEAR_X, WEAR_Y,
 } from './layout';
 import {
   SLOT_ABBR, drawFocusablePlate, formatSetBonus, hudFit, hudText, hudTextCentered, plate, portraitFor,
@@ -60,6 +60,14 @@ export interface CardsScreenDeps {
   audio: Audio;
   /** main.ts's one scene pass: the lit diorama every screen draws its HUD over. */
   scene(): void;
+  /**
+   * PAUSE from the room card or a relic screen: main.ts's engine-scene PAUSED overlay, reached here by
+   * the ribbon's own pause icon (battle.ts's PAUSE_ICON/PAUSE_ICON_HIT geometry, reused verbatim) so a
+   * phone — which has no P key — can reach it from every non-battle screen, not only mid-fight. The raw
+   * P/Esc key edge is still read directly in main.ts's update(); this is the on-screen route the
+   * contract requires alongside it ("PAUSE ... have on-screen targets — because a phone has no keys").
+   */
+  onPause(): void;
 }
 
 export interface CardsScreen {
@@ -104,6 +112,16 @@ function drawButton(
   // The ring says "focused", not the ink: a label the player has to read is
   // never dimmed just because the keyboard is elsewhere.
   hudTextCentered(ctx, label, rect.x, rect.y, rect.w, rect.h, { color: C_TEXT });
+}
+
+/** The ribbon's own pause glyph (battle.ts's drawRibbon, verbatim) — reachable from every non-battle
+ * screen too, per addPauseIcon()'s own hit region: a phone has no P key. */
+function drawPauseIcon(ctx: CanvasRenderingContext2D, regions: HitRegions): void {
+  const focused = regions.focused() === 'pause-icon';
+  plate(ctx, PAUSE_ICON.x, PAUSE_ICON.y, PAUSE_ICON.w, PAUSE_ICON.h, { alpha: 0.5, border: focused ? PICO8[7] : 'rgba(255,255,255,0.2)' });
+  ctx.fillStyle = focused ? PICO8[7] : PICO8[6];
+  ctx.fillRect(PAUSE_ICON.x + 22, PAUSE_ICON.y + 20, 6, 24);
+  ctx.fillRect(PAUSE_ICON.x + 36, PAUSE_ICON.y + 20, 6, 24);
 }
 
 /** A small square chip with a two-letter glyph — the inspect overlay's slot icon, reused. */
@@ -197,9 +215,16 @@ function ctxFor(run: RunScreen): DeriveCtx {
 }
 
 export function createCardsScreen(deps: CardsScreenDeps): CardsScreen {
-  const { pc, input, regions, audio, scene } = deps;
+  const { pc, input, regions, audio, scene, onPause } = deps;
   let wearing: number | null = null;
   let lastOffer: Relic[] | null = null;
+
+  /** The ribbon's own pause icon, reachable from every non-battle screen — DESIGN.md's Input section:
+   * "PAUSE ... have on-screen targets — because a phone has no keys" is a rule about the whole game, not
+   * only the battle screen. A high index and its own group keep it out of the primary flow's cycling. */
+  function addPauseIcon(): void {
+    regions.add('pause-icon', PAUSE_ICON_HIT.x, PAUSE_ICON_HIT.y, PAUSE_ICON_HIT.w, PAUSE_ICON_HIT.h, { index: 90, group: 'ribbon' });
+  }
 
   // A screen's update() is a complete tick — begin -> add -> end -> check
   // activation -> endFrame() — exactly once, the same shape battle.ts uses:
@@ -211,8 +236,11 @@ export function createCardsScreen(deps: CardsScreenDeps): CardsScreen {
 
     if (s.phase === 'ROOM') {
       regions.add('room-continue', CONTINUE.x, CONTINUE.y, CONTINUE.w, CONTINUE.h, { index: 0 });
+      addPauseIcon();
       regions.end();
-      if (regions.activated() === 'room-continue') { audio.play('blip'); run.enterRoom(); }
+      const act = regions.activated();
+      if (act === 'room-continue') { audio.play('blip'); run.enterRoom(); }
+      else if (act === 'pause-icon') { audio.play('blip'); onPause(); }
       input.endFrame();
       return;
     }
@@ -230,10 +258,12 @@ export function createCardsScreen(deps: CardsScreenDeps): CardsScreen {
       const { xs, w } = cardXs(offer.length);
       offer.forEach((_r, i) => regions.add(`card-${i}`, xs[i], CARD_Y, w, CARD_H, { index: i, group: 'cards' }));
       regions.add('skip', SKIP.x, SKIP.y, SKIP.w, SKIP.h, { index: offer.length, group: 'cards' });
+      addPauseIcon();
       regions.end();
       const act = regions.activated();
       if (act === 'skip' || input.pressed('B')) { audio.play('blip'); run.skip(); }
       else if (act?.startsWith('card-')) { audio.play('blip'); wearing = Number(act.slice(5)); }
+      else if (act === 'pause-icon') { audio.play('blip'); onPause(); }
       input.endFrame();
       return;
     }
@@ -248,6 +278,7 @@ export function createCardsScreen(deps: CardsScreenDeps): CardsScreen {
       regions.add(`wear-${m}`, wearCols.xs[m], CARD_Y, wearCols.w, CARD_H, { index: m, group: 'wear' });
     }
     regions.add('wear-decline', WEAR_X[3], WEAR_Y, WEAR_BTN.w, WEAR_BTN.h, { index: 3, group: 'wear' });
+    addPauseIcon();
     regions.end();
     if (input.pressed('B')) {
       wearing = null;
@@ -258,6 +289,7 @@ export function createCardsScreen(deps: CardsScreenDeps): CardsScreen {
         const m = Number(act.slice(5));
         if (Number.isInteger(m)) { audio.play('pickup'); run.pick(wearing, m); wearing = null; }
       }
+      else if (act === 'pause-icon') { audio.play('blip'); onPause(); }
     }
     input.endFrame();
   }
@@ -270,6 +302,7 @@ export function createCardsScreen(deps: CardsScreenDeps): CardsScreen {
     const { xs, w } = cardXs(offer.length);
     offer.forEach((relic, i) => drawRelicCard(pc, regions, relic, xs[i], w, `card-${i}`));
     drawButton(ctx, SKIP, 'SKIP', regions.focused() === 'skip', C_DIM);
+    drawPauseIcon(ctx, regions);
   }
 
   function renderWear(run: RunScreen, relic: Relic): void {
@@ -334,6 +367,7 @@ export function createCardsScreen(deps: CardsScreenDeps): CardsScreen {
 
     const declineBtn = { x: WEAR_X[3], y: WEAR_Y, w: WEAR_BTN.w, h: WEAR_BTN.h };
     drawButton(ctx, declineBtn, 'DECLINE', regions.focused() === 'wear-decline', C_DIM);
+    drawPauseIcon(ctx, regions);
   }
 
   function renderRoom(run: RunScreen): void {
@@ -359,6 +393,7 @@ export function createCardsScreen(deps: CardsScreenDeps): CardsScreen {
       y += ROW;
     }
     drawButton(ctx, CONTINUE, 'CONTINUE', regions.focused() === 'room-continue', C_ACCENT);
+    drawPauseIcon(ctx, regions);
   }
 
   return {

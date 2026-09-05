@@ -8,7 +8,14 @@
 //   node tools/capture.mjs phone           # the same battle frames on a phone viewport (touch)
 //   node tools/capture.mjs play            # a whole slice run through main.ts's dev state hook (window.__eq):
 //                                          # every room card, every card screen (offer + who-wears-it, or SKIP on
-//                                          # skip=1), the boss battle, VICTORY or GAME OVER -> play-*.png
+//                                          # skip=1, or alternating on skip=alt), the boss battle, VICTORY or
+//                                          # GAME OVER -> play-*.png. Two more flags compose with any of the above:
+//                                          # phone=1 runs the SAME loop on a touch phone viewport (844x390,
+//                                          # dpr 3) -> phone-play-*.png; ko=1 sets party.members[2].hp = 1 right
+//                                          # after the first room card (before entering room 0's battle) via the
+//                                          # exact live-object mutation a QA driver would use, so a KO — the dead
+//                                          # pose, exclusion from targeting, KO_RETURN on a win — is forced into
+//                                          # the very first fight instead of relying on luck.
 //   node tools/capture.mjs shot url=/tools/vfx.html?skill=CINDER name=vfx-CINDER [selector=#sheet]
 //                                          # any dev page that sets window.__lineup.ready (or window.__ready) -> tools/out/<name>.png
 //
@@ -234,6 +241,7 @@ async function play(page, prefix, touch) {
   await page.waitForFunction(() => typeof window.__eq === 'object' && window.__eq !== null, null, { timeout: 15000 });
   await wait(page, 600);
   const shot = new Set();
+  let koForced = false;
   const once = async (name, ms = 0) => {
     if (shot.has(name)) return;
     shot.add(name);
@@ -256,12 +264,26 @@ async function play(page, prefix, touch) {
       await once(`play-end-${s.scene}`, 500);
       break;
     } else if (phase === 'ROOM') {
+      if (opts.ko === '1' && !koForced && s.run.roomIndex === 0) {
+        koForced = true;
+        // The exact live-object mutation a QA driver uses: run().party is the LIVE Party the next
+        // beginBattle() reads hp from, so this is set once, before the room's own CONTINUE tap.
+        await page.evaluate(() => { window.__eq.run().party.members[2].hp = 1; });
+        console.log('  ko=1: forced party.members[2] (the third slot) to hp=1 before room 0\'s battle');
+      }
       await once(`play-room-${s.run.roomIndex}-${s.run.room}`, 300);
       await tap(page, 640, 600, touch);
       await wait(page, 700);
     } else if (phase === 'BATTLE') {
       if (s.run.room === 'BOSS') await once('play-battle-boss', 1400);
       else await once(`play-battle-${s.run.roomIndex}`, 1000);
+      if (opts.ko === '1' && !shot.has('play-ko-dead-pose')) {
+        const dead = await page.evaluate(() => {
+          const b = window.__eq.battleObj ? window.__eq.battleObj() : null;
+          return !!b && b.heroes.some((h) => !h.alive);
+        }).catch(() => false);
+        if (dead) await once('play-ko-dead-pose');
+      }
       if (s.battle === 'HERO_SKILL') {
         await tap(page, [228, 640, 1052][skillTurn++ % 3], 648, touch); // an illegal skill is a disabled region: a no-op
         await wait(page, 220);
@@ -300,10 +322,18 @@ async function play(page, prefix, touch) {
 }
 
 if (modes.has('play')) {
-  const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 1 });
-  watch(page);
-  await play(page, '', false);
-  await page.close();
+  if (opts.phone === '1') {
+    const ctx = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+    const page = await ctx.newPage();
+    watch(page);
+    await play(page, 'phone-', true);
+    await ctx.close();
+  } else {
+    const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 1 });
+    watch(page);
+    await play(page, '', false);
+    await page.close();
+  }
 }
 
 if (modes.has('shot') && opts.url) {

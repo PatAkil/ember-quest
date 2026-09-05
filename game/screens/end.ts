@@ -81,7 +81,11 @@ export function createEndScreen(deps: EndScreenDeps): EndScreen {
       const verdict = won ? 'VICTORY' : 'GAME OVER';
       const vw = hudWidth(ctx, verdict, VERDICT_PX, 200);
       hudText(ctx, verdict, (CANVAS_W - vw) / 2, VERDICT_Y, { px: VERDICT_PX, weight: 200, color: accent });
-      hudTextCentered(ctx, won ? 'ACT 1 CLEARED' : `SLAIN BY ${s.deathBy.toUpperCase()}`, 0, LINE_Y, CANVAS_W, HUD_LARGE, {
+      // RETREAT is run.ts's own sentinel for a mid-battle QUIT (screens/battle.ts's `forfeit` tag,
+      // relayed through main.ts) — a player who walked away was not slain by anything and reads that
+      // line oddly credited to the pack they were fighting, so it gets its own verdict line instead.
+      const verdictLine = won ? 'ACT 1 CLEARED' : s.deathBy === 'RETREAT' ? 'YOU RETREATED' : `SLAIN BY ${s.deathBy.toUpperCase()}`;
+      hudTextCentered(ctx, verdictLine, 0, LINE_Y, CANVAS_W, HUD_LARGE, {
         px: HUD_LARGE, color: C_TEXT,
       });
       hudTextCentered(ctx, `ROOMS CLEARED ${s.roomsCleared} / ${run.rooms.length}`, 0, SUB_Y, CANVAS_W, HUD_SMALL, {

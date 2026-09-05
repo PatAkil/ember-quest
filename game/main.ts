@@ -33,6 +33,7 @@ import {
 } from '../engine';
 import type { BiomeLook, Light, LightActor, LightTier } from '../engine';
 import type { Battle } from './sim/battle';
+import { forecast } from './sim/battle';
 import type { BattleResult } from './types';
 import {
   CANVAS_W, CANVAS_H, PAUSE_BTN, PAUSE_BTN_X, PAUSE_BTN_Y, PAUSED_TEXT_Y, SAFE_INSET,
@@ -157,7 +158,13 @@ function startRun(): void {
 }
 
 const titleScreen = createTitleScreen({ pc, input, regions, audio, light, scene: renderScene, onStart: startRun });
-const cardsScreen = createCardsScreen({ pc, input, regions, audio, scene: renderScene });
+const cardsScreen = createCardsScreen({
+  pc, input, regions, audio, scene: renderScene,
+  // The room card and every relic screen need their own on-screen route to PAUSED — a phone has no P key,
+  // and until now only the battle screen's ribbon carried this icon (DESIGN.md's Input section: "PAUSE ...
+  // have on-screen targets — because a phone has no keys" is a whole-game rule, not a battle-only one).
+  onPause: () => scenes.to('PAUSED'),
+});
 const endScreen = createEndScreen({ pc, input, regions, audio, scene: renderScene, onRetry: startRun, onContinue: startRun });
 const battleScreen = createBattleScreen({
   pc, input, regions, audio, juice, particles, crt, light, arcade, setBiome: useBiome,
@@ -210,9 +217,10 @@ function updatePauseOverlay(): void {
  * battle screen's rules so the two overlays are one object: the LIVE screen
  * stays underneath (the card the player paused on, not an empty crypt), every
  * label reads bright whether or not it holds focus, and the ring is what says
- * "focused". The one difference is the dim: what is under this overlay is a
- * screenful of card text rather than the battle's scenery, so it has to fall
- * further back before the menu is unambiguous.
+ * "focused". What sits under this overlay is the diorama alone (render()
+ * skips the card screen while PAUSED — its text would otherwise land in the
+ * gaps between the three PAUSE_BTN plates as a second layer of English), so
+ * the dim only has to push scenery back, a step further than the battle's.
  */
 const PAUSE_DIM = 0.7;
 
@@ -259,9 +267,15 @@ function update(dt: number): void {
     battleScreen.update(dt);
     const result = battleScreen.result();
     if (result) {
-      const enriched: BattleResult = lastHeroKillAttacker
-        ? { ...result, ...({ deathBy: lastHeroKillAttacker } as Partial<BattleResult>) }
-        : result;
+      // A quit-to-forfeit (battleScreen's own `forfeit` tag, set the same ad hoc way this file tags
+      // `deathBy`) always outranks an earlier kill this same battle: the run is ending because the
+      // player walked away, not because of a teammate who died and was then fought on past.
+      const forfeited = (result as unknown as { forfeit?: boolean }).forfeit === true;
+      const enriched: BattleResult = forfeited
+        ? { ...result, ...({ deathBy: 'RETREAT' } as Partial<BattleResult>) }
+        : lastHeroKillAttacker
+          ? { ...result, ...({ deathBy: lastHeroKillAttacker } as Partial<BattleResult>) }
+          : result;
       run.afterBattle(enriched);
       activeBattle = null;
     }
@@ -313,10 +327,14 @@ function render(): void {
 
   if (scenes.is('TITLE')) {
     titleScreen.render(clock);
-  } else if ((scenes.is('PLAYING') || scenes.is('PAUSED')) && run) {
-    // PAUSED keeps the screen it paused: the card is the context for the menu.
+  } else if (scenes.is('PAUSED') && run) {
+    // PAUSED over a card screen shows the diorama alone: the pause row's contract geometry sits
+    // exactly over the card, so any card text would land between the buttons as a second layer of
+    // English — the battle keeps its live world behind its overlay, and the world here is the scene.
+    renderScene();
+    renderPauseOverlay();
+  } else if (scenes.is('PLAYING') && run) {
     cardsScreen.render(clock, run);
-    if (scenes.is('PAUSED')) renderPauseOverlay();
   } else if ((scenes.is('GAME_OVER') || scenes.is('WIN')) && run) {
     endScreen.render(clock, run);
   } else {
@@ -343,5 +361,14 @@ if ((import.meta as unknown as { env: { DEV: boolean } }).env.DEV) {
     scene: () => scenes.current,
     run: () => run?.state() ?? null,
     battle: () => battleScreen.phase,
+    /** Whose turn it is (def.id), for the dev state hook and nothing else — mirrors `battle()`. */
+    battleActor: () => battleScreen.currentActorId,
+    /** The live sim Battle (heroes/enemies/log/events), for a driver to read exact numbers or
+     * force a status onto a LIVE actor (e.g. enemies[i].statuses.push(...)) the same way `run().party`
+     * is already used to force a hero's hp before a fight. Dev only, same as every field above. */
+    battleObj: () => activeBattle,
+    /** The exact ribbon forecast (def.id per queue slot) — the same pure function drawRibbonQueue()
+     * calls, so a driver can assert "who acts next" against it turn over turn without reading pixels. */
+    forecastIds: () => (activeBattle ? forecast(activeBattle, 8).map((a) => a.def.id) : []),
   };
 }

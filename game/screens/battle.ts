@@ -87,6 +87,8 @@ export interface BattleScreen {
   readonly paused: boolean;
   /** Which half of the turn the screen is in — read-only, for the dev state hook and nothing else. */
   readonly phase: BattlePhase;
+  /** The actor whose turn this is (its def.id) — read-only, for the dev state hook and nothing else. */
+  readonly currentActorId: string | null;
   togglePause(): void;
 }
 
@@ -267,6 +269,18 @@ export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
   const atbFlash = new Map<Actor, number>();
   const vfx: VfxInstance[] = [];
   let pops: Pop[] = [];
+  /**
+   * The log line actually drawn, advanced ONE hit at a time as HIT events apply during PLAYBACK —
+   * never `b.log[b.log.length - 1]`. `battle.log` gets every hit's text pushed synchronously, ahead of
+   * playback, for the WHOLE turn (a 2-hit skill against 2 enemies logs all 4 lines before the first pop
+   * has even animated); reading the array's tail during playback jumps straight to the turn's LAST hit
+   * while the on-screen pop is still animating an EARLIER one. Reconstructed from the event's own fields
+   * (never re-reads `battle.log`) because `logHit`'s exact text is fully derivable from them: same
+   * `actor.def.name`s, same `SKILLS[lastCastSkill].verb` (lastCastSkill is kept current by CAST/COUNTER,
+   * above), same glance/crit marker. A non-hit turn (a heal or a buff, which push no log line at all)
+   * leaves this untouched, matching `b.log`'s own tail — the pre-existing behaviour for those.
+   */
+  let currentLogLine = '';
 
   function spawnPop(x: number, y: number, text: string, color: string, scale: number, dur = 0.85): void {
     if (pops.length >= POP_MAX) pops.shift();
@@ -310,6 +324,7 @@ export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
       shownHp.set(a, a.hp);
       shownAtb.set(a, a.atb);
     }
+    currentLogLine = b.log[b.log.length - 1] ?? '';
   }
 
   // -------------------------------------------------------- turn driving --
@@ -412,7 +427,11 @@ export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
   }
   function quitBattle(): void {
     if (!battle) return;
-    finalResult = battleOutcome(battle);
+    // Tagged the same way main.ts already bolts `deathBy` onto a BattleResult (a side channel outside
+    // the sim's own type, read back via the same unknown-cast): battleOutcome() alone can't be told apart
+    // from a genuine wipe or stall, and the run screen's GAME_OVER text ("SLAIN BY ...") would otherwise
+    // credit the pack for a fight the player walked away from instead of lost.
+    finalResult = { ...battleOutcome(battle), ...({ forfeit: true } as Partial<BattleResult>) };
     phase = 'DONE';
     paused = false;
   }
@@ -428,6 +447,14 @@ export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
         lastCastSkill = ev.skill;
         const skill = SKILLS[ev.skill];
         setPose(ev.caster, skill.kind === 'PHYSICAL' ? 'attack' : 'cast');
+        // A heal or a buff pushes no line into battle.log (only hits do), so a support turn used to
+        // leave the last hit's line on screen, turns stale. Say what was cast, in the same voice.
+        if (skill.hits === 0) {
+          const who = ev.targets.length === 1
+            ? ev.targets[0].def.name
+            : ev.caster.side === 'HERO' ? 'the party' : 'the pack';
+          currentLogLine = `${ev.caster.def.name} ${skill.verb} ${who}`;
+        }
         break;
       }
       case 'HIT': {
@@ -436,6 +463,10 @@ export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
         spawnVfx(vfx, lastCastSkill, feet.x, feet.y - 40, { from: { x: from.x, y: from.y - 40 } });
         if (!ev.killed) setPose(ev.target, 'hurt');
         const popY = headY(battle, ev.target) - POP_HEAD_OFFSET;
+        // Reconstructed to match sim/battle.ts's logHit() exactly (same name/verb/number/marker), advanced
+        // per HIT event rather than reading battle.log's tail — see currentLogLine's own comment above.
+        const hitMarker = ev.glance ? ' (glance)' : ev.crit ? ' (crit)' : '';
+        currentLogLine = `${ev.attacker.def.name} ${SKILLS[lastCastSkill].verb} ${ev.target.def.name} for ${ev.dealt}!${hitMarker}`;
         if (ev.glance) {
           spawnPop(feet.x, popY, `${ev.dealt} (glance)`, PICO8[6], TEXT_POP);
           audio.play('hit');
@@ -467,6 +498,7 @@ export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
           spawnVfx(vfx, lastCastSkill, feet.x, feet.y - 40);
           spawnPop(feet.x, headY(battle, ev.target) - POP_HEAD_OFFSET, `+${ev.amount}`, PICO8[11], TEXT_POP);
           audio.play('pickup');
+          currentLogLine = `${ev.source.def.name} ${SKILLS[lastCastSkill].verb} ${ev.target.def.name} for ${ev.amount}`;
         }
         break;
       }
@@ -782,8 +814,8 @@ export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
     ctx.fillRect(PAUSE_ICON.x + 36, PAUSE_ICON.y + 20, 6, 24);
   }
 
-  function drawLogLine(ctx: CanvasRenderingContext2D, b: Battle): void {
-    const text = phase === 'HERO_TARGET' ? promptText : (b.log[b.log.length - 1] ?? '');
+  function drawLogLine(ctx: CanvasRenderingContext2D, _b: Battle): void {
+    const text = phase === 'HERO_TARGET' ? promptText : currentLogLine;
     if (!text) return;
     plate(ctx, LOG_RECT.x, LOG_RECT.y, LOG_RECT.w, LOG_RECT.h, { alpha: 0.5 });
     hudText(ctx, text.slice(0, LOG_LINE_MAX), LOG_TEXT.x, LOG_TEXT.y + 3, { color: PICO8[7] });
@@ -1026,6 +1058,9 @@ export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
     },
     get phase() {
       return phase;
+    },
+    get currentActorId() {
+      return currentActor?.def.id ?? null;
     },
     togglePause: togglePauseInternal,
   };

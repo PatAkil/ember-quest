@@ -146,7 +146,7 @@ export function createTitleScreen(deps: TitleScreenDeps): TitleScreen {
       // keyboard has found it yet; the ring, not the ink, is what says "focused".
       hudTextCentered(ctx, 'PRESS TO BEGIN', START_PLATE.x, START_PLATE.y, START_PLATE.w, START_PLATE.h, { color: C_TEXT });
 
-      const hint = input.pointer.type === 'touch' ? 'tap anywhere to begin' : `${BUTTON_KEY.A.hint} or tap anywhere . arrows move . P pauses`;
+      const hint = input.pointer.type === 'touch' ? 'tap anywhere to begin' : `${BUTTON_KEY.A.hint} or tap anywhere . arrows move . ${BUTTON_KEY.PAUSE.hint} pauses`;
       hudTextCentered(ctx, hint, 0, CANVAS_H - inset.bottom - 20, CANVAS_W, HUD_SMALL, { px: HUD_SMALL, color: C_DIM });
       hudText(ctx, 'EMBER CRYPT . act 1', inset.left, inset.top, {
         px: HUD_SMALL, color: C_DIM, alpha: 0.5 + 0.5 * pulse(time, 2),
