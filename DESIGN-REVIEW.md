@@ -614,5 +614,8 @@ After round 5 the owner answered the open questions: (1) a fallen hero
 keeps the simple default; (2) elements become crit up versus the glance
 (no damage multiplier; `GLANCE_CHANCE` 0.50, `GLANCE_MULT` 0.70, a GLANCE
 debuff sourced by Squall and Wail — the paper estimates that used ×1.30
-are re-derived at phase 8); (3) the Vault–ascension link stays open with
-the default recommended; (4) all six characters unlocked at launch.
+are re-derived at phase 8); (3) the Vault–ascension link was left to the
+reviewer and decided as independent, with an act-1 target that turns the
+link on if Vault runs at A0 prove trivial; LIGHT and DARK never glance and
+are advantaged against each other both ways (`ELEMENT_CRIT_LD` as phase
+8's lever); (4) all six characters unlocked at launch.

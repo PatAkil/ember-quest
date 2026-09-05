@@ -171,9 +171,9 @@ FIRE ▸ WIND ▸ WATER ▸ FIRE, and LIGHT ⇄ DARK mutually.
 
 | Matchup | Crit chance | Glance chance |
 |---|---|---|
-| advantage | +`ELEMENT_CRIT = 15` pts | 0 |
+| advantage (the triangle's winner; LIGHT vs DARK either way) | +`ELEMENT_CRIT = 15` pts (`ELEMENT_CRIT_LD = 15` for the LIGHT ⇄ DARK pair) | 0 |
 | neutral | — | 0 |
-| disadvantage | — | `GLANCE_CHANCE = 0.50` |
+| disadvantage (the triangle's loser only) | — | `GLANCE_CHANCE = 0.50` |
 
 There is no elemental damage multiplier. The upside of the right element is
 crit; the downside of the wrong one is the **glance**: a glancing hit
@@ -182,9 +182,11 @@ element is punished harder than the right one is rewarded. The **GLANCE**
 debuff raises the holder's glance chance to `GLANCE_DEBUFF = { advantage:
 0, neutral: 0.50, disadvantage: 1.0 }` — wrong element plus the debuff
 always glances. LIGHT and DARK are neutral against the triangle and
-advantaged against each other. Every biome has a dominant element *and* a
-foil, and every boss is LIGHT or DARK: a mono-element party is a bet on the
-route. Elements are also the visual identity: every actor's palette is an
+advantaged against each other **both ways**: a LIGHT or DARK attacker never
+glances, and since every boss is LIGHT or DARK, SABLE and LUMEN carry the
+crit bonus into every boss fight — the edge phase 8 watches (below). Every
+biome has a dominant element *and* a foil: a mono-element party is a bet
+on the route. Elements are also the visual identity: every actor's palette is an
 element tint applied per sprite layer.
 
 ## Combat
@@ -850,7 +852,11 @@ phase 8 lowers `KIND_MULT.ELITE.hp`, above 90 % raises it; `swaps ≥ 1` in
 (default false: the newcomer arrives at full HP instead of the `hp / maxHp`
 fraction, the one thing the EPIC cannot give). `leader.amount` and the
 curse/boon numbers are phase 8's levers; a seat or pact no policy ever takes
-is rewritten, not renumbered.
+is rewritten, not renumbered. Two more guards: if SABLE or LUMEN sits in
+≥ 1.5 × the winning parties of any triangle character across `balanced`
+drafts, `ELEMENT_CRIT_LD` drops to 10; and if a `balanced` party wearing
+three kindled Vault relics clears act 1 above 97 % at A0, the Vault starts
+raising the run's minimum ascension by one per relic worn.
 
 **Every choice is a Policy method.** `main.ts` never calls one; the harness
 always does. Each method receives the enumerated options and `rng` and
@@ -1138,18 +1144,9 @@ rewritten at phase 8 and dated.
 
 ## Open questions
 
-Decisions the review could not make for the owner. Each has a default written
-into the contract above so the build never waits; overrule by editing the
-rule, not this list. Decided on 2026-09-05 and folded into the contract: a
-fallen hero returns after a win (the simple default); elements are crit up
-versus the glance, not a damage multiplier; all six characters are unlocked
-at launch.
-
-1. **The Vault and ascension.** The Vault carries relics from one run into
-   the next; ascension is the difficulty ladder chosen at run start.
-   Default: the two are independent — wear anything banked at any ascension
-   you have unlocked. Alternative: every Vault relic worn raises the run's
-   minimum ascension by one, so the power you bring in raises the enemies
-   to meet it. Recommended for now: the default — it is the simple one,
-   needs nothing built, and phase 8 can measure whether Vault runs at A0
-   are too easy before anything mechanical is added.
+None. The review's four forks were decided by the owner on 2026-09-05 and
+folded into the contract: a fallen hero returns after a win (the simple
+default); elements are crit up versus the glance, with LIGHT and DARK never
+glancing; the Vault and ascension stay independent, guarded by the act-1
+target under *Difficulty targets*; all six characters are unlocked at
+launch. Overrule any of them by editing the rule.
