@@ -17,6 +17,12 @@
 //                                                       #   already-kindled relics (WEAPON/ARMOR/CHALICE) — the Vault
 //                                                       #   guard (DESIGN.md -> Difficulty targets) from the CLI
 //   node sim/run.mjs --json                            # machine-readable, for diffing before/after
+//   node sim/run.mjs --runs 200 --seed 7 --dump        # + sha256 of the FULL RunResult[] per policy (per
+//                                                       #   policy × fixture in --battles mode): the equivalence
+//                                                       #   proof the aggregates cannot give — a reordering that
+//                                                       #   averages to the same numbers changes the hash
+//   node sim/run.mjs --selfcheck --runs 50 --seed 7    # simulateRun vs runSteps+answerWith vs runstep.ts's
+//                                                       #   createRun, same seed, deep-equal per run
 //
 // DESIGN.md → Difficulty targets. The --battles mode runs each selected
 // policy's `act` over BATTLE_FIXTURES (the act-1 packs: fights, elites, boss),
@@ -40,6 +46,7 @@
 // not run if the sim bundle mentions `window`, `document`, `localStorage` or
 // `engine/`, or if validateData() returns anything.
 import { build } from 'esbuild';
+import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -61,6 +68,12 @@ const SEED = Number(opt('seed', 1));
 const ONLY = opt('policy', 'all');
 const FIXTURES = opt('fixture', 'all');
 const JSON_OUT = has('json');
+/** --dump: sha256 over the FULL per-run (or per-battle) records rather than the aggregates — two builds of the
+ * rules are equivalent only if these match, and a reordering that averages to the same numbers does not. */
+const DUMP = has('dump');
+/** --selfcheck: the three ways to run the seam, over one seed, deep-equal. */
+const SELFCHECK = has('selfcheck');
+const sha = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 /** 0-3: how many already-kindled Vault relics RunConfig.vault/vaultSlots start the run with (--runs mode
  * only — BATTLE_FIXTURES has no RunConfig at all). Clamped here, not just documented, so an out-of-range
  * value (negative, or past VAULT_EQUIP_MAX's 3) can't silently pass through as something other than what the
@@ -101,10 +114,10 @@ const N = BATTLES && has('runs') && !has('n') ? RUNS : Number(opt('n', 2000));
 class Refusal extends Error {}
 const FORBIDDEN = [/\bwindow\b/, /\bdocument\b/, /\blocalStorage\b/, /engine\//];
 const dir = await mkdtemp(join(tmpdir(), 'ember-sim-'));
-async function bundle(entry, name) {
+async function bundleWith(input, label, name) {
   const outfile = join(dir, name);
   await build({
-    entryPoints: [new URL(entry, import.meta.url).pathname],
+    ...input,
     bundle: true,
     format: 'esm',
     platform: 'node',
@@ -113,12 +126,40 @@ async function bundle(entry, name) {
   });
   const text = await readFile(outfile, 'utf8');
   for (const re of FORBIDDEN) {
-    if (re.test(text)) throw new Refusal(`refusing to run: the ${entry} bundle mentions ${re.source} — the rules must stay headless`);
+    if (re.test(text)) throw new Refusal(`refusing to run: the ${label} bundle mentions ${re.source} — the rules must stay headless`);
   }
   return import(pathToFileURL(outfile).href);
 }
+/** One module of the rules, by path. */
+const bundle = (entry, name) => bundleWith({ entryPoints: [new URL(entry, import.meta.url).pathname] }, entry, name);
+/** Several modules of the rules as ONE bundle — the only way to hold run.ts and runstep.ts in a single module
+ * instance, which --selfcheck needs (two bundles would compare two copies of the rules, not one). */
+const bundleSource = (contents, label, name) =>
+  bundleWith({ stdin: { contents, resolveDir: new URL('.', import.meta.url).pathname, loader: 'ts' } }, label, name);
 
 const pct = (x, digits = 1) => `${(100 * x).toFixed(digits).padStart(5)}%`;
+
+// --vault N: RunConfig.vault/vaultSlots IS the harness seam for the Vault-guard scenario (DESIGN.md ->
+// Difficulty targets: "a balanced party wearing three kindled Vault relics") — only the CLI lacked a flag
+// for it. Three already-kindled (EPIC, +6, sigil-bearing) relics, one per fixed-main slot, matching the
+// slot's real RELIC_MAIN_BASE (data/relics.ts). Three DIFFERENT 2-piece sets (FATAL/ENDURE/FOCUS), one
+// relic each, so none of them completes a pair — three of the SAME 2-piece set (FATAL, originally) reads
+// floor(3/2) = 1 application of its stat bonus (+15 % ATK), which is a set-completion effect baked into
+// every measurement, not the pure per-relic power this scenario means to isolate. N beyond 3 is accepted
+// but only these three exist to equip.
+const VAULT_RELICS = [
+  { id: 'cli-vault-weapon', slot: 'WEAPON', rarity: 'EPIC', set: 'FATAL', level: 6, kindled: true,
+    main: { key: 'ATK', base: 36 }, subs: [{ key: 'CRIT', value: 20, rolls: 4 }, { key: 'SPD', value: 15, rolls: 3 }], sigil: 'OPENER' },
+  { id: 'cli-vault-armor', slot: 'ARMOR', rarity: 'EPIC', set: 'ENDURE', level: 6, kindled: true,
+    main: { key: 'HP', base: 450 }, subs: [{ key: 'DEF', value: 30, rolls: 4 }, { key: 'RES', value: 16, rolls: 3 }], sigil: 'BASTION' },
+  { id: 'cli-vault-chalice', slot: 'CHALICE', rarity: 'EPIC', set: 'FOCUS', level: 6, kindled: true,
+    main: { key: 'DEF', base: 36 }, subs: [{ key: 'HP', value: 500, rolls: 3 }, { key: 'ACC', value: 20, rolls: 4 }], sigil: 'MENDING' },
+];
+/** The RunConfig every --runs-mode run is built from — one shared `vault` array, exactly as before. */
+function configFactory(roster) {
+  const vault = VAULT_N > 0 ? VAULT_RELICS.slice(0, Math.min(3, VAULT_N)) : [];
+  return (spdDelta) => ({ ascension: 0, vault, vaultSlots: VAULT_N, roster: [...roster], spdDelta });
+}
 
 // ============================================================== --runs mode ==
 /** Slot order — RunResult.mainsWorn's per-member arrays are in this order (game/types.ts's SLOTS). */
@@ -227,24 +268,7 @@ async function runRunsMode({ bundle: bundleFn, data, mulberry32 }) {
   if (typeof simulateRun !== 'function') throw new Error('game/sim/run.ts must export simulateRun');
   if (!POLICIES) throw new Error('game/sim/run.ts must export POLICIES');
   const roster = data.ROSTER;
-  // --vault N: RunConfig.vault/vaultSlots IS the harness seam for the Vault-guard scenario (DESIGN.md ->
-  // Difficulty targets: "a balanced party wearing three kindled Vault relics") — only the CLI lacked a flag
-  // for it. Three already-kindled (EPIC, +6, sigil-bearing) relics, one per fixed-main slot, matching the
-  // slot's real RELIC_MAIN_BASE (data/relics.ts). Three DIFFERENT 2-piece sets (FATAL/ENDURE/FOCUS), one
-  // relic each, so none of them completes a pair — three of the SAME 2-piece set (FATAL, originally) reads
-  // floor(3/2) = 1 application of its stat bonus (+15 % ATK), which is a set-completion effect baked into
-  // every measurement, not the pure per-relic power this scenario means to isolate. N beyond 3 is accepted
-  // but only these three exist to equip.
-  const VAULT_RELICS = [
-    { id: 'cli-vault-weapon', slot: 'WEAPON', rarity: 'EPIC', set: 'FATAL', level: 6, kindled: true,
-      main: { key: 'ATK', base: 36 }, subs: [{ key: 'CRIT', value: 20, rolls: 4 }, { key: 'SPD', value: 15, rolls: 3 }], sigil: 'OPENER' },
-    { id: 'cli-vault-armor', slot: 'ARMOR', rarity: 'EPIC', set: 'ENDURE', level: 6, kindled: true,
-      main: { key: 'HP', base: 450 }, subs: [{ key: 'DEF', value: 30, rolls: 4 }, { key: 'RES', value: 16, rolls: 3 }], sigil: 'BASTION' },
-    { id: 'cli-vault-chalice', slot: 'CHALICE', rarity: 'EPIC', set: 'FOCUS', level: 6, kindled: true,
-      main: { key: 'DEF', base: 36 }, subs: [{ key: 'HP', value: 500, rolls: 3 }, { key: 'ACC', value: 20, rolls: 4 }], sigil: 'MENDING' },
-  ];
-  const vault = VAULT_N > 0 ? VAULT_RELICS.slice(0, Math.min(3, VAULT_N)) : [];
-  const config = (spdDelta) => ({ ascension: 0, vault, vaultSlots: VAULT_N, roster: [...roster], spdDelta });
+  const config = configFactory(roster);
 
   if (SPD_BARE) {
     const balanced = POLICIES.balanced;
@@ -260,10 +284,12 @@ async function runRunsMode({ bundle: bundleFn, data, mulberry32 }) {
     const pPlus = 100 * actClearedLap1(plus, 3);
     const pMinus = 100 * actClearedLap1(minus, 3);
     const delta = pPlus - pMinus;
+    const dump = DUMP ? { 'balanced+10': sha(plus), 'balanced-10': sha(minus) } : undefined;
     if (JSON_OUT) {
-      console.log(JSON.stringify({ mode: 'spd-gate', runs: RUNS, seed: SEED, act3Plus10: pPlus, act3Minus10: pMinus, delta }, null, 2));
+      console.log(JSON.stringify({ mode: 'spd-gate', runs: RUNS, seed: SEED, act3Plus10: pPlus, act3Minus10: pMinus, delta, dump }, null, 2));
     } else {
       console.log(`spd gate (${RUNS} runs, seed ${SEED}): act3 +10 ${pPlus.toFixed(1)}% / -10 ${pMinus.toFixed(1)}% Δ ${delta.toFixed(1)} pts (>= 20)`);
+      if (dump) for (const [k, v] of Object.entries(dump)) console.log(`dump ${k.padEnd(12)} ${v}`);
     }
     if (delta < 20) { console.error(`SPD GATE: Δ ${delta.toFixed(1)} pts is below the required 20`); exitCode = 1; }
     return;
@@ -279,6 +305,9 @@ async function runRunsMode({ bundle: bundleFn, data, mulberry32 }) {
     return { name, results };
   });
   const allResults = byPolicy.flatMap((p) => p.results);
+  // --dump: the hash is over the FULL RunResult[] of a policy, in run order — every room, every relic, every
+  // probe. Two builds that agree here are the same rules; aggregates can agree while the runs differ.
+  const dumps = DUMP ? byPolicy.map(({ name, results }) => ({ policy: name, sha256: sha(results) })) : undefined;
 
   if (JSON_OUT) {
     const json = byPolicy.map(({ name, results }) => ({
@@ -289,10 +318,11 @@ async function runRunsMode({ bundle: bundleFn, data, mulberry32 }) {
       leader: leaderShare(results), setsWorn: setsWornShare(results),
     }));
     console.log(JSON.stringify({ mode: 'runs', seed: SEED, runs: RUNS, spdDelta: SPD_VALUE ?? null, vault: VAULT_N || null, policies: json,
-      pacts: pactRows(data.PACT_IDS, allResults), mains: mainsPerOpenSlot(allResults) }, null, 2));
+      pacts: pactRows(data.PACT_IDS, allResults), mains: mainsPerOpenSlot(allResults), dump: dumps }, null, 2));
   } else {
     const vaultNote = VAULT_N > 0 ? ` vault ${Math.min(3, VAULT_N)} kindled` : '';
     console.log(`runs ${RUNS} per policy, seed ${SEED}${spdNote}${vaultNote} — act ladder is act-N boss killed on lap 1`);
+    if (dumps) for (const d of dumps) console.log(`dump ${d.policy.padEnd(8)} ${d.sha256}`);
     const wP = Math.max(6, ...names.map((n) => n.length));
     console.log(`${'policy'.padEnd(wP)}   win  act1  act2  act3  act4  act5  act6  stall enrage  killer`);
     for (const { name, results } of byPolicy) {
@@ -351,6 +381,78 @@ async function runRunsMode({ bundle: bundleFn, data, mulberry32 }) {
   }
 }
 
+// ============================================================= --selfcheck ==
+/**
+ * The seam's own equivalence check, run inside ONE bundle so all three ways exercise the same module instance
+ * of the rules: for each selected policy, over `--runs` runs off one seed, these must produce byte-identical
+ * RunResults —
+ *   (a) `simulateRun(config, policy, rng)`                     — the harness's own entry point;
+ *   (b) `runSteps` + `answerWith`, driven from here            — the generator drained from OUTSIDE run.ts;
+ *   (c) `createRun(config, rng)` + `decide`, from runstep.ts   — the path a screen takes.
+ * (c) also asserts the interactive contract on every decision: `state().phase` names the open pending, and
+ * `decide` moves `token()`. A divergence names the policy and the first run index that differed.
+ */
+async function runSelfcheck({ data, mulberry32 }) {
+  const mod = await bundleSource(
+    "export * from '../game/sim/run.ts';\nexport { createRun } from '../game/sim/runstep.ts';\n",
+    'game/sim/run.ts + game/sim/runstep.ts', 'seam.bundle.mjs');
+  for (const name of ['simulateRun', 'runSteps', 'answerWith', 'createRun']) {
+    if (typeof mod[name] !== 'function') throw new Error(`the seam bundle must export ${name}()`);
+  }
+  const { simulateRun, runSteps, answerWith, createRun, POLICIES } = mod;
+  if (!POLICIES) throw new Error('game/sim/run.ts must export POLICIES');
+  const config = configFactory(data.ROSTER);
+  const runs = has('runs') ? RUNS : 50;
+
+  const viaSteps = (cfg, policy, rng) => {
+    const steps = runSteps(cfg, rng);
+    let step = steps.next();
+    while (!step.done) step = steps.next(answerWith(step.value, policy, rng));
+    return step.value;
+  };
+  const viaCreateRun = (cfg, policy, rng) => {
+    const run = createRun(cfg, rng);
+    for (let guard = 0; ; guard++) {
+      const pending = run.pending();
+      if (!pending) break;
+      if (guard > 500000) throw new Error('createRun: no end after 500000 decisions');
+      const phase = run.state().phase;
+      if (phase !== pending.kind) throw new Error(`createRun: state().phase "${phase}" does not name the open pending "${pending.kind}"`);
+      const before = run.token();
+      run.decide(answerWith(pending, policy, rng));
+      if (run.token() === before) throw new Error(`createRun: decide() did not advance the run on a ${pending.kind} pending`);
+    }
+    const result = run.result();
+    if (!result) throw new Error('createRun: the run ended with no result');
+    if (!run.state().over) throw new Error('createRun: state().over is false after the run ended');
+    return result;
+  };
+
+  const names = ONLY === 'all' ? Object.keys(POLICIES) : ONLY.split(',');
+  for (const name of names) if (!POLICIES[name]) throw new Error(`unknown policy "${name}" — known: ${Object.keys(POLICIES).join(', ')}`);
+  console.log(`selfcheck: ${runs} runs per policy, seed ${SEED}${spdNote} — simulateRun vs runSteps+answerWith vs createRun`);
+  const wP = Math.max(6, ...names.map((n) => n.length));
+  for (const name of names) {
+    const policy = POLICIES[name];
+    const rngA = mulberry32(SEED);
+    const rngB = mulberry32(SEED);
+    const rngC = mulberry32(SEED);
+    const all = [];
+    let bad = '';
+    for (let i = 0; i < runs; i++) {
+      const a = simulateRun(config(SPD_VALUE), policy, rngA);
+      const b = viaSteps(config(SPD_VALUE), policy, rngB);
+      const c = viaCreateRun(config(SPD_VALUE), policy, rngC);
+      const [ja, jb, jc] = [JSON.stringify(a), JSON.stringify(b), JSON.stringify(c)];
+      if (!bad && ja !== jb) bad = `run ${i}: runSteps+answerWith differs from simulateRun`;
+      if (!bad && ja !== jc) bad = `run ${i}: createRun differs from simulateRun`;
+      all.push(a);
+    }
+    if (bad) { console.error(`SELFCHECK: ${name} — ${bad}`); exitCode = 1; }
+    console.log(`  ${name.padEnd(wP)} ${bad ? 'DIFFERS' : '     ok'}  ${sha(all)}`);
+  }
+}
+
 // ================================================================== main ==
 let exitCode = 0;
 try {
@@ -363,7 +465,9 @@ try {
   const { mulberry32 } = rngMod;
   if (typeof mulberry32 !== 'function') throw new Error('game/sim/rng.ts must export mulberry32(seed)');
 
-  if (RUNS_MODE) {
+  if (SELFCHECK) {
+    await runSelfcheck({ data, mulberry32 });
+  } else if (RUNS_MODE) {
     await runRunsMode({ bundle, data, mulberry32 });
   } else {
     const sim = await bundle('../game/sim/battle.ts', 'battle.bundle.mjs');
@@ -401,6 +505,9 @@ try {
       for (const fixture of fixtures) {
         const rng = mulberry32(SEED);
         const s = { won: 0, turns: 0, stalls: 0, enrages: 0, hp: 0 };
+        // --dump's per-cell trace: every battle's outcome and its whole Probe, in battle order. Collected only
+        // under --dump, and never drawn from — the rng stream is what it always was.
+        const trace = DUMP ? [] : null;
         for (let i = 0; i < N; i++) {
           const built = make(fixture, rng);
           const before = built.party.members.map((m) => m.hp);
@@ -410,9 +517,12 @@ try {
           if (r.enraged) s.enrages++;
           s.turns += r.actorTurns;
           s.hp += hpFraction(before, r.party.members);
+          if (trace) trace.push({ won: r.won, stall: r.stall, enraged: r.enraged, actorTurns: r.actorTurns,
+            probe: r.probe, hp: r.party.members.map((m) => m.hp) });
         }
         rows.push({ policy: name, pack: fixture.name, battles: N, winRate: s.won / N, meanTurns: s.turns / N,
-          stallRate: s.stalls / N, enrageRate: s.enrages / N, meanHpFraction: s.hp / N });
+          stallRate: s.stalls / N, enrageRate: s.enrages / N, meanHpFraction: s.hp / N,
+          ...(trace ? { sha256: sha(trace) } : {}) });
       }
     }
 
@@ -426,6 +536,7 @@ try {
       for (const r of rows) {
         console.log(`${r.policy.padEnd(wP)}  ${r.pack.padEnd(wF)} ${pct(r.winRate)} ${r.meanTurns.toFixed(1).padStart(7)} ${pct(r.stallRate)} ${pct(r.enrageRate)} ${pct(r.meanHpFraction, 0).padStart(7)}`);
       }
+      if (DUMP) for (const r of rows) console.log(`dump ${r.policy.padEnd(wP)} ${r.pack.padEnd(wF)} ${r.sha256}`);
     }
     const stalled = rows.filter((r) => r.stallRate > STALL_MAX);
     if (stalled.length) {

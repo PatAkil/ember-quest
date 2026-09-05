@@ -10,9 +10,9 @@
 // (random, then the balanced family) · simulateRun.
 
 import type {
-  ActOption, Actor, AscensionRow, BattleResult, BattleView, Biome, CharacterDef, Element, PactId, Party,
-  PartyMember, Policy, Probe, Rarity, Relic, RelicStat, RoomType, RunConfig, RunResult, RunState, SetId, Slot,
-  SummonOffer, Rng,
+  ActOption, Actor, AscensionRow, BattleResult, BattleView, Biome, CharacterDef, Element, LootSource, Pact,
+  PactId, Party, PartyMember, Policy, Probe, Rarity, Relic, RelicStat, RoomType, RunConfig, RunResult, RunState,
+  SetId, Slot, SummonOffer, Rng,
 } from '../types';
 import {
   ACTS, BANK_DEATH, BANK_WIN, BOSS_ENTRY_HEAL, CLEAR_HEAL, ELITE_ENTER_AT, FIGHT_DROP_CHANCE,
@@ -29,16 +29,16 @@ import { chance, pick, weighted, withoutReplacement } from './rng';
 import { createBattle, isOver, matchup, nextReady, runTurn, spawnPack, battleOutcome, POLICY_ACTS } from './battle';
 import type { ActFn, ActPolicy, Battle, BattleCtx, BattleEvent } from './battle';
 import {
-  cardCount, compare, derive, equip, forge, forgeOptions, isCapped, mainsWorn, partyWorn,
+  cardCount, compare, derive, equip, forge, forgeLevels, forgeOptions, isCapped, mainsWorn, partyWorn,
   rebrandSets, refitHp, relicLevels, rollCards, rollRelic, rollSetPool, setsWorn, sharpenCandidates, sharpenMember, wornRelics,
 } from './relics';
-import type { DeriveCtx, ForgeCtx, ForgeChoice, RollCtx } from './relics';
+import type { DeriveCtx, ForgeCtx, ForgeChoice, ForgeMode, ForgeOption, RollCtx } from './relics';
 
 // ================================================================ run ctx ==
-/** simulateRun's own mutable, run-scoped bookkeeping — a superset of the public RunState a Policy sees. */
+/** runSteps's own mutable, run-scoped bookkeeping — a superset of the public RunState a Policy sees. No
+ * `policy`: since phase 5 the run asks (`yield`) instead of calling, and its answerer holds the policy. */
 interface Ctx {
   config: RunConfig;
-  policy: Policy;
   rng: Rng;
   party: Party;
   ascension: number;
@@ -65,6 +65,23 @@ interface Ctx {
   probes: Probe[];
   relicSeq: number;
   actsCleared: number;
+  /** Where the run is standing, for `RunSnapshot` — never read by a rule. */
+  map: RunMap | null;
+  stage: number;
+  nodeIdx: number;
+  won: boolean;
+  deathKind: '' | 'WIPE' | 'STALL';
+  deathBy: string;
+}
+/** The live view `runSteps` publishes through its `RunObserver` — read fresh on every call. */
+function snapshotOf(ctx: Ctx): RunSnapshot {
+  return {
+    ...runStateFor(ctx),
+    map: ctx.map, stage: ctx.stage, nodeIdx: ctx.nodeIdx, score: ctx.score, rooms: [...ctx.rooms],
+    biome: BIOMES[ctx.act - 1] ?? BIOMES[0],
+    roomType: ctx.rooms.length > 0 ? ctx.rooms[ctx.rooms.length - 1] : null,
+    won: ctx.won, deathKind: ctx.deathKind, deathBy: ctx.deathBy,
+  };
 }
 function deriveCtxFor(ctx: Ctx): DeriveCtx {
   return mkDeriveCtx(ctx.party, ctx.pactsTaken);
@@ -95,14 +112,151 @@ function postWinHeal(ctx: Ctx): void {
   }
 }
 /** A relic-card screen's answer: equips the chosen card onto the chosen member, or mends the party SKIP_MEND
- * on any illegal or declined answer (never for a SUMMON, which the caller never routes here). */
-function resolveRelicCards(ctx: Ctx, cards: Relic[]): void {
+ * on any illegal or declined answer. (DESIGN.md:800 excepts the SUMMON EPIC from the mend; this file has
+ * always mended there too — see the Contract notes. Behaviour preserved, not fixed, by phase 5.) */
+function* resolveRelicCards(ctx: Ctx, cards: Relic[], source: LootSource): RunStep<void> {
   const dctx = deriveCtxFor(ctx);
-  const answer = ctx.policy.relic(cards, ctx.party, ctx.rng);
+  const answer = (yield { kind: 'RELIC', cards, source, party: ctx.party }) as AnswerFor<'RELIC'>;
   const legal = !!answer && Number.isInteger(answer.card) && answer.card >= 0 && answer.card < cards.length &&
     Number.isInteger(answer.onto) && answer.onto >= 0 && answer.onto < ctx.party.members.length;
   if (!legal || !answer) { mendParty(ctx.party, dctx, SKIP_MEND); return; }
   equip(ctx.party.members[answer.onto], cards[answer.card], dctx);
+}
+
+// ================================================================== seam ==
+/**
+ * The interactive seam (phase 5). `runSteps` is `simulateRun`'s body as a generator: every point that used to
+ * call `ctx.policy.X(payload, …, rng)` yields one `RunPending` instead and resumes with that call's answer.
+ * The generator draws nothing from `rng` between a yield and its resume, so a driver that answers each pending
+ * by calling the policy method it stands for consumes the stream at exactly the position the inline call did —
+ * which is why `simulateRun` (a driver over `runSteps`, below) is bit-identical to the version that called
+ * policies inline, and why a screen can answer the same pendings instead.
+ *
+ * Each member carries the ENUMERATED legal options for its decision; the answerer never re-derives a rule.
+ * An illegal, missing or declined answer is decided by run.ts's own fallback for that decision (named per
+ * member below), so a screen may pass anything through and still leave a legal run behind it.
+ */
+export type RunPending =
+  /** The starting leader, one of `roster` (ROSTER unless RunConfig.roster overrides). Cannot decline: a
+   * non-index falls to 0. */
+  | { kind: 'DRAFT'; roster: readonly string[] }
+  /** Run-start Vault equip onto the starter: indices into `vault`, at most `slots`, one per Slot; the prefix
+   * before the first invalid entry is kept. Not asked at all when slots or the Vault is empty. Default []. */
+  | { kind: 'VAULT_EQUIP'; vault: readonly Relic[]; slots: number; party: Party }
+  /** A SUMMON. Under three members (`full` false) the answer is an index into `offers` or null; at three it is
+   * 0 (take the EPIC card), `{swap, out}`, or null. `opening` marks the pre-map SUMMON right after the draft.
+   * Default null — no recruit, no swap, no card, and (for a SUMMON) no mend. */
+  | { kind: 'SUMMON'; offers: readonly SummonOffer[]; party: Party; full: boolean; opening: boolean }
+  /** The leader seat: an index into `party.members`; a non-index falls to 0. Cannot decline. */
+  | { kind: 'LEADER'; party: Party }
+  /** Routing: the answer is an index into `offeredIdxs`/`offeredTypes` (parallel arrays), NOT a node index.
+   * `stage` is the stage those offered nodes live in (STAGE_SIZES.length = the act's BOSS). Falls to 0. */
+  | { kind: 'ROUTE'; offeredIdxs: readonly number[]; offeredTypes: readonly RoomType[]; map: RunMap; stage: number; run: RunState }
+  /** A relic card screen: `{card, onto}` or null to decline. Declining or answering illegally mends the party
+   * SKIP_MEND — including on the SUMMON EPIC (`source` 'SUMMON'), which DESIGN.md:800 says should mend
+   * nothing; that gap is pre-existing behaviour, preserved here (see the file's Contract notes). */
+  | { kind: 'RELIC'; cards: readonly Relic[]; source: LootSource; party: Party }
+  /** REST: 'HEAL', or `{sharpen}` naming a member index in `candidates`. Anything else heals. */
+  | { kind: 'REST'; candidates: readonly number[]; party: Party; run: RunState }
+  /** SHRINE: true takes `pact` (curse and boon, rest of run), anything else walks past — no mend either way.
+   * The pact is drawn before the ask; `untakenCount` counts the untaken pool it came from. */
+  | { kind: 'SHRINE'; pact: Pact; untakenCount: number; run: RunState }
+  /** FORGE: `{relic, mode, substat?, set?}` or null to walk past; `options` is every legal (relic, mode) pair,
+   * `rebrand[i]` the legal REBRAND targets of `worn[i]`, `levels` what a LEVEL grants under the run's pacts.
+   * relics.ts's `forge()` re-validates the choice; an illegal answer changes nothing. */
+  | { kind: 'FORGE'; worn: readonly Relic[]; options: readonly ForgeOption[]; pool: readonly SetId[]; levels: number; rebrand: readonly (readonly SetId[])[] }
+  /** ALTAR: a member index in `candidates` (the un-awakened). Cannot decline: anything else awakens
+   * `candidates[0]`. */
+  | { kind: 'ALTAR'; candidates: readonly number[]; party: Party }
+  /** A battle, already built (`createBattle` has drawn its opening ATB). The answerer runs it to its end and
+   * answers `{result}` — `battleOutcome(battle)` after the turn loop. `battle.policy` is a placeholder that
+   * throws: a driver assigns its own (see `playBattle`), a screen passes `heroChoice` to every hero `runTurn`.
+   * An answer without a usable result ends the run as a loss; `forfeit` forces a loss out of a won result. */
+  | { kind: 'BATTLE'; battle: Battle; source: 'FIGHT' | 'ELITE' | 'BOSS'; packIds: readonly string[]; act: number; lap: number; biome: Biome }
+  /** The act-6 door: 'DESCEND' banks `banked` relics and ends the run; anything else takes another lap. */
+  | { kind: 'LAP'; run: RunState; banked: number }
+  /** Banking at run end: `take` indices into `worn` (truncated to min(n, worn.length)), `drop` indices into
+   * `vault`; an overflow past `vaultSize` is trimmed lowest-level-first by the seam. Default {take:[],drop:[]}. */
+  | { kind: 'BANK'; worn: readonly Relic[]; n: number; vault: readonly Relic[]; vaultSize: number };
+
+/** The answer type of each pending kind — exactly the return type of the Policy method it replaces. */
+export interface RunAnswers {
+  DRAFT: number;
+  VAULT_EQUIP: readonly number[];
+  SUMMON: number | { swap: number; out: number } | null;
+  LEADER: number;
+  ROUTE: number;
+  RELIC: { card: number; onto: number } | null;
+  REST: 'HEAL' | { sharpen: number };
+  SHRINE: boolean;
+  FORGE: { relic: number; mode: ForgeMode; substat?: number; set?: SetId } | null;
+  ALTAR: number;
+  BATTLE: { result: BattleResult; forfeit?: boolean };
+  LAP: 'DESCEND' | 'LAP';
+  BANK: { take: readonly number[]; drop: readonly number[] };
+}
+export type RunPendingKind = RunPending['kind'];
+export type AnswerFor<K extends RunPendingKind> = RunAnswers[K];
+export type RunAnswer = RunAnswers[RunPendingKind];
+/** What a `runSteps` generator yields and what it returns — one alias so every step function agrees. */
+export type RunStep<T> = Generator<RunPending, T, unknown>;
+
+/** A read-only window on the live run, for a screen that must draw between decisions. `runStateFor`'s fields
+ * plus where the run is standing; game/sim/runstep.ts's `RunView` is this plus the pending's own phase. */
+export interface RunSnapshot extends RunState {
+  /** The current act's map — null only before the first map is built (the draft, the Vault, the opening SUMMON). */
+  map: RunMap | null;
+  /** Where the party is standing: −1/−1 before this act's first room. */
+  stage: number;
+  nodeIdx: number;
+  score: number;
+  /** Room types in visit order, run-wide. */
+  rooms: RoomType[];
+  biome: Biome;
+  /** The room being resolved now — the last entry of `rooms`. */
+  roomType: RoomType | null;
+  won: boolean;
+  deathKind: '' | 'WIPE' | 'STALL';
+  deathBy: string;
+}
+/** Optional out-parameter for `runSteps`: it sets `read` once its bookkeeping exists, and each call returns a
+ * fresh snapshot of the live run. `simulateRun` passes none. */
+export interface RunObserver {
+  read?: () => RunSnapshot;
+}
+
+/** Answers a BATTLE pending the way `simulateRun` always ran a room battle: the policy's `act` seated on the
+ * battle, then `nextReady`/`runTurn`/`isOver` to the end, then `battleOutcome`. */
+export function playBattle(pending: Extract<RunPending, { kind: 'BATTLE' }>, policy: Policy): AnswerFor<'BATTLE'> {
+  const battle = pending.battle;
+  battle.policy = toActPolicy(policy);
+  for (;;) {
+    const actor = nextReady(battle);
+    if (!actor) break;
+    runTurn(battle, actor);
+    if (isOver(battle)) break;
+  }
+  return { result: battleOutcome(battle) };
+}
+
+/** The whole of `simulateRun`'s driver, one decision at a time: the policy method each pending stands for,
+ * called with the pending's own payload and `rng` last. */
+export function answerWith(pending: RunPending, policy: Policy, rng: Rng): RunAnswer {
+  switch (pending.kind) {
+    case 'DRAFT': return policy.draft(pending.roster, rng);
+    case 'VAULT_EQUIP': return policy.vaultEquip(pending.vault, pending.slots, pending.party, rng);
+    case 'SUMMON': return policy.summon(pending.offers, pending.party, rng);
+    case 'LEADER': return policy.leader(pending.party, rng);
+    case 'ROUTE': return policy.route(pending.offeredTypes, pending.run, rng);
+    case 'RELIC': return policy.relic(pending.cards, pending.party, rng);
+    case 'REST': return policy.rest(pending.run, rng);
+    case 'SHRINE': return policy.shrine(pending.pact, pending.run, rng);
+    case 'FORGE': return policy.forge(pending.worn, pending.pool, rng);
+    case 'ALTAR': return policy.altar(pending.party, rng);
+    case 'BATTLE': return playBattle(pending, policy);
+    case 'LAP': return policy.lap(pending.run, rng);
+    case 'BANK': return policy.bank(pending.worn, pending.n, pending.vault, rng);
+  }
 }
 
 // ============================================================ pack drawing ==
@@ -135,12 +289,32 @@ function outcomeFromBattle(result: BattleResult, battle: Battle): RoomOutcome {
   if (result.stall) return { alive: false, deathKind: 'STALL', deathBy: battle.enemies[0]?.def.id ?? '' };
   return { alive: false, deathKind: 'WIPE', deathBy: findDeathBy(battle) };
 }
-/** Runs one battle for a room, records turnsPerBattle/enrages/probes, and — only on a win — scores it, heals
- * (KO/CLEAR_HEAL) and (for FIGHT/ELITE) advances the clear counter. Card rolling is each room's own, after. */
-function runRoomBattle(ctx: Ctx, packIds: readonly string[], source: 'FIGHT' | 'ELITE' | 'BOSS'): { outcome: RoomOutcome; battle: Battle } {
+/** The ActPolicy a seam-built Battle carries until its answerer supplies one — the run has no policy of its
+ * own any more. `playBattle` assigns the driver's; an interactive screen passes `heroChoice` to every hero
+ * `runTurn` and never reaches this. Loud rather than silently playing someone else's turn. */
+const PENDING_ACT: ActPolicy = {
+  act: () => { throw new Error('BATTLE pending: no act policy — assign battle.policy, or pass heroChoice to runTurn'); },
+};
+/** The result carried by a BATTLE answer, defensively: an unusable answer ends the battle where it stands (a
+ * loss), and a forfeit — tagged on the answer, or on the result itself the way screens/battle.ts tags a quit —
+ * turns a won result into a lost one. A policy driver always answers with a real, finished result. */
+function battleResultFrom(answer: unknown, battle: Battle): BattleResult {
+  const a = answer as Partial<AnswerFor<'BATTLE'>> | null | undefined;
+  const given = a && typeof a === 'object' ? a.result : undefined;
+  const usable = !!given && typeof given === 'object' && typeof given.actorTurns === 'number' && !!given.probe;
+  const result = usable && given ? given : battleOutcome(battle);
+  const forfeit = (!!a && typeof a === 'object' && a.forfeit === true) || (result as { forfeit?: boolean }).forfeit === true;
+  return forfeit && result.won ? { ...result, won: false } : result;
+}
+/** Builds one room's battle, hands it out as a BATTLE pending, and — once its result comes back — records
+ * turnsPerBattle/enrages/probes and, only on a win, scores it, heals (KO/CLEAR_HEAL) and (for FIGHT/ELITE)
+ * advances the clear counter. Card rolling is each room's own, after. */
+function* runRoomBattle(ctx: Ctx, packIds: readonly string[], source: 'FIGHT' | 'ELITE' | 'BOSS', biome: Biome): RunStep<{ outcome: RoomOutcome; battle: Battle }> {
   const enemies = spawnPack(packIds, ctx.act, ctx.lap, ctx.ascension, ctx.clearsThisAct, ctx.pactsTaken);
   const battleCtx: BattleCtx = { pacts: ctx.pactsTaken, ascension: ctx.ascension, act: ctx.act, lap: ctx.lap };
-  const { result, battle } = runBattleTracked(ctx.party, enemies, toActPolicy(ctx.policy), ctx.rng, battleCtx);
+  const battle = createBattle(ctx.party, enemies, PENDING_ACT, ctx.rng, battleCtx);
+  const answer = yield { kind: 'BATTLE', battle, source, packIds, act: ctx.act, lap: ctx.lap, biome };
+  const result = battleResultFrom(answer, battle);
   ctx.turnsPerBattle.push(result.actorTurns);
   if (result.enraged) ctx.enrages += 1;
   if (source === 'BOSS') ctx.probes.push(result.probe); // Probe is "one per boss" (DESIGN.md's RunResult sketch)
@@ -153,15 +327,15 @@ function runRoomBattle(ctx: Ctx, packIds: readonly string[], source: 'FIGHT' | '
 }
 /** FIGHT: a pack from `biome.fights`; a card at FIGHT_DROP_CHANCE (drawn even when pity forces it), forced
  * after PITY_AFTER dropless FIGHTs; the streak resets only on a FIGHT card. Also ELITE-played-as-FIGHT. */
-function resolveFight(ctx: Ctx, biome: Biome): RoomOutcome {
+function* resolveFight(ctx: Ctx, biome: Biome): RunStep<RoomOutcome> {
   const packIds = choosePack(biome.fights, ctx.party, ctx.rng);
-  const { outcome } = runRoomBattle(ctx, packIds, 'FIGHT');
+  const { outcome } = yield* runRoomBattle(ctx, packIds, 'FIGHT', biome);
   if (!outcome.alive) return outcome;
   const rolled = chance(FIGHT_DROP_CHANCE, ctx.rng);
   if (rolled || ctx.dryStreak >= PITY_AFTER) {
     ctx.dryStreak = 0;
     const cards = rollCards('FIGHT', cardCount('FIGHT', ctx.pactsTaken), rollCtxFor(ctx), ctx.rng);
-    resolveRelicCards(ctx, cards);
+    yield* resolveRelicCards(ctx, cards, 'FIGHT');
   } else {
     ctx.dryStreak += 1;
   }
@@ -169,29 +343,29 @@ function resolveFight(ctx: Ctx, biome: Biome): RoomOutcome {
 }
 /** ELITE: an elite pack (A8's extra NORMAL folded in), three guaranteed cards, pick one — or, with fewer than
  * three members, played as a FIGHT (pack and rewards) instead. */
-function resolveElite(ctx: Ctx, biome: Biome): RoomOutcome {
-  if (ctx.party.members.length < PARTY_MAX) return resolveFight(ctx, biome);
+function* resolveElite(ctx: Ctx, biome: Biome): RunStep<RoomOutcome> {
+  if (ctx.party.members.length < PARTY_MAX) return yield* resolveFight(ctx, biome);
   let packIds = choosePack(biome.elites, ctx.party, ctx.rng);
   if (ctx.ascRow.elitePackPlus && packIds.length < 3 && packIds.length + 1 <= ctx.party.members.length + 1) {
     const normals = distinctNormals(biome);
     if (normals.length > 0) packIds = [...packIds, normals[pick(normals.length, ctx.rng)]];
   }
-  const { outcome } = runRoomBattle(ctx, packIds, 'ELITE');
+  const { outcome } = yield* runRoomBattle(ctx, packIds, 'ELITE', biome);
   if (!outcome.alive) return outcome;
   const cards = rollCards('ELITE', cardCount('ELITE', ctx.pactsTaken), rollCtxFor(ctx), ctx.rng);
-  resolveRelicCards(ctx, cards);
+  yield* resolveRelicCards(ctx, cards, 'ELITE');
   return outcome;
 }
 /** BOSS: BOSS_ENTRY_HEAL first, then the fight; on a win, actsCleared advances and three cards roll (the
  * first a forced EPIC, levelled as a BOSS card — `rollCards` already does this for source 'BOSS'). */
-function resolveBoss(ctx: Ctx, biome: Biome): RoomOutcome {
+function* resolveBoss(ctx: Ctx, biome: Biome): RunStep<RoomOutcome> {
   const dctx = deriveCtxFor(ctx);
   for (const m of ctx.party.members) mapHeal(m, dctx, BOSS_ENTRY_HEAL);
-  const { outcome } = runRoomBattle(ctx, [biome.boss], 'BOSS');
+  const { outcome } = yield* runRoomBattle(ctx, [biome.boss], 'BOSS', biome);
   if (!outcome.alive) return outcome;
   ctx.actsCleared += 1;
   const cards = rollCards('BOSS', cardCount('BOSS', ctx.pactsTaken), rollCtxFor(ctx), ctx.rng);
-  resolveRelicCards(ctx, cards);
+  yield* resolveRelicCards(ctx, cards, 'BOSS');
   return outcome;
 }
 
@@ -200,10 +374,10 @@ function resolveBoss(ctx: Ctx, biome: Biome): RoomOutcome {
  * `sharpenMember`/`sharpenCandidates`); an illegal sharpen answer decides HEAL. A level-up is one of
  * Derivation's maxHp-changing triggers (an HP-main relic on the sharpened member), so hp is re-fit around it
  * exactly like `equip`/`unequip` do — capture the pre-sharpen max, then `refitHp` after. */
-function resolveRest(ctx: Ctx): void {
+function* resolveRest(ctx: Ctx): RunStep<void> {
   const dctx = deriveCtxFor(ctx);
-  const answer = ctx.policy.rest(runStateFor(ctx), ctx.rng);
   const candidates = sharpenCandidates(ctx.party);
+  const answer = (yield { kind: 'REST', candidates, party: ctx.party, run: runStateFor(ctx) }) as AnswerFor<'REST'>;
   const legalSharpen = typeof answer === 'object' && answer !== null &&
     Number.isInteger(answer.sharpen) && candidates.includes(answer.sharpen);
   if (legalSharpen && typeof answer === 'object') {
@@ -218,19 +392,20 @@ function resolveRest(ctx: Ctx): void {
   }
 }
 /** LOOT: two relic cards, no fight. */
-function resolveLoot(ctx: Ctx): void {
+function* resolveLoot(ctx: Ctx): RunStep<void> {
   const cards = rollCards('LOOT', cardCount('LOOT', ctx.pactsTaken), rollCtxFor(ctx), ctx.rng);
-  resolveRelicCards(ctx, cards);
+  yield* resolveRelicCards(ctx, cards, 'LOOT');
 }
 /** SHRINE: one pact drawn uniformly among untaken ones; accept (curse + boon, rest of run) or walk past (no
  * mend either way) — a FORGE when none remain untaken. A taken pact is one of Derivation's maxHp-changing
  * triggers only for SCHISM (LEADER_OFF/LEADER_SELF re-route every member's leader-skill context the instant
  * it's taken), but the refit runs for any taken pact — a no-op for the other five, which never touch HP. */
-function resolveShrine(ctx: Ctx): void {
+function* resolveShrine(ctx: Ctx): RunStep<void> {
   const untaken = PACT_IDS.filter((id) => !ctx.pactsTaken.includes(id));
-  if (untaken.length === 0) { resolveForge(ctx); return; }
+  if (untaken.length === 0) { yield* resolveForge(ctx); return; }
   const id = untaken[pick(untaken.length, ctx.rng)];
-  const taken = ctx.policy.shrine(PACTS[id], runStateFor(ctx), ctx.rng);
+  const answer = (yield { kind: 'SHRINE', pact: PACTS[id], untakenCount: untaken.length, run: runStateFor(ctx) }) as AnswerFor<'SHRINE'>;
+  const taken = answer === true;
   ctx.shrines.push({ pact: id, taken });
   if (taken) {
     const dctxBefore = deriveCtxFor(ctx);
@@ -250,10 +425,14 @@ function resolveShrine(ctx: Ctx): void {
  * `equip`/`unequip`; the refit is a true no-op only when the specific relic/change never touches HP at all
  * (an ATK-main WEAPON's RECAST landing on CRIT, say), since `refitHp` only moves hp when the derived max
  * actually changed — that case is common too, just not the general one. */
-function resolveForge(ctx: Ctx): void {
+function* resolveForge(ctx: Ctx): RunStep<void> {
   const worn = partyWorn(ctx.party);
-  if (forgeOptions(worn, ctx.pactsTaken).length === 0) return;
-  const answer = ctx.policy.forge(worn, ctx.pool, ctx.rng);
+  const options = forgeOptions(worn, ctx.pactsTaken);
+  if (options.length === 0) return;
+  const answer = (yield {
+    kind: 'FORGE', worn, options, pool: ctx.pool,
+    levels: forgeLevels(ctx.pactsTaken), rebrand: worn.map((r) => rebrandSets(r, ctx.pool)),
+  }) as AnswerFor<'FORGE'>;
   if (!answer || !Number.isInteger(answer.relic) || answer.relic < 0 || answer.relic >= worn.length) return;
   const fctx: ForgeCtx = { ascension: ctx.ascension, pool: ctx.pool, pacts: ctx.pactsTaken };
   const choice: ForgeChoice = { mode: answer.mode, substat: answer.substat, set: answer.set };
@@ -268,13 +447,13 @@ function resolveForge(ctx: Ctx): void {
  * At three: 0 = an EPIC card (levelled as a FIGHT card — rollRelic('SUMMON', ...) already does this), or a
  * {swap, out} that hands the newcomer the outgoing member's slot, relics, hp/maxHp fraction, leader seat and
  * awakening (their own kit's, if the outgoing one had used theirs). */
-function resolveSummon(ctx: Ctx, stage: number | undefined): void {
+function* resolveSummon(ctx: Ctx, stage: number | undefined): RunStep<void> {
   const dominant = comingDominant(ctx.act, stage);
   const offers = pickSummonOffers(ctx.config.roster, ctx.party, dominant, ctx.config.spdDelta, ctx.rng);
   if (offers.length === 0) return;
   const dctx = deriveCtxFor(ctx);
   const full = ctx.party.members.length >= PARTY_MAX;
-  const answer = ctx.policy.summon(offers, ctx.party, ctx.rng);
+  const answer = (yield { kind: 'SUMMON', offers, party: ctx.party, full, opening: false }) as AnswerFor<'SUMMON'>;
   if (answer === null) return;
   if (!full) {
     if (typeof answer !== 'number' || !Number.isInteger(answer) || answer < 0 || answer >= offers.length) return;
@@ -285,7 +464,7 @@ function resolveSummon(ctx: Ctx, stage: number | undefined): void {
   }
   if (answer === 0) {
     const card = rollRelic('SUMMON', rollCtxFor(ctx), ctx.rng);
-    resolveRelicCards(ctx, [card]);
+    yield* resolveRelicCards(ctx, [card], 'SUMMON');
     return;
   }
   if (typeof answer !== 'object') return;
@@ -312,10 +491,10 @@ function resolveSummon(ctx: Ctx, stage: number | undefined): void {
 }
 /** ALTAR: awaken one un-awakened member; a FORGE when none remain (later laps). An illegal answer falls to the
  * lowest un-awakened index. */
-function resolveAltar(ctx: Ctx): void {
+function* resolveAltar(ctx: Ctx): RunStep<void> {
   const candidates = ctx.party.members.map((_, i) => i).filter((i) => !ctx.party.members[i].awakened);
-  if (candidates.length === 0) { resolveForge(ctx); return; }
-  const answer = ctx.policy.altar(ctx.party, ctx.rng);
+  if (candidates.length === 0) { yield* resolveForge(ctx); return; }
+  const answer = (yield { kind: 'ALTAR', candidates, party: ctx.party }) as AnswerFor<'ALTAR'>;
   const idx = candidates.includes(answer) ? answer : candidates[0];
   applyAwaken(ctx.party.members[idx]);
   ctx.awakenedLog.push(ctx.party.members[idx].def.id);
@@ -324,15 +503,18 @@ function resolveAltar(ctx: Ctx): void {
 // =================================================================== vault ==
 /** The run-start vaultEquip: up to `vaultSlots` Vault relics onto the starter, one per slot, first relic per
  * slot wins; keeps the answer's prefix before the first invalid entry. */
-function applyVaultEquip(ctx: Ctx): void {
+function* applyVaultEquip(ctx: Ctx): RunStep<void> {
   if (ctx.config.vaultSlots <= 0 || ctx.config.vault.length === 0) return;
   const dctx = deriveCtxFor(ctx);
   const starter = ctx.party.members[0];
-  const answer = ctx.policy.vaultEquip(ctx.config.vault, ctx.config.vaultSlots, ctx.party, ctx.rng);
+  const answer = (yield {
+    kind: 'VAULT_EQUIP', vault: ctx.config.vault, slots: ctx.config.vaultSlots, party: ctx.party,
+  }) as AnswerFor<'VAULT_EQUIP'>;
+  const wanted: readonly number[] = Array.isArray(answer) ? answer : [];
   const usedSlots = new Set<Slot>();
   const usedIdx = new Set<number>();
   let equipped = 0;
-  for (const idx of answer) {
+  for (const idx of wanted) {
     if (equipped >= ctx.config.vaultSlots) break;
     if (!Number.isInteger(idx) || idx < 0 || idx >= ctx.config.vault.length || usedIdx.has(idx)) break;
     const relic = ctx.config.vault[idx];
@@ -345,22 +527,27 @@ function applyVaultEquip(ctx: Ctx): void {
 /** Banking at run end: `n` = BANK_WIN + lap − 1 at DESCEND, BANK_DEATH on any death. Validates the policy's
  * `take` (truncated to min(n, worn.length), distinct, in range) and `drop`, then — if the result would still
  * overflow VAULT_SIZE — drops the lowest-level remaining Vault relics itself (tie: earliest in the Vault). */
-function resolveBank(ctx: Ctx, n: number): Relic[] {
+function* resolveBank(ctx: Ctx, n: number): RunStep<Relic[]> {
   const worn = partyWorn(ctx.party);
   const vault = ctx.config.vault;
   if (n <= 0) return vault.slice();
-  const answer = ctx.policy.bank(worn, n, vault, ctx.rng);
+  const answer = (yield { kind: 'BANK', worn, n, vault, vaultSize: VAULT_SIZE }) as AnswerFor<'BANK'>;
+  // The two lists are read off the answer defensively (a screen may send anything); everything below — the
+  // truncation, the distinctness and range rules, the overflow trim — is untouched.
+  const a = answer as Partial<AnswerFor<'BANK'>> | null | undefined;
+  const wantTake: readonly number[] = a && Array.isArray(a.take) ? a.take : [];
+  const wantDrop: readonly number[] = a && Array.isArray(a.drop) ? a.drop : [];
   const takeCap = Math.min(n, worn.length);
   const seenTake = new Set<number>();
   const takeIdx: number[] = [];
-  for (const i of answer.take) {
+  for (const i of wantTake) {
     if (takeIdx.length >= takeCap) break;
     if (!Number.isInteger(i) || i < 0 || i >= worn.length || seenTake.has(i)) continue;
     seenTake.add(i); takeIdx.push(i);
   }
   const taken = takeIdx.map((i) => worn[i]);
   const dropIdx = new Set<number>();
-  for (const i of answer.drop) if (Number.isInteger(i) && i >= 0 && i < vault.length) dropIdx.add(i);
+  for (const i of wantDrop) if (Number.isInteger(i) && i >= 0 && i < vault.length) dropIdx.add(i);
   let remaining = vault.filter((_, i) => !dropIdx.has(i));
   const overflow = remaining.length + taken.length - VAULT_SIZE;
   if (overflow > 0) {
@@ -627,52 +814,67 @@ function clampIdx(i: number, len: number): number {
   return Number.isInteger(i) && i >= 0 && i < len ? i : 0;
 }
 /** Dispatches one map node to its resolver; only FIGHT/ELITE/BOSS can end the run. */
-function resolveRoom(ctx: Ctx, roomType: RoomType, stage: number): RoomOutcome {
+function* resolveRoom(ctx: Ctx, roomType: RoomType, stage: number): RunStep<RoomOutcome> {
   const biome: Biome = BIOMES[ctx.act - 1] ?? BIOMES[0];
   switch (roomType) {
-    case 'FIGHT': return resolveFight(ctx, biome);
-    case 'ELITE': return resolveElite(ctx, biome);
-    case 'BOSS': return resolveBoss(ctx, biome);
-    case 'REST': resolveRest(ctx); return ALIVE;
-    case 'LOOT': resolveLoot(ctx); return ALIVE;
-    case 'SHRINE': resolveShrine(ctx); return ALIVE;
-    case 'FORGE': resolveForge(ctx); return ALIVE;
-    case 'SUMMON': resolveSummon(ctx, stage); return ALIVE;
-    case 'ALTAR': resolveAltar(ctx); return ALIVE;
+    case 'FIGHT': return yield* resolveFight(ctx, biome);
+    case 'ELITE': return yield* resolveElite(ctx, biome);
+    case 'BOSS': return yield* resolveBoss(ctx, biome);
+    case 'REST': yield* resolveRest(ctx); return ALIVE;
+    case 'LOOT': yield* resolveLoot(ctx); return ALIVE;
+    case 'SHRINE': yield* resolveShrine(ctx); return ALIVE;
+    case 'FORGE': yield* resolveForge(ctx); return ALIVE;
+    case 'SUMMON': yield* resolveSummon(ctx, stage); return ALIVE;
+    case 'ALTAR': yield* resolveAltar(ctx); return ALIVE;
     default: return ALIVE;
   }
 }
 
 /**
- * DESIGN.md → Difficulty targets: `draft`, `vaultEquip`, the set pool, the ascension row, the opening `summon`,
- * `leader`, then `buildMap(1, …)` — then every act's six rooms (stage 0..4, then BOSS), then the door at act 6,
- * laps compounding via LAP_MULT until a DESCEND or a death. Banking happens exactly once, at the very end.
+ * The run itself, suspended at every decision — `simulateRun`'s body since phase 5, and the only place the
+ * order of a run lives. DESIGN.md → Difficulty targets: `draft`, `vaultEquip`, the set pool, the ascension row,
+ * the opening `summon`, `leader`, then `buildMap(1, …)` — then every act's six rooms (stage 0..4, then BOSS),
+ * then the door at act 6, laps compounding via LAP_MULT until a DESCEND or a death. Banking happens exactly
+ * once, at the very end.
+ *
+ * Drive it with `steps.next(answer)`: each `next` resolves the pending it was given and every consequence of
+ * it, and stops at the following decision; the value returned when `done` is the RunResult. `observer`, when
+ * given, receives a `read()` returning a fresh `RunSnapshot` of the live run (game/sim/runstep.ts's `RunView`).
  */
-export function simulateRun(config: RunConfig, policy: Policy, rng: Rng): RunResult {
+export function* runSteps(config: RunConfig, rng: Rng, observer?: RunObserver): RunStep<RunResult> {
   const rosterIds = config.roster.length > 0 ? config.roster : ROSTER;
   const ascension = Math.max(0, Math.min(ASCENSION.length - 1, Math.floor(config.ascension)));
   const ascRow = ascRowFor(ascension);
 
-  const starter = newMember(rosterIds[clampIdx(policy.draft(rosterIds, rng), rosterIds.length)], config.spdDelta);
-  const party: Party = { members: [starter], leader: 0 };
+  // The party object is the run's, from before the draft — `starter` joins it the moment the draft answers, so
+  // a screen drawing the draft already has a (still empty) run to read.
+  const party: Party = { members: [], leader: 0 };
   const ctx: Ctx = {
-    config, policy, rng, party, ascension, ascRow, pactsTaken: [], pool: [], score: 0, act: 1, lap: 1,
+    config, rng, party, ascension, ascRow, pactsTaken: [], pool: [], score: 0, act: 1, lap: 1,
     clearsThisAct: 0, totalClears: 0, awakenedLog: [], dryStreak: 0, swaps: 0, rests: [], shrines: [], rooms: [],
     turnsPerBattle: [], enrages: 0, probes: [], relicSeq: 0, actsCleared: 0,
+    map: null, stage: -1, nodeIdx: -1, won: false, deathKind: '', deathBy: '',
   };
+  if (observer) observer.read = () => snapshotOf(ctx);
 
-  applyVaultEquip(ctx);
+  const draftAnswer = (yield { kind: 'DRAFT', roster: rosterIds }) as AnswerFor<'DRAFT'>;
+  const starter = newMember(rosterIds[clampIdx(draftAnswer, rosterIds.length)], config.spdDelta);
+  party.members.push(starter);
+
+  yield* applyVaultEquip(ctx);
   ctx.pool = rollSetPool(wornRelics(starter), rng);
   fullHeal(starter, deriveCtxFor(ctx));
 
   const openingOffers = pickSummonOffers(rosterIds, party, comingDominant(1, undefined), config.spdDelta, rng);
-  const openingAns = policy.summon(openingOffers, party, rng);
+  const openingAns = (yield {
+    kind: 'SUMMON', offers: openingOffers, party, full: party.members.length >= PARTY_MAX, opening: true,
+  }) as AnswerFor<'SUMMON'>;
   if (typeof openingAns === 'number' && Number.isInteger(openingAns) && openingAns >= 0 && openingAns < openingOffers.length) {
     const recruit = newMember(openingOffers[openingAns].def.id, config.spdDelta);
     fullHeal(recruit, deriveCtxFor(ctx));
     party.members.push(recruit);
   }
-  party.leader = clampIdx(policy.leader(party, rng), party.members.length);
+  party.leader = clampIdx((yield { kind: 'LEADER', party }) as AnswerFor<'LEADER'>, party.members.length);
   // `leader` is one of Derivation's maxHp-changing triggers: for any policy whose `leader()` doesn't just
   // echo back index 0 (RANDOM's uniform pick, SPEED's GALE-seeking, MONO's elemental search), the seat can
   // land on a member other than the one both fullHeals above assumed, re-pointing every member's leader-skill
@@ -681,31 +883,35 @@ export function simulateRun(config: RunConfig, policy: Policy, rng: Rng): RunRes
   const dctxAfterOpeningLeader = deriveCtxFor(ctx);
   for (const m of party.members) fullHeal(m, dctxAfterOpeningLeader);
 
-  let won = false;
-  let deathKind: '' | 'WIPE' | 'STALL' = '';
-  let deathBy = '';
   for (;;) {
     const map = buildMap(ctx.act, ctx.ascension, ctx.party, ctx.rng);
+    ctx.map = map;
     ctx.clearsThisAct = 0;
-    let stage = -1;
-    let nodeIdx = -1;
+    ctx.stage = -1;
+    ctx.nodeIdx = -1;
     let alive = true;
     for (let step = 0; step <= STAGE_SIZES.length && alive; step++) {
-      const offeredIdxs = stage === -1 ? [...map.entry] : [...map.links[stage][nodeIdx]];
-      const targetStage = stage + 1;
+      const offeredIdxs = ctx.stage === -1 ? [...map.entry] : [...map.links[ctx.stage][ctx.nodeIdx]];
+      const targetStage = ctx.stage + 1;
       const offeredTypes = offeredIdxs.map((i) => (targetStage < STAGE_SIZES.length ? map.stages[targetStage][i] : 'BOSS' as RoomType));
-      const choice = clampIdx(ctx.policy.route(offeredTypes, runStateFor(ctx), ctx.rng), offeredIdxs.length);
-      nodeIdx = offeredIdxs[choice];
-      stage = targetStage;
-      const roomType: RoomType = stage < STAGE_SIZES.length ? map.stages[stage][nodeIdx] : 'BOSS';
+      const routeAnswer = (yield {
+        kind: 'ROUTE', offeredIdxs, offeredTypes, map, stage: targetStage, run: runStateFor(ctx),
+      }) as AnswerFor<'ROUTE'>;
+      const choice = clampIdx(routeAnswer, offeredIdxs.length);
+      ctx.nodeIdx = offeredIdxs[choice];
+      ctx.stage = targetStage;
+      const roomType: RoomType = ctx.stage < STAGE_SIZES.length ? map.stages[ctx.stage][ctx.nodeIdx] : 'BOSS';
       ctx.rooms.push(roomType);
-      const outcome = resolveRoom(ctx, roomType, stage);
-      if (!outcome.alive) { alive = false; deathKind = outcome.deathKind; deathBy = outcome.deathBy; }
+      const outcome = yield* resolveRoom(ctx, roomType, ctx.stage);
+      if (!outcome.alive) { alive = false; ctx.deathKind = outcome.deathKind; ctx.deathBy = outcome.deathBy; }
     }
     if (!alive) break;
 
     if (ctx.act === ACTS) {
-      if (ctx.policy.lap(runStateFor(ctx), ctx.rng) === 'DESCEND') { won = true; break; }
+      const lapAnswer = (yield {
+        kind: 'LAP', run: runStateFor(ctx), banked: BANK_WIN + ctx.lap - 1,
+      }) as AnswerFor<'LAP'>;
+      if (lapAnswer === 'DESCEND') { ctx.won = true; break; }
       ctx.lap += 1;
       ctx.act = 1;
     } else {
@@ -713,10 +919,10 @@ export function simulateRun(config: RunConfig, policy: Policy, rng: Rng): RunRes
     }
   }
 
-  const banked = resolveBank(ctx, won ? BANK_WIN + ctx.lap - 1 : BANK_DEATH);
+  const banked = yield* resolveBank(ctx, ctx.won ? BANK_WIN + ctx.lap - 1 : BANK_DEATH);
   return {
-    won, actReached: ctx.act, lap: ctx.lap, ascension, clears: ctx.totalClears, actsCleared: ctx.actsCleared,
-    deathBy, deathKind,
+    won: ctx.won, actReached: ctx.act, lap: ctx.lap, ascension, clears: ctx.totalClears, actsCleared: ctx.actsCleared,
+    deathBy: ctx.deathBy, deathKind: ctx.deathKind,
     party: party.members.map((m) => m.def.id),
     leader: party.members[party.leader]?.def.id ?? '',
     awakened: ctx.awakenedLog,
@@ -724,6 +930,19 @@ export function simulateRun(config: RunConfig, policy: Policy, rng: Rng): RunRes
     banked, rooms: ctx.rooms, turnsPerBattle: ctx.turnsPerBattle, enrages: ctx.enrages,
     shrines: ctx.shrines, swaps: ctx.swaps, rests: ctx.rests, probes: ctx.probes,
   };
+}
+
+/**
+ * One run under one policy — the harness's entry point, signature unchanged. `runSteps` driven by
+ * `answerWith`: every pending is answered by the very policy method that used to be called inline, with the
+ * same payload and `rng` last, and the generator draws nothing while it waits — so this consumes the stream
+ * exactly as the pre-seam version did and a seed still reproduces a RunResult bit for bit.
+ */
+export function simulateRun(config: RunConfig, policy: Policy, rng: Rng): RunResult {
+  const steps = runSteps(config, rng);
+  let step = steps.next();
+  while (!step.done) step = steps.next(answerWith(step.value, policy, rng));
+  return step.value;
 }
 
 // =================================================== fresh members & heal ==
@@ -808,24 +1027,6 @@ function toActPolicy(policy: Policy): ActPolicy {
  * `battle` arrives as a real Battle at runtime; the assertion just names that back to the type. */
 function actFromBattleTs(fn: ActFn): Policy['act'] {
   return (battle, actor, options, rng) => fn(battle as Battle, actor, options, rng);
-}
-
-/** Mirrors `simulateBattle`'s own loop exactly (including its boss-died/ttk tracking, needed for a correct
- * Probe) but keeps the `Battle` around afterward — `deathBy` on a WIPE needs its event log. */
-function runBattleTracked(party: Party, enemies: Actor[], policy: ActPolicy, rng: Rng, ctx: BattleCtx): { result: ReturnType<typeof battleOutcome>; battle: Battle } {
-  const battle = createBattle(party, enemies, policy, rng, ctx);
-  for (;;) {
-    const actor = nextReady(battle);
-    if (!actor) break;
-    const bossWasAlive = battle.bossRef?.alive ?? false;
-    runTurn(battle, actor);
-    if (bossWasAlive && battle.bossRef && !battle.bossRef.alive && !battle.probeAcc.bossDied) {
-      battle.probeAcc.bossDied = true;
-      battle.probeAcc.ttk = battle.heroTurns;
-    }
-    if (isOver(battle)) break;
-  }
-  return { result: battleOutcome(battle), battle };
 }
 
 /** DESIGN.md → RunResult.deathBy: on a WIPE, the enemy whose hit downed the last living hero, or on a BURN

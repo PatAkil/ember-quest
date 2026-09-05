@@ -1087,9 +1087,20 @@ export function nextReady(battle: Battle): Actor | null {
  * `actOptions(battle, actor)` for a HERO's step 7, taken instead of `battle.policy.act(...)` — the exact point
  * a policy answer is drawn today, so a caller that never passes it (simulateBattle) draws identically to
  * before this was split out. Ignored for an ENEMY.
+ *
+ * The Probe's boss kill is recorded HERE, around the turn, rather than in each caller's loop: `simulateBattle`
+ * and sim/run.ts's own battle loop both carried these five lines and the interactive screen's loop carried
+ * neither, so an interactively-played boss reported `ttk` as the whole battle's heroTurns. Every caller drives
+ * a turn through this function, and only a turn can kill the boss, so the observable is what each loop's copy
+ * produced — no draw, same order.
  */
 export function runTurn(battle: Battle, actor: Actor, heroChoice?: number): void {
+  const bossWasAlive = battle.bossRef?.alive ?? false;
   takeTurn(battle, actor, false, heroChoice);
+  if (bossWasAlive && battle.bossRef && !battle.bossRef.alive && !battle.probeAcc.bossDied) {
+    battle.probeAcc.bossDied = true;
+    battle.probeAcc.ttk = battle.heroTurns;
+  }
 }
 
 /** A side is already empty, or the battle has run TURN_CAP actor turns (a stall) — the two conditions that
@@ -1169,12 +1180,7 @@ export function simulateBattle(party: Party, enemies: Actor[], policy: ActPolicy
   for (;;) {
     const actor = nextReady(battle);
     if (!actor) break;
-    const bossWasAlive = battle.bossRef?.alive ?? false;
-    runTurn(battle, actor);
-    if (bossWasAlive && battle.bossRef && !battle.bossRef.alive && !battle.probeAcc.bossDied) {
-      battle.probeAcc.bossDied = true;
-      battle.probeAcc.ttk = battle.heroTurns;
-    }
+    runTurn(battle, actor); // the Probe's boss-kill tracking lives inside runTurn — every caller's loop gets it
     if (isOver(battle)) break;
   }
   return battleOutcome(battle);
