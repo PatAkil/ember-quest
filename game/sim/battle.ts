@@ -36,9 +36,14 @@ import { chance, pick } from './rng';
 export interface Battle {
   heroes: Actor[];
   enemies: Actor[];
+  /** The original party object passed to createBattle — battleOutcome() writes final hp back onto it. */
+  party: Party;
   /** The hero slot FOCUS aims at — independent of SCHISM, which only removes the leader's stat bonus. */
   leaderSlot: number;
   log: string[];
+  /** Structured, data-only presentation events, pushed at the point each thing happens. A screen drains this
+   * array after each runTurn(); simulateBattle never reads it (a fresh Battle per call, discarded with it). */
+  events: BattleEvent[];
   actorTurns: number;
   heroTurns: number;
   rng: Rng;
@@ -56,7 +61,32 @@ export interface Battle {
   /** The Probe's reference enemy: the pack's BOSS if any, else its first member. */
   bossRef: Actor | null;
   probeAcc: ProbeAcc;
+  /** Probe snapshot taken at battle start (createBattle), read back by battleOutcome(). */
+  startPartySpd: number;
+  startHeroMaxHp: number;
+  /** The Probe's bossHp: the reference enemy's maxHp at entry, before DESTROY can shrink it. */
+  startBossMaxHp: number;
 }
+
+/**
+ * Presentation-only, data-only events — a closed union, pushed at the point each thing happens as the rules
+ * resolve. No engine, no strings beyond ids: a screen turns these into poses, VFX, pops, bars and sfx.
+ */
+export type BattleEvent =
+  | { kind: 'TURN_START'; actor: Actor; enraged: boolean }
+  | { kind: 'TURN_END'; actor: Actor }
+  | { kind: 'CAST'; caster: Actor; skill: SkillId; targets: Actor[] }
+  | { kind: 'HIT'; attacker: Actor; target: Actor; dealt: number; absorb: number; crit: boolean; glance: boolean; killed: boolean }
+  | { kind: 'STATUS_APPLIED'; target: Actor; status: StatusKind; turns: number }
+  | { kind: 'STATUS_RESISTED'; target: Actor; status: StatusKind; turns: number }
+  | { kind: 'STATUS_EXPIRED'; target: Actor; status: StatusKind; turns: number }
+  | { kind: 'HEAL'; target: Actor; amount: number; source: Actor }
+  | { kind: 'ATB_CHANGE'; actor: Actor; delta: number; reason: string }
+  | { kind: 'COUNTER'; actor: Actor; target: Actor }
+  | { kind: 'DEATH'; actor: Actor }
+  | { kind: 'BURN_TICK'; actor: Actor; amount: number }
+  | { kind: 'VEIL'; actor: Actor }
+  | { kind: 'STALL' };
 
 interface ProbeAcc {
   dmgDealtToBoss: number;
@@ -331,6 +361,7 @@ function extendAllDebuffs(target: Actor, extra: number): void {
  * each passes its own base amount; only who RECEIVES the shield (`wearer`) is checked for BASTION. */
 function bastionBoost(wearer: Actor, base: number): number {
   const bastion = findSigil(wearer, 'BASTION');
+  if (bastion?.cleanse) removeDebuffs(wearer, bastion.cleanse); // kindled: the shield also cleanses
   return Math.round(bastion ? base * (1 + bastion.bonus) : base);
 }
 /** A skill's SHIELD apply: magnitude is a fraction of the CASTER's max HP, boosted by the recipient's BASTION. */
@@ -365,19 +396,28 @@ function applyOneStatus(battle: Battle, applier: Actor, target: Actor, apply: St
   if (battle.bossRef && target === battle.bossRef && applier.side === 'HERO' && isDebuff && !landed) {
     battle.probeAcc.debuffsResistedOnBoss += 1;
   }
-  if (!landed) return false;
+  if (!landed) {
+    battle.events.push({ kind: 'STATUS_RESISTED', target, status: kind, turns: apply.turns });
+    return false;
+  }
   if (kind === 'STUN' && battle.bossRef && target === battle.bossRef && applier.side === 'HERO') {
     battle.probeAcc.stunsOnBoss += 1;
   }
-  applyStatus(target, kind, apply.turns + extraTurns, {
+  const turns = apply.turns + extraTurns;
+  applyStatus(target, kind, turns, {
     pool: kind === 'SHIELD' && apply.magnitude !== undefined ? shieldPool(applier, target, apply.magnitude) : undefined,
     dmg: kind === 'BURN' ? burnDamage(applier, target) : undefined,
     by: applier.slot,
   });
+  battle.events.push({ kind: 'STATUS_APPLIED', target, status: kind, turns });
   const trip = findSigil(applier, 'TRIP');
   if (trip && (kind === 'SLOW' || kind === 'STUN')) {
     const strip = kind === 'SLOW' ? trip.slowStrip : (trip.stunStrip ?? 0);
-    if (strip > 0) target.atb = Math.max(0, target.atb - ATB_TURN * strip);
+    if (strip > 0) {
+      const before = target.atb;
+      target.atb = Math.max(0, target.atb - ATB_TURN * strip);
+      if (target.atb !== before) battle.events.push({ kind: 'ATB_CHANGE', actor: target, delta: target.atb - before, reason: 'trip' });
+    }
   }
   return true;
 }
@@ -385,10 +425,17 @@ function applyOneStatus(battle: Battle, applier: Actor, target: Actor, apply: St
  * landing formula at chance 1.0, floored at 0. Once per target, called after a cast's hits are resolved. */
 function applyAtbBoost(battle: Battle, applier: Actor, target: Actor, atbBoost: number): void {
   if (atbBoost === 0) return;
-  if (atbBoost > 0) { target.atb += ATB_TURN * atbBoost; return; }
+  if (atbBoost > 0) {
+    const delta = ATB_TURN * atbBoost;
+    target.atb += delta;
+    battle.events.push({ kind: 'ATB_CHANGE', actor: target, delta, reason: 'skill' });
+    return;
+  }
   const allySide = target.side === applier.side;
   if (rollLanding(battle, applier, target, 1, { allySide })) {
+    const before = target.atb;
     target.atb = Math.max(0, target.atb - ATB_TURN * Math.abs(atbBoost));
+    battle.events.push({ kind: 'ATB_CHANGE', actor: target, delta: target.atb - before, reason: 'skill' });
   }
 }
 /** RENDER: one crit-only landing roll at chance 1.0 strips the target's ATB; the kindled extension rides on
@@ -398,7 +445,9 @@ function tryRenderStrip(battle: Battle, attacker: Actor, target: Actor): void {
   if (!render) return;
   const allySide = target.side === attacker.side;
   if (!rollLanding(battle, attacker, target, 1, { allySide })) return;
+  const before = target.atb;
   target.atb = Math.max(0, target.atb - ATB_TURN * render.strip);
+  battle.events.push({ kind: 'ATB_CHANGE', actor: target, delta: target.atb - before, reason: 'render' });
   if (render.extend) extendOneDebuff(target, render.extend);
 }
 /** DESPAIR: per hit (shielded/INVINCIBLE included), a flat chance to attempt a STUN through the SAME landing
@@ -420,7 +469,7 @@ function tickTurnStart(actor: Actor): boolean {
 }
 /** Step 2: BURN's fixed damage; true damage, ignores DEF/element/crit/BRAND, absorbed by SHIELD (below),
  * zeroed by INVINCIBLE and lethal. Returns whether the actor died from it (the turn ends at once). */
-function tickBurn(actor: Actor): boolean {
+function tickBurn(battle: Battle, actor: Actor): boolean {
   const burn = getStatus(actor, 'BURN');
   if (!burn || !burn.dmg) return false;
   if (hasStatus(actor, 'INVINCIBLE')) return false;
@@ -433,7 +482,13 @@ function tickBurn(actor: Actor): boolean {
     if (shield.pool <= 0) actor.statuses = actor.statuses.filter((s) => s !== shield);
   }
   actor.hp -= dmg;
-  if (actor.hp <= 0) { actor.hp = 0; actor.alive = false; return true; }
+  battle.events.push({ kind: 'BURN_TICK', actor, amount: dmg });
+  if (actor.hp <= 0) {
+    actor.hp = 0;
+    actor.alive = false;
+    battle.events.push({ kind: 'DEATH', actor });
+    return true;
+  }
   return false;
 }
 
@@ -456,19 +511,25 @@ function applyDestroy(attacker: Actor, target: Actor, dealt: number): void {
 }
 /** NEMESIS (defender's 4pc, ATB on a landed hit) then GRUDGE (defender's sigil, a threshold crossing) — both
  * gated on `dealt − absorb > 0`, i.e. BURN and a fully shielded/INVINCIBLE hit never trigger either. */
-function applyNemesisGrudge(target: Actor, dealt: number, absorb: number): void {
+function applyNemesisGrudge(battle: Battle, target: Actor, dealt: number, absorb: number): void {
   const netDamage = dealt - absorb;
   if (netDamage <= 0) return;
   const nemesis = findSet(target, 'ATB_ON_HIT');
-  if (nemesis) target.atb += ATB_TURN * nemesis.fraction;
+  if (nemesis) {
+    const delta = ATB_TURN * nemesis.fraction;
+    target.atb += delta;
+    battle.events.push({ kind: 'ATB_CHANGE', actor: target, delta, reason: 'nemesis' });
+  }
   const grudge = findSigil(target, 'GRUDGE');
   if (!grudge) return;
   const threshold = Math.round(grudge.threshold * target.maxHp);
   const hpBefore = target.hp + netDamage;
   if (hpBefore >= threshold && target.hp < threshold) {
     applyStatus(target, 'ATK_UP', grudge.turns);
+    battle.events.push({ kind: 'STATUS_APPLIED', target, status: 'ATK_UP', turns: grudge.turns });
     if (grudge.shield !== undefined) {
       applyStatus(target, 'SHIELD', SHIELD_TURNS, { pool: shieldPool(target, target, grudge.shield) });
+      battle.events.push({ kind: 'STATUS_APPLIED', target, status: 'SHIELD', turns: SHIELD_TURNS });
     }
   }
 }
@@ -519,17 +580,22 @@ function resolveOneHit(battle: Battle, attacker: Actor, target: Actor, skill: Sk
     battle.probeAcc.hpLostByHeroes += dealt - absorb;
   }
   target.hp -= dealt - absorb;
-  if (target.hp <= 0) {
-    target.hp = 0;
-    target.alive = false;
+  const diedNow = target.hp <= 0;
+  if (diedNow) { target.hp = 0; target.alive = false; }
+  battle.events.push({ kind: 'HIT', attacker, target, dealt, absorb, crit, glance, killed: diedNow });
+  if (diedNow) {
+    battle.events.push({ kind: 'DEATH', actor: target });
     return { dealt, crit, glance, diedNow: true };
   }
 
-  for (const apply of applies) applyOneStatus(battle, attacker, target, apply);
+  for (const apply of applies) {
+    const recipients = apply.target ? resolveTargets(battle, attacker, apply.target, -1) : [target];
+    for (const r of recipients) if (r.alive) applyOneStatus(battle, attacker, r, apply);
+  }
   tryDespairStun(battle, attacker, target);
   if (crit) tryRenderStrip(battle, attacker, target);
   applyDestroy(attacker, target, dealt);
-  applyNemesisGrudge(target, dealt, absorb);
+  applyNemesisGrudge(battle, target, dealt, absorb);
   return { dealt, crit, glance, diedNow: false };
 }
 
@@ -613,26 +679,50 @@ function castSkill(battle: Battle, actor: Actor, skill: SkillDef, targets: reado
     if (!target.alive) continue;
     if (skill.cleanse) removeDebuffs(target, skill.cleanse);
     if (mending && healsThisSkill) removeDebuffs(target, 1);
-    if (skill.heal) healActor(target, Math.round(actor.maxHp * skill.heal));
-    if (skill.hits === 0) for (const apply of applies) applyOneStatus(battle, actor, target, apply);
+    if (skill.heal) {
+      const healed = healActor(target, Math.round(actor.maxHp * skill.heal));
+      battle.events.push({ kind: 'HEAL', target, amount: healed, source: actor });
+    }
+    if (skill.hits === 0) {
+      for (const apply of applies) {
+        const recipients = apply.target ? resolveTargets(battle, actor, apply.target, -1) : [target];
+        for (const r of recipients) if (r.alive) applyOneStatus(battle, actor, r, apply);
+      }
+    }
     if (skill.extendDebuffs) extendAllDebuffs(target, skill.extendDebuffs);
     if (skill.atbBoost) applyAtbBoost(battle, actor, target, skill.atbBoost);
-    if (mending?.atb && healsThisSkill) target.atb += ATB_TURN * mending.atb;
+    if (mending?.atb && healsThisSkill) {
+      const delta = ATB_TURN * mending.atb;
+      target.atb += delta;
+      battle.events.push({ kind: 'ATB_CHANGE', actor: target, delta, reason: 'mending' });
+    }
   }
 
   // Per-skill phase: leech, VAMPIRE (two heals), SURGE (per kill), SPARK (on any crit).
-  if (skill.leech) healActor(actor, Math.round(totalDealt * skill.leech));
+  if (skill.leech) {
+    const healed = healActor(actor, Math.round(totalDealt * skill.leech));
+    battle.events.push({ kind: 'HEAL', target: actor, amount: healed, source: actor });
+  }
   const vampire = findSet(actor, 'LEECH');
   if (vampire) {
-    healActor(actor, Math.round(totalDealt * vampire.fraction));
-    healActor(actor, Math.round(totalDealt * vampire.fraction));
+    const h1 = healActor(actor, Math.round(totalDealt * vampire.fraction));
+    battle.events.push({ kind: 'HEAL', target: actor, amount: h1, source: actor });
+    const h2 = healActor(actor, Math.round(totalDealt * vampire.fraction));
+    battle.events.push({ kind: 'HEAL', target: actor, amount: h2, source: actor });
   }
   if (kills.length > 0) {
     const surge = findSigil(actor, 'SURGE');
     if (surge) {
       for (let i = 0; i < kills.length; i++) {
         actor.atb += ATB_TURN * surge.self;
-        if (surge.allies) for (const ally of livingAllies(battle, actor)) if (ally !== actor) ally.atb += ATB_TURN * surge.allies;
+        battle.events.push({ kind: 'ATB_CHANGE', actor, delta: ATB_TURN * surge.self, reason: 'surge' });
+        if (surge.allies) {
+          for (const ally of livingAllies(battle, actor)) {
+            if (ally === actor) continue;
+            ally.atb += ATB_TURN * surge.allies;
+            battle.events.push({ kind: 'ATB_CHANGE', actor: ally, delta: ATB_TURN * surge.allies, reason: 'surge' });
+          }
+        }
       }
     }
   }
@@ -646,7 +736,11 @@ function castSkill(battle: Battle, actor: Actor, skill: SkillDef, targets: reado
     const opener = findSigil(actor, 'OPENER');
     if (firstCast && opener) {
       cd = 0;
-      if (opener.atb) actor.atb += ATB_TURN * opener.atb;
+      if (opener.atb) {
+        const delta = ATB_TURN * opener.atb;
+        actor.atb += delta;
+        battle.events.push({ kind: 'ATB_CHANGE', actor, delta, reason: 'opener' });
+      }
     }
     actor.cooldowns[skillIndex] = cd;
     battle.firstCastDone.add(actor);
@@ -673,6 +767,7 @@ function runCounters(battle: Battle, attacker: Actor, hitTargets: readonly Actor
     const skillForCounter = thorns?.applyBreak
       ? { ...base, applies: [...(base.applies ?? []), { status: 'DEF_BREAK' as const, chance: thorns.applyBreak, turns: 2 }] }
       : base;
+    battle.events.push({ kind: 'COUNTER', actor: target, target: attacker });
     castSkill(battle, target, skillForCounter, [attacker], -1, { isCounter: true });
   }
 }
@@ -859,20 +954,26 @@ function maybeVeilInvincible(battle: Battle, a: Actor): void {
   if (turns <= 0) return;
   applyStatus(a, 'INVINCIBLE', turns);
   battle.veilUsed = true;
+  battle.events.push({ kind: 'STATUS_APPLIED', target: a, status: 'INVINCIBLE', turns });
+  battle.events.push({ kind: 'VEIL', actor: a });
   log(battle, `${actorName(a)} is veiled — INVINCIBLE!`);
 }
-/** The hero side's choice, through the battle's Policy — an out-of-range answer clamps to option 0. */
-function heroChoice(battle: Battle, actor: Actor): { skillIndex: number; targets: Actor[] } {
+/** The hero side's choice: `forcedChoice` (the interactive screen's picked actOptions index) if given, else
+ * the battle's Policy — exactly where a policy answer is drawn today, so simulateBattle's rng stream (which
+ * never passes forcedChoice) is untouched. An out-of-range answer, forced or policy-drawn, clamps to option 0. */
+function resolveHeroAction(battle: Battle, actor: Actor, forcedChoice?: number): { skillIndex: number; targets: Actor[] } {
   const options = actOptions(battle, actor);
-  const raw = battle.policy.act(battle, actor, options, battle.rng);
+  const raw = forcedChoice !== undefined ? forcedChoice : battle.policy.act(battle, actor, options, battle.rng);
   const idx = Number.isInteger(raw) && raw >= 0 && raw < options.length ? raw : 0;
   const opt = options[idx];
   const skill = SKILLS[actor.def.skills[opt.skill]];
   return { skillIndex: opt.skill, targets: resolveTargets(battle, actor, skill.target, opt.target) };
 }
 
-/** The ten-step turn — DESIGN.md → The turn. `extra` is VIOLENT's one fresh (non-chaining) turn. */
-function takeTurn(battle: Battle, a: Actor, extra = false): void {
+/** The ten-step turn — DESIGN.md → The turn. `extra` is VIOLENT's one fresh (non-chaining) turn; `forcedChoice`
+ * is the interactive screen's picked actOptions index for a HERO's step 7 (ignored for an ENEMY, and for an
+ * extra turn, which always falls back to the battle's own Policy — there is no second prompt mid-turn). */
+function takeTurn(battle: Battle, a: Actor, extra = false, forcedChoice?: number): void {
   battle.actorTurns += 1;
   if (a.side === 'HERO') battle.heroTurns += 1;
   // ENRAGED is a property of the actor-turn count itself (the harness's own fallback treats it exactly that
@@ -880,16 +981,27 @@ function takeTurn(battle: Battle, a: Actor, extra = false): void {
   // only lands if the actor survives past step 2.
   const enraged = a.side === 'ENEMY' && battle.actorTurns >= ENRAGE_TURN;
   if (enraged && !battle.enraged) { battle.enraged = true; log(battle, `${actorName(a)} is ENRAGED!`); }
+  battle.events.push({ kind: 'TURN_START', actor: a, enraged });
   if (!extra) a.atb -= ATB_TURN;
-  if (tickBurn(a)) return; // step 2 — BURN can kill; the turn ends here
-  if (enraged) applyStatus(a, 'ATK_UP', ENRAGE_TURNS);
-  const stunned = tickTurnStart(a); // steps 3–5
+  if (tickBurn(battle, a)) { battle.events.push({ kind: 'TURN_END', actor: a }); return; } // step 2 — BURN can kill; the turn ends here
+  if (enraged) {
+    applyStatus(a, 'ATK_UP', ENRAGE_TURNS);
+    battle.events.push({ kind: 'STATUS_APPLIED', target: a, status: 'ATK_UP', turns: ENRAGE_TURNS });
+  }
+  const beforeStatuses = a.statuses; // steps 3–5 — captured for the expiry diff below, before tickTurnStart replaces the array
+  const stunned = tickTurnStart(a);
+  for (const s of beforeStatuses) {
+    if (!a.statuses.some((ns) => ns.kind === s.kind)) battle.events.push({ kind: 'STATUS_EXPIRED', target: a, status: s.kind, turns: 0 });
+  }
   maybeVeilInvincible(battle, a); // between steps 5 and 6
-  if (stunned) return; // step 6
-  const { skillIndex, targets } = a.side === 'HERO' ? heroChoice(battle, a) : chooseEnemyAction(battle, a); // step 7
+  if (stunned) { battle.events.push({ kind: 'TURN_END', actor: a }); return; } // step 6
+  const { skillIndex, targets } = a.side === 'HERO' ? resolveHeroAction(battle, a, forcedChoice) : chooseEnemyAction(battle, a); // step 7
   const skill = SKILLS[a.def.skills[skillIndex]];
+  battle.events.push({ kind: 'CAST', caster: a, skill: skill.id, targets: targets.slice() });
   castSkill(battle, a, skill, targets, skillIndex); // step 8 (cooldown write + counters live inside)
   const violent = findSet(a, 'EXTRA_TURN'); // step 9
+  battle.events.push({ kind: 'TURN_END', actor: a });
+  if (battle.actorTurns === TURN_CAP && bothSidesAlive(battle)) battle.events.push({ kind: 'STALL' });
   if (bothSidesAlive(battle) && a.alive && violent && !extra && chance(violent.chance, battle.rng)) {
     takeTurn(battle, a, true);
   }
@@ -931,54 +1043,137 @@ function grantBattleStartBuffs(battle: Battle, row: AscensionRow): void {
 }
 
 /**
- * Runs one battle to its conclusion: a win, a wipe or a TURN_CAP stall. `party`'s members' `hp` is updated in
- * place to their post-battle values and the same object is returned as `BattleResult.party`. `enemies` is used
- * as given (already scaled, e.g. via `spawnPack`) and is likewise mutated in place.
+ * The interactive setup half of a battle: builds both sides, zeroes cooldowns/statuses, grants every
+ * battle-start buff (VEIL/WILL/BULWARK/ascension openers) and snapshots the Probe's starting SPD/HP — every­
+ * thing `simulateBattle` used to do inline, now shared with an interactive caller. `party`'s members are NOT
+ * written back here — only `battleOutcome`, at the true end of the battle, does that.
  */
-export function simulateBattle(party: Party, enemies: Actor[], policy: ActPolicy, rng: Rng, ctx: BattleCtx = {}): BattleResult {
+export function createBattle(party: Party, enemies: Actor[], policy: ActPolicy, rng: Rng, ctx: BattleCtx = {}): Battle {
   const pacts = ctx.pacts ?? [];
   const ascension = ctx.ascension ?? 0;
   const heroes = buildHeroes(party, pacts);
   for (const a of [...heroes, ...enemies]) { a.cooldowns = a.cooldowns.map(() => 0); a.statuses = []; } // battle start: cooldowns 0, no statuses
 
   const battle: Battle = {
-    heroes, enemies, leaderSlot: party.leader, log: [], actorTurns: 0, heroTurns: 0, rng, policy, pacts, ascension,
-    act: ctx.act ?? 1, lap: ctx.lap ?? 1, enraged: false, veilUsed: false, firstCastDone: new WeakSet(),
+    heroes, enemies, party, leaderSlot: party.leader, log: [], events: [], actorTurns: 0, heroTurns: 0, rng, policy,
+    pacts, ascension, act: ctx.act ?? 1, lap: ctx.lap ?? 1, enraged: false, veilUsed: false, firstCastDone: new WeakSet(),
     bossRef: pickBossRef(enemies),
     probeAcc: { dmgDealtToBoss: 0, hitsTakenByHeroes: 0, hpLostByHeroes: 0, stunsOnBoss: 0, debuffsResistedOnBoss: 0, ttk: 0, bossDied: false },
+    startPartySpd: 0, startHeroMaxHp: 0, startBossMaxHp: 0,
   };
   grantBattleStartBuffs(battle, ascensionRow(ascension));
 
   const livingHeroesAtStart = livingHeroes(battle);
-  const startPartySpd = livingHeroesAtStart.length > 0 ? livingHeroesAtStart.reduce((s, a) => s + a.stats.SPD, 0) / livingHeroesAtStart.length : 0;
-  const startHeroMaxHp = livingHeroesAtStart.reduce((s, a) => s + a.maxHp, 0);
+  battle.startPartySpd = livingHeroesAtStart.length > 0
+    ? livingHeroesAtStart.reduce((s, a) => s + a.stats.SPD, 0) / livingHeroesAtStart.length
+    : 0;
+  battle.startHeroMaxHp = livingHeroesAtStart.reduce((s, a) => s + a.maxHp, 0);
+  battle.startBossMaxHp = battle.bossRef?.maxHp ?? 0;
+  return battle;
+}
 
-  let stall = false;
-  for (;;) {
-    const actor = nextActor(battle);
-    if (!actor) break;
-    const bossWasAlive = battle.bossRef?.alive ?? false;
-    takeTurn(battle, actor);
-    if (bossWasAlive && battle.bossRef && !battle.bossRef.alive && !battle.probeAcc.bossDied) {
-      battle.probeAcc.bossDied = true;
-      battle.probeAcc.ttk = battle.heroTurns;
-    }
-    if (livingHeroes(battle).length === 0 || livingEnemies(battle).length === 0) break;
-    if (battle.actorTurns >= TURN_CAP) { stall = true; break; }
-  }
+/** ready()'s head, exported for an interactive driver: the next actor to act, filling attack bars as needed
+ * (null only once a side is already empty). */
+export function nextReady(battle: Battle): Actor | null {
+  return nextActor(battle);
+}
 
+/**
+ * Runs one actor's turn. `heroChoice`, when given, is the interactive screen's picked index into
+ * `actOptions(battle, actor)` for a HERO's step 7, taken instead of `battle.policy.act(...)` — the exact point
+ * a policy answer is drawn today, so a caller that never passes it (simulateBattle) draws identically to
+ * before this was split out. Ignored for an ENEMY.
+ */
+export function runTurn(battle: Battle, actor: Actor, heroChoice?: number): void {
+  takeTurn(battle, actor, false, heroChoice);
+}
+
+/** A side is already empty, or the battle has run TURN_CAP actor turns (a stall) — the two conditions that
+ * end a battle, mirroring the order `simulateBattle`'s own loop always checked in (side-empty first). */
+export function isOver(battle: Battle): boolean {
+  return livingHeroes(battle).length === 0 || livingEnemies(battle).length === 0 || battle.actorTurns >= TURN_CAP;
+}
+
+/**
+ * The tail of `simulateBattle`: won/stall from the battle's final state, the Probe, and the write-back of
+ * every hero's final hp onto the ORIGINAL party object passed to `createBattle` (also returned as
+ * `BattleResult.party`). Call once, after `isOver(battle)` is true.
+ */
+export function battleOutcome(battle: Battle): BattleResult {
+  // A side already empty outranks a same-instant TURN_CAP crossing — the original loop's own order (the
+  // side-empty break ran before the cap check, so the two conditions were never both true in a `stall`).
+  const stall = livingHeroes(battle).length > 0 && livingEnemies(battle).length > 0 && battle.actorTurns >= TURN_CAP;
   const won = !stall && livingHeroes(battle).length > 0 && livingEnemies(battle).length === 0;
-  for (let i = 0; i < party.members.length; i++) party.members[i].hp = heroes[i].hp;
+  for (let i = 0; i < battle.party.members.length; i++) battle.party.members[i].hp = battle.heroes[i].hp;
 
   const boss = battle.bossRef;
   const probe: Probe = {
     act: battle.act, lap: battle.lap, won, actorTurns: battle.actorTurns, heroTurns: battle.heroTurns, enraged: battle.enraged,
-    partySpd: startPartySpd, bossSpd: boss?.stats.SPD ?? 0, outSped: startPartySpd > (boss?.stats.SPD ?? 0), bossHp: boss?.maxHp ?? 0,
-    dmgDealt: battle.probeAcc.dmgDealtToBoss, ttk: battle.probeAcc.bossDied ? battle.probeAcc.ttk : battle.heroTurns,
-    hitsTaken: battle.probeAcc.hitsTakenByHeroes, hitFrac: startHeroMaxHp > 0 ? battle.probeAcc.hpLostByHeroes / startHeroMaxHp : 0,
+    partySpd: battle.startPartySpd, bossSpd: boss?.stats.SPD ?? 0, outSped: battle.startPartySpd > (boss?.stats.SPD ?? 0),
+    bossHp: battle.startBossMaxHp, dmgDealt: battle.probeAcc.dmgDealtToBoss, ttk: battle.probeAcc.bossDied ? battle.probeAcc.ttk : battle.heroTurns,
+    hitsTaken: battle.probeAcc.hitsTakenByHeroes,
+    hitFrac: battle.startHeroMaxHp > 0 ? battle.probeAcc.hpLostByHeroes / battle.startHeroMaxHp : 0,
     stunsLanded: battle.probeAcc.stunsOnBoss, debuffsResisted: battle.probeAcc.debuffsResistedOnBoss,
   };
-  return { won, stall, enraged: battle.enraged, actorTurns: battle.actorTurns, probe, party };
+  return { won, stall, enraged: battle.enraged, actorTurns: battle.actorTurns, probe, party: battle.party };
+}
+
+/**
+ * The next `n` actors to act, previewed on CLONED atb values by a standalone copy of advance()/ready()'s own
+ * formulas (duplicated, not shared, so the proven path above can never be perturbed by a change here): never
+ * draws from `battle.rng`, never mutates a real Actor. Presentation only — the turn ribbon's queue, recomputed
+ * at turn boundaries, per DESIGN.md → Turn order. Extras (VIOLENT), stuns and BURN deaths are not modelled.
+ */
+export function forecast(battle: Battle, n: number): Actor[] {
+  const clones = livingActors(battle).map((a) => ({ ...a }));
+  const result: Actor[] = [];
+  const guardMax = (n + clones.length) * 4 + 50;
+  for (let guard = 0; guard < guardMax && result.length < n && clones.length > 0; guard++) {
+    const ready = clones
+      .filter((a) => a.atb >= ATB_TURN)
+      .sort((a, b) => {
+        if (b.atb !== a.atb) return b.atb - a.atb;
+        const bySpd = spdEff(b) - spdEff(a);
+        if (bySpd !== 0) return bySpd;
+        if (a.side !== b.side) return a.side === 'HERO' ? -1 : 1;
+        return a.slot - b.slot;
+      });
+    if (ready.length === 0) {
+      const deltas = clones.map((a) => (ATB_TURN - a.atb) / spdEff(a));
+      const minDelta = Math.min(...deltas);
+      if (!Number.isFinite(minDelta)) break; // every clone stuck at 0 spdEff — cannot advance further
+      clones.forEach((a, i) => { a.atb = deltas[i] === minDelta ? ATB_TURN : a.atb + spdEff(a) * minDelta; });
+      continue;
+    }
+    const next = ready[0];
+    result.push(next);
+    next.atb -= ATB_TURN; // carry, mirroring step 1 (extras/stun/burn-death are not modelled — presentation only)
+  }
+  return result;
+}
+
+/**
+ * Runs one battle to its conclusion: a win, a wipe or a TURN_CAP stall. `party`'s members' `hp` is updated in
+ * place to their post-battle values and the same object is returned as `BattleResult.party`. `enemies` is used
+ * as given (already scaled, e.g. via `spawnPack`) and is likewise mutated in place. A thin driver over
+ * `createBattle`/`nextReady`/`runTurn`/`isOver`/`battleOutcome`: every hero turn draws `battle.policy.act(...)`
+ * at the same point it always has (no `heroChoice` is ever passed here), so the rng stream this produces is
+ * identical to the single-function version it replaces.
+ */
+export function simulateBattle(party: Party, enemies: Actor[], policy: ActPolicy, rng: Rng, ctx: BattleCtx = {}): BattleResult {
+  const battle = createBattle(party, enemies, policy, rng, ctx);
+  for (;;) {
+    const actor = nextReady(battle);
+    if (!actor) break;
+    const bossWasAlive = battle.bossRef?.alive ?? false;
+    runTurn(battle, actor);
+    if (bossWasAlive && battle.bossRef && !battle.bossRef.alive && !battle.probeAcc.bossDied) {
+      battle.probeAcc.bossDied = true;
+      battle.probeAcc.ttk = battle.heroTurns;
+    }
+    if (isOver(battle)) break;
+  }
+  return battleOutcome(battle);
 }
 // =============================================================== fixtures ==
 /** EMBER, GALE, TIDE (leader EMBER) at base stats — base + BASELINE points + the leader skill, no relics —
