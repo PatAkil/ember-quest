@@ -1399,8 +1399,8 @@ first step, landing where the two stated bands actually intersect.
 | `--spd` gate | Δ ≥ 20 pts | Δ 33.9 pts (act3 +10 57.1 % / −10 23.3 %) |
 | `balanced` REST heal | 25–60 % | 50.8 % |
 | `balanced` ELITE win | 75–90 % | 82.5 % (seed 1, 5000); 81.9 %/81.2 %/83.1 % at seeds 2/3/4242 (2000 each) — comfortably mid-band and consistent across seeds, unlike the rejected `ELITE_MULT.hp = 6.1` build's 74–76 % (seed-thin against the 75 % floor) |
-| swap ≥ 1, some policy's wins | ≥ 5 % | **seven** policies, not six: `random` (small-sample, n in the single digits), `balanced` 78.7 %, `speed` 77.7 %, `glass` 77.3 %, `tank` 74.4 %, `control` 79.8 %, `pairs` 73.9 % (`mono` ≈ 0 % does not qualify; `lapper` has no wins) |
-| every character leads, some policy | ≥ 5 % | EMBER 26.4 (control) · GALE 17.6 (speed) · TIDE 76.4 (mono) · BASALT 34.6 (control) · SABLE 47.0 (tank) · LUMEN 9.0 (`balanced`) |
+| swap ≥ 1, some policy's wins | ≥ 5 % | **seven** policies, not six: `random` (small-sample, n in the single digits), `balanced` 78.7 %, `speed` 77.9 %, `glass` 77.3 %, `tank` 74.4 %, `control` 79.8 %, `pairs` 73.9 % (`mono` ≈ 0 % does not qualify; `lapper` has no wins) |
+| every character leads, some policy | ≥ 5 % | EMBER 26.4 (control) · GALE 65.5 (speed) · TIDE 75.7 (mono) · BASALT 34.6 (control) · SABLE 47.0 (tank) · LUMEN 9.0 (`balanced`) |
 | every 4-piece set, some policy | ≥ 5 % | VIOLENT 6.2 (speed) · DESPAIR 6.8 (control) clear the floor this pass; VAMPIRE 1.7 · WILL 3.8 · NEMESIS 1.7 · REVENGE 1.6 · BULWARK 2.1 · DESTROY 2.9 do not — see below, still not fixable with numbers, and *which* clear 5 % keeps changing seed to seed (an earlier, numerically close pass had BULWARK and DESTROY passing instead) |
 | every pact, \|Δ\| | ≤ 5 pts | HASTE −2.6 · FURY −2.7 · VEIL −3.8 · BLIND +3.8 · SCHISM +1.3 · DEARTH −0.7 |
 | SABLE/LUMEN vs any triangle char, `balanced` wins | < 1.5× | **triggered** — see below |

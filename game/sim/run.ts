@@ -390,6 +390,23 @@ function* resolveRest(ctx: Ctx): RunStep<void> {
     for (const m of ctx.party.members) fullHeal(m, dctx);
     ctx.rests.push('HEAL');
   }
+  yield* chooseLeader(ctx); // DESIGN.md → Leader skills: the seat may change at a REST, after its own effect
+}
+/**
+ * The leader seat, asked wherever DESIGN.md → Characters → Leader skills says it may change: at the draft
+ * (runSteps, right after the opening SUMMON) and then after a SUMMON, a REST or the ALTAR — always after the
+ * room's own answer and its effects have applied, so a newcomer swapped in this very room is eligible.
+ * `leader` is one of Derivation's maxHp-changing triggers (the seat's LeaderSkill reaches every member), so
+ * every member is re-fit around the new seat; a policy or player that leaves the seat where it is changes
+ * nothing at all — `rescaleHp` leaves hp alone when the derived max did not move.
+ */
+function* chooseLeader(ctx: Ctx): RunStep<void> {
+  const dctxBefore = deriveCtxFor(ctx);
+  const maxOld = ctx.party.members.map((m) => derive(m, dctxBefore).HP);
+  const answer = (yield { kind: 'LEADER', party: ctx.party }) as AnswerFor<'LEADER'>;
+  ctx.party.leader = clampIdx(answer, ctx.party.members.length);
+  const dctxAfter = deriveCtxFor(ctx);
+  ctx.party.members.forEach((m, i) => refitHp(m, maxOld[i], dctxAfter));
 }
 /** LOOT: two relic cards, no fight. */
 function* resolveLoot(ctx: Ctx): RunStep<void> {
@@ -454,6 +471,12 @@ function* resolveSummon(ctx: Ctx, stage: number | undefined): RunStep<void> {
   const dctx = deriveCtxFor(ctx);
   const full = ctx.party.members.length >= PARTY_MAX;
   const answer = (yield { kind: 'SUMMON', offers, party: ctx.party, full, opening: false }) as AnswerFor<'SUMMON'>;
+  yield* applySummonAnswer(ctx, offers, full, dctx, answer);
+  yield* chooseLeader(ctx); // DESIGN.md → Leader skills: after the room's answer and its effects, newcomer eligible
+}
+/** The SUMMON answer applied — recruit, EPIC card or swap — split out so the leader ask after it is on every
+ * path, declines included (the seat may change "at a SUMMON", not "at a SUMMON that recruited"). */
+function* applySummonAnswer(ctx: Ctx, offers: readonly SummonOffer[], full: boolean, dctx: DeriveCtx, answer: AnswerFor<'SUMMON'>): RunStep<void> {
   if (answer === null) return;
   if (!full) {
     if (typeof answer !== 'number' || !Number.isInteger(answer) || answer < 0 || answer >= offers.length) return;
@@ -498,6 +521,7 @@ function* resolveAltar(ctx: Ctx): RunStep<void> {
   const idx = candidates.includes(answer) ? answer : candidates[0];
   applyAwaken(ctx.party.members[idx]);
   ctx.awakenedLog.push(ctx.party.members[idx].def.id);
+  yield* chooseLeader(ctx); // DESIGN.md → Leader skills: the seat may change at the ALTAR, after the awakening
 }
 
 // =================================================================== vault ==
