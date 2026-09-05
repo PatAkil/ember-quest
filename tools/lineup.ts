@@ -58,7 +58,7 @@ export interface ActorMetrics {
   h: number;
   /** Height of the silhouette as a percentage of the 720-px frame at ACTOR_SCALE. */
   framePct: number;
-  /** HSL lightness (0-100) span: min / 2nd percentile / 98th percentile / max. */
+  /** CIE L* (0-100, perceptual — HSL lightness scores a saturated green as dark) span: min / 2nd percentile / 98th percentile / max. */
   lMin: number;
   lP2: number;
   lP98: number;
@@ -66,6 +66,12 @@ export interface ActorMetrics {
   /** Criterion 1: >= 20 % of body pixels below L 35 and >= 8 % above L 75. */
   pctBelow35: number;
   pctAbove75: number;
+  /** The same dark share with the one-cell keyline excluded — an outline is not an anchor. */
+  pctBelow35Interior: number;
+  /** Mean L* of the silhouette's top quarter and bottom quarter, and their difference: a figure lit from above is positive by >= 8. */
+  topL: number;
+  bottomL: number;
+  litDelta: number;
   /** Histogram over L bands 0-15 / 15-35 / 35-55 / 55-75 / 75-100, as percentages. */
   bands: number[];
   /** WCAG contrast of every body pixel against the ground: mean, min, and the share below 3:1 (criterion 6: mean >= 3, <= 45 % below). */
@@ -82,6 +88,10 @@ function lin(c: number): number {
 }
 function luminance(r: number, g: number, b: number): number {
   return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+}
+/** CIE L* from relative luminance. */
+function lstar(y: number): number {
+  return y <= 0.008856 ? 903.3 * y : 116 * Math.cbrt(y) - 16;
 }
 function contrast(l1: number, l2: number): number {
   const hi = Math.max(l1, l2);
@@ -107,21 +117,27 @@ function measure(recipe: ActorRecipe): ActorMetrics {
   const data = ctx.getImageData(0, 0, bmp.width, bmp.height).data;
   const [br, bgg, bb] = hexRgb(bg);
   const groundLum = luminance(br, bgg, bb);
+  const W = bmp.width;
+  const Hh = bmp.height;
+  const opaque = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < W && y < Hh && data[(y * W + x) * 4 + 3] !== 0;
   const ls: number[] = [];
-  let x0 = bmp.width;
-  let y0 = bmp.height;
+  const ys: number[] = [];
+  let x0 = W;
+  let y0 = Hh;
   let x1 = -1;
   let y1 = -1;
   let below35 = 0;
   let above75 = 0;
+  let interior = 0;
+  let below35Interior = 0;
   const bands = [0, 0, 0, 0, 0];
   let cSum = 0;
   let cMin = Infinity;
   let below3 = 0;
   const colours = new Set<number>();
-  for (let y = 0; y < bmp.height; y++) {
-    for (let x = 0; x < bmp.width; x++) {
-      const i = (y * bmp.width + x) * 4;
+  for (let y = 0; y < Hh; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
       if (data[i + 3] === 0) continue;
       const r = data[i];
       const g = data[i + 1];
@@ -131,21 +147,45 @@ function measure(recipe: ActorRecipe): ActorMetrics {
       if (x > x1) x1 = x;
       if (y < y0) y0 = y;
       if (y > y1) y1 = y;
-      const l = ((Math.max(r, g, b) + Math.min(r, g, b)) / 2 / 255) * 100;
+      const yl = luminance(r, g, b);
+      const l = lstar(yl);
       ls.push(l);
+      ys.push(y);
+      const edge = !(opaque(x - 1, y) && opaque(x + 1, y) && opaque(x, y - 1) && opaque(x, y + 1));
+      if (!edge) {
+        interior++;
+        if (l < 35) below35Interior++;
+      }
       if (l < 35) below35++;
       if (l > 75) above75++;
       bands[l < 15 ? 0 : l < 35 ? 1 : l < 55 ? 2 : l < 75 ? 3 : 4]++;
-      const c = contrast(luminance(r, g, b), groundLum);
+      const c = contrast(yl, groundLum);
       cSum += c;
       if (c < cMin) cMin = c;
       if (c < 3) below3++;
     }
   }
   const n = Math.max(1, ls.length);
+  const h = y1 >= y0 ? y1 - y0 + 1 : 0;
+  // Top and bottom quarters of the silhouette's own rows — the lit-from-above read.
+  const q = Math.max(1, Math.floor(h / 4));
+  let topSum = 0;
+  let topN = 0;
+  let botSum = 0;
+  let botN = 0;
+  for (let k = 0; k < ls.length; k++) {
+    if (ys[k] < y0 + q) {
+      topSum += ls[k];
+      topN++;
+    } else if (ys[k] > y1 - q) {
+      botSum += ls[k];
+      botN++;
+    }
+  }
+  const topL = topN ? topSum / topN : 0;
+  const bottomL = botN ? botSum / botN : 0;
   ls.sort((a, b) => a - b);
   const pct = (k: number): number => Math.round((100 * k) / n * 10) / 10;
-  const h = y1 >= y0 ? y1 - y0 + 1 : 0;
   return {
     id: recipe.id,
     pixels: ls.length,
@@ -158,6 +198,10 @@ function measure(recipe: ActorRecipe): ActorMetrics {
     lMax: Math.round(ls[n - 1] ?? 0),
     pctBelow35: pct(below35),
     pctAbove75: pct(above75),
+    pctBelow35Interior: Math.round((100 * below35Interior) / Math.max(1, interior) * 10) / 10,
+    topL: Math.round(topL),
+    bottomL: Math.round(bottomL),
+    litDelta: Math.round(topL - bottomL),
     bands: bands.map(pct),
     contrastMean: Math.round((cSum / n) * 100) / 100,
     contrastMin: Math.round((cMin === Infinity ? 0 : cMin) * 100) / 100,
@@ -290,12 +334,13 @@ function render(): ActorMetrics[] {
 }
 
 function table(metrics: ActorMetrics[]): string {
-  const head = 'actor            px   w  h  frame%  L min/p2/p98/max  <L35%  >L75%  bands 0-15/15-35/35-55/55-75/75+   contrast mean/min  <3:1%  colours';
+  const head = 'actor            px   w  h  frame%  L* min/p2/p98/max  <L35%  int<35%  >L75%  top/bot dL  bands 0-15/15-35/35-55/55-75/75+   contrast mean/min  <3:1%  colours';
   const rows = metrics.map((m) => {
     const id = m.id.padEnd(15);
     const l = `${String(m.lMin).padStart(3)}/${String(m.lP2).padStart(3)}/${String(m.lP98).padStart(3)}/${String(m.lMax).padStart(3)}`;
     const bands = m.bands.map((b) => String(b).padStart(5)).join(' ');
-    return `${id} ${String(m.pixels).padStart(5)} ${String(m.w).padStart(3)} ${String(m.h).padStart(2)}  ${String(m.framePct).padStart(5)}  ${l}   ${String(m.pctBelow35).padStart(5)}  ${String(m.pctAbove75).padStart(5)}  ${bands}   ${String(m.contrastMean).padStart(5)}/${String(m.contrastMin).padStart(5)}  ${String(m.pctBelow3).padStart(5)}  ${m.colours}`;
+    const lit = `${String(m.topL).padStart(3)}/${String(m.bottomL).padStart(3)} ${String(m.litDelta).padStart(3)}`;
+    return `${id} ${String(m.pixels).padStart(5)} ${String(m.w).padStart(3)} ${String(m.h).padStart(2)}  ${String(m.framePct).padStart(5)}  ${l}    ${String(m.pctBelow35).padStart(5)}  ${String(m.pctBelow35Interior).padStart(7)}  ${String(m.pctAbove75).padStart(5)}  ${lit}  ${bands}   ${String(m.contrastMean).padStart(5)}/${String(m.contrastMin).padStart(5)}  ${String(m.pctBelow3).padStart(5)}  ${m.colours}`;
   });
   return [head, ...rows].join('\n');
 }

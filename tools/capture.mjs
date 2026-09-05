@@ -76,18 +76,20 @@ if (modes.has('sheets')) {
     await sheet(page, 'lineup-enemies-x4-grey', `sheet=lineup&mode=grey&zoom=4&cols=5&group=${[...CRYPT, ...MARSH].join(',')}`);
     writeFileSync(`${OUT}/metrics.json`, JSON.stringify(metrics, null, 2));
     const md = [
-      '| actor | px | w×h | frame % | L min/p2/p98/max | <L35 % | >L75 % | bands 0-15/15-35/35-55/55-75/75+ | contrast mean / min | <3:1 % | colours |',
-      '|---|---|---|---|---|---|---|---|---|---|---|',
-      ...metrics.map((m) => `| ${m.id} | ${m.pixels} | ${m.w}×${m.h} | ${m.framePct} | ${m.lMin}/${m.lP2}/${m.lP98}/${m.lMax} | ${m.pctBelow35} | ${m.pctAbove75} | ${m.bands.join(' / ')} | ${m.contrastMean} / ${m.contrastMin} | ${m.pctBelow3} | ${m.colours} |`),
+      '| actor | px | w×h | frame % | L* min/p2/p98/max | <L35 % | interior <L35 % | >L75 % | top / bottom L* (Δ) | bands 0-15/15-35/35-55/55-75/75+ | contrast mean / min | <3:1 % | colours |',
+      '|---|---|---|---|---|---|---|---|---|---|---|---|---|',
+      ...metrics.map((m) => `| ${m.id} | ${m.pixels} | ${m.w}×${m.h} | ${m.framePct} | ${m.lMin}/${m.lP2}/${m.lP98}/${m.lMax} | ${m.pctBelow35} | ${m.pctBelow35Interior} | ${m.pctAbove75} | ${m.topL} / ${m.bottomL} (${m.litDelta}) | ${m.bands.join(' / ')} | ${m.contrastMean} / ${m.contrastMin} | ${m.pctBelow3} | ${m.colours} |`),
       '',
-      'Ship criteria (ART-REVIEW.md): L span 15-85 with >= 20 % below L 35 and >= 8 % above L 75; mean contrast >= 3:1 with <= 45 % of body pixels below 3:1.',
+      'Ship criteria (ART-REVIEW.md), measured in CIE L*: span 15-85 with >= 20 % below L 35 (>= 20 % of INTERIOR pixels too — a keyline is not an anchor) and >= 8 % above L 75; the top quarter >= 8 L* lighter than the bottom (lit from above); mean contrast >= 3:1 with <= 45 % of body pixels below 3:1.',
       '',
       ...metrics.map((m) => {
         const fails = [];
         if (m.lP2 > 15) fails.push(`dark end ${m.lP2} > 15`);
         if (m.lP98 < 85) fails.push(`light end ${m.lP98} < 85`);
         if (m.pctBelow35 < 20) fails.push(`<L35 ${m.pctBelow35} % < 20`);
+        if (m.pctBelow35Interior < 20) fails.push(`interior <L35 ${m.pctBelow35Interior} % < 20`);
         if (m.pctAbove75 < 8) fails.push(`>L75 ${m.pctAbove75} % < 8`);
+        if (m.litDelta < 8) fails.push(`top-bottom ΔL* ${m.litDelta} < 8 (flat or bottom-lit)`);
         if (m.contrastMean < 3) fails.push(`mean contrast ${m.contrastMean} < 3`);
         if (m.pctBelow3 > 45) fails.push(`${m.pctBelow3} % below 3:1 > 45`);
         return `- ${m.id}: ${fails.length ? fails.join('; ') : 'PASS'}`;
