@@ -37,9 +37,17 @@ export const CAP_CRIT = 100;
 
 /** Matchups: FIRE ▸ WIND ▸ WATER ▸ FIRE, and LIGHT ⇄ DARK mutually. */
 export type Matchup = 'ADVANTAGE' | 'NEUTRAL' | 'DISADVANTAGE';
-export const ELEMENT_MULT: Record<Matchup, number> = { ADVANTAGE: 1.3, NEUTRAL: 1.0, DISADVANTAGE: 0.75 };
-/** Points added to the crit roll per matchup. */
-export const ELEMENT_CRIT: Record<Matchup, number> = { ADVANTAGE: 15, NEUTRAL: 0, DISADVANTAGE: -15 };
+/**
+ * There is no elemental damage multiplier. Advantage adds crit points; disadvantage
+ * risks a GLANCE — no crit, GLANCE_MULT damage. LIGHT ⇄ DARK is advantage both ways
+ * (ELEMENT_CRIT_LD), so a LIGHT or DARK attacker never glances.
+ */
+export const ELEMENT_CRIT = 15;
+export const ELEMENT_CRIT_LD = 15;
+export const GLANCE_CHANCE = 0.5;
+export const GLANCE_MULT = 0.7;
+/** The GLANCE debuff's glance chance per matchup for the holder's hits. */
+export const GLANCE_DEBUFF: Record<Matchup, number> = { ADVANTAGE: 0, NEUTRAL: 0.5, DISADVANTAGE: 1 };
 
 // ------------------------------------------------------------- combat -----
 /** The attack bar: an actor acts at ATB_TURN and carries the overflow. Turn order is event-driven; no dt ever enters the rules. */
@@ -61,14 +69,14 @@ export const CHANCE_SECONDARY = 0.5;
 export type TargetSpec = 'ENEMY' | 'ALL_ENEMIES' | 'ALLY' | 'ALL_ALLIES' | 'SELF' | 'LOWEST_HP_ALLY';
 
 export type StatusKind =
-  | 'STUN' | 'DEF_BREAK' | 'ATK_BREAK' | 'SLOW' | 'BURN' | 'HEAL_BLOCK' | 'BRAND' | 'SILENCE'
+  | 'STUN' | 'DEF_BREAK' | 'ATK_BREAK' | 'SLOW' | 'BURN' | 'HEAL_BLOCK' | 'BRAND' | 'SILENCE' | 'GLANCE'
   | 'ATK_UP' | 'DEF_UP' | 'SPD_UP' | 'CRIT_UP' | 'SHIELD' | 'IMMUNITY' | 'COUNTER' | 'INVINCIBLE';
-export const DEBUFFS: readonly StatusKind[] = ['STUN', 'DEF_BREAK', 'ATK_BREAK', 'SLOW', 'BURN', 'HEAL_BLOCK', 'BRAND', 'SILENCE'];
+export const DEBUFFS: readonly StatusKind[] = ['STUN', 'DEF_BREAK', 'ATK_BREAK', 'SLOW', 'BURN', 'HEAL_BLOCK', 'BRAND', 'SILENCE', 'GLANCE'];
 export const BUFFS: readonly StatusKind[] = ['ATK_UP', 'DEF_UP', 'SPD_UP', 'CRIT_UP', 'SHIELD', 'IMMUNITY', 'COUNTER', 'INVINCIBLE'];
 
 /** Default durations in the AFFECTED actor's turns (a skill may set its own). Stat buffs are 3: two own actions under tick-at-turn-start. */
 export const STATUS_TURNS: Record<StatusKind, number> = {
-  STUN: 1, DEF_BREAK: 2, ATK_BREAK: 2, SLOW: 2, BURN: 2, HEAL_BLOCK: 2, BRAND: 2, SILENCE: 2,
+  STUN: 1, DEF_BREAK: 2, ATK_BREAK: 2, SLOW: 2, BURN: 2, HEAL_BLOCK: 2, BRAND: 2, SILENCE: 2, GLANCE: 2,
   ATK_UP: 3, DEF_UP: 3, SPD_UP: 2, CRIT_UP: 3, SHIELD: 2, IMMUNITY: 1, COUNTER: 2, INVINCIBLE: 1,
 };
 /** Stat statuses modify the stat where it is read: statEff = stat × (1 + up − break), unrounded. */

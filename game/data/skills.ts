@@ -26,7 +26,7 @@ export const SKILLS: Record<SkillId, SkillDef> = {
   // --- GALE · WIND · speed stripper -----------------------------------------
   GUST: { id: 'GUST', name: 'Gust', cooldown: 0, mult: 0.9, hits: 1, scale: 'ATK', kind: 'PHYSICAL', target: 'ENEMY', atbBoost: -0.15, verb: 'cuts' },
   SQUALL: { id: 'SQUALL', name: 'Squall', cooldown: 3, mult: 0.6, hits: 2, scale: 'ATK', kind: 'PHYSICAL', target: 'ENEMY',
-    applies: [{ status: 'SLOW', chance: 0.6, turns: T.SLOW }], verb: 'lashes' },
+    applies: [{ status: 'SLOW', chance: 0.6, turns: T.SLOW }, { status: 'GLANCE', chance: CHANCE_SECONDARY, turns: T.GLANCE }], verb: 'lashes' },
   TAILWIND: { id: 'TAILWIND', name: 'Tailwind', cooldown: 4, mult: 0, hits: 0, scale: 'ATK', kind: 'PHYSICAL', target: 'ALL_ALLIES',
     atbBoost: 0.4, applies: [{ status: 'SPD_UP', chance: 1, turns: T.SPD_UP }], verb: 'lifts' },
   GUST_RIP: { id: 'GUST_RIP', name: 'Gust', cooldown: 0, mult: 0.9, hits: 1, scale: 'ATK', kind: 'PHYSICAL', target: 'ENEMY', atbBoost: -0.3, verb: 'rips' },
@@ -80,7 +80,8 @@ export const SKILLS: Record<SkillId, SkillDef> = {
   RALLY: { id: 'RALLY', name: 'Rally', cooldown: 4, mult: 0, hits: 0, scale: 'ATK', kind: 'PHYSICAL', target: 'ALL_ALLIES',
     applies: [{ status: 'SPD_UP', chance: 1, turns: T.SPD_UP }], verb: 'rallies' },
   MEND: { id: 'MEND', name: 'Mend', cooldown: 3, mult: 0, hits: 0, scale: 'ATK', kind: 'MAGIC', target: 'LOWEST_HP_ALLY', heal: 0.2, verb: 'mends' },
-  WAIL: { id: 'WAIL', name: 'Wail', cooldown: 0, mult: 0.9, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY', verb: 'wails at' },
+  WAIL: { id: 'WAIL', name: 'Wail', cooldown: 0, mult: 0.9, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY',
+    applies: [{ status: 'GLANCE', chance: CHANCE_SECONDARY, turns: T.GLANCE }], verb: 'wails at' },
   CHOKE: { id: 'CHOKE', name: 'Choke', cooldown: 3, mult: 0.7, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY',
     applies: [{ status: 'SILENCE', chance: CHANCE_PRIMARY, turns: T.SILENCE }], verb: 'chokes' },
   SHIELD_BASH: { id: 'SHIELD_BASH', name: 'Shield Bash', cooldown: 0, mult: 1.3, hits: 1, scale: 'DEF', kind: 'PHYSICAL', target: 'ENEMY', verb: 'slams' },
