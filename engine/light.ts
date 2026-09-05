@@ -140,6 +140,14 @@ export interface BiomeLook {
   fill: KeyLight;
   /** The floor pool the actors stand in. */
   pool: PoolLight;
+  /**
+   * A SECOND floor pool. The stage is a diagonal with the party on one side
+   * and the enemies mirrored on the other; one centred pool peaks where nobody
+   * stands and leaves the far half of the diagonal unlit. Give the two bands a
+   * symmetric pair and both halves read. Optional: a biome with a single pool
+   * behaves exactly as before.
+   */
+  pool2?: PoolLight;
   grade: GradeLook;
   fog: FogLook;
   motes: MoteLook;
@@ -254,6 +262,24 @@ const BLOOM_ALPHA = 0.5;
 
 /** Radial gradients are cached per this many px of radius. */
 const RADIUS_BUCKET = 8;
+
+/**
+ * Semi-axes of the grade's elliptical vignette, as a fraction of the frame.
+ * Sized so the corners land at t ~= 1 and every edge mid-point at t ~= 0.7 —
+ * one continuous ramp, no straight inner boundary anywhere.
+ */
+const VIGNETTE_RX = 0.72;
+const VIGNETTE_RY = 0.78;
+
+/**
+ * The per-actor rim spill: its floor (an actor standing outside every pool is
+ * dim, never black) and the lift a fully-lit actor gets on top of it. The
+ * reference weight is the alpha at which a source counts as "full" — the top
+ * of KeyLight.alpha's documented band.
+ */
+const RIM_FLOOR = 0.10;
+const RIM_LIFT = 0.14;
+const RIM_REF = 0.24;
 
 /** Contact shadows are ink, not tint: one colour, hard edge, every biome. */
 const SHADOW_INK = '#05060b';
@@ -460,6 +486,17 @@ interface Baked {
   /** Soft round sprites for the per-actor rim spill and prop glow. */
   rimSprite: HTMLCanvasElement | null;
   glowSprite: HTMLCanvasElement | null;
+  /**
+   * Key, fill and both floor pools flattened to four parallel arrays — centre,
+   * elliptical reach and peak alpha. renderLightPlane walks them per actor to
+   * find the NEAREST source, which is what decides how hard that actor's rim
+   * spills and which way it leans. Built once; the loop reads, never writes.
+   */
+  srcX: number[];
+  srcY: number[];
+  srcRX: number[];
+  srcRY: number[];
+  srcW: number[];
 }
 
 /** Deterministic mote layout: same biome, same dust, every run. */
@@ -512,6 +549,8 @@ function paintKeyLight(ctx: CanvasRenderingContext2D, look: BiomeLook, scale: nu
   blob(ctx, look.fill.color, look.fill.x, look.fill.y, look.fill.radius, look.fill.radius, look.fill.alpha * scale);
   blob(ctx, look.key.color, look.key.x, look.key.y, look.key.radius, look.key.radius, look.key.alpha * scale);
   blob(ctx, look.pool.color, look.pool.x, look.pool.y, look.pool.rx, look.pool.ry, look.pool.alpha * scale);
+  const p2 = look.pool2;
+  if (p2) blob(ctx, p2.color, p2.x, p2.y, p2.rx, p2.ry, p2.alpha * scale);
   const sh = look.shafts;
   if (sh && sh.alpha > 0) {
     ctx.save();
@@ -551,16 +590,33 @@ function bakeGradeMap(look: BiomeLook, width: number, height: number, flatTier: 
   c.fillRect(0, 0, width, height);
   const cx = width / 2;
   const cy = height * 0.46;
-  const outer = Math.max(width, height) * 0.86;
+  // ELLIPTICAL, not a circle scaled to the diagonal. A circular falloff on a
+  // 16:9 frame runs out of gradient long before the left and right edges, so
+  // its last stops pile up into a band down each side with a straight inner
+  // boundary — a rectangular vignette in all but name. Building the gradient
+  // on a unit circle and scaling it to the frame's own proportions puts the
+  // corners at t ~= 1 and the side mid-points at t ~= 0.7, which is a single
+  // smooth ramp of 600+ px from the centre to any edge.
+  const rx = width * VIGNETTE_RX;
+  const ry = height * VIGNETTE_RY;
   // At LOW the uniform tint is already inside the flat background; only the
   // vignette is left to draw over the actors.
   const centre = flatTier ? 0 : look.grade.shadowAlpha;
-  const g = c.createRadialGradient(cx, cy, outer * 0.18, cx, cy, outer);
+  const span = look.grade.vignette - centre;
+  c.save();
+  c.translate(cx, cy);
+  c.scale(rx, ry);
+  const g = c.createRadialGradient(0, 0, 0.16, 0, 0, 1);
   g.addColorStop(0, withAlpha(look.grade.shadow, centre));
-  g.addColorStop(0.58, withAlpha(look.grade.shadow, centre + (look.grade.vignette - centre) * 0.2));
+  g.addColorStop(0.45, withAlpha(look.grade.shadow, centre + span * 0.1));
+  g.addColorStop(0.72, withAlpha(look.grade.shadow, centre + span * 0.36));
+  g.addColorStop(0.9, withAlpha(look.grade.shadow, centre + span * 0.72));
   g.addColorStop(1, withAlpha(look.grade.shadow, look.grade.vignette));
   c.fillStyle = g;
-  c.fillRect(0, 0, width, height);
+  // In the scaled space the frame spans at most +/-0.75 on each axis; 2 covers
+  // it with room for the gradient's own edge clamp.
+  c.fillRect(-2, -2, 4, 4);
+  c.restore();
   return cv;
 }
 
@@ -596,22 +652,48 @@ function softSprite(color: string, size: number): HTMLCanvasElement {
   return cv;
 }
 
-/** Flatten every plane plus the key light and the colour grade into one opaque bitmap — the LOW tier's whole background pass. */
+/**
+ * Flatten every plane plus the key light and the colour grade into one opaque
+ * bitmap — the LOW tier's whole background pass.
+ *
+ * Each painter gets its OWN layer. A painter is entitled to use
+ * 'destination-out' on itself (feathering the joint where its ground meets the
+ * haze is exactly that), and painting all three into one canvas turned that
+ * into an erase straight through the planes behind it — a transparent
+ * full-width strip at the wall line, which is the seam the HD tiers spend
+ * effort breaking. One scratch canvas per plane, at bake time, keeps LOW
+ * showing what HIGH shows.
+ */
 function bakeFlat(look: BiomeLook, width: number, height: number): HTMLCanvasElement {
   const w = width + PLANE_PAD * 2;
   const h = height + PLANE_PAD * 2;
   const cv = makeCanvas(w, h);
   const c = ctx2d(cv);
   c.imageSmoothingEnabled = true;
+  const s = Math.max(w / width, h / height);
+  const layer = makeCanvas(w, h);
+  const lc = ctx2d(layer);
+  lc.imageSmoothingEnabled = true;
+  for (const painter of [look.far, look.mid, look.floor]) {
+    lc.setTransform(1, 0, 0, 1, 0, 0);
+    lc.globalCompositeOperation = 'copy';
+    lc.fillStyle = 'rgba(0,0,0,0)';
+    lc.fillRect(0, 0, w, h);
+    lc.globalCompositeOperation = 'source-over';
+    lc.save();
+    lc.translate(PLANE_PAD, PLANE_PAD);
+    lc.translate(width / 2, height / 2);
+    lc.scale(s, s);
+    lc.translate(-width / 2, -height / 2);
+    painter(lc, width, height);
+    lc.restore();
+    c.drawImage(layer, 0, 0);
+  }
   c.save();
   c.translate(PLANE_PAD, PLANE_PAD);
-  const s = Math.max(w / width, h / height);
   c.translate(width / 2, height / 2);
   c.scale(s, s);
   c.translate(-width / 2, -height / 2);
-  look.far(c, width, height);
-  look.mid(c, width, height);
-  look.floor(c, width, height);
   paintKeyLight(c, look, 1);
   // The grade, minus the vignette: LOW still draws that over the actors.
   c.globalCompositeOperation = 'multiply';
@@ -640,6 +722,14 @@ function bakeFogBand(fog: FogLook, width: number): HTMLCanvasElement {
   return blurred(cv, 12);
 }
 
+function pushSource(b: Baked, x: number, y: number, rx: number, ry: number, w: number): void {
+  b.srcX.push(x);
+  b.srcY.push(y);
+  b.srcRX.push(Math.max(1, rx));
+  b.srcRY.push(Math.max(1, ry));
+  b.srcW.push(w);
+}
+
 function bakeBiome(look: BiomeLook, tier: LightTier, width: number, height: number): Baked {
   const low = tier === 'LOW' || tier === 'ARCADE';
   const med = tier === 'MED';
@@ -658,7 +748,18 @@ function bakeBiome(look: BiomeLook, tier: LightTier, width: number, height: numb
     gradeMap: null,
     rimSprite: null,
     glowSprite: null,
+    srcX: [],
+    srcY: [],
+    srcRX: [],
+    srcRY: [],
+    srcW: [],
   };
+  pushSource(baked, look.key.x, look.key.y, look.key.radius, look.key.radius, look.key.alpha);
+  pushSource(baked, look.fill.x, look.fill.y, look.fill.radius, look.fill.radius, look.fill.alpha);
+  pushSource(baked, look.pool.x, look.pool.y, look.pool.rx, look.pool.ry, look.pool.alpha);
+  if (look.pool2) {
+    pushSource(baked, look.pool2.x, look.pool2.y, look.pool2.rx, look.pool2.ry, look.pool2.alpha);
+  }
   baked.gradeMap = bakeGradeMap(look, width, height, low);
   if (low) {
     baked.flat = bakeFlat(look, width, height);
@@ -840,18 +941,48 @@ export function createLight(opts: CreateLightOptions): Light {
         const glowS = b.glowSprite;
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
+        const srcN = b.srcX.length;
         for (let i = 0; i < actors.length; i++) {
           const a = actors[i];
           const cx = a.x + a.w / 2;
           const cy = a.y + a.h * 0.42;
+          // Which light is actually on this actor? A single centred pool peaks
+          // where nobody stands, so a flat rim alpha left one whole half of the
+          // stage diagonal reading as unlit. Walk the sources, keep the
+          // strongest at this point, and drive BOTH the spill's strength and
+          // its lean off it — blended halfway back toward the key, because the
+          // sprites' own baked rim is upper-left in every biome and the spill
+          // must not fight it.
+          let best = 0;
+          let bx = 0;
+          let by = 0;
+          for (let s = 0; s < srcN; s++) {
+            const ox = b.srcX[s] - cx;
+            const oy = b.srcY[s] - cy;
+            const nd = Math.hypot(ox / b.srcRX[s], oy / b.srcRY[s]);
+            const w = nd >= 1 ? 0 : b.srcW[s] * (1 - nd);
+            if (w > best) {
+              best = w;
+              bx = ox;
+              by = oy;
+            }
+          }
           let dx = l.key.x - cx;
           let dy = l.key.y - cy;
-          const len = Math.hypot(dx, dy) || 1;
-          dx /= len;
-          dy /= len;
+          const kl = Math.hypot(dx, dy) || 1;
+          dx /= kl;
+          dy /= kl;
+          if (best > 0) {
+            const bl = Math.hypot(bx, by) || 1;
+            dx = dx * 0.5 + (bx / bl) * 0.5;
+            dy = dy * 0.5 + (by / bl) * 0.5;
+            const bn = Math.hypot(dx, dy) || 1;
+            dx /= bn;
+            dy /= bn;
+          }
           const rw = a.w * 1.15;
           const rh = a.h * 0.95;
-          ctx.globalAlpha = 0.16;
+          ctx.globalAlpha = RIM_FLOOR + RIM_LIFT * Math.min(1, best / RIM_REF);
           ctx.drawImage(rimS, cx + dx * a.w * 0.3 - rw / 2, cy + dy * a.h * 0.22 - rh / 2, rw, rh);
           const glow = a.glow ?? 0;
           if (glow > 0) {

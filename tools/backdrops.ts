@@ -10,7 +10,14 @@
 //
 //   biome=SKY_RUINS            which BACKDROPS entry to draw (default EMBER_CRYPT;
 //                              accepts either the spaced or underscored form)
-//   tier=HIGH|MED|LOW|ARCADE   light quality tier (default HIGH, the desktop default)
+//   tier=HIGH|MED|LOW|ARCADE   light quality tier (default HIGH, the desktop default).
+//                              ARCADE additionally runs engine/crt.ts over the finished
+//                              frame, exactly as the game does — without it an ARCADE
+//                              capture is byte-identical to LOW.
+//   blank=1                    perf control: the same look with flat-fill painters
+//   runs=40 batches=5          the per-frame cost is the MIN of `batches` batch means of
+//                              `runs` frames each — the machine runs other agents' builds,
+//                              and a single mean measures their load as much as the frame
 //   t=2.4                      the frame time in seconds fed to every render call —
 //                              fog bands, light shafts and the key-light breathing
 //                              alpha are all a function of this, so a nonzero moment
@@ -21,7 +28,7 @@
 //
 // capture: node tools/capture.mjs shot url=/tools/backdrops.html?biome=SKY_RUINS name=backdrop-SKY_RUINS
 
-import { createLight } from '../engine';
+import { createLight, createCrt } from '../engine';
 import type { BiomeLook, LightTier } from '../engine';
 import { CANVAS_W, CANVAS_H } from '../game/screens/layout';
 import { BACKDROPS, backdropFor } from '../game/art/backdrops';
@@ -49,23 +56,80 @@ if (!ctx) throw new Error('backdrops: 2D context unavailable');
 // smoothing main.ts turns on for its own pixel canvas before this module ever draws.
 ctx.imageSmoothingEnabled = true;
 
-const look: BiomeLook = backdropFor(biomeParam);
+const real: BiomeLook = backdropFor(biomeParam);
+// blank=1 is the PERF CONTROL. Same BiomeLook — same plane sizes, same fog,
+// same mote count, same bloom and grade — but the four painters are reduced to
+// one flat fill each. Everything the plane painters draw happens at bake time
+// into a fixed-size offscreen, so if the control and the real biome cost the
+// same per frame, adding a hundred scattered stones to a painter is free at
+// frame time, which is the claim the ground pass rests on.
+const flat = (c: CanvasRenderingContext2D, w: number, h: number): void => {
+  c.fillStyle = '#20202c';
+  c.fillRect(0, 0, w, h);
+};
+const look: BiomeLook =
+  params.get('blank') === '1' ? { ...real, far: flat, mid: flat, floor: flat, near: flat } : real;
 const light = createLight({ width: CANVAS_W, height: CANVAS_H, tier: TIER });
-light.setBiome(look);
 
 // No actors: just the diorama, in the battle screen's own three-call order.
-light.renderBackground(ctx, { time: TIME, shakeX: 0, shakeY: 0 });
-light.renderLightPlane(ctx, { time: TIME });
-light.renderPost(ctx, { time: TIME });
+const g2d = ctx;
+// ARCADE is LOW's planes with the CRT applied over them (DESIGN.md's tier
+// table): bloom and CRT halation are the same effect and exactly one runs. The
+// tool used to stop after renderPost, so an ARCADE capture came back
+// byte-identical to LOW and the ARCADE look was never actually verifiable.
+const crt = TIER === 'ARCADE' ? createCrt() : null;
+function frame(t: number): void {
+  g2d.clearRect(0, 0, CANVAS_W, CANVAS_H);
+  light.renderBackground(g2d, { time: t, shakeX: 0, shakeY: 0 });
+  light.renderLightPlane(g2d, { time: t });
+  light.renderPost(g2d, { time: t });
+  if (crt) crt.render(g2d, CANVAS_W, CANVAS_H, 1 / 60);
+}
+
+// The bake is the expensive half and happens ONCE per (biome, tier): time it
+// separately from the per-frame cost, which is the number DESIGN.md budgets
+// (HIGH ~= 8 ms). The first frames also pay for lazily-built gradient caches,
+// so the mean is taken over a run AFTER a warm-up — and the bloom's source
+// refreshes on alternate frames, so an even sample count is measured.
+const WARM = 12;
+const RUNS = Number(params.get('runs') ?? 40);
+const BATCHES = Number(params.get('batches') ?? 5);
+const t0 = performance.now();
+light.setBiome(look);
+const bakeMs = performance.now() - t0;
+for (let i = 0; i < WARM; i++) frame(TIME + i * 0.016);
+// MIN of several batch means, not one mean. This machine runs other agents'
+// builds and sims; a single sample measures their load as much as the frame,
+// and the minimum is the only statistic that is robust to a noisy neighbour.
+let best = Infinity;
+let total = 0;
+for (let b = 0; b < BATCHES; b++) {
+  const t1 = performance.now();
+  for (let i = 0; i < RUNS; i++) frame(TIME + (b * RUNS + i) * 0.016);
+  const ms = (performance.now() - t1) / RUNS;
+  total += ms;
+  if (ms < best) best = ms;
+}
+const frameMs = best;
+const meanMs = total / BATCHES;
+
+// The screenshot is the LAST thing drawn: one clean frame at exactly TIME.
+frame(TIME);
 
 const known = Object.keys(BACKDROPS).filter((k) => k.includes(' '));
+const timing = `bake ${bakeMs.toFixed(1)} ms · frame ${frameMs.toFixed(2)} ms (best of ${BATCHES}x${RUNS}; mean ${meanMs.toFixed(2)}; tier ${TIER})`;
 out.textContent = [
   `backdrop · biome=${biomeParam} -> ${look.id} · tier=${TIER} · t=${TIME}`,
+  timing,
   `known biomes: ${known.join(', ')}`,
 ].join('\n');
 
-(window as unknown as { __lineup: { ready: boolean; biome: string; tier: LightTier } }).__lineup = {
+(window as unknown as {
+  __lineup: { ready: boolean; biome: string; tier: LightTier; bakeMs: number; frameMs: number };
+}).__lineup = {
   ready: true,
   biome: look.id,
   tier: TIER,
+  bakeMs: Math.round(bakeMs * 10) / 10,
+  frameMs: Math.round(frameMs * 100) / 100,
 };
