@@ -394,8 +394,9 @@ async function runRunsMode({ bundle: bundleFn, data, mulberry32 }) {
  */
 async function runSelfcheck({ data, mulberry32 }) {
   const mod = await bundleSource(
-    "export * from '../game/sim/run.ts';\nexport { createRun } from '../game/sim/runstep.ts';\n",
-    'game/sim/run.ts + game/sim/runstep.ts', 'seam.bundle.mjs');
+    "export * from '../game/sim/run.ts';\nexport { createRun } from '../game/sim/runstep.ts';\n" +
+      "export { nextReady, runTurn, isOver, battleOutcome } from '../game/sim/battle.ts';\n",
+    'game/sim/run.ts + game/sim/runstep.ts + game/sim/battle.ts', 'seam.bundle.mjs');
   for (const name of ['simulateRun', 'runSteps', 'answerWith', 'createRun', 'maxHpOf', 'mkDeriveCtx']) {
     if (typeof mod[name] !== 'function') throw new Error(`the seam bundle must export ${name}()`);
   }
@@ -456,6 +457,76 @@ async function runSelfcheck({ data, mulberry32 }) {
   console.log(`  ${'contract'.padEnd(wP)} ${problems.length ? 'FAILS' : '     ok'}  ${problems.length ? '' : 'stale-token guard · view isolation · map/party/leader fields'}`);
   for (const p of problems) console.error(`SELFCHECK contract: ${p}`);
   if (problems.length) exitCode = 1;
+
+  const screenProblems = probeScreenPaths(mod, config, mulberry32);
+  console.log(`  ${'screens'.padEnd(wP)} ${screenProblems.length ? 'FAILS' : '     ok'}  ${screenProblems.length ? '' : 'deathBy survives a drained event log · a withdrawn Vault relic is not still banked'}`);
+  for (const p of screenProblems) console.error(`SELFCHECK screens: ${p}`);
+  if (screenProblems.length) exitCode = 1;
+}
+
+/**
+ * Two things only a screen does, which no policy driver would ever catch:
+ *  (a) it DRAINS `battle.events` every turn (screens/battle.ts's schedulePlayback empties the queue inside the
+ *      call that fills it), so a WIPE must still name its killer — `findDeathBy` reads `battle.kills`;
+ *  (b) it starts a run with a Vault, and a relic equipped out of the Vault must not also be banked back out of
+ *      it (DESIGN.md:919 — equipping withdraws).
+ * Returns a list of problems; empty is a pass.
+ */
+function probeScreenPaths({ createRun, answerWith, POLICIES, nextReady, runTurn, isOver, battleOutcome }, config, mulberry32) {
+  const problems = [];
+
+  // (a) the battle screen's loop: run the turns and throw the event queue away as it goes.
+  const asAScreen = (pending) => {
+    const battle = pending.battle;
+    for (;;) {
+      const actor = nextReady(battle);
+      if (!actor) break;
+      runTurn(battle, actor, actor.side === 'HERO' ? 0 : undefined);
+      battle.events.length = 0; // schedulePlayback: drained inside the same call that filled it
+      if (isOver(battle)) break;
+    }
+    battle.events.length = 0;
+    return { result: battleOutcome(battle) };
+  };
+  const rng = mulberry32(SEED);
+  let wipes = 0;
+  for (let i = 0; i < 40 && wipes < 3; i++) {
+    const run = createRun(config(SPD_VALUE), rng);
+    for (let guard = 0; run.pending() && guard < 100000; guard++) {
+      const p = run.pending();
+      run.decide(p.kind === 'BATTLE' ? asAScreen(p) : answerWith(p, POLICIES.random, rng), run.token());
+    }
+    const r = run.result();
+    if (r && r.deathKind === 'WIPE') {
+      wipes += 1;
+      if (!r.deathBy) problems.push('a WIPE played out through a drained event log reported no deathBy');
+    }
+  }
+  if (wipes === 0) problems.push('no WIPE happened in 40 screen-driven runs — the deathBy probe proved nothing');
+
+  // (b) three kindled Vault relics, all equipped: none of them may still be in the Vault at the end.
+  if (VAULT_RELICS.length >= 3) {
+    const vaultCfg = { ascension: 0, vault: VAULT_RELICS.slice(0, 3), vaultSlots: 3, roster: [...config(undefined).roster] };
+    const vrng = mulberry32(SEED);
+    const run = createRun(vaultCfg, vrng);
+    let equipped = [];
+    for (let guard = 0; run.pending() && guard < 100000; guard++) {
+      const p = run.pending();
+      const answer = answerWith(p, POLICIES.balanced, vrng);
+      if (p.kind === 'VAULT_EQUIP') equipped = [...answer].map((i) => p.vault[i].id);
+      run.decide(answer, run.token());
+      if (p.kind === 'VAULT_EQUIP') {
+        const left = run.state().vault.map((r) => r.id);
+        for (const id of equipped) if (left.includes(id)) problems.push(`${id} was equipped out of the Vault and is still in it`);
+      }
+    }
+    if (equipped.length === 0) problems.push('balanced equipped nothing from a three-relic Vault — the withdrawal probe proved nothing');
+    const banked = run.result().banked.map((r) => r.id);
+    for (const id of equipped) {
+      if (banked.filter((b) => b === id).length > 1) problems.push(`${id} is in the banked Vault twice`);
+    }
+  }
+  return problems;
 }
 
 /**

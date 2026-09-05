@@ -44,6 +44,16 @@ export interface Battle {
   /** Structured, data-only presentation events, pushed at the point each thing happens. A screen drains this
    * array after each runTurn(); simulateBattle never reads it (a fresh Battle per call, discarded with it). */
   events: BattleEvent[];
+  /**
+   * The killing subset of `events` — every HIT, BURN_TICK and DEATH, the same objects in the same order —
+   * kept for the whole battle and NEVER drained. `events` is a presentation queue the battle screen empties
+   * inside the very call that fills it (screens/battle.ts's `schedulePlayback`), so at the end of an
+   * interactively-played battle nothing was left for sim/run.ts's `findDeathBy` to read and every interactive
+   * death reported `deathBy: ''`. This is that log's memory. Bookkeeping, not rules: nothing reads it during
+   * a battle, no draw depends on it, and it holds only the three kinds `findDeathBy` examines — dropping the
+   * kinds it always skips cannot change what its backward scan finds.
+   */
+  kills: BattleEvent[];
   actorTurns: number;
   heroTurns: number;
   rng: Rng;
@@ -87,6 +97,14 @@ export type BattleEvent =
   | { kind: 'BURN_TICK'; actor: Actor; amount: number }
   | { kind: 'VEIL'; actor: Actor }
   | { kind: 'STALL' };
+
+/** Pushes one event to `events` for a screen to play back AND to `kills`, the copy that outlives a drained
+ * queue (see `Battle.kills`). Only the three kinds `findDeathBy` reads go through here; every other event is
+ * pushed straight to `events` as before. Same object, same order, no draw. */
+function emitKill(battle: Battle, ev: BattleEvent): void {
+  battle.events.push(ev);
+  battle.kills.push(ev);
+}
 
 interface ProbeAcc {
   dmgDealtToBoss: number;
@@ -486,11 +504,11 @@ function tickBurn(battle: Battle, actor: Actor): boolean {
     if (shield.pool <= 0) actor.statuses = actor.statuses.filter((s) => s !== shield);
   }
   actor.hp -= dmg;
-  battle.events.push({ kind: 'BURN_TICK', actor, amount: dmg });
+  emitKill(battle, { kind: 'BURN_TICK', actor, amount: dmg });
   if (actor.hp <= 0) {
     actor.hp = 0;
     actor.alive = false;
-    battle.events.push({ kind: 'DEATH', actor });
+    emitKill(battle, { kind: 'DEATH', actor });
     return true;
   }
   return false;
@@ -586,9 +604,9 @@ function resolveOneHit(battle: Battle, attacker: Actor, target: Actor, skill: Sk
   target.hp -= dealt - absorb;
   const diedNow = target.hp <= 0;
   if (diedNow) { target.hp = 0; target.alive = false; }
-  battle.events.push({ kind: 'HIT', attacker, target, dealt, absorb, crit, glance, killed: diedNow });
+  emitKill(battle, { kind: 'HIT', attacker, target, dealt, absorb, crit, glance, killed: diedNow });
   if (diedNow) {
-    battle.events.push({ kind: 'DEATH', actor: target });
+    emitKill(battle, { kind: 'DEATH', actor: target });
     return { dealt, crit, glance, diedNow: true };
   }
 
@@ -1059,7 +1077,7 @@ export function createBattle(party: Party, enemies: Actor[], policy: ActPolicy, 
   for (const a of [...heroes, ...enemies]) { a.cooldowns = a.cooldowns.map(() => 0); a.statuses = []; } // battle start: cooldowns 0, no statuses
 
   const battle: Battle = {
-    heroes, enemies, party, leaderSlot: party.leader, log: [], events: [], actorTurns: 0, heroTurns: 0, rng, policy,
+    heroes, enemies, party, leaderSlot: party.leader, log: [], events: [], kills: [], actorTurns: 0, heroTurns: 0, rng, policy,
     pacts, ascension, act: ctx.act ?? 1, lap: ctx.lap ?? 1, enraged: false, veilUsed: false, firstCastDone: new WeakSet(),
     bossRef: pickBossRef(enemies),
     probeAcc: { dmgDealtToBoss: 0, hitsTakenByHeroes: 0, hpLostByHeroes: 0, stunsOnBoss: 0, debuffsResistedOnBoss: 0, ttk: 0, bossDied: false },

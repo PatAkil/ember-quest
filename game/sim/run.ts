@@ -45,6 +45,9 @@ interface Ctx {
   ascRow: AscensionRow;
   pactsTaken: PactId[];
   pool: SetId[];
+  /** The run's own Vault: a copy of `config.vault` taken at the start (the caller's array is never mutated),
+   * minus every relic run-start equip withdrew. `resolveBank` banks back into this. */
+  vault: Relic[];
   score: number;
   act: number;
   lap: number;
@@ -92,7 +95,7 @@ function snapshotOf(ctx: Ctx): RunSnapshot {
   return {
     ...runStateFor(ctx),
     party: { members: ctx.party.members.map(cloneMember), leader: ctx.party.leader },
-    vault: ctx.config.vault.slice(),
+    vault: ctx.vault.slice(),
     map: map ? { stages: map.stages.map((s) => [...s]), entry: [...map.entry], links: map.links.map((st) => st.map((l) => [...l])) } : null,
     stage: ctx.stage, nodeIdx: ctx.nodeIdx, path: ctx.path.map((p) => ({ ...p })),
     offeredIdxs: [...ctx.offeredIdxs], offeredTypes: [...ctx.offeredTypes],
@@ -109,10 +112,12 @@ function deriveCtxFor(ctx: Ctx): DeriveCtx {
 function rollCtxFor(ctx: Ctx, forced?: Rarity): RollCtx {
   return { act: ctx.act, lap: ctx.lap, ascension: ctx.ascension, pool: ctx.pool, pacts: ctx.pactsTaken, forced, nextId: () => String(ctx.relicSeq++) };
 }
+/** `vault` is the run's own Vault — `RunConfig.vault` minus whatever run-start equip withdrew, never the
+ * caller's array. */
 function runStateFor(ctx: Ctx): RunState {
   return {
     party: ctx.party, ascension: ctx.ascension, act: ctx.act, lap: ctx.lap, clears: ctx.clearsThisAct,
-    vault: ctx.config.vault, vaultSlots: ctx.config.vaultSlots, pactsTaken: [...ctx.pactsTaken],
+    vault: ctx.vault, vaultSlots: ctx.config.vaultSlots, pactsTaken: [...ctx.pactsTaken],
   };
 }
 /** score += ROOM_SCORE[type] × actNumber × (1 + SCORE_ASCENSION × ascension); actNumber = ACTS × (lap−1) + act. */
@@ -564,14 +569,21 @@ function* resolveAltar(ctx: Ctx): RunStep<void> {
 }
 
 // =================================================================== vault ==
-/** The run-start vaultEquip: up to `vaultSlots` Vault relics onto the starter, one per slot, first relic per
- * slot wins; keeps the answer's prefix before the first invalid entry. */
+/**
+ * The run-start vaultEquip: up to `vaultSlots` Vault relics onto the starter, one per slot, first relic per
+ * slot wins; keeps the answer's prefix before the first invalid entry. Every relic equipped is WITHDRAWN —
+ * removed from the run's Vault (DESIGN.md:919, "withdrawing removes a relic from the Vault"), so it is worn
+ * rather than worn AND still banked; it re-enters the Vault only if banking takes it back at the end.
+ *
+ * The run's Vault is `ctx.vault`, a copy taken from `RunConfig.vault` at the start: the config the caller
+ * handed in is never mutated (the harness reuses one config array across thousands of runs).
+ */
 function* applyVaultEquip(ctx: Ctx): RunStep<void> {
-  if (ctx.config.vaultSlots <= 0 || ctx.config.vault.length === 0) return;
+  if (ctx.config.vaultSlots <= 0 || ctx.vault.length === 0) return;
   const dctx = deriveCtxFor(ctx);
   const starter = ctx.party.members[0];
   const answer = (yield {
-    kind: 'VAULT_EQUIP', vault: ctx.config.vault, slots: ctx.config.vaultSlots, party: ctx.party,
+    kind: 'VAULT_EQUIP', vault: ctx.vault, slots: ctx.config.vaultSlots, party: ctx.party,
   }) as AnswerFor<'VAULT_EQUIP'>;
   const wanted: readonly number[] = Array.isArray(answer) ? answer : [];
   const usedSlots = new Set<Slot>();
@@ -579,20 +591,21 @@ function* applyVaultEquip(ctx: Ctx): RunStep<void> {
   let equipped = 0;
   for (const idx of wanted) {
     if (equipped >= ctx.config.vaultSlots) break;
-    if (!Number.isInteger(idx) || idx < 0 || idx >= ctx.config.vault.length || usedIdx.has(idx)) break;
-    const relic = ctx.config.vault[idx];
+    if (!Number.isInteger(idx) || idx < 0 || idx >= ctx.vault.length || usedIdx.has(idx)) break;
+    const relic = ctx.vault[idx];
     if (usedSlots.has(relic.slot)) break;
     usedIdx.add(idx); usedSlots.add(relic.slot);
     equip(starter, relic, dctx);
     equipped += 1;
   }
+  if (usedIdx.size > 0) ctx.vault = ctx.vault.filter((_, i) => !usedIdx.has(i)); // withdrawn
 }
 /** Banking at run end: `n` = BANK_WIN + lap − 1 at DESCEND, BANK_DEATH on any death. Validates the policy's
  * `take` (truncated to min(n, worn.length), distinct, in range) and `drop`, then — if the result would still
  * overflow VAULT_SIZE — drops the lowest-level remaining Vault relics itself (tie: earliest in the Vault). */
 function* resolveBank(ctx: Ctx, n: number): RunStep<Relic[]> {
   const worn = partyWorn(ctx.party);
-  const vault = ctx.config.vault;
+  const vault = ctx.vault; // what is still IN the Vault — anything worn was withdrawn at the run's start
   if (n <= 0) return vault.slice();
   const answer = (yield { kind: 'BANK', worn, n, vault, vaultSize: VAULT_SIZE }) as AnswerFor<'BANK'>;
   // The two lists are read off the answer defensively (a screen may send anything); everything below — the
@@ -913,7 +926,7 @@ export function* runSteps(config: RunConfig, rng: Rng, observer?: RunObserver): 
   // a screen drawing the draft already has a (still empty) run to read.
   const party: Party = { members: [], leader: 0 };
   const ctx: Ctx = {
-    config, rng, party, ascension, ascRow, pactsTaken: [], pool: [], score: 0, act: 1, lap: 1,
+    config, rng, party, ascension, ascRow, pactsTaken: [], pool: [], vault: config.vault.slice(), score: 0, act: 1, lap: 1,
     clearsThisAct: 0, totalClears: 0, awakenedLog: [], dryStreak: 0, swaps: 0, rests: [], shrines: [], rooms: [],
     turnsPerBattle: [], enrages: 0, probes: [], relicSeq: 0, actsCleared: 0,
     map: null, stage: -1, nodeIdx: -1, path: [], offeredIdxs: [], offeredTypes: [],
@@ -1108,19 +1121,26 @@ function actFromBattleTs(fn: ActFn): Policy['act'] {
   return (battle, actor, options, rng) => fn(battle as Battle, actor, options, rng);
 }
 
-/** DESIGN.md → RunResult.deathBy: on a WIPE, the enemy whose hit downed the last living hero, or on a BURN
- * death the actor at `status.by`; '' if no hero ever died (shouldn't happen on a real WIPE, but never throws). */
+/**
+ * DESIGN.md → RunResult.deathBy: on a WIPE, the enemy whose hit downed the last living hero, or on a BURN
+ * death the actor at `status.by`; '' if no hero ever died (shouldn't happen on a real WIPE, but never throws).
+ *
+ * Reads `battle.kills` rather than `battle.events`: the same HIT/BURN_TICK/DEATH objects in the same order,
+ * but kept for the life of the battle. A screen drains `events` every turn (screens/battle.ts's
+ * `schedulePlayback` empties it inside the very call that fills it), so on the interactive path this scan ran
+ * over an empty array and every death the player actually watched was reported with no killer at all.
+ */
 function findDeathBy(battle: Battle): string {
   let deathIdx = -1;
   let victim: Actor | undefined;
-  for (let i = 0; i < battle.events.length; i++) {
-    const e = battle.events[i];
+  for (let i = 0; i < battle.kills.length; i++) {
+    const e = battle.kills[i];
     if (e.kind === 'DEATH' && e.actor.side === 'HERO') { deathIdx = i; victim = e.actor; }
   }
   if (deathIdx < 0 || !victim) return '';
   const idOf = (a: Actor): string => a.def.id;
   for (let i = deathIdx - 1; i >= 0; i--) {
-    const e: BattleEvent = battle.events[i];
+    const e: BattleEvent = battle.kills[i];
     if (e.kind === 'HIT' && e.target === victim && e.killed) return idOf(e.attacker);
     if (e.kind === 'BURN_TICK' && e.actor === victim) {
       const burn = victim.statuses.find((s) => s.kind === 'BURN');
