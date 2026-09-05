@@ -181,6 +181,21 @@ export interface LightActor {
   h: number;
   /** 0..1+ — a lit prop (flame staff, orb, halo) the bloom should catch. */
   glow?: number;
+  /**
+   * WHERE on the box that prop actually is, as fractions of `w` and `h` from
+   * the box's top-left: `{dx: 0.32, dy: 0.14}` is a staff head held high on the
+   * key side. The glow used to be a disc as wide as the whole sprite centred on
+   * the sprite, which lit the carrier's own garment as hard as it lit the prop
+   * — an authored L* 12 cell inside EMBER's torso rendered at 47.7 and the
+   * plane the artist put there disappeared, while GALE (a dagger, no glow) kept
+   * its 15 % below L 35. A prop is a point light a few cells across, not a
+   * lantern inside the character.
+   *
+   * Omit it and the default applies, which is the upper-left quadrant where
+   * staffs, raised orbs and halos sit. A caller that knows its recipe's anchor
+   * should pass the real one; the field is optional so no caller has to change.
+   */
+  glowAt?: { dx: number; dy: number };
 }
 
 export interface CreateLightOptions {
@@ -280,6 +295,34 @@ const VIGNETTE_RY = 0.78;
 const RIM_FLOOR = 0.10;
 const RIM_LIFT = 0.14;
 const RIM_REF = 0.24;
+/** How far along the light direction the spill is pushed, as fractions of the box. */
+const RIM_PUSH_X = 0.3;
+const RIM_PUSH_Y = 0.22;
+
+/**
+ * The lit prop. Two pieces, and neither of them is a disc over the torso:
+ *
+ *  - a TIGHT halo at the prop itself (radius `GLOW_HALO` + `GLOW_HALO_GAIN`
+ *    x glow, as a fraction of the actor's width — about 20 px on a 128-px
+ *    hero), so the flame or orb sits in its own bloom;
+ *  - a WIDE, FLAT pool centred on the actor's FEET, which is the light the
+ *    prop throws on the ground and into the contact shadow. It is squashed to
+ *    `GLOW_POOL_SQUASH` of its width, so it reaches barely a boot-height above
+ *    the floor and never climbs the garment.
+ *
+ * The bloom is then fed the halo's own footprint rather than the whole sprite:
+ * the prop's bright pixels survive renderPost's self-multiply threshold on
+ * their own, and this only guarantees a small flame still catches.
+ */
+const GLOW_AT_DX = 0.32;
+const GLOW_AT_DY = 0.14;
+const GLOW_HALO = 0.09;
+const GLOW_HALO_GAIN = 0.07;
+const GLOW_HALO_ALPHA = 0.34;
+const GLOW_POOL = 0.5;
+const GLOW_POOL_GAIN = 0.34;
+const GLOW_POOL_ALPHA = 0.2;
+const GLOW_POOL_SQUASH = 0.24;
 
 /** Contact shadows are ink, not tint: one colour, hard edge, every biome. */
 const SHADOW_INK = '#05060b';
@@ -980,19 +1023,38 @@ export function createLight(opts: CreateLightOptions): Light {
             dx /= bn;
             dy /= bn;
           }
+          // The spill around the silhouette. Its geometry is deliberately
+          // UNCHANGED: pushing it out onto the lit edge (push 0.62, a
+          // 0.92 x 0.74 disc) was tried against the torso measurements and
+          // rejected — it moves EMBER's torso from 25.4 % below L 35 to 47.4 %,
+          // well past the reference frames' own 14-20 %, and buys TIDE only
+          // 0.6 -> 5.1 % because TIDE's measured box is a white robe with a lit
+          // orb in the middle of it, not a garment plane.
           const rw = a.w * 1.15;
           const rh = a.h * 0.95;
           ctx.globalAlpha = RIM_FLOOR + RIM_LIFT * Math.min(1, best / RIM_REF);
-          ctx.drawImage(rimS, cx + dx * a.w * 0.3 - rw / 2, cy + dy * a.h * 0.22 - rh / 2, rw, rh);
+          ctx.drawImage(rimS, cx + dx * a.w * RIM_PUSH_X - rw / 2, cy + dy * a.h * RIM_PUSH_Y - rh / 2, rw, rh);
           const glow = a.glow ?? 0;
           if (glow > 0) {
-            const gr = a.w * (0.9 + glow * 0.6);
-            ctx.globalAlpha = 0.34 * glow;
-            ctx.drawImage(glowS, cx + dx * a.w * 0.16 - gr / 2, cy - gr / 2, gr, gr);
+            // Anchored at the PROP, not at the actor's centre of mass.
+            const at = a.glowAt;
+            const gx = a.x + (at ? at.dx : GLOW_AT_DX) * a.w;
+            const gy = a.y + (at ? at.dy : GLOW_AT_DY) * a.h;
+            // The light it throws on the floor: wide, flat, at the feet, where
+            // there is no sprite to wash out.
+            const pr = a.w * (GLOW_POOL + glow * GLOW_POOL_GAIN);
+            const ph = pr * GLOW_POOL_SQUASH;
+            ctx.globalAlpha = GLOW_POOL_ALPHA * glow;
+            ctx.drawImage(glowS, gx - pr, a.y + a.h - ph, pr * 2, ph * 2);
+            // The prop's own halo: small enough that its falloff is spent
+            // before it reaches the chest.
+            const hr = a.w * (GLOW_HALO + glow * GLOW_HALO_GAIN);
+            ctx.globalAlpha = GLOW_HALO_ALPHA * glow;
+            ctx.drawImage(glowS, gx - hr, gy - hr, hr * 2, hr * 2);
             if (glowN < 16) {
-              glowX[glowN] = cx + dx * a.w * 0.16;
-              glowY[glowN] = cy;
-              glowR[glowN] = gr * 0.5;
+              glowX[glowN] = gx;
+              glowY[glowN] = gy;
+              glowR[glowN] = hr;
               glowA[glowN] = glow;
               glowN++;
             }
@@ -1082,14 +1144,18 @@ export function createLight(opts: CreateLightOptions): Light {
           src.globalCompositeOperation = 'multiply';
           src.drawImage(bloomB, 0, 0);
           src.drawImage(bloomB, 0, 0);
-          // Lit props are added back at full strength: a flame staff must glow
-          // even when its pixels are not the brightest thing on screen.
+          // Lit props are nudged back in so a small flame still catches even
+          // when its pixels are not the brightest thing on screen — at the
+          // PROP's own footprint. Centred on the sprite and sized to it, this
+          // used to blow the whole carrier back over its own garment after the
+          // upscale; the prop's bright pixels already survive the self-multiply
+          // threshold above on their own, so this only has to guarantee them.
           if (glowN > 0) {
             const k = bloomW / W;
             src.setTransform(k, 0, 0, k, 0, 0);
             src.globalCompositeOperation = 'lighter';
             for (let i = 0; i < glowN; i++) {
-              blob(src, l.key.color, glowX[i], glowY[i], glowR[i] * 0.85, glowR[i] * 0.85, 0.5 * glowA[i]);
+              blob(src, l.key.color, glowX[i], glowY[i], glowR[i] * 0.7, glowR[i] * 0.7, 0.34 * glowA[i]);
             }
             src.setTransform(1, 0, 0, 1, 0, 0);
           }
