@@ -363,6 +363,10 @@ export function actorHitRect(recipe: ActorRecipe, x: number, y: number): { x: nu
 // same dx/dy every frame), which is what keeps a literally-placed accessory
 // (a crown, a halo) glued to its neighbour without needing its own anchor.
 
+// Amplitudes doubled from v3.0 for the art-quality pass — a figure roughly
+// twice the linear size needs a bob/swing roughly twice as large to read as
+// the same GESTURE at ×3 rather than a twitch (DESIGN.md's "2-3 cell bob, a
+// weapon arc that travels").
 function buildRig(layerCount: number, weaponIdx?: number, capeIdx?: number): Record<PoseName, LayerKeyframe[][]> {
   const idle: LayerKeyframe[][] = [];
   const attack: LayerKeyframe[][] = [];
@@ -372,16 +376,16 @@ function buildRig(layerCount: number, weaponIdx?: number, capeIdx?: number): Rec
   for (let i = 0; i < layerCount; i++) {
     const isWeapon = i === weaponIdx;
     const isCape = i === capeIdx;
-    idle.push(isCape ? [{ dy: 0 }, { dx: 1, dy: 1 }, { dx: 0, dy: 0 }] : [{ dy: 0 }, { dy: -1 }, { dy: 0 }]);
-    if (isWeapon) attack.push([{ rot: 270 }, { rot: 90, dx: 2 }, { rot: 0 }]);
-    else if (isCape) attack.push([{ dx: -1 }, { dx: 2 }, { dx: 0 }]);
-    else if (weaponIdx === undefined) attack.push([{ dx: 0 }, { dx: 3 }, { dx: 0 }]);
-    else attack.push([{ dx: 0 }, { dx: 1 }, { dx: 0 }]);
-    if (isWeapon) cast.push([{ dy: -1 }, { dy: -4 }, { dy: -4 }]);
-    else if (isCape) cast.push([{ dy: 0 }, { dy: 1 }, { dy: 0 }]);
-    else cast.push([{ dy: 0 }, { dy: -1 }, { dy: -1 }]);
-    hurt.push([{ dx: -3 }, { dx: 0 }]);
-    dead.push([{ dy: 2 }, { dy: 5 }]);
+    idle.push(isCape ? [{ dy: 0 }, { dx: 2, dy: 2 }, { dx: 0, dy: 0 }] : [{ dy: 0 }, { dy: -2 }, { dy: 0 }]);
+    if (isWeapon) attack.push([{ rot: 270 }, { rot: 90, dx: 5 }, { rot: 0 }]); // wind-up, the swing travels, recover
+    else if (isCape) attack.push([{ dx: -2 }, { dx: 4 }, { dx: 0 }]);
+    else if (weaponIdx === undefined) attack.push([{ dx: 0 }, { dx: 6 }, { dx: 0 }]); // no weapon: a body lunge (BASALT's slam)
+    else attack.push([{ dx: 0 }, { dx: 3 }, { dx: 0 }]);
+    if (isWeapon) cast.push([{ dy: -2 }, { dy: -7 }, { dy: -7 }]);
+    else if (isCape) cast.push([{ dy: 0 }, { dy: 2 }, { dy: 0 }]);
+    else cast.push([{ dy: 0 }, { dy: -2 }, { dy: -2 }]);
+    hurt.push([{ dx: -5 }, { dx: 0 }]);
+    dead.push([{ dy: 3 }, { dy: 8 }]);
   }
   return { idle, attack, hurt, cast, dead };
 }
@@ -397,30 +401,54 @@ function anchorPoint(partId: PartId, at: Point, name: AnchorName): Point {
 
 // --- Recipes ------------------------------------------------------------------
 // Literal placements (a recipe's base/body layer, plus the odd literally
-// -placed accessory) were authored to stand feet-first at (32, 58) on the
-// 64-cell hero canvas / (48, 90) on the 96-cell boss canvas, then tuned by
-// eye against the verification screenshot.
+// -placed accessory) were authored so every hero's/normal's FEET land at
+// y ~= 62 of the 64-cell canvas (BOSS_PART's at y ~= 93 of 96) — a shared
+// "ground line" so the roster stands together at gameplay scale — then
+// tuned by eye against the verification screenshot.
 
-const HERO_HIT_SIZE = { w: 18, h: 40 };
-const BOSS_HIT_SIZE = { w: 30, h: 62 };
+const HERO_HIT_SIZE = { w: 32, h: 68 };
+const BOSS_HIT_SIZE = { w: 58, h: 118 };
 
-const SLIM_AT: Point = { x: 25, y: 39 };
-const HEAVY_AT: Point = { x: 23, y: 39 };
-const ROBE_AT: Point = { x: 24, y: 38 };
-const SHIELD_AT: Point = { x: 17, y: 43 };
-const IMP_AT: Point = { x: 27, y: 45 };
-const IMP_WINGS_AT: Point = { x: 23, y: 40 };
-const HOUND_AT: Point = { x: 25, y: 46 };
-const WRAITH_AT: Point = { x: 26, y: 42 };
-const TOAD_AT: Point = { x: 24, y: 47 };
-const WISP_AT: Point = { x: 28, y: 48 };
-const CRAB_AT: Point = { x: 24, y: 48 };
-const FENFIRE_AT: Point = { x: 29, y: 50 };
-const KING_AT: Point = { x: 34, y: 61 };
-const CROWN_AT: Point = { x: 43, y: 46 };
-const HALO_AT: Point = { x: 43, y: 45 };
+const SLIM_AT: Point = { x: 20, y: 21 }; // EMBER, GALE (torso_lean shares this footprint), SABLE, LUMEN
+const HEAVY_AT: Point = { x: 16, y: 19 }; // BASALT, CRYPT_WARDEN, PYRE_KNIGHT, DROWNED_KNIGHT
+const ROBE_AT: Point = { x: 14, y: 19 }; // TIDE, MARSH_HAG
+// torso_heavy's own centreline sits at HEAVY_AT.x + HEAVY_LH (16 + 16 = 32,
+// the 64-cell canvas centre) — SHIELD_AT/TOWER_AT centre each shield's OWN
+// half-width (10 / 11) on that same column so it reads as held in front,
+// not off to one side.
+const SHIELD_AT: Point = { x: 22, y: 23 }; // knights' round shield, literal in front
+// TOWER_AT deliberately does NOT centre the shield on the torso: fully
+// overlapping torso_heavy's own 33-wide silhouette left it entirely inside
+// the body's outline, reading as "more red chest" rather than a held
+// object — shifted left so it visibly pokes out past the body's own edge.
+const TOWER_AT: Point = { x: 8, y: 15 };
+const CREST_AT: Point = { x: 29, y: 0 }; // knight helm crest (plume/kelp), literal above the helm
+const LUMEN_HALO_AT: Point = { x: 24, y: 1 }; // hero-scale halo, floating above HEAD_LONGHAIR
+const OFFHAND_AT: Point = { x: 22, y: 40 }; // GALE's sheathed off-hand dagger, at the hip (torso_slim's own hip band starts at absolute y ~= 42)
 
-/** The common "torso + arms + head + hand weapon [+ cloak]" biped shape — EMBER, GALE, TIDE, SABLE, LUMEN and the staff-bearing support enemies all share it. */
+const IMP_AT: Point = { x: 21, y: 33 };
+const IMP_WINGS_AT: Point = { x: 19, y: 35 };
+const HOUND_AT: Point = { x: 18, y: 41 };
+const WRAITH_AT: Point = { x: 18, y: 24 };
+const TOAD_AT: Point = { x: 10, y: 37 };
+const WISP_AT: Point = { x: 20, y: 39 };
+const CRAB_AT: Point = { x: 10, y: 39 };
+const FENFIRE_AT: Point = { x: 22, y: 45 };
+
+const KING_AT: Point = { x: 26, y: 28 }; // shared footprint: KING_BODY and SAINT_BODY are both 45x66
+const CROWN_AT: Point = { x: 40, y: 4 }; // HOLLOW_KING
+const SAINT_HALO_AT: Point = { x: 40, y: 2 }; // PALE_SAINT (boss scale)
+
+/**
+ * The common "torso + arms + head + hand weapon [+ cape] [+ offhand] [+
+ * accessory]" biped shape — EMBER, GALE, TIDE, SABLE, LUMEN and the
+ * staff/cane-bearing support enemies all share it. `cape` takes a PartId
+ * (not a boolean) so a scarf, a short cloak or a full cloak can all use the
+ * same slot; `offhand` is a small literal accent (a sheathed second blade)
+ * that rides along with the torso rather than gripping anything; `accessory`
+ * is a literal ornament (a halo) that floats above the head, on the same
+ * pattern bossRecipe already uses for a crown.
+ */
 function humanoidRecipe(opts: {
   id: string;
   element: Element;
@@ -429,7 +457,9 @@ function humanoidRecipe(opts: {
   head: PartId;
   arms: PartId;
   weapon: PartId;
-  cape?: boolean;
+  cape?: PartId;
+  offhand?: { part: PartId; at: Point };
+  accessory?: { part: PartId; at: Point };
 }): ActorRecipe {
   const layers: LayerDef[] = [
     { part: opts.torso, at: opts.torsoAt, z: 1 },
@@ -440,8 +470,10 @@ function humanoidRecipe(opts: {
   let capeIdx: number | undefined;
   if (opts.cape) {
     capeIdx = layers.length;
-    layers.push({ part: 'cloak', at: anchor(0, 'capePin'), z: 0 });
+    layers.push({ part: opts.cape, at: anchor(0, 'capePin'), z: 0 });
   }
+  if (opts.offhand) layers.push({ part: opts.offhand.part, at: opts.offhand.at, z: 2 });
+  if (opts.accessory) layers.push({ part: opts.accessory.part, at: opts.accessory.at, z: 5 });
   return {
     id: opts.id,
     element: opts.element,
@@ -454,15 +486,16 @@ function humanoidRecipe(opts: {
   };
 }
 
-/** Sword + shield knights (PYRE_KNIGHT, DROWNED_KNIGHT) — the shield is literally placed (a raised guard barely moves pose to pose) rather than anchored, since the six-name anchor vocabulary has no second grip point. */
-function knightRecipe(id: string, element: Element): ActorRecipe {
+/** Sword + shield knights (PYRE_KNIGHT, DROWNED_KNIGHT) — the shield is literally placed (a raised guard barely moves pose to pose) rather than anchored, since the six-name anchor vocabulary has no second grip point. An optional helm crest (PLUME/KELP) tells the two knights apart beyond their element tint. */
+function knightRecipe(id: string, element: Element, crest?: PartId): ActorRecipe {
   const layers: LayerDef[] = [
     { part: 'torso_heavy', at: HEAVY_AT, z: 1 },
-    { part: 'arms_idle', at: anchor(0, 'hand'), z: 2 },
+    { part: 'arms_sleeve', at: anchor(0, 'hand'), z: 2 },
     { part: 'head_helm', at: anchor(0, 'head'), z: 4 },
     { part: 'sword', at: anchor(1, 'weaponGrip'), z: 3 },
     { part: 'shield', at: SHIELD_AT, z: 2 },
   ];
+  if (crest) layers.push({ part: crest, at: CREST_AT, z: 5 });
   return {
     id,
     element,
@@ -502,12 +535,19 @@ function monsterRecipe(
   };
 }
 
-/** Boss-scale: a shared big torso + head, a crown or halo (literal — moves in lockstep with the head via the shared default keyframes, see buildRig), a cloak, and a weapon-slot (claws / a holy orb) anchored to the body's own weaponGrip. */
-function bossRecipe(opts: { id: string; element: Element; accessory: PartId; accessoryAt: Point; weapon: PartId }): ActorRecipe {
+/**
+ * Boss-scale: a body + head (KING_BODY/KING_HEAD's gapped bone vs.
+ * SAINT_BODY/SAINT_HEAD's unbroken robe — see parts.ts — so the two bosses
+ * no longer share a silhouette), a crown or halo (literal — moves in
+ * lockstep with the head via the shared default keyframes, see buildRig), a
+ * cloak, and a weapon-slot (claws / a holy orb) anchored to the body's own
+ * weaponGrip (bosses have no separate arms layer).
+ */
+function bossRecipe(opts: { id: string; element: Element; body: PartId; head: PartId; cape: PartId; accessory: PartId; accessoryAt: Point; weapon: PartId }): ActorRecipe {
   const layers: LayerDef[] = [
-    { part: 'king_body', at: KING_AT, z: 1 },
-    { part: 'cloak', at: anchor(0, 'capePin'), z: 0 },
-    { part: 'king_head', at: anchor(0, 'head'), z: 4 },
+    { part: opts.body, at: KING_AT, z: 1 },
+    { part: opts.cape, at: anchor(0, 'capePin'), z: 0 },
+    { part: opts.head, at: anchor(0, 'head'), z: 4 },
     { part: opts.accessory, at: opts.accessoryAt, z: 5 },
     { part: opts.weapon, at: anchor(0, 'weaponGrip'), z: 3 },
   ];
@@ -516,19 +556,21 @@ function bossRecipe(opts: { id: string; element: Element; accessory: PartId; acc
     element: opts.element,
     res: BOSS_PART,
     layers,
-    feet: anchorPoint('king_body', KING_AT, 'feet'),
-    hit: anchorPoint('king_body', KING_AT, 'hit'),
+    feet: anchorPoint(opts.body, KING_AT, 'feet'),
+    hit: anchorPoint(opts.body, KING_AT, 'hit'),
     hitSize: BOSS_HIT_SIZE,
     rigs: buildRig(layers.length, 4, 1),
   };
 }
 
+/** BASALT: full helm, broad pauldrons, a tower shield held in front, and a mace — no bare sword-and-buckler read like the knights. */
 const BASALT: ActorRecipe = (() => {
   const layers: LayerDef[] = [
     { part: 'torso_heavy', at: HEAVY_AT, z: 1 },
     { part: 'arms_guard', at: anchor(0, 'hand'), z: 2 },
     { part: 'head_helm', at: anchor(0, 'head'), z: 4 },
-    { part: 'shield', at: anchor(1, 'weaponGrip'), z: 3 },
+    { part: 'mace', at: anchor(1, 'weaponGrip'), z: 3 },
+    { part: 'tower_shield', at: TOWER_AT, z: 4 },
   ];
   return {
     id: 'BASALT',
@@ -538,35 +580,65 @@ const BASALT: ActorRecipe = (() => {
     feet: anchorPoint('torso_heavy', HEAVY_AT, 'feet'),
     hit: anchorPoint('torso_heavy', HEAVY_AT, 'hit'),
     hitSize: HERO_HIT_SIZE,
-    // No weapon index: BASALT's "attack" is a shield-forward body slam, not a swing.
-    rigs: buildRig(layers.length),
+    rigs: buildRig(layers.length, 3), // the mace (index 3) swings; the tower shield punches forward with it
   };
 })();
 
-/** The six heroes and every enemy id in game/data/enemies.ts (EMBER CRYPT + FROST MARSH), looked up by that same string id. */
+/**
+ * The six heroes and every enemy id in game/data/enemies.ts (EMBER CRYPT +
+ * FROST MARSH), looked up by that same string id. Per DESIGN.md's
+ * silhouette rule, every hero gets its own head AND its own weapon/cape
+ * shape — never just a shared body with a different tint:
+ *   EMBER spiked hair + bare arms + a flame-headed staff; GALE a windswept
+ *   crop + a forward-leaning torso + a scarf streaming back + a sheathed
+ *   off-hand blade (twin daggers without a second arm rig); TIDE a deep
+ *   hood + both arms cradling a floating orb; BASALT a full helm + a tower
+ *   shield held in front + a mace; SABLE a shadowed pointed hood (lit eyes)
+ *   + a short cloak + a curved dagger held low; LUMEN long hair + a
+ *   floating halo + a tall bow.
+ */
 export const ACTOR_RECIPES: Record<string, ActorRecipe> = {
   // --- heroes ---
-  EMBER: humanoidRecipe({ id: 'EMBER', element: 'FIRE', torso: 'torso_slim', torsoAt: SLIM_AT, head: 'head_round', arms: 'arms_idle', weapon: 'staff' }),
-  GALE: humanoidRecipe({ id: 'GALE', element: 'WIND', torso: 'torso_slim', torsoAt: SLIM_AT, head: 'head_round', arms: 'arms_idle', weapon: 'dagger' }),
-  TIDE: humanoidRecipe({ id: 'TIDE', element: 'WATER', torso: 'torso_robe', torsoAt: ROBE_AT, head: 'head_round', arms: 'arms_idle', weapon: 'orb' }),
+  EMBER: humanoidRecipe({ id: 'EMBER', element: 'FIRE', torso: 'torso_slim', torsoAt: SLIM_AT, head: 'head_spiky', arms: 'arms_bare', weapon: 'staff' }),
+  GALE: humanoidRecipe({
+    id: 'GALE',
+    element: 'WIND',
+    torso: 'torso_lean',
+    torsoAt: SLIM_AT,
+    head: 'head_windswept',
+    arms: 'arms_sleeve',
+    weapon: 'dagger',
+    cape: 'scarf',
+    offhand: { part: 'dagger_small', at: OFFHAND_AT },
+  }),
+  TIDE: humanoidRecipe({ id: 'TIDE', element: 'WATER', torso: 'torso_robe', torsoAt: ROBE_AT, head: 'head_hood_deep', arms: 'arms_both', weapon: 'orb' }),
   BASALT,
-  SABLE: humanoidRecipe({ id: 'SABLE', element: 'DARK', torso: 'torso_slim', torsoAt: SLIM_AT, head: 'head_hood', arms: 'arms_idle', weapon: 'dagger', cape: true }),
-  LUMEN: humanoidRecipe({ id: 'LUMEN', element: 'LIGHT', torso: 'torso_slim', torsoAt: SLIM_AT, head: 'head_round', arms: 'arms_idle', weapon: 'bow', cape: true }),
+  SABLE: humanoidRecipe({ id: 'SABLE', element: 'DARK', torso: 'torso_slim', torsoAt: SLIM_AT, head: 'head_hood_shadow', arms: 'arms_sleeve', weapon: 'dagger_curved', cape: 'short_cloak' }),
+  LUMEN: humanoidRecipe({
+    id: 'LUMEN',
+    element: 'LIGHT',
+    torso: 'torso_slim',
+    torsoAt: SLIM_AT,
+    head: 'head_longhair',
+    arms: 'arms_sleeve',
+    weapon: 'bow_tall',
+    accessory: { part: 'halo', at: LUMEN_HALO_AT },
+  }),
   // --- EMBER CRYPT ---
   CINDER_IMP: monsterRecipe('CINDER_IMP', 'FIRE', 'imp_body', IMP_AT, { part: 'imp_wings', at: IMP_WINGS_AT, z: 0, sway: true }),
   ASH_HOUND: monsterRecipe('ASH_HOUND', 'FIRE', 'hound_body', HOUND_AT),
-  CRYPT_WARDEN: humanoidRecipe({ id: 'CRYPT_WARDEN', element: 'FIRE', torso: 'torso_heavy', torsoAt: HEAVY_AT, head: 'head_helm', arms: 'arms_idle', weapon: 'staff' }),
+  CRYPT_WARDEN: humanoidRecipe({ id: 'CRYPT_WARDEN', element: 'FIRE', torso: 'torso_heavy', torsoAt: HEAVY_AT, head: 'head_helm', arms: 'arms_sleeve', weapon: 'lantern' }),
   DUST_WRAITH: monsterRecipe('DUST_WRAITH', 'WIND', 'wraith_body', WRAITH_AT),
-  PYRE_KNIGHT: knightRecipe('PYRE_KNIGHT', 'FIRE'),
-  HOLLOW_KING: bossRecipe({ id: 'HOLLOW_KING', element: 'DARK', accessory: 'crown', accessoryAt: CROWN_AT, weapon: 'claw' }),
+  PYRE_KNIGHT: knightRecipe('PYRE_KNIGHT', 'FIRE', 'plume'),
+  HOLLOW_KING: bossRecipe({ id: 'HOLLOW_KING', element: 'DARK', body: 'king_body', head: 'king_head', cape: 'cloak_ragged', accessory: 'crown', accessoryAt: CROWN_AT, weapon: 'claw' }),
   // --- FROST MARSH ---
   BOG_TOAD: monsterRecipe('BOG_TOAD', 'WATER', 'toad_body', TOAD_AT),
   FROST_WISP: monsterRecipe('FROST_WISP', 'WATER', 'wisp_body', WISP_AT),
-  MARSH_HAG: humanoidRecipe({ id: 'MARSH_HAG', element: 'WATER', torso: 'torso_robe', torsoAt: ROBE_AT, head: 'head_hood', arms: 'arms_idle', weapon: 'staff' }),
+  MARSH_HAG: humanoidRecipe({ id: 'MARSH_HAG', element: 'WATER', torso: 'torso_robe', torsoAt: ROBE_AT, head: 'head_hag', arms: 'arms_sleeve', weapon: 'cane' }),
   SILT_CRAB: monsterRecipe('SILT_CRAB', 'WATER', 'crab_body', CRAB_AT),
   FEN_FIRE: monsterRecipe('FEN_FIRE', 'FIRE', 'fenfire_body', FENFIRE_AT),
-  DROWNED_KNIGHT: knightRecipe('DROWNED_KNIGHT', 'WATER'),
-  PALE_SAINT: bossRecipe({ id: 'PALE_SAINT', element: 'LIGHT', accessory: 'halo', accessoryAt: HALO_AT, weapon: 'orb' }),
+  DROWNED_KNIGHT: knightRecipe('DROWNED_KNIGHT', 'WATER', 'kelp'),
+  PALE_SAINT: bossRecipe({ id: 'PALE_SAINT', element: 'LIGHT', body: 'saint_body', head: 'saint_head', cape: 'cloak_holy', accessory: 'halo', accessoryAt: SAINT_HALO_AT, weapon: 'orb' }),
 };
 
 // --- Demo hook ----------------------------------------------------------------
@@ -582,16 +654,19 @@ interface DemoActor {
   y: number;
 }
 
+// Spacing widened from v3.0 for the bigger silhouettes (roughly double the
+// linear size — see parts.ts's SIZE note) so the staggered stage doesn't
+// pile the three heroes on top of each other.
 const DEMO_HEROES: readonly DemoActor[] = [
-  { id: 'EMBER', x: 408, y: 380 },
-  { id: 'GALE', x: 464, y: 448 },
-  { id: 'TIDE', x: 520, y: 516 },
+  { id: 'EMBER', x: 330, y: 330 },
+  { id: 'GALE', x: 420, y: 420 },
+  { id: 'TIDE', x: 510, y: 510 },
 ];
 // "enemies mirrored about x 640" (DESIGN.md): enemyX = 640 + (640 - heroX).
 const DEMO_ENEMIES: readonly DemoActor[] = [
-  { id: 'CINDER_IMP', x: 1280 - 408, y: 380 },
-  { id: 'ASH_HOUND', x: 1280 - 464, y: 448 },
-  { id: 'CRYPT_WARDEN', x: 1280 - 520, y: 516 },
+  { id: 'CINDER_IMP', x: 1280 - 330, y: 330 },
+  { id: 'ASH_HOUND', x: 1280 - 420, y: 420 },
+  { id: 'CRYPT_WARDEN', x: 1280 - 510, y: 510 },
 ];
 
 const demoVfx: VfxInstance[] = [];
