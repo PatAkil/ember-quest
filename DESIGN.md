@@ -472,6 +472,23 @@ the WARDEN; numbers are phase 8's):
 | PYRE KNIGHT | FIRE | elite FOCUS | Shield Bash DEF ×1.3 / Brace SELF DEF_UP + COUNTER (4) / Immolate ALL_ENEMIES ×0.7 + BURN 0.50 (5) |
 | HOLLOW KING | DARK | boss FOCUS | Reap ×1.2 / Dread Wail ALL_ENEMIES ×0.8 + SLOW 0.50 (3) / Shroud SELF INVINCIBLE 1 (5) / A5: Doom ×2.0 + HEAL_BLOCK 0.75 (4) |
 
+**FROST MARSH** (act 2, WATER, foil FIRE, boss LIGHT):
+
+| Enemy | El. | Kind / AI | Skills (cooldown) |
+|---|---|---|---|
+| BOG TOAD | WATER | normal SPREAD | Tongue Lash ×1.0 / Bog Spit ×0.7 + SLOW 0.75 (3) |
+| FROST WISP | WATER | normal SPREAD | Chill ×0.9 / Deep Freeze ×0.8 + STUN 0.75 (4) |
+| MARSH HAG | WATER | normal support | Cane ×0.8 / Salve LOWEST_HP_ALLY heal 0.20 (3) / Brine Ward ALL_ALLIES SHIELD 0.15 (4) |
+| SILT CRAB | WATER | normal FOCUS, resist 20 / 5 | Pinch DEF ×1.1 / Crush DEF ×1.4 + DEF_BREAK 0.75 (4) |
+| FEN FIRE | FIRE | normal SPREAD, CRIT 25 | Flicker ×0.9 / Ignite ×0.8 + BURN 0.75 (3) |
+| DROWNED KNIGHT | WATER | elite FOCUS | Rusted Blade ×1.2 / Drag Under ×1.0 + HEAL_BLOCK 0.75 (3) / Deluge ALL_ENEMIES ×0.7 + DEF_BREAK 0.50 (5) |
+| PALE SAINT | LIGHT | boss FOCUS | Halo Lash ×1.2 / Smite ×1.8 (4) / Pale Flood ALL_ENEMIES ×0.8 + DEF_BREAK 0.50 (3) / A5: Sanctify SELF heal 0.10 + cleanse all + DEF_UP (5) |
+
+Packs: `fights` [TOAD, WISP] · [WISP, FEN FIRE] · [CRAB, TOAD] · [TOAD, HAG,
+FEN FIRE] · [WISP, HAG, CRAB]; `elites` [KNIGHT] · [KNIGHT, WISP]; the boss
+alone. Under the highest-index AI the Saint's rhythm is Flood → Smite →
+Lash: the break, then the telegraphed hit.
+
 ### Between battles
 
 Cooldowns reset to 0 and every status and shield clears at battle end; HP
