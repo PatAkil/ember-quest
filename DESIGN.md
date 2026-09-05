@@ -142,7 +142,7 @@ A leader skill's `amount` is in the stat's native unit (percent for the four
 flats, points for the four percents) and reaches all three members, leader
 included; with `element` set, members of that element get `elementAmount`
 instead; `pts` is never rounded. Whenever a `derive` changes `maxHp` (equip,
-unequip, move, swap, leader, awakening, pact) `hp = hp === 0 ? 0 : max(1,
+unequip, move, swap, leader, awakening, pact, a level-up of a worn relic) `hp = hp === 0 ? 0 : max(1,
 round(maxHp_new × hp / maxHp_old))`.
 
 ### Mitigation
@@ -901,8 +901,8 @@ interface Policy {
   route(offered: RoomType[], run, rng): number;                       // the current node's successors, span order
   act(battle, actor, options: { skill: number; target: number }[], rng): number;
   relic(cards, party, rng): { card: number; onto: number } | null;
-  summon(offers, party, rng): number | { swap: number; out: number } | null;   // full party: 0 = the EPIC
-  forge(worn, rng): { relic: number; mode: 'LEVEL' | 'RECAST' | 'REBRAND'; substat?: number; set?: SetId } | null;
+  summon(offers, party, rng): number | { swap: number; out: number } | null;   // full party: 0 = the EPIC; offers carry `dominant`, the coming act's element
+  forge(worn, pool, rng): { relic: number; mode: 'LEVEL' | 'RECAST' | 'REBRAND'; substat?: number; set?: SetId } | null;   // pool = the run's set pool
   shrine(pact, run, rng): boolean;            altar(party, rng): number;
   rest(run, rng): 'HEAL' | { sharpen: number };                       // sharpen = a member index
   lap(run, rng): 'DESCEND' | 'LAP';
