@@ -555,3 +555,69 @@ export interface RunResult {
   rests: ('HEAL' | 'SHARPEN')[];
   probes: Probe[];
 }
+
+// ----------------------------------------------------------------- policy ---
+/**
+ * A minimal, structural view of a running battle: enough for a Policy's `act` to read ally/enemy state without
+ * this file importing sim/battle.ts's `Battle` (this file imports nothing — DESIGN.md → Module layout). Every
+ * real `Battle` satisfies this by having more fields, so a `Policy` is assignable wherever `sim/battle.ts`
+ * expects its own narrower `{ act: ActFn }` — see game/sim/run.ts's "Contract notes".
+ */
+export interface BattleView {
+  heroes: Actor[];
+  enemies: Actor[];
+}
+
+/** Run-level state exposed to route/shrine/rest/lap — the current party and the run's position in it.
+ * `sim/run.ts`'s `simulateRun` owns the concrete run and builds one of these per policy call. */
+export interface RunState {
+  party: Party;
+  ascension: number;
+  act: number;
+  lap: number;
+  /** FIGHT/ELITE clears so far this act (CLEAR_GROWTH's counter). */
+  clears: number;
+  vault: Relic[];
+  vaultSlots: number;
+  /** Pacts taken so far, run order. */
+  pactsTaken: PactId[];
+}
+
+/** One SUMMON recruit offer: the character plus whether their element beats the coming act's dominant —
+ * precomputed by the caller so `summon` stays a pure function of (offers, party, rng). */
+export interface SummonOffer {
+  def: CharacterDef;
+  favored: boolean;
+  /** The coming act's dominant element, repeated per offer for convenience — lets `summon` judge which current
+   * party member that dominant would beat, for the swap-out decision (not in DESIGN.md's `summon(offers,
+   * party, rng)` sketch; see game/sim/run.ts's "Contract notes"). */
+  dominant: Element;
+}
+
+/**
+ * DESIGN.md → Difficulty targets: every choice in a run funnels through one of these methods; the harness
+ * always calls them and `main.ts` never does. Each receives the enumerated legal options (and `rng` last, per
+ * the randomness contract); an out-of-range or otherwise illegal answer is clamped or declines per method —
+ * DESIGN.md states the exact fallback for each.
+ */
+export interface Policy {
+  draft(roster: readonly string[], rng: Rng): number;
+  leader(party: Party, rng: Rng): number;
+  /** The current node's successors, span order. */
+  route(offered: readonly RoomType[], run: RunState, rng: Rng): number;
+  act(battle: BattleView, actor: Actor, options: ActOption[], rng: Rng): number;
+  relic(cards: readonly Relic[], party: Party, rng: Rng): { card: number; onto: number } | null;
+  /** Full party: 0 answers "the EPIC". */
+  summon(offers: readonly SummonOffer[], party: Party, rng: Rng): number | { swap: number; out: number } | null;
+  /** `pool` is the run's set pool (rollSetPool) — not in DESIGN.md's `forge(worn, rng)` sketch, added so a
+   * REBRAND answer can name a legal target set; see game/sim/run.ts's "Contract notes". */
+  forge(worn: readonly Relic[], pool: readonly SetId[], rng: Rng): { relic: number; mode: 'LEVEL' | 'RECAST' | 'REBRAND'; substat?: number; set?: SetId } | null;
+  shrine(pact: Pact, run: RunState, rng: Rng): boolean;
+  altar(party: Party, rng: Rng): number;
+  rest(run: RunState, rng: Rng): 'HEAL' | { sharpen: number };
+  lap(run: RunState, rng: Rng): 'DESCEND' | 'LAP';
+  /** vault − drop + take ≤ VAULT_SIZE. */
+  bank(worn: readonly Relic[], n: number, vault: readonly Relic[], rng: Rng): { take: number[]; drop: number[] };
+  /** First relic per slot wins. */
+  vaultEquip(vault: readonly Relic[], slots: number, starter: Party, rng: Rng): number[];
+}
