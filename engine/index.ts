@@ -59,6 +59,25 @@ export type { Audio, Sfx } from './audio';
 export { SAFE_MARGIN, setSafeInset, getSafeInset, drawScore, drawLives, hudText, drawPanel, dimScene } from './ui';
 export type { SafeInset, HudOptions, PanelOptions, HAnchor, VAnchor } from './ui';
 
+export { createLight } from './light';
+export type {
+  Light,
+  LightTier,
+  BiomeLook,
+  BiomeLooks,
+  LightActor,
+  PlanePainter,
+  KeyLight,
+  PoolLight,
+  GradeLook,
+  FogLook,
+  MoteLook,
+  CreateLightOptions,
+  BackgroundFrame,
+  LightPlaneFrame,
+  PostFrame,
+} from './light';
+
 export { createCrt } from './crt';
 export type { Crt, CrtOptions } from './crt';
 
