@@ -276,6 +276,18 @@ function ramp(h: number, s: number, l: number): Ramp {
     legal(h, sat, mid), // 3 mid
     legal(towards(h, WARM, 12), Math.max(12, sat - 14), clamp(mid + 14, 76, 84)), // 4 lit
     legal(towards(h, WARM, 20), Math.max(8, sat - 30), clamp(mid + 24, 85, 93)), // 5 spec
+    // 6 PLANE — the one step the lift never touches. `legal` raises every step
+    // from 2 up until it clears 3.2:1 against the sheet's navy, and 3.2:1
+    // against #1d2b53 is L 51: four of the six steps above could never sit
+    // below L 51, so a garment had no shadow SIDE at all, only a lit side and a
+    // near-black anchor. Under the scene's key light that read as a glow —
+    // EMBER's torso measured L 48-85 with 0 % below L 35 in `battle-1.png`
+    // where the reference's own characters hold p50 50-53 with 14-20 % under
+    // it. This is the garment's own hue at L 29-34 (CIE L* 31-37), one step
+    // above the anchor mass and well under the lift, and parts.ts spends it on
+    // ONE authored area per figure — the chest under the chin, the far side of
+    // a skirt — never on a computed cell.
+    hsl(towards(h, COOL, 16), Math.max(9, sat - 6), clamp(mid - 28, 28, 33)),
   ];
 }
 
@@ -293,6 +305,7 @@ function glowRamp(h: number, s = 84, top = 92): Ramp {
     hsl(h + 6, s - 4, 62), // 3
     hsl(h + 12, s - 12, Math.max(76, top - 14)), // 4
     hsl(h + 20, Math.max(18, s - 44), top), // 5 core
+    hsl(h - 10, Math.min(100, s + 2), 22), // 6 plane — a light source inside a cast shadow is still a light source, so this is barely below its outer falloff
   ];
 }
 
@@ -347,6 +360,22 @@ const OLIVE: Ramp = ramp(96, 22, 50);
 const WHITE_CLOTH: Ramp = ramp(228, 12, 70);
 const BLOOD_TABARD: Ramp = ramp(352, 21, 42); // round 7: another fifth off — it is BASALT's kite and the Pyre Knight's tabard, the two garments behind CINDER_IMP
 const ASH_HIDE: Ramp = ramp(246, 8, 58);
+/**
+ * ROUND 8 — HUE SEPARATION, not another chroma cut. Measured over the top ten
+ * colours of the idle-0 bake, ASH_HOUND and DUST_WRAITH overlapped 71 % (they
+ * were literally the same ramp, `ASH_HIDE`, and the L51 lavender rgb(126,119,141)
+ * was a top-ten colour on five actors); BASALT and CRYPT_WARDEN 54 % (both on
+ * the neutral H222 steel); LUMEN and PALE_SAINT 37 % (both on WHITE_CLOTH *and*
+ * GOLD_HAIR). Four garments move across the wheel and nothing loses chroma:
+ * the hound's hide to a warm H30 ash, the warden's plate to bronze over a warm
+ * hide skirt, the Saint's robe a step COOLER than LUMEN's and its trim a deeper,
+ * redder gold than her hair.
+ */
+const HOUND_HIDE: Ramp = ramp(30, 24, 48); // and 10 L down: the full-frame critic read the hound as a pale blob in the scene
+const WARDEN_BRONZE: Ramp = ramp(36, 20, 46);
+const WARDEN_HIDE: Ramp = ramp(20, 16, 44);
+const SAINT_ROBE: Ramp = ramp(196, 19, 68);
+const SAINT_GOLD: Ramp = ramp(28, 26, 52);
 const MOSS: Ramp = ramp(104, 12, 46); // and a tenth off the Hag's, then a fifth more in round 7
 const SILT: Ramp = ramp(34, 22, 52);
 const DUSK_CLOTH: Ramp = ramp(268, 12, 56);
@@ -683,6 +712,17 @@ interface RigRoles {
   props?: readonly number[];
   /** The head: it holds still while the torso breathes, snaps back on a hit, and falls BELOW the shoulder line on death. */
   head?: number;
+  /**
+   * The literally-placed layers that sit ON the head — a crown, a halo, a
+   * plume, weed caught on a helm. A carried prop LAGS the body on a hit (a
+   * struck shield stays where it was struck), but a crest is part of the skull:
+   * round 7 drove HOLLOW_KING's head fourteen cells and left his crown at two,
+   * so 109 cells of crown floated over three bare rows above the skull in hurt
+   * frames 0 and 1 — on the largest sprite in the game, in the animation that
+   * plays every time the boss is hit. A crest takes the head's OWN total
+   * displacement, body included.
+   */
+  crests?: readonly number[];
   /** The layer everything else hangs off. */
   body: number;
   /** The arms layer, and the arms part it swaps to on a hit — a recoil has to change the figure's SHAPE, not just its position. */
@@ -756,6 +796,12 @@ function buildRig(roles: RigRoles): Record<PoseName, LayerKeyframe[][]> {
   const dead: LayerKeyframe[][] = [];
   const rot = roles.collapse[roles.body].rot;
   const HOLD: LayerKeyframe[] = [{}];
+  // The body's own hurt displacement, written once: the head adds its two cells
+  // on top of this, and a CREST has to add exactly the same two so it lands on
+  // the skull it belongs to.
+  const rd = roles.recoilDx ?? -5;
+  const bodyDx: readonly number[] = roles.recoilBody ? [rd, Math.round(rd * 0.6), -1] : [-5, -3, -1];
+  const bodyDy: readonly number[] = [1, 0, 0];
   for (let i = 0; i < roles.count; i++) {
     const isWeapon = i === roles.weapon;
     const isCape = i === roles.cape;
@@ -848,9 +894,15 @@ function buildRig(roles: RigRoles): Record<PoseName, LayerKeyframe[][]> {
     else if (isWeapon) hurt.push([{ dx: -2, dy: 8 }, { dx: -3, dy: 6 }, { dx: -1, dy: 2 }]);
     else if (isCape) hurt.push([{ dx: 6, dy: -1 }, { dx: 4 }, { dx: 1 }]);
     else if (isHead) hurt.push([{ part: roles.tilt, dx: -2, dy: 2 }, { part: roles.tilt, dx: -1, dy: 1 }, { dx: 0 }]);
+    else if (roles.crests?.includes(i))
+      hurt.push([
+        { dx: bodyDx[0] - 2, dy: bodyDy[0] + 2 },
+        { dx: bodyDx[1] - 1, dy: bodyDy[1] + 1 },
+        { dx: bodyDx[2], dy: bodyDy[2] },
+      ]);
     else if (rides) hurt.push(i === roles.arms && roles.recoil ? [{ part: roles.recoil }, { part: roles.recoil }, { part: roles.recoil }] : HOLD);
-    else if (isBody && roles.recoilBody) hurt.push([{ part: roles.recoilBody, dx: roles.recoilDx ?? -5, dy: 1 }, { part: roles.recoilBody, dx: Math.round((roles.recoilDx ?? -5) * 0.6) }, { dx: -1 }]);
-    else if (isBody) hurt.push([{ dx: -5, dy: 1 }, { dx: -3 }, { dx: -1 }]);
+    else if (isBody && roles.recoilBody) hurt.push([{ part: roles.recoilBody, dx: bodyDx[0], dy: bodyDy[0] }, { part: roles.recoilBody, dx: bodyDx[1] }, { dx: bodyDx[2] }]);
+    else if (isBody) hurt.push([{ dx: bodyDx[0], dy: bodyDy[0] }, { dx: bodyDx[1] }, { dx: bodyDx[2] }]);
     else if (roles.props?.includes(i)) hurt.push([{ dx: 4, dy: -2 }, { dx: 2, dy: -1 }, { dx: 0 }]);
     else hurt.push([{ dx: -2 }, { dx: -1 }, { dx: 0 }]);
 
@@ -975,14 +1027,14 @@ const BOSS_HIT_SIZE = { w: 56, h: 88 };
 const TOWER_AT: Point = { x: 7, y: 25 }; // BASALT's full-height kite, carried on the far arm and reaching the knee
 const SHIELD_AT: Point = { x: 10, y: 29 }; // the Drowned Knight's broken kite, low on a hunched frame
 const PLUME_AT: Point = { x: 29, y: -1 }; // a crest ABOVE the helm, not a flame growing out of the skull
-const KELP_AT: Point = { x: 27, y: 6 };
+const KELP_AT: Point = { x: 36, y: 18 }; // ROUND 8 — off the visor: at (27,6) the weed covered the whole face and painted the vertical bars the critic read there five rounds running
 const HALO_AT: Point = { x: 22, y: 1 };
 const OFFHAND_AT: Point = { x: 18, y: 42 }; // GALE's sheathed second blade, at the hip
 const WINGS_AT: Point = { x: 15, y: 41 }; // the imp's wings, behind its shoulders
 const CROWN_AT: Point = { x: 35, y: 5 }; // and a crown sits askew on a skull
-const BOSS_HALO_AT: Point = { x: 30, y: 3 }; // a halo hangs where it likes, not on the figure's centre line
+const BOSS_HALO_AT: Point = { x: 24, y: 1 }; // ROUND 8 — six cells further off the centre line and two rows higher: mirror IoU 81.9 was the cast's highest, and a halo tipped off its wearer's crown is the one asymmetric element this silhouette owns
 const CLAW_LEFT_AT: Point = { x: 26, y: 64 }; // the Hollow King's other hand — a CLOSED fist, landed on the far arm's own wrist and three rows below the open one, so his two arms are neither level nor the same shape
-const SAINT_STAFF_AT: Point = { x: 38, y: 55 }; // the Saint's staff: its ring under the orb, its shaft two cells LEFT of the robe's centre line
+const SAINT_STAFF_AT: Point = { x: 34, y: 50 }; // ROUND 8 — four cells further out and five rows higher, so the shaft breaks the bell's own edge instead of running down inside it
 
 /** The recoil rig each arms family swaps to on a hit; a cradle (the robe sleeves) keeps its hands, so it has none. */
 const RECOIL_ARMS: Partial<Record<PartId, PartId>> = {
@@ -1025,8 +1077,8 @@ interface HumanoidOpts {
   /** A hem that lags the body by a cell on the breath, and a cape whose own outline changes with it. */
   swayBody?: PartId;
   swayCape?: PartId;
-  /** `drops` marks an extra that lands on the ground when its bearer does — a shield, a sheathed blade; everything else (a halo, a crest) simply leaves the frame. */
-  extras?: { part: PartId; at: Point; z: number; drops?: boolean }[];
+  /** `drops` marks an extra that lands on the ground when its bearer does — a shield, a sheathed blade; everything else (a halo, a crest) simply leaves the frame. `crest` marks one that sits ON the head and must take the head's own recoil. */
+  extras?: { part: PartId; at: Point; z: number; drops?: boolean; crest?: boolean }[];
   palette?: Partial<Record<Material, Ramp>>;
 }
 
@@ -1063,12 +1115,14 @@ function humanoid(opts: HumanoidOpts): ActorRecipe {
   }
   const dropped = new Map<number, LayerKeyframe>();
   const props: number[] = [];
+  const crests: number[] = [];
   let side = -18;
   for (const e of opts.extras ?? []) {
     if (e.drops) {
       dropped.set(layers.length, dropExtra(e.part, e.at, CENTRE_X, GROUND_Y, side = -side + (side < 0 ? 4 : 0)));
       props.push(layers.length);
     }
+    if (e.crest) crests.push(layers.length);
     layers.push({ part: e.part, at: e.at, z: e.z });
     anchored.push(false);
   }
@@ -1088,6 +1142,7 @@ function humanoid(opts: HumanoidOpts): ActorRecipe {
     weapon: 3,
     cape: capeIdx,
     props,
+    crests,
     head: 2,
     body: 0,
     arms: 1,
@@ -1230,8 +1285,8 @@ interface BossOpts {
   sway2?: PartId;
   /** A mantle whose own outline drags a frame behind the shoulders — without one a boss's idle is one shape at two heights. */
   swayCape?: PartId;
-  /** `drops` marks an extra that lands on the ground line when its bearer does — the Saint's staff; everything else (a halo, a crown) simply leaves the frame. */
-  extras?: { part: PartId; at: Point; z: number; drops?: boolean }[];
+  /** `drops` marks an extra that lands on the ground line when its bearer does — the Saint's staff; everything else (a halo, a crown) simply leaves the frame. `crest` marks one that sits ON the head and must take the head's own recoil. */
+  extras?: { part: PartId; at: Point; z: number; drops?: boolean; crest?: boolean }[];
   palette?: Partial<Record<Material, Ramp>>;
 }
 
@@ -1256,12 +1311,14 @@ function boss(opts: BossOpts): ActorRecipe {
   anchored.push(true);
   const dropped = new Map<number, LayerKeyframe>();
   const props: number[] = [];
+  const crests: number[] = [];
   let side = -22;
   for (const e of opts.extras ?? []) {
     if (e.drops) {
       dropped.set(layers.length, dropExtra(e.part, e.at, BOSS_CENTRE_X, BOSS_GROUND_Y, (side = -side + (side < 0 ? 6 : 0))));
       props.push(layers.length);
     }
+    if (e.crest) crests.push(layers.length);
     layers.push({ part: e.part, at: e.at, z: e.z });
     anchored.push(false);
   }
@@ -1283,6 +1340,7 @@ function boss(opts: BossOpts): ActorRecipe {
     weapon: weaponIdx,
     cape: 1,
     props,
+    crests: [3, ...crests],
     head: 2,
     body: 0,
     arms: opts.arms ? gripOf : undefined,
@@ -1439,7 +1497,7 @@ export const ACTOR_RECIPES: Record<string, ActorRecipe> = {
     // line, which is where a longbow this size rests — and where the DROPPED bow
     // lands on death, instead of six rows above the corpse.
     weaponOff: { x: 1, y: 0 },
-    extras: [{ part: 'halo', at: HALO_AT, z: 5 }],
+    extras: [{ part: 'halo', at: HALO_AT, z: 5, crest: true }],
     palette: { hair: GOLD_HAIR, cloth: WHITE_CLOTH },
   }),
   // --- EMBER CRYPT ---
@@ -1462,7 +1520,7 @@ export const ACTOR_RECIPES: Record<string, ActorRecipe> = {
     strike: 'hound_strike',
     hurt: 'hound_hurt',
     dead: ['hound_dead'],
-    palette: { cloth: ASH_HIDE },
+    palette: { cloth: HOUND_HIDE },
   }),
   CRYPT_WARDEN: humanoid({
     id: 'CRYPT_WARDEN',
@@ -1477,7 +1535,7 @@ export const ACTOR_RECIPES: Record<string, ActorRecipe> = {
     tilt: 'head_brute_tilt',
     sway: 'head_brute_sway',
     sway2: 'head_brute_sway2',
-    palette: { cloth: DUSK_CLOTH },
+    palette: { cloth: WARDEN_HIDE, metal: WARDEN_BRONZE },
   }),
   DUST_WRAITH: creature({
     id: 'DUST_WRAITH',
@@ -1503,7 +1561,7 @@ export const ACTOR_RECIPES: Record<string, ActorRecipe> = {
     tilt: 'head_pyre_tilt',
     sway: 'head_pyre_sway',
     sway2: 'head_pyre_sway2',
-    extras: [{ part: 'plume', at: PLUME_AT, z: 5 }],
+    extras: [{ part: 'plume', at: PLUME_AT, z: 5, crest: true }],
     palette: { metal: CHARRED_IRON, accent: BLOOD_TABARD },
   }),
   HOLLOW_KING: boss({
@@ -1557,6 +1615,8 @@ export const ACTOR_RECIPES: Record<string, ActorRecipe> = {
     fallen: 'fallen_hag',
     down: 'head_hag_down_flip',
     tilt: 'head_hag_tilt',
+    recoilBody: 'body_hag_hurt',
+    recoilDx: -10,
     sway: 'head_hag_sway',
     sway2: 'head_hag_sway2',
     swayBody: 'body_hag_sway',
@@ -1598,7 +1658,7 @@ export const ACTOR_RECIPES: Record<string, ActorRecipe> = {
     sway2: 'head_drowned_sway2',
     extras: [
       { part: 'shield_broken', at: SHIELD_AT, z: 5, drops: true },
-      { part: 'kelp', at: KELP_AT, z: 5 },
+      { part: 'kelp', at: KELP_AT, z: 5, crest: true },
     ],
     palette: { metal: DROWNED_IRON, cloth: DEEP_TEAL },
   }),
@@ -1622,7 +1682,7 @@ export const ACTOR_RECIPES: Record<string, ActorRecipe> = {
     sway2: 'head_saint_sway2',
     swayCape: 'cloak_holy_sway',
     extras: [{ part: 'saint_staff', at: SAINT_STAFF_AT, z: 2.5, drops: true }],
-    palette: { cloth: WHITE_CLOTH, cloth2: GOLD_HAIR },
+    palette: { cloth: SAINT_ROBE, cloth2: SAINT_GOLD },
   }),
 };
 
