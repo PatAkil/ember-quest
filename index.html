@@ -104,6 +104,19 @@
       @media (orientation: portrait) and (max-width: 900px) {
         #rotate { display: flex; }
       }
+
+      /* iPhone Safari has no requestFullscreen — installing to the Home Screen
+         is the one route to a chrome-free, fullscreen game (see the pointerdown
+         handler below). Hidden by default; a script below shows it only on
+         iOS Safari that isn't already running standalone. Sits above the
+         canvas but never blocks it. */
+      #addHome {
+        display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 11;
+        padding: 6px 10px; box-sizing: border-box; text-align: center;
+        background: rgba(11,11,15,0.82); color: #ffec27;
+        font-size: 11px; letter-spacing: 0.06em;
+        pointer-events: none;
+      }
     </style>
   </head>
   <body>
@@ -113,6 +126,7 @@
       <div id="hint">click the screen &amp; press a key to start</div>
     </div>
     <div id="rotate"><div class="phone"></div><div>rotate to landscape</div></div>
+    <div id="addHome">tap Share, then "Add to Home Screen" for fullscreen</div>
     <script>
       // Fullscreen on the first tap, small screens only. Capture phase so the
       // gesture is still fresh; once, so a desktop click never asks. iOS Safari
@@ -153,6 +167,25 @@
           },
           { once: true, capture: true }
         );
+      })();
+    </script>
+    <script>
+      // The Home-Screen hint: iOS Safari alone has neither requestFullscreen
+      // nor an install prompt, so the only route to a chrome-free frame is the
+      // user adding the page to their Home Screen by hand. Shown only there,
+      // and only when not already running from that installed icon.
+      (function () {
+        try {
+          var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+          var standalone = window.navigator.standalone === true ||
+            (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+          if (isIOS && !standalone) {
+            var el = document.getElementById('addHome');
+            if (el) el.style.display = 'block';
+          }
+        } catch (e) {
+          /* no hint without a confident detection — never a fatal error */
+        }
       })();
     </script>
     <script type="module" src="/game/main.ts"></script>
