@@ -1426,8 +1426,10 @@ the elite/boss turn ordering is now the right way around, where the
    closed the win-rate number but put elite HP at up to 2.2× the same act's
    boss HP — rejected once that surfaced (the elite HP retune, above).
    **Shipped instead**: `ELITE_MULT.hp` 2.5 → 1.9 (solving
-   `max_act(elite.hp / BOSS_HP[act]) ≤ 0.75` for the tightest act, act 2,
-   at the ACT_MULT values below: `1.9 × 1250 × 1.68 / 5800 = 0.688`), the
+   `max_act(elite.hp / BOSS_HP[act]) ≤ 0.75` for the tightest act — act 1
+   since the act-1 slope fix, at the ACT_MULT values below:
+   `1.9 × 1250 × 1.36 / 4700 = 0.687`; act 2 is `1.9 × 1250 × 1.64 / 5800 =
+   0.672`), the
    EMBER_CRYPT/FROST_MARSH lone-elite pack row gaining a second body
    (`['PYRE_KNIGHT']` → `['PYRE_KNIGHT', 'ASH_HOUND']`, `['DROWNED_KNIGHT']`
    → `['DROWNED_KNIGHT', 'BOG_TOAD']` — barely moved ELITE win alone, 99.1 →
