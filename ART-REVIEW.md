@@ -108,3 +108,69 @@ Each actor needs a 2-row elliptical contact shadow at ~40 % alpha, width ≈ 0.8
 The owner's four reference frames (a desert ruin battle, a job-costume
 sprite line-up, a bloomed water skill, a village with light shafts) are not
 in the repository; they are described here and by the critic's notes.
+
+### Round 2 verdict: ONE MORE ROUND — 6/10 (from 4/10)
+
+Resolved from round 1: contrast (all 19 ≥ 3:1 by mean; wisp 5.22, fen
+fire 5.52 under the cap), non-black darks, hue-shifted shadows on cloth and
+metal, hands on GALE, TIDE, SABLE and both knights, folds on TIDE, LUMEN,
+the HAG and the WARDEN, most per-character fixes, the hurt white-out and
+idle B. Two reasons it is not 8: the greyscale plate shows every actor as
+one mid-value mass with no dark anchor and no cast shadow, so nothing reads
+as lit form; and the bodies are still boxes with side-bar arms, with three
+props unheld (BASALT's mace, LUMEN's bow, the HAG's staff).
+
+**Global, round 3:**
+1. Value hierarchy: every actor gets a dark anchor of ≥ 20 % of body pixels
+   at L 25–32 (boots, belt, gloves, hood interior, under-hem, the shadow side
+   of the skirt) and one 4–6 cell area at L 78–85 (collar, pauldron top,
+   cuff); nothing stays a single 30-point band.
+2. Self-shadow on every humanoid: a 2-row shade-2 band on the chest under
+   the hair/chin mass; a 1-cell shade-1 seam down the torso where each arm
+   overlaps; a 2-row shade-2 under every belt and hem.
+3. Kill the box: narrow each torso 1 cell at the waist, drop the outer end
+   of the shoulder top row 1 cell, merge floating shoulder blocks (EMBER,
+   GALE, LUMEN) into the torso with a 1-cell seam instead of a gap.
+4. Props held: each haft overlaps the hand block by ≥ 2 cells with two
+   shade-2 finger notches across it — GALE is the model; fix BASALT, LUMEN
+   (bow inward, string outside the head), the HAG (mirror the staff).
+5. Hand construction: 3 wide × 4 tall, joined by a 1-cell wrist in the
+   sleeve tone, outer edge one shade darker, two finger notches — no 4×4
+   slab with a stray dot.
+6. Faces: sclera 1 cell, spacing ±1 and brow angle per character; replace
+   the black tooth fringe (TIDE, WARDEN, HAG) with a 2-row shade-2 hem band
+   and an uneven 2-3-2 scallop.
+
+**Per character, round 3:** EMBER two vertical folds and a hem on the vest,
+close the forearm gap · GALE halve the left blade, darken its spine, add
+the scarf and the lean · TIDE slope the shoulder plank into shoulders ·
+BASALT connect the mace haft, a V hem and folds on the tabard · SABLE a
+6-cell visor slot, cowl onto the shoulders · LUMEN a 2-tone halo ellipse,
+bowstring off the face · HOLLOW KING curved ribs shortening to the pelvis,
+a sternum · PALE SAINT flare the hem 4 cells, break the cape's symmetry ·
+CINDER IMP wings two shades down with a dark gap · ASH HOUND ears, shade-1
+breaks at shoulder and haunch · CRYPT WARDEN drop the BASALT brow bar and
+rivets · DUST WRAITH fade the bottom 4 rows, three uneven notches · PYRE
+KNIGHT a bevelled shield edge and four rivets · BOG TOAD a crease eye-to-hip
+and a back highlight · FROST WISP a mid-cyan ring in the core · MARSH HAG
+drop the shoulder 2 cells, hook the profile · SILT CRAB a carapace seam and
+eyestalks · FEN FIRE raise the core two steps, offset low-left · DROWNED
+KNIGHT one socket pair plus two streaks.
+
+**Animation:** idle A/B needs follow-through (hair, hem and flame are
+identical between frames); hurt must move the torso 2 cells off the hit and
+the tilted head must be re-authored, not rotated (broken keylines); dead is
+a rotated standing sprite — redraw it with buckled knees, a folded torso,
+the head below the idle shoulder row, the face down-turned, the weapon a
+separate part on the ground.
+
+**Ship criteria (the critic's bar for SHIP):**
+1. Greyscale: every actor spans L 15–85, ≥ 20 % of body pixels below L 35,
+   ≥ 8 % above L 75.
+2. Zero floating props; every haft overlaps a hand ≥ 2 cells with notches.
+3. Every humanoid carries the chin cast shadow and the under-arm seams.
+4. Nineteen silhouettes distinguishable with the fill removed; no shared
+   helm construction.
+5. The death frame: no rotated face, head below the idle shoulder row,
+   weapon detached.
+6. Mean contrast ≥ 3:1 with ≤ 45 % of body pixels below 3:1 (now 44–66 %).
