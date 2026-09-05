@@ -396,7 +396,7 @@ async function runSelfcheck({ data, mulberry32 }) {
   const mod = await bundleSource(
     "export * from '../game/sim/run.ts';\nexport { createRun } from '../game/sim/runstep.ts';\n",
     'game/sim/run.ts + game/sim/runstep.ts', 'seam.bundle.mjs');
-  for (const name of ['simulateRun', 'runSteps', 'answerWith', 'createRun']) {
+  for (const name of ['simulateRun', 'runSteps', 'answerWith', 'createRun', 'maxHpOf', 'mkDeriveCtx']) {
     if (typeof mod[name] !== 'function') throw new Error(`the seam bundle must export ${name}()`);
   }
   const { simulateRun, runSteps, answerWith, createRun, POLICIES } = mod;
@@ -451,6 +451,79 @@ async function runSelfcheck({ data, mulberry32 }) {
     if (bad) { console.error(`SELFCHECK: ${name} — ${bad}`); exitCode = 1; }
     console.log(`  ${name.padEnd(wP)} ${bad ? 'DIFFERS' : '     ok'}  ${sha(all)}`);
   }
+
+  const problems = probeRunContract(mod, config(SPD_VALUE), mulberry32(SEED));
+  console.log(`  ${'contract'.padEnd(wP)} ${problems.length ? 'FAILS' : '     ok'}  ${problems.length ? '' : 'stale-token guard · view isolation · map/party/leader fields'}`);
+  for (const p of problems) console.error(`SELFCHECK contract: ${p}`);
+  if (problems.length) exitCode = 1;
+}
+
+/**
+ * The interactive contract a screen relies on, probed once over one run (not per policy): the stale-token
+ * guard on `decide`, the isolation of `state()` from the run's own objects, and the view fields the screens
+ * read instead of re-deriving a rule. Returns a list of problems; empty is a pass.
+ */
+function probeRunContract({ createRun, answerWith, POLICIES, maxHpOf }, cfg, rng) {
+  const problems = [];
+  const policy = POLICIES.balanced;
+  const run = createRun(cfg, rng);
+
+  // (1) the stale-token guard: the token drawn WITH a pending answers that pending and nothing later.
+  const drawn = run.token();
+  const first = run.pending();
+  const answer = answerWith(first, policy, rng);
+  if (run.decide(answer, drawn) !== true) problems.push('decide(answer, live token) did not land');
+  const openNow = run.pending();
+  const tokenNow = run.token();
+  if (run.decide(answer, drawn) !== false) {
+    problems.push(`a stale token was accepted — the ${first.kind} answer landed on the ${openNow && openNow.kind} that followed`);
+  }
+  if (run.token() !== tokenNow) problems.push('a refused decide still moved the run');
+  if (run.pending() !== openNow) problems.push('a refused decide still consumed the open pending');
+  if (run.decide(answerWith(run.pending(), policy, rng)) !== true) problems.push('decide(answer) without a token stopped working');
+
+  // (2) state() is a copy: a screen writing to it cannot reach the run's own party.
+  const withParty = run.pending();
+  if (withParty && withParty.party) {
+    const live = withParty.party.members[0];
+    const hp0 = live.hp;
+    const view = run.state();
+    if (view.party.members[0] === live) problems.push('state().party.members[0] IS the run\'s live member object');
+    view.party.members[0].hp = -999;
+    view.party.members[0].relics = {};
+    view.rooms.push('BOSS');
+    if (live.hp !== hp0) problems.push('writing to state().party.members[0].hp reached the run');
+    if (Object.keys(live.relics).length !== Object.keys(withParty.party.members[0].relics).length) {
+      problems.push('writing to state().party.members[0].relics reached the run');
+    }
+  }
+
+  // (3) the additive fields, and the map mirror while a ROUTE is open.
+  let guard = 0;
+  while (run.pending() && run.pending().kind !== 'ROUTE' && guard++ < 10000) {
+    run.decide(answerWith(run.pending(), policy, rng), run.token());
+  }
+  const route = run.pending();
+  if (!route || route.kind !== 'ROUTE') {
+    problems.push('never reached a ROUTE pending');
+  } else {
+    const view = run.state();
+    for (const key of ['path', 'offeredIdxs', 'offeredTypes', 'totalClears', 'actsCleared', 'map']) {
+      if (!(key in view)) problems.push(`RunView is missing ${key}`);
+    }
+    if (JSON.stringify(view.offeredIdxs) !== JSON.stringify(route.offeredIdxs)) problems.push('state().offeredIdxs does not mirror the open ROUTE');
+    if (JSON.stringify(view.offeredTypes) !== JSON.stringify(route.offeredTypes)) problems.push('state().offeredTypes does not mirror the open ROUTE');
+    if (!view.map) problems.push('state().map is null while a ROUTE is open');
+    for (const m of view.party.members) if (!(maxHpOf(view, m) > 0)) problems.push('maxHpOf(view, member) is not positive');
+    const chose = route.offeredIdxs[0];
+    run.decide(0, run.token());
+    const after = run.state();
+    if (after.offeredIdxs.length !== 0) problems.push('state().offeredIdxs survives its ROUTE');
+    const last = after.path[after.path.length - 1];
+    if (!last || last.stage !== route.stage || last.nodeIdx !== chose) problems.push('state().path did not record the node just taken');
+    if (after.stage !== route.stage || after.nodeIdx !== chose) problems.push('state().stage/nodeIdx did not follow the route');
+  }
+  return problems;
 }
 
 // ================================================================== main ==

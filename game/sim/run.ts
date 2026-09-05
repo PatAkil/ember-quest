@@ -69,17 +69,37 @@ interface Ctx {
   map: RunMap | null;
   stage: number;
   nodeIdx: number;
+  /** The nodes taken this act, in order, reset with each act's map. */
+  path: { stage: number; nodeIdx: number }[];
+  /** The successors on offer while a ROUTE pending is open; empty at every other moment. */
+  offeredIdxs: number[];
+  offeredTypes: RoomType[];
   won: boolean;
   deathKind: '' | 'WIPE' | 'STALL';
   deathBy: string;
 }
-/** The live view `runSteps` publishes through its `RunObserver` — read fresh on every call. */
+/** One member as a screen may hold it: the mutable fields copied. `def` and each `Relic` are shared by
+ * reference — both are treated as immutable data everywhere in the sim, and cloning a full relic set per
+ * decision would be a lot of garbage for no protection this file needs. */
+function cloneMember(m: PartyMember): PartyMember {
+  return { def: m.def, hp: m.hp, relics: { ...m.relics }, awakened: m.awakened };
+}
+/** The view `runSteps` publishes through its `RunObserver` — a COPY of the run's own state (party, Vault, map,
+ * path, rooms and the offered successors are all fresh containers), so a screen holding one cannot reach into
+ * the run through it. Built on demand; game/sim/runstep.ts calls it at most once per `token()`. */
 function snapshotOf(ctx: Ctx): RunSnapshot {
+  const map = ctx.map;
   return {
     ...runStateFor(ctx),
-    map: ctx.map, stage: ctx.stage, nodeIdx: ctx.nodeIdx, score: ctx.score, rooms: [...ctx.rooms],
+    party: { members: ctx.party.members.map(cloneMember), leader: ctx.party.leader },
+    vault: ctx.config.vault.slice(),
+    map: map ? { stages: map.stages.map((s) => [...s]), entry: [...map.entry], links: map.links.map((st) => st.map((l) => [...l])) } : null,
+    stage: ctx.stage, nodeIdx: ctx.nodeIdx, path: ctx.path.map((p) => ({ ...p })),
+    offeredIdxs: [...ctx.offeredIdxs], offeredTypes: [...ctx.offeredTypes],
+    score: ctx.score, rooms: [...ctx.rooms],
     biome: BIOMES[ctx.act - 1] ?? BIOMES[0],
     roomType: ctx.rooms.length > 0 ? ctx.rooms[ctx.rooms.length - 1] : null,
+    totalClears: ctx.totalClears, actsCleared: ctx.actsCleared,
     won: ctx.won, deathKind: ctx.deathKind, deathBy: ctx.deathBy,
   };
 }
@@ -112,14 +132,14 @@ function postWinHeal(ctx: Ctx): void {
   }
 }
 /** A relic-card screen's answer: equips the chosen card onto the chosen member, or mends the party SKIP_MEND
- * on any illegal or declined answer. (DESIGN.md:800 excepts the SUMMON EPIC from the mend; this file has
- * always mended there too — see the Contract notes. Behaviour preserved, not fixed, by phase 5.) */
+ * on any illegal or declined answer — EXCEPT the full-party SUMMON's EPIC, where DESIGN.md:800 ("declining a
+ * SUMMON mends nothing") makes the decline free; every other source pays the mend. */
 function* resolveRelicCards(ctx: Ctx, cards: Relic[], source: LootSource): RunStep<void> {
   const dctx = deriveCtxFor(ctx);
   const answer = (yield { kind: 'RELIC', cards, source, party: ctx.party }) as AnswerFor<'RELIC'>;
   const legal = !!answer && Number.isInteger(answer.card) && answer.card >= 0 && answer.card < cards.length &&
     Number.isInteger(answer.onto) && answer.onto >= 0 && answer.onto < ctx.party.members.length;
-  if (!legal || !answer) { mendParty(ctx.party, dctx, SKIP_MEND); return; }
+  if (!legal || !answer) { if (source !== 'SUMMON') mendParty(ctx.party, dctx, SKIP_MEND); return; }
   equip(ctx.party.members[answer.onto], cards[answer.card], dctx);
 }
 
@@ -209,12 +229,25 @@ export interface RunSnapshot extends RunState {
   /** Where the party is standing: −1/−1 before this act's first room. */
   stage: number;
   nodeIdx: number;
+  /** The nodes taken this act in order, `stage` ascending — the route to draw lit behind the party. Reset at
+   * each act's map, so it is the current act's trail, not the run's. */
+  path: { stage: number; nodeIdx: number }[];
+  /** While a ROUTE pending is open, its parallel offer arrays, mirrored here so a map drawn from somewhere
+   * that does not hold the pending (the pause overlay, the party screen) can still light the choices. Both are
+   * empty at every other moment. `offeredIdxs` are node indices in stage `stage + 1`. */
+  offeredIdxs: number[];
+  offeredTypes: RoomType[];
   score: number;
   /** Room types in visit order, run-wide. */
   rooms: RoomType[];
   biome: Biome;
   /** The room being resolved now — the last entry of `rooms`. */
   roomType: RoomType | null;
+  /** FIGHT/ELITE clears over the whole run (`RunState.clears`, inherited above, is this ACT's count — the
+   * CLEAR_GROWTH counter — and resets with every act). */
+  totalClears: number;
+  /** Bosses killed, laps included — what the next run's `vaultSlots` comes from. */
+  actsCleared: number;
   won: boolean;
   deathKind: '' | 'WIPE' | 'STALL';
   deathBy: string;
@@ -295,9 +328,12 @@ function outcomeFromBattle(result: BattleResult, battle: Battle): RoomOutcome {
 const PENDING_ACT: ActPolicy = {
   act: () => { throw new Error('BATTLE pending: no act policy — assign battle.policy, or pass heroChoice to runTurn'); },
 };
-/** The result carried by a BATTLE answer, defensively: an unusable answer ends the battle where it stands (a
- * loss), and a forfeit — tagged on the answer, or on the result itself the way screens/battle.ts tags a quit —
- * turns a won result into a lost one. A policy driver always answers with a real, finished result. */
+/** The result carried by a BATTLE answer. The `Battle` is the truth, not the answer: an answer that carries no
+ * usable BattleResult is replaced by `battleOutcome(battle)` — the battle's OWN outcome, read off the state the
+ * answerer left it in, so a screen that finished the fight and then handed back nonsense still books the fight
+ * it actually played (a fight it never started reads as neither won nor stalled, which ends the run). A forfeit
+ * — tagged on the answer, or on the result the way screens/battle.ts:605 tags a quit — turns a won result into
+ * a lost one. A policy driver always answers with a real, finished result and takes neither path. */
 function battleResultFrom(answer: unknown, battle: Battle): BattleResult {
   const a = answer as Partial<AnswerFor<'BATTLE'>> | null | undefined;
   const given = a && typeof a === 'object' ? a.result : undefined;
@@ -467,7 +503,10 @@ function* resolveForge(ctx: Ctx): RunStep<void> {
 function* resolveSummon(ctx: Ctx, stage: number | undefined): RunStep<void> {
   const dominant = comingDominant(ctx.act, stage);
   const offers = pickSummonOffers(ctx.config.roster, ctx.party, dominant, ctx.config.spdDelta, ctx.rng);
-  if (offers.length === 0) return;
+  // Nobody left to offer (a roster smaller than party + 1 — unreachable with the six launch characters, whose
+  // candidate pool is never below three): there is no recruit to ask about, but DESIGN.md:783 puts no
+  // qualification on "the seat may change at a SUMMON", so the room still offers the seat.
+  if (offers.length === 0) { yield* chooseLeader(ctx); return; }
   const dctx = deriveCtxFor(ctx);
   const full = ctx.party.members.length >= PARTY_MAX;
   const answer = (yield { kind: 'SUMMON', offers, party: ctx.party, full, opening: false }) as AnswerFor<'SUMMON'>;
@@ -877,7 +916,8 @@ export function* runSteps(config: RunConfig, rng: Rng, observer?: RunObserver): 
     config, rng, party, ascension, ascRow, pactsTaken: [], pool: [], score: 0, act: 1, lap: 1,
     clearsThisAct: 0, totalClears: 0, awakenedLog: [], dryStreak: 0, swaps: 0, rests: [], shrines: [], rooms: [],
     turnsPerBattle: [], enrages: 0, probes: [], relicSeq: 0, actsCleared: 0,
-    map: null, stage: -1, nodeIdx: -1, won: false, deathKind: '', deathBy: '',
+    map: null, stage: -1, nodeIdx: -1, path: [], offeredIdxs: [], offeredTypes: [],
+    won: false, deathKind: '', deathBy: '',
   };
   if (observer) observer.read = () => snapshotOf(ctx);
 
@@ -913,17 +953,23 @@ export function* runSteps(config: RunConfig, rng: Rng, observer?: RunObserver): 
     ctx.clearsThisAct = 0;
     ctx.stage = -1;
     ctx.nodeIdx = -1;
+    ctx.path = []; // the trail is this act's, and this act's map is brand new
     let alive = true;
     for (let step = 0; step <= STAGE_SIZES.length && alive; step++) {
       const offeredIdxs = ctx.stage === -1 ? [...map.entry] : [...map.links[ctx.stage][ctx.nodeIdx]];
       const targetStage = ctx.stage + 1;
       const offeredTypes = offeredIdxs.map((i) => (targetStage < STAGE_SIZES.length ? map.stages[targetStage][i] : 'BOSS' as RoomType));
+      ctx.offeredIdxs = offeredIdxs; // mirrored on the snapshot only while this ROUTE is open
+      ctx.offeredTypes = offeredTypes;
       const routeAnswer = (yield {
         kind: 'ROUTE', offeredIdxs, offeredTypes, map, stage: targetStage, run: runStateFor(ctx),
       }) as AnswerFor<'ROUTE'>;
+      ctx.offeredIdxs = [];
+      ctx.offeredTypes = [];
       const choice = clampIdx(routeAnswer, offeredIdxs.length);
       ctx.nodeIdx = offeredIdxs[choice];
       ctx.stage = targetStage;
+      ctx.path.push({ stage: ctx.stage, nodeIdx: ctx.nodeIdx });
       const roomType: RoomType = ctx.stage < STAGE_SIZES.length ? map.stages[ctx.stage][ctx.nodeIdx] : 'BOSS';
       ctx.rooms.push(roomType);
       const outcome = yield* resolveRoom(ctx, roomType, ctx.stage);
@@ -992,8 +1038,17 @@ function newMember(id: string, spdDelta?: number): PartyMember {
 /** The party's shared DeriveCtx: the seated leader's skill (or null) reaches every member; SCHISM (LEADER_OFF /
  * LEADER_SELF) is read inside `derive` itself from `pacts`. spdDelta is never passed here — every member's own
  * `def.base.spd` already carries it (see `withSpdDelta`); adding it again here would double it. */
-function mkDeriveCtx(party: Party, pactsTaken: readonly PactId[]): DeriveCtx {
+export function mkDeriveCtx(party: Party, pactsTaken: readonly PactId[]): DeriveCtx {
   return { leader: party.members[party.leader]?.def.leader ?? null, pacts: pactsTaken };
+}
+/**
+ * A member's derived max HP under a view's party and pacts — the one place a screen should read it from, so
+ * nothing outside this file re-implements `mkDeriveCtx` + `derive` (and quietly drops SCHISM, the leader skill
+ * or a pact when the rules move). Takes any `RunState`/`RunSnapshot`/`RunView`; `member` may be one of that
+ * view's own cloned members or a live one — `derive` reads it, never writes.
+ */
+export function maxHpOf(view: Pick<RunState, 'party' | 'pactsTaken'>, member: PartyMember): number {
+  return derive(member, mkDeriveCtx(view.party, view.pactsTaken)).HP;
 }
 function fullHeal(member: PartyMember, ctx: DeriveCtx): void {
   member.hp = derive(member, ctx).HP;
