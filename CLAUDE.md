@@ -36,6 +36,9 @@ ember-quest/
 ├── engine/                   # this game's OWN copy of the Retrovibe engine — editable
 ├── sim/run.mjs               # balance simulator runner (npm run sim)
 ├── smoke.mjs                 # headless boot gate (npm run smoke)
+├── tools/                    # the art loop's eyes: lineup.html/.ts (every recipe through the real bake pipeline,
+│                             #   ship-criteria metrics), capture.mjs (Playwright: sheets, battle frames, phone, any page);
+│                             #   tools/out/ (captures) and tools/ref/ (the owner's reference frames) are gitignored
 ├── index.html                # arcade shell; game mounts into #screen
 ├── .github/workflows/pages.yml   # push to main = deploy to GitHub Pages
 └── .claude/skills/           # ten skills; agents/game-writer.md
@@ -62,6 +65,11 @@ ember-quest/
   simulator stops bundling.
 - **DESIGN.md moves with the code.** A rules change edits the contract in the same
   milestone; a balance pass updates the *Balance state* table and its date.
+- **Art is verified by looking.** `node tools/capture.mjs sheets` (line-ups in colour, greyscale and
+  silhouette, every actor's pose sheet, `tools/out/metrics.md` against ART-REVIEW.md's ship criteria),
+  `battle` (title → room card → battle frames incl. a hit, pause, inspect), `phone` (the same on a touch
+  viewport), `shot url=<dev page> name=<n>` (any page that sets `window.__lineup.ready`). Needs the dev
+  server. An art or scene change is not done until its sheets and frames have been opened and judged.
 - **Engine edits are allowed** — the engine here is a fork owned by this game.
   New primitives go into the owning module, are re-exported from `engine/index.ts`,
   and are added to the API table below in the same change. There is no fixture

@@ -4,3 +4,7 @@ dist/
 
 # local inspiration dump — never commit
 Patta-sf*.json
+
+# art-loop scratch: reference frames (owner-supplied, not ours) and captures
+tools/ref/
+tools/out/
