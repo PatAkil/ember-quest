@@ -47,13 +47,21 @@ export const QUEUE_LEN = 8;
 export const SAFE_INSET = { left: 24, top: 24, right: 24, bottom: 24 } as const;
 /** A phone (CSS scale < 0.75) grows the bottom inset only — nothing else moves. */
 export const SAFE_BOTTOM_PHONE = 40;
-/** A phone's skill buttons draw taller; hit rects still reach the bottom edge. */
-export const SKILL_H_PHONE = 80;
 
 // ============================================================ turn ribbon ==
-// y 24-88.
+/**
+ * y 24-104, not the 24-88 the contract used to declare. The actor on turn is
+ * drawn 1.4x (r 33.6 against everyone else's 21) and carries a caret under it,
+ * so the band genuinely reaches y 104 — the old number stopped being true the
+ * moment the current chip grew, and a declared band that lies is worse than a
+ * taller one. Nothing else lives above y 96 on this side of the frame: the hero
+ * panels are at x 976 and the ribbon ends by x 450.
+ */
 export const RIBBON_TOP = 24;
-export const RIBBON_BOTTOM = 88;
+export const RIBBON_BOTTOM = 104;
+/** Scale on the chip of the actor whose turn it is, and the gap the chevron divider sits in. */
+export const QUEUE_CURRENT_SCALE = 1.4;
+export const QUEUE_ROLLOVER_GAP = 22;
 
 export const QUEUE_CHIP = 48;
 export const QUEUE_X = 24;
@@ -77,78 +85,170 @@ export const PAUSE_ICON = { x: 1192, y: 24, w: 64, h: 64 } as const;
 /** Explicit, larger-than-drawn hit rect for PAUSE_ICON — "the PAUSE pattern" the skill bar also uses. */
 export const PAUSE_ICON_HIT = { x: 1176, y: 0, w: 96, h: 96 } as const;
 
-/** Top-left of the i'th ribbon queue chip (i = 0..QUEUE_LEN-1). */
-export function queueChipPos(i: number): { x: number; y: number } {
-  return { x: QUEUE_X + i * (QUEUE_CHIP + QUEUE_GAP), y: QUEUE_Y };
-}
-/** The intent badge's top-left on an enemy's chip: (chip.x + 24, chip.y + 24). */
-export function intentBadgePos(chip: { x: number; y: number }): { x: number; y: number } {
-  return { x: chip.x + 24, y: chip.y + 24 };
-}
-
-// ==================================================== hero / enemy panels ==
+// ============================================================ hero panels ===
+// ONE panel column, and it belongs to the PARTY — octopath-4's own arrangement:
+// the party stands on the right with its name/HP plates beside it, and the
+// enemies carry no column at all (their name, HP and statuses ride a plate over
+// the focused/targeted sprite; every enemy stays a target through its own sprite
+// hit rect). PANEL_H is the HIT height and the ceiling on the drawn one: a plate
+// whose status shelf is empty draws shorter than it registers.
 export const PANEL_W = 280;
 export const PANEL_H = 104;
 export const PANEL_PAD = 7;
-/** x 24-304. */
-export const PANEL_X_HERO = 24;
-/** x 976-1256 — the mirror of the hero column; tap = the canonical enemy target. */
-export const PANEL_X_ENEMY = 976;
+/** x 976-1256 — the party's own side of the frame, flush to the right safe inset. */
+export const PANEL_X_HERO = 976;
 export const PANEL_Y = [96, 212, 328] as const;
 export const PANEL_ROW_GAP = 4;
 export const PANEL_ROW_NAME_H = 22;
 export const PANEL_ROW_HP_H = 22;
 export const PANEL_ROW_ATB_H = 6;
 export const PANEL_ROW_STATUS_H = 28;
-/** Status row: up to six 28-px icons plus one element chip; past six, five icons and a "+N" chip. */
+/** Status row: up to six 28-px icons; the element glyph rides the NAME row, not the shelf. */
 export const STATUS_ICON = 28;
 export const STATUS_ICON_MAX = 6;
-export const ELEMENT_CHIP = { w: 32, h: 28 } as const;
-
-/** The drawn rect of one side's panel in its slot (0..2). */
-export function panelRect(side: 'HERO' | 'ENEMY', slot: number): { x: number; y: number; w: number; h: number } {
-  return { x: side === 'HERO' ? PANEL_X_HERO : PANEL_X_ENEMY, y: PANEL_Y[slot], w: PANEL_W, h: PANEL_H };
-}
+/** The element glyph beside a panel's name — a small drawn mark, never a saturated block. */
+export const ELEMENT_GLYPH = 20;
 
 // ================================================================== stage ==
-/** x 312-968 (the panels are the bounds). */
-export const STAGE_X0 = 312;
-export const STAGE_X1 = 968;
-export const DIAG_DX = 56;
+/** The stage owns the frame now: x 24-1160, one panel column instead of two walls. */
+export const STAGE_X0 = 24;
+export const STAGE_X1 = 1160;
+/** The diagonal's step. 90 (was 56) so the three ranks read as depth instead of a stack. */
+export const DIAG_DX = 90;
 export const DIAG_DY = 68;
 
-/** Heroes face right on a back-to-front diagonal at left-centre: feet at (408,380)/(464,448)/(520,516). */
+/** The party faces LEFT on a back-to-front diagonal at right-centre — octopath-4's spread. */
 export const HERO_FEET = [
-  { x: 408, y: 380 },
-  { x: 408 + DIAG_DX, y: 380 + DIAG_DY },
-  { x: 408 + 2 * DIAG_DX, y: 380 + 2 * DIAG_DY },
+  { x: 700, y: 380 },
+  { x: 700 + DIAG_DX, y: 380 + DIAG_DY },
+  { x: 700 + 2 * DIAG_DX, y: 380 + 2 * DIAG_DY },
 ] as const;
-/** Enemies mirrored about x 640: enemyX = 640 + (640 - heroX) = 1280 - heroX. */
-export const ENEMY_FEET = HERO_FEET.map((p) => ({ x: CANVAS_W - p.x, y: p.y })) as readonly { x: number; y: number }[];
-/** A solo boss's feet — not one of the three mirrored slots above. */
-export const BOSS_FEET = { x: 816, y: 516 } as const;
+/** Enemies own the left third on the same three ground rows — not a mirror of the party any more. */
+export const ENEMY_FEET = [
+  { x: 230, y: 380 },
+  { x: 330, y: 448 },
+  { x: 430, y: 516 },
+] as const;
+/** Two enemies FAN instead of stacking on the diagonal's far end, so the left half carries mass. */
+export const ENEMY_FEET_PAIR: readonly { x: number; y: number }[] = [
+  { x: 206, y: 400 },
+  { x: 452, y: 504 },
+];
+/** A lone boss stands centred on its own side. */
+export const BOSS_FEET = { x: 322, y: 490 } as const;
 
-export const HP_GAUGE = { w: 96, h: 12 } as const;
-export const ATB_GAUGE = { w: 96, h: 6 } as const;
+/**
+ * No gauge slabs on the ground. An actor carries a 3-px HP hairline tucked into
+ * its contact shadow, never wider than the foot span, and only while its HP is
+ * short or for HP_HAIRLINE_HOLD seconds after a change. ATB lives in the hero
+ * panels and in the ribbon's order — nowhere on the floor.
+ */
+export const HP_HAIRLINE_H = 3;
+export const HP_HAIRLINE_SPAN = 0.62;
+export const HP_HAIRLINE_HOLD = 1.5;
+
+/** The enemy's name/HP/status plate, floated over the focused or targeted sprite. */
+export const ENEMY_PLATE_MIN_W = 132;
+export const ENEMY_PLATE_PAD = 10;
+/**
+ * Gap between the plate's foot and the top of the sprite's REAL silhouette. 18,
+ * not 96: octopath-4 pins its plate to the body, and a fixed 96 measured off a
+ * fixed 0.88 x ACTOR_W left a 170-px leader over a short recipe like the Ash
+ * Hound — with the stem running straight through the damage number. The plate
+ * now hugs the head and the POP goes above the plate instead (see
+ * POP_PLATE_CLEAR), so nothing has to be joined by a line at all.
+ */
+export const ENEMY_PLATE_LIFT = 18;
+/** Rows the plate stacks: name, HP + its rule, and the status shelf when there is one. */
+export const ENEMY_PLATE_NAME_H = 20;
+export const ENEMY_PLATE_HP_H = 22;
+export const ENEMY_PLATE_STATUS_H = 24;
+/** Air between the plate's top and a pop that has been pushed above it. */
+export const POP_PLATE_CLEAR = 8;
+
+/**
+ * The x span a side's sprite hit cells tile across. A hurtbox is 68 px wide on a
+ * 90-px pitch, so growing each to TAP_MIN made adjacent cells overlap by 6 px
+ * and the fallback pass gave those strips to the LATER-registered hero. The
+ * cells below are split at the midpoint between neighbours instead — every
+ * point in the band belongs to the actor it is nearest, resolved in the
+ * first pass, with no ambiguous strip left over.
+ */
+export function spriteCellX(feet: readonly { x: number }[], i: number, halfW: number): { x: number; w: number } {
+  const c = feet[i].x;
+  const left = i > 0 ? (feet[i - 1].x + c) / 2 : c - halfW;
+  const right = i < feet.length - 1 ? (c + feet[i + 1].x) / 2 : c + halfW;
+  return { x: left, w: right - left };
+}
+
 /** Icons above an actor's head on the stage (as opposed to the panel's status row); past this, 3 + "+N". */
 export const STATUS_ABOVE_MAX = 4;
 /** Hit pops spawn this far above the feet. */
 export const POP_HEAD_OFFSET = 64;
+/** How far a pop may rise from where it spawned — bounded so it never climbs into a neighbour or a panel. */
+export const POP_RISE_MAX = 26;
 
 // ======================================================================= log
-export const LOG_RECT = { x: 24, y: 558, w: 1232, h: 32 } as const;
-export const LOG_TEXT = { x: 32, y: 563 } as const;
+/**
+ * No full-width plate and no rule: one shadowed line over a SHORT local wash
+ * that fades out at both ends, sitting beside the command list in the bottom
+ * band. LOG_MAX_W is where the line is truncated, not a drawn box.
+ */
+export const LOG_TEXT = { x: 376, y: 552 } as const;
+export const LOG_MAX_W = 784;
+/** Height of the wash behind the line, and how far it bleeds past the text. */
+export const LOG_WASH_H = 34;
+export const LOG_WASH_BLEED = 28;
 
-// ============================================================== skill bar ==
-export const SKILL_W = 400;
-export const SKILL_H = 96;
-export const SKILL_X = [28, 440, 852] as const;
-export const SKILL_Y = 600;
-/** The registered hit rect is taller than the drawn button — "the PAUSE pattern". */
-export const SKILL_HIT_H = 120;
-
-export function skillHitRect(i: number): { x: number; y: number; w: number; h: number } {
-  return { x: SKILL_X[i], y: SKILL_Y, w: SKILL_W, h: SKILL_HIT_H };
+// ============================================================ command list ==
+/**
+ * Three compact rows stacked bottom-left, not three 400x96 slabs across the
+ * whole width: name left, cooldown pips right. The drawn row is smaller than the
+ * registered hit rect — the PAUSE pattern — so a phone still gets TAP_MIN.
+ */
+export const SKILL_X = 24;
+export const SKILL_W = 320;
+export const SKILL_H = 40;
+export const SKILL_H_PHONE = 56;
+export const SKILL_ROW_GAP = 8;
+/** The list's bottom edge: air under it on desktop, the phone inset on a phone. */
+export const SKILL_BOTTOM = 672;
+export const SKILL_BOTTOM_PHONE = 680;
+/** The drawn rect of command row i (0..2), stacked upward from the list's bottom edge. */
+export function skillRowRect(i: number, phone: boolean): { x: number; y: number; w: number; h: number } {
+  const h = phone ? SKILL_H_PHONE : SKILL_H;
+  const bottom = phone ? SKILL_BOTTOM_PHONE : SKILL_BOTTOM;
+  return { x: SKILL_X, y: bottom - h - (2 - i) * (h + SKILL_ROW_GAP), w: SKILL_W, h };
+}
+/**
+ * What a row REGISTERS: its drawn rect grown by half the gap on each side, so
+ * the three rows TILE. Registering the drawn rects alone left an 8-px gutter
+ * between them that no first-pass rect covered; the fallback pass then resolved
+ * it by registration order, which handed every gutter tap to the row BELOW —
+ * and swallowed it whenever that row was on cooldown. Split down the middle,
+ * each half of a gutter belongs to the row it is nearer.
+ */
+export function skillHitRect(i: number, phone: boolean): { x: number; y: number; w: number; h: number } {
+  const r = skillRowRect(i, phone);
+  const half = SKILL_ROW_GAP / 2;
+  return { x: r.x, y: r.y - half, w: r.w, h: r.h + SKILL_ROW_GAP };
+}
+/**
+ * The strip from the last row's foot to the canvas bottom edge, registered as a
+ * TWIN of the last row so the list still "reaches the bottom edge" on a phone.
+ *
+ * The rows themselves register their DRAWN rects and let the registry grow each
+ * to TAP_MIN on its own. Registering pre-grown 96-px rects instead is a trap:
+ * at a 48-px pitch they overlap by half, the registry's first pass resolves a
+ * tap against the LAST registered rect that contains it, and every tap on row 1
+ * landed on row 2 — which, on cooldown, is a disabled region and swallows the
+ * tap. Drawn-first is what makes a row's own pixels beat its neighbour's
+ * expanded rect, so the drawn rect is what must be registered.
+ */
+export function skillTailRect(phone: boolean): { x: number; y: number; w: number; h: number } {
+  const r = skillRowRect(2, phone);
+  const y = r.y + r.h;
+  return { x: r.x, y, w: r.w, h: CANVAS_H - y };
 }
 
 // ================================================================== cards ==

@@ -16,14 +16,15 @@ import { BUTTON_KEY, FONT_HD, PICO8, blink, drawLogo, pulse } from '../../engine
 import {
   CANVAS_W, CANVAS_H, HERO_FEET, HUD_PX, HUD_SMALL, safeInsetFor,
 } from './layout';
-import { FOCUS_RING_W, hudText, hudTextCentered, plate } from './hud';
+import { ACCENT, ACCENT_DEEP, ACCENT_SHADOW, drawPrimaryButton, hudText, hudTextCentered } from './hud';
 import type { ActorDrawState } from '../art/actors';
 import { ACTOR_RECIPES, ACTOR_W, actorHitRect, drawActor } from '../art/actors';
 import { CHARACTERS, SLICE_PARTY } from '../data';
 
 const C_TEXT = PICO8[7];
 const C_DIM = PICO8[6];
-const C_ACCENT = PICO8[10];
+/** The key light's own amber — the pure yellow that belonged to no biome is gone. */
+const C_ACCENT = ACCENT;
 
 /** The registered target is the button the title has always had; only the DRAWN plate is thin, centred in it. */
 const START_HIT = { x: CANVAS_W / 2 - 200, y: 520, w: 400, h: 96 } as const;
@@ -85,7 +86,7 @@ export function createTitleScreen(deps: TitleScreenDeps): TitleScreen {
   /** The frame's clock, read by the bound callback below — so the scene pass takes no fresh closure per frame. */
   let castTime = 0;
   /** One draw record for the whole cast, rewritten per hero: three static idlers allocate nothing. */
-  const drawState: ActorDrawState = { pose: 'idle', time: 0, element: CAST[0].element, facing: 1, x: 0, y: 0 };
+  const drawState: ActorDrawState = { pose: 'idle', time: 0, element: CAST[0].element, facing: -1, x: 0, y: 0 };
   const drawCast = (): void => {
     const ctx = pc.ctx;
     for (let i = 0; i < CAST.length; i++) {
@@ -131,20 +132,18 @@ export function createTitleScreen(deps: TitleScreenDeps): TitleScreen {
 
       // The logo is world-and-arcade, so it stays bitmap FONT_HD (DESIGN.md,
       // "Two kinds of text"); everything under it is UI, so it is not.
-      drawLogo(ctx, 'EMBER QUEST', CANVAS_W, LOGO_Y, { color: C_ACCENT, shade: PICO8[9], shadow: PICO8[2], scale: 8, font: FONT_HD });
+      drawLogo(ctx, 'EMBER QUEST', CANVAS_W, LOGO_Y, { color: C_ACCENT, shade: ACCENT_DEEP, shadow: ACCENT_SHADOW, scale: 8, font: FONT_HD });
       hudTextCentered(ctx, 'a roguelike party battler', 0, TAGLINE_Y, CANVAS_W, HUD_PX, { color: C_DIM });
       hudTextCentered(ctx, 'three heroes . an attack bar . relics that roll their own numbers', 0, SUBLINE_Y, CANVAS_W, HUD_SMALL, { px: HUD_SMALL, color: C_TEXT });
 
-      // Focus BREATHES, it never blinks out: the ring alternates between the
-      // cream focus colour and the plate's own accent, so there is no frame in
-      // which the focused button is indistinguishable from an unfocused one.
+      // The one call to action on the frame, and the game's PRIMARY button: a
+      // lit borderless plate with a key-coloured glow, not the 1-px bordered
+      // rounded rectangle every other screen used to wear (UI item 9). Focus
+      // BREATHES rather than blinking out — the glow swells, it never leaves.
       const focused = regions.focused() === 'start';
       const hot = focused && blink(time, 1.0, 0.6) === 1;
-      plate(ctx, START_PLATE.x, START_PLATE.y, START_PLATE.w, START_PLATE.h,
-        hot ? { border: C_TEXT, borderWidth: FOCUS_RING_W, alpha: 0.7 } : { border: C_ACCENT, alpha: 0.55 });
-      // The one call to action on the frame: it reads bright whether or not the
-      // keyboard has found it yet; the ring, not the ink, is what says "focused".
-      hudTextCentered(ctx, 'PRESS TO BEGIN', START_PLATE.x, START_PLATE.y, START_PLATE.w, START_PLATE.h, { color: C_TEXT });
+      drawPrimaryButton(ctx, START_PLATE.x, START_PLATE.y - 8, START_PLATE.w, START_PLATE.h + 16,
+        'PRESS TO BEGIN', hot || focused, false, C_ACCENT);
 
       const hint = input.pointer.type === 'touch' ? 'tap anywhere to begin' : `${BUTTON_KEY.A.hint} or tap anywhere . arrows move . ${BUTTON_KEY.PAUSE.hint} pauses`;
       hudTextCentered(ctx, hint, 0, CANVAS_H - inset.bottom - 20, CANVAS_W, HUD_SMALL, { px: HUD_SMALL, color: C_DIM });

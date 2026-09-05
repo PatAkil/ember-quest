@@ -11,16 +11,44 @@
 // No bitmap text here: a verdict is something the player READS, so it renders
 // in the HUD face like every other UI line.
 
-import type { Audio, HitRegions, Input, PixelCanvas } from '../../engine';
+import type { Audio, HitRegions, Input, Light, LightActor, PixelCanvas } from '../../engine';
 import { PICO8, dimScene } from '../../engine';
-import { CANVAS_W, CONTINUE, HUD_LARGE, HUD_PX, HUD_SMALL } from './layout';
-import { hudText, hudTextCentered, hudWidth, plate } from './hud';
+import { CANVAS_W, CANVAS_H, CONTINUE, HUD_LARGE, HUD_PX, HUD_SMALL } from './layout';
+import { ACCENT, C_DEBUFF, KEY_LIGHT, drawPrimaryButton, hudText, hudTextCentered, hudWidth, withAlpha } from './hud';
+import type { ActorDrawState, ActorRecipe } from '../art/actors';
+import { ACTOR_RECIPES, ACTOR_W, actorHitRect, drawActor } from '../art/actors';
 import type { RunScreen } from './run';
 
 const C_TEXT = PICO8[7];
 const C_DIM = PICO8[6];
-const C_DEATH = PICO8[8];
-const C_VICTORY = PICO8[10];
+const C_DEATH = C_DEBUFF;
+/** The key light's own amber, not a pure yellow that belongs to no biome. */
+const C_VICTORY = ACCENT;
+
+/**
+ * The survivors stand in the frame the player screenshots (UI item 10). They
+ * are placed on the party's own side, clear of the centred verdict block and of
+ * CONTINUE's plate, and drawn INSIDE the scene pass so the crypt's key light
+ * and rim reach them; a cached warm pool is laid over the terminal dim
+ * afterwards so they still read as lit under it.
+ */
+const CAST_FEET = [
+  { x: 896, y: 424 },
+  { x: 986, y: 492 },
+  { x: 1076, y: 560 },
+] as const;
+const CAST_DIM = 0.5;
+const POOL = { x: 986, y: 470, r: 300 };
+const castPose: ActorDrawState = { pose: 'idle', time: 0, element: 'FIRE', facing: -1, x: 0, y: 0 };
+/**
+ * One pooled LightActor per member, plus the VIEW handed to renderLightPlane.
+ * The pool keeps its three records for the life of the page and the view is
+ * trimmed to the live count — trimming the pool itself would drop a record a
+ * later frame (a fuller party on a retry) needs back.
+ */
+const castLightPool: LightActor[] = CAST_FEET.map((f) => ({ x: f.x - ACTOR_W / 2, y: f.y - ACTOR_W * 0.88, w: ACTOR_W, h: ACTOR_W * 0.88, glow: 0 }));
+const castLights: LightActor[] = [];
+let keyPool: CanvasGradient | null = null;
 
 /** The verdict, at roughly the height the contract's bitmap scale 4 drew — the battle's PAUSED size. */
 const VERDICT_PX = 44;
@@ -35,8 +63,10 @@ export interface EndScreenDeps {
   input: Input;
   regions: HitRegions;
   audio: Audio;
-  /** main.ts's one scene pass: the lit diorama every screen draws its HUD over. */
-  scene(): void;
+  /** main.ts's one scene pass: diorama -> the world this callback draws -> light plane -> post. */
+  scene(drawWorld?: () => void, actors?: readonly LightActor[]): void;
+  /** The shared scene layer — this screen only uses it for the survivors' contact shadows. */
+  light: Light;
   /** GAME_OVER's RETRY: start a fresh slice run. */
   onRetry: () => void;
   /** VICTORY's CONTINUE: restart the slice (there is no act 2 yet). */
@@ -49,7 +79,29 @@ export interface EndScreen {
 }
 
 export function createEndScreen(deps: EndScreenDeps): EndScreen {
-  const { pc, input, regions, audio, scene, onRetry, onContinue } = deps;
+  const { pc, input, regions, audio, light, scene, onRetry, onContinue } = deps;
+  /**
+   * The survivors. Three records are allocated once and rewritten in place each
+   * frame — `castN` is how many of them are live this frame — so the end screen
+   * allocates nothing per frame, exactly like the battle's light-actor pool.
+   */
+  interface CastMember { recipe: ActorRecipe; element: ActorDrawState['element']; x: number; y: number; span: number }
+  const cast: CastMember[] = CAST_FEET.map((f) => ({ recipe: ACTOR_RECIPES.EMBER, element: 'FIRE', x: f.x, y: f.y, span: 0 }));
+  let castN = 0;
+  let castTime = 0;
+
+  const drawCast = (): void => {
+    const ctx = pc.ctx;
+    for (let i = 0; i < castN; i++) light.drawContactShadow(ctx, cast[i].x, cast[i].y, cast[i].span);
+    for (let i = 0; i < castN; i++) {
+      const c = cast[i];
+      castPose.time = castTime;
+      castPose.element = c.element;
+      castPose.x = c.x;
+      castPose.y = c.y;
+      drawActor(ctx, c.recipe, castPose);
+    }
+  };
 
   return {
     // A complete tick — begin -> add -> end -> check activation -> endFrame() —
@@ -68,14 +120,51 @@ export function createEndScreen(deps: EndScreenDeps): EndScreen {
       input.endFrame();
     },
 
-    render(_time, run) {
-      scene();
+    render(time, run) {
       const ctx = pc.ctx;
       const s = run.state();
       const won = s.phase === 'VICTORY';
       const accent = won ? C_VICTORY : C_DEATH;
+
+      // Whoever walked out of the run stands in the frame, lit by the crypt.
+      castTime = time;
+      castN = 0;
+      for (const m of s.party.members) {
+        if (m.hp <= 0 || castN >= CAST_FEET.length) continue;
+        const recipe = ACTOR_RECIPES[m.def.id];
+        if (!recipe) continue;
+        const f = CAST_FEET[castN];
+        const c = cast[castN];
+        c.recipe = recipe;
+        c.element = m.def.element;
+        c.x = f.x;
+        c.y = f.y;
+        c.span = actorHitRect(recipe, f.x, f.y).w;
+        castLightPool[castN].x = f.x - ACTOR_W / 2;
+        castLightPool[castN].y = f.y - ACTOR_W * 0.88;
+        castLights[castN] = castLightPool[castN];
+        castN += 1;
+      }
+      castLights.length = castN;
+      scene(castN ? drawCast : undefined, castLights);
+
       // The terminal-screen overlay: the crypt stays visible under it.
-      dimScene(pc);
+      dimScene(pc, CAST_DIM);
+      if (castN) {
+        // A warm pool laid back over the dim, so the survivors read as standing
+        // in the key light instead of behind a grey sheet. Built once.
+        if (!keyPool) {
+          keyPool = ctx.createRadialGradient(POOL.x, POOL.y, 0, POOL.x, POOL.y, POOL.r);
+          keyPool.addColorStop(0, withAlpha(ACCENT, 0.2));
+          keyPool.addColorStop(0.55, withAlpha(KEY_LIGHT, 0.09));
+          keyPool.addColorStop(1, withAlpha(KEY_LIGHT, 0));
+        }
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = keyPool;
+        ctx.fillRect(POOL.x - POOL.r, Math.max(0, POOL.y - POOL.r), POOL.r * 2, Math.min(CANVAS_H, POOL.r * 2));
+        ctx.restore();
+      }
 
       hudTextCentered(ctx, `ACT 1   SCORE ${s.score}`, 0, SUMMARY_Y, CANVAS_W, HUD_PX, { color: C_DIM });
       const verdict = won ? 'VICTORY' : 'GAME OVER';
@@ -92,11 +181,9 @@ export function createEndScreen(deps: EndScreenDeps): EndScreen {
         px: HUD_SMALL, color: C_DIM,
       });
 
-      const focused = regions.focused() === 'end-continue';
-      const pressed = regions.pressing() === 'end-continue';
-      plate(ctx, CONTINUE.x, CONTINUE.y, CONTINUE.w, CONTINUE.h, focused ? { border: C_TEXT, alpha: 0.7 } : { border: accent, alpha: 0.55 });
-      // A pressed button sinks its label by a pixel, as it did before.
-      hudTextCentered(ctx, won ? 'CONTINUE' : 'RETRY', CONTINUE.x, CONTINUE.y + (pressed ? 2 : 0), CONTINUE.w, CONTINUE.h, { color: C_TEXT });
+      // The screen's one action: the lit primary plate, in the verdict's colour.
+      drawPrimaryButton(ctx, CONTINUE.x, CONTINUE.y, CONTINUE.w, CONTINUE.h, won ? 'CONTINUE' : 'RETRY',
+        regions.focused() === 'end-continue', regions.pressing() === 'end-continue', accent);
     },
   };
 }

@@ -38,7 +38,7 @@ import type { BattleResult } from './types';
 import {
   CANVAS_W, CANVAS_H, PAUSE_BTN, PAUSE_BTN_X, PAUSE_BTN_Y, PAUSED_TEXT_Y, SAFE_INSET,
 } from './screens/layout';
-import { hudText, hudTextCentered, hudWidth, plate } from './screens/hud';
+import { EDGE_LIT, FOCUS_RING, drawPrimaryButton, hudText, hudTextCentered, hudWidth, plate } from './screens/hud';
 import { RUN_BIOME, createRunScreen } from './screens/run';
 import type { RunPhase, RunScreen } from './screens/run';
 import { createCardsScreen } from './screens/cards';
@@ -165,7 +165,7 @@ const cardsScreen = createCardsScreen({
   // have on-screen targets — because a phone has no keys" is a whole-game rule, not a battle-only one).
   onPause: () => scenes.to('PAUSED'),
 });
-const endScreen = createEndScreen({ pc, input, regions, audio, scene: renderScene, onRetry: startRun, onContinue: startRun });
+const endScreen = createEndScreen({ pc, input, regions, audio, light, scene: renderScene, onRetry: startRun, onContinue: startRun });
 const battleScreen = createBattleScreen({
   pc, input, regions, audio, juice, particles, crt, light, arcade, setBiome: useBiome,
 });
@@ -235,11 +235,22 @@ function renderPauseOverlay(): void {
     ['pause-arcade', `ARCADE ${arcade.on ? 'ON' : 'OFF'}`],
     ['pause-quit', 'QUIT TO TITLE'],
   ];
+  // The same two-button language the battle's overlay speaks: RESUME is the
+  // primary (a lit plate), and every other button is BORDERED so none of them
+  // can dissolve into the dimmed scene behind it.
   labels.forEach(([id, label], i) => {
     const focused = regions.focused() === id;
     const y = PAUSE_BTN_Y[i];
-    plate(ctx, PAUSE_BTN_X, y, PAUSE_BTN.w, PAUSE_BTN.h, focused ? { border: C_TEXT, alpha: 0.7 } : { alpha: 0.6 });
-    hudTextCentered(ctx, label, PAUSE_BTN_X, y, PAUSE_BTN.w, PAUSE_BTN.h, { color: C_TEXT });
+    if (i === 0) {
+      drawPrimaryButton(ctx, PAUSE_BTN_X, y, PAUSE_BTN.w, PAUSE_BTN.h, label, focused);
+      return;
+    }
+    const ph = 56;
+    const py = y + (PAUSE_BTN.h - ph) / 2;
+    plate(ctx, PAUSE_BTN_X, py, PAUSE_BTN.w, ph, {
+      border: focused ? FOCUS_RING : EDGE_LIT, borderWidth: focused ? 2 : 1, alpha: 0.62,
+    });
+    hudTextCentered(ctx, label, PAUSE_BTN_X, py, PAUSE_BTN.w, ph, { color: C_TEXT });
   });
 }
 
@@ -370,5 +381,20 @@ if ((import.meta as unknown as { env: { DEV: boolean } }).env.DEV) {
     /** The exact ribbon forecast (def.id per queue slot) — the same pure function drawRibbonQueue()
      * calls, so a driver can assert "who acts next" against it turn over turn without reading pixels. */
     forecastIds: () => (activeBattle ? forecast(activeBattle, 8).map((a) => a.def.id) : []),
+    /**
+     * Which region the registry resolves the POINTER to this frame. A QA driver
+     * moves the mouse over a grid and reads this back, which is the only way to
+     * prove that no strip between two hit rects resolves to the wrong one —
+     * pixels cannot show it and geometry alone cannot, since the answer depends
+     * on the registry's two-pass order. Dev only, like every field above.
+     */
+    regionAt: () => regions.hovered(),
+    /** Where the KEYBOARD is. The pause overlay replaces the region pool, so
+     * proving that resume puts the focus back where the player left it is not
+     * something a frame can show — only this can. Dev only. */
+    focusedId: () => regions.focused(),
+    /** Whether the battle screen is PAUSED — the one state that freezes update()
+     * while render() keeps going, so a driver can tell "frozen" from "slow". Dev only. */
+    battlePaused: () => battleScreen.paused,
   };
 }

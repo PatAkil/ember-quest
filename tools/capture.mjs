@@ -121,6 +121,36 @@ async function canvasBox(page) {
   if (!box) throw new Error('no game canvas');
   return box;
 }
+// --- the contract's geometry, mirrored (game/screens/layout.ts) -----------------
+// The battle screen dropped the enemy panel column: an enemy is tapped on its
+// SPRITE now, and the command list is three compact rows bottom-left instead of
+// three slabs across the bottom. These are the same numbers layout.ts exports.
+const ENEMY_FEET = [[230, 380], [330, 448], [430, 516]];
+const ENEMY_FEET_PAIR = [[206, 400], [452, 504]];
+const BOSS_FEET = [322, 490];
+/** Where to tap enemy `i` of a pack of `count` — the sprite's own hurtbox, ~50 px above the feet. */
+function enemyTap(count, i) {
+  const f = count === 1 ? BOSS_FEET : count === 2 ? (ENEMY_FEET_PAIR[i] ?? ENEMY_FEET_PAIR[0]) : (ENEMY_FEET[i] ?? ENEMY_FEET[0]);
+  return [f[0], f[1] - 50];
+}
+/**
+ * Command row `i`, x 24-344. Rows are 40 tall stacked up from y 672 on a
+ * desktop and 56 tall stacked up from y 680 on a phone (layout.ts's
+ * skillRowRect), with an 8-px gap either way. Without the phone branch every
+ * tap landed in a gutter — skillTap(0) = (184, 556) sits between phone row 1
+ * (496-552) and row 2 (560-616) — and `play phone=1` spun forever on a
+ * cooldown, writing three frames in sixteen minutes.
+ */
+function skillTap(i, phone) {
+  const h = phone ? 56 : 40;
+  const bottom = phone ? 680 : 672;
+  return [184, bottom - h - (2 - i) * (h + 8) + Math.round(h / 2)];
+}
+/** Hero panel `i`: the one panel column, now on the party's own side (x 976-1256). */
+function heroPanelTap(i) {
+  return [1116, [148, 264, 380][i]];
+}
+
 /** Tap at LOGICAL (1280x720) coordinates whatever the CSS fit. */
 async function tap(page, lx, ly, touch) {
   const box = await canvasBox(page);
@@ -137,7 +167,7 @@ async function wait(page, ms) {
   await page.waitForTimeout(ms);
 }
 
-async function battle(page, prefix, touch) {
+async function battle(page, prefix, touch, phone = touch) {
   await page.goto(`${BASE}/`, { waitUntil: 'load' });
   await page.waitForSelector('#screen canvas', { state: 'attached', timeout: 15000 });
   await wait(page, 600);
@@ -151,13 +181,19 @@ async function battle(page, prefix, touch) {
   await wait(page, 1500);
   await frame(page, `${prefix}battle-1`);
   // A hero's turn may or may not be up: try skill 1 on enemy 0 a few times and
-  // snapshot right after, so at least one frame carries a hit and its VFX.
+  // snapshot right after, so at least one frame carries a hit and its VFX. Three
+  // rounds, not five: with the taps landing on the sprites the pack now dies
+  // inside five, and the pause/inspect frames below never got taken.
   // Timing: the HIT event fires one CAST beat (0.16 s) after the target tap and
   // its effect lives ~0.3-0.5 s, so the burst below samples early, mid and late life.
-  for (let i = 0; i < 5; i++) {
-    await tap(page, 228, 648, touch); // skill 1
+  const packSize = await page.evaluate(() => {
+    const b = window.__eq && window.__eq.battleObj ? window.__eq.battleObj() : null;
+    return b ? b.enemies.length : 3;
+  }).catch(() => 3);
+  for (let i = 0; i < 3; i++) {
+    await tap(page, ...skillTap(0, phone), touch); // command row 1
     await wait(page, 120);
-    await tap(page, 1116, 148, touch); // enemy panel 0 = target
+    await tap(page, ...enemyTap(packSize, 0), touch); // enemy 0's sprite = target
     await wait(page, 200);
     await frame(page, `${prefix}battle-hit-${i}a`);
     await wait(page, 70);
@@ -169,17 +205,27 @@ async function battle(page, prefix, touch) {
   await frame(page, `${prefix}battle-2`);
   // Pause overlay and the inspect overlay — only while the battle is still on
   // (a dev build exposes window.__eq; without it the taps are best effort).
-  const inBattle = await page.evaluate(() => {
+  const stillFighting = async () => page.evaluate(() => {
     const eq = window.__eq;
     return !eq || (eq.run() && eq.run().phase === 'BATTLE');
   }).catch(() => true);
+  // The taps land on the sprites now, so room 0 can be WON inside the burst
+  // above. Walk on to the next room's battle rather than skipping the two
+  // overlay frames, which are the whole point of this mode.
+  let inBattle = await stillFighting();
+  for (let i = 0; i < 3 && !inBattle; i++) {
+    await tap(page, 640, 600, touch); // CONTINUE / SKIP — whichever card is up
+    await wait(page, 900);
+    inBattle = await stillFighting();
+  }
   if (inBattle) {
+    await wait(page, 600);
     await tap(page, 1224, 48, touch); // pause icon
     await wait(page, 300);
     await frame(page, `${prefix}battle-paused`);
     await tap(page, 640, 264, touch); // RESUME
     await wait(page, 300);
-    await tap(page, 164, 148, touch); // hero panel 0 -> inspect (outside target mode)
+    await tap(page, ...heroPanelTap(0), touch); // hero panel 0 -> inspect (outside target mode)
     await wait(page, 300);
     await frame(page, `${prefix}battle-inspect`);
     await tap(page, 1136, 600, touch); // BACK
@@ -208,9 +254,10 @@ if (modes.has('phone')) {
 // --- a whole slice run, steered by the dev state hook ------------------------------
 // main.ts exposes window.__eq = { scene(), run(), battle() } in dev builds only. The
 // loop below reads it every step and answers with taps at the contract's geometry:
-// CONTINUE (448,552 384x96), the skill buttons (SKILL_X 28/440/852 at y 600), the
-// enemy panels (976,96/212/328 280x104), the cards (CARD_X / centred rows), the
-// who-wears-it buttons (WEAR_X 40/344/648/952 at y 552) and SKIP (= CONTINUE).
+// CONTINUE (448,552 384x96), the command list (three 320x40 rows bottom-left,
+// skillTap above), the enemies' own SPRITES (enemyTap above — there is no enemy
+// panel column any more), the cards (CARD_X / centred rows), the who-wears-it
+// buttons (WEAR_X 40/344/648/952 at y 552) and SKIP (= CONTINUE).
 async function eqState(page) {
   const read = () => page.evaluate(() => ({
     scene: window.__eq.scene(), run: window.__eq.run(), battle: window.__eq.battle(),
@@ -220,7 +267,15 @@ async function eqState(page) {
     tactics: window.__eq.battleObj ? (() => {
       const b = window.__eq.battleObj();
       if (!b) return null;
-      return { heroCooldowns: b.heroes.map((h) => h.cooldowns), enemiesAlive: b.enemies.map((e) => e.alive) };
+      // SILENCE is why cooldowns alone are not legality: sim/battle.ts's
+      // isSkillLegal() blocks every slot ABOVE 0 while a hero is silenced, so a
+      // driver that picks by cooldown taps a disabled row and spins there for
+      // the rest of the run. Slot 0 is always legal, so the flag is enough.
+      return {
+        heroCooldowns: b.heroes.map((h) => h.cooldowns),
+        heroSilenced: b.heroes.map((h) => h.statuses.some((st) => st.kind === 'SILENCE')),
+        enemiesAlive: b.enemies.map((e) => e.alive),
+      };
     })() : null,
   }));
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -245,7 +300,7 @@ function cardCentres(n) {
 }
 const CARD_COUNT = { FIGHT: 1, ELITE: 3, LOOT: 2, BOSS: 3, SUMMON: 1 };
 
-async function play(page, prefix, touch) {
+async function play(page, prefix, touch, phone = touch) {
   await page.goto(`${BASE}/`, { waitUntil: 'load' });
   await page.waitForSelector('#screen canvas', { state: 'attached', timeout: 15000 });
   await page.waitForFunction(() => typeof window.__eq === 'object' && window.__eq !== null, null, { timeout: 15000 });
@@ -260,6 +315,9 @@ async function play(page, prefix, touch) {
   };
   let skillTurn = 0;
   let targetTurn = 0;
+  /** Whose HERO_SKILL prompt the last tap was aimed at, and how many polls it has failed to clear. */
+  let lastSkillActor = null;
+  let stuckSkill = 0;
   let cardsSeen = 0;
   const deadline = Date.now() + 16 * 60 * 1000; // a boss fight is ~45 actor turns of paced playback
   for (let i = 0; i < 12000 && Date.now() < deadline; i++) {
@@ -302,18 +360,25 @@ async function play(page, prefix, touch) {
         const heroIdx = ['EMBER', 'GALE', 'TIDE'].indexOf(s.actor); // fixed slice roster/slot order
         let slot = skillTurn++ % 3; // no tactics info this poll (older build, or a mid-poll race): fall back to cycling
         const cds = s.tactics?.heroCooldowns?.[heroIdx];
+        const silenced = s.tactics?.heroSilenced?.[heroIdx] === true;
         if (cds) {
           slot = 0;
-          if (s.actor !== 'TIDE') for (let k = 2; k >= 0; k--) if (cds[k] === 0) { slot = k; break; }
+          if (!silenced && s.actor !== 'TIDE') for (let k = 2; k >= 0; k--) if (cds[k] === 0) { slot = k; break; }
         }
-        await tap(page, [228, 640, 1052][slot], 648, touch); // an illegal skill is a disabled region: a no-op
+        // ...and a belt to the braces: if the turn did not move on the last two
+        // polls, step DOWN toward slot 0 (always legal) rather than tapping the
+        // same disabled row for the rest of the deadline.
+        if (s.actor === lastSkillActor) { stuckSkill += 1; slot = Math.max(0, slot - stuckSkill); } else { stuckSkill = 0; }
+        lastSkillActor = s.actor;
+        await tap(page, ...skillTap(slot, phone), touch); // an illegal skill is a disabled region: a no-op
         await wait(page, 220);
       } else if (s.battle === 'HERO_TARGET') {
         // The first LIVING enemy, not a blind cycle — a dead enemy's panel is disabled (a no-op), and with
         // 1-2 enemies already down a blind 3-way cycle wastes most of its taps on corpses.
         const alive = s.tactics?.enemiesAlive;
-        const idx = alive ? alive.findIndex((a) => a) : targetTurn++ % 3;
-        await tap(page, 1116, [148, 264, 380][idx < 0 ? 0 : idx], touch);
+        const count = alive ? alive.length : 3;
+        const idx = alive ? alive.findIndex((a) => a) : targetTurn++ % count;
+        await tap(page, ...enemyTap(count, idx < 0 ? 0 : idx), touch);
         await wait(page, 260);
       } else {
         await wait(page, 160);

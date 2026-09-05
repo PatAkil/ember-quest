@@ -12,14 +12,81 @@
 // titles and door labels.
 
 import { PICO8 } from '../../engine';
-import type { Element, SetBonus, Slot } from '../types';
+import type { Element, SetBonus, Slot, StatusKind } from '../types';
 import type { ActorRecipe } from '../art/actors';
 import { bakePose } from '../art/actors';
-import { HUD_FONT, HUD_LETTER_SPACING, HUD_PX, HUD_SMALL, PORTRAIT, STATUS_ICON } from './layout';
+import { HUD_FONT, HUD_LETTER_SPACING, HUD_PX, PORTRAIT } from './layout';
+
+// ============================================================ the accents ===
+/**
+ * ONE accent palette, pulled onto the grade. Pure yellow, pure cyan and pure
+ * green belonged to no biome and were the most saturated things in the game;
+ * these three are lifted straight off what is already lit: AMBER is the crypt's
+ * key light (#ff9436) raised for text, COOL is the hue of Tide's orb (the WATER
+ * glow ramp), HP is Gale's green (the WIND glow ramp). Every title, ring, prompt
+ * and bar in the game picks from these three and nothing else.
+ */
+export const ACCENT = '#ffa64a';
+export const ACCENT_COOL = '#4fc4de';
+export const ACCENT_HP = '#7fd45c';
+/** The two the logo needs: the amber one step deeper, and the shadow under it. */
+export const ACCENT_DEEP = '#c96a22';
+export const ACCENT_SHADOW = '#25131f';
+
+/** The ink every plate, wash, trough and keyline is mixed from. */
+export const INK = '6,8,16';
+export const INK_KEYLINE = 'rgba(3,4,10,0.95)';
+export const INK_TROUGH = 'rgba(3,4,10,0.7)';
+
+/**
+ * The four family colours the accents do not cover. Every screen picks from
+ * here — the round before this had #f28a8a in two files, #ffd75e in two,
+ * #c39ae8 in two and #9a95a8 in two, which is four palettes pretending to be
+ * one. Nothing outside this file names a colour any more.
+ */
+/** Something is being done TO you: debuffs, cooldown pips, an enemy's hairline, GAME OVER. */
+export const C_DEBUFF = '#f28a8a';
+/** COMMON rarity, dim labels, a spent bar. */
+export const C_MUTED = '#9a95a8';
+/** A crit, a KINDLED relic — the one hot highlight. */
+export const C_GOLD = '#ffd75e';
+/** EPIC rarity and the DARK element. */
+export const C_VIOLET = '#c39ae8';
+/** Off-white for a label that must read without shouting (an unfocused primary button). */
+export const C_CREAM = '#e6dfd2';
+/** The crypt's key light itself — what the end screen's warm pool is mixed from. */
+export const KEY_LIGHT = '#ff9436';
+
+/**
+ * The three neutral edges. A plate's lip, a resting border and a spent pip were
+ * written as raw `rgba(255,255,255,...)` in five files; named once, "which
+ * edge" is a choice rather than a number someone has to match by eye.
+ */
+export const EDGE_SOFT = 'rgba(255,255,255,0.2)';
+export const EDGE_LIT = 'rgba(255,255,255,0.28)';
+export const EDGE_REST = 'rgba(255,255,255,0.22)';
+export const PIP_EMPTY = 'rgba(255,255,255,0.26)';
+
+/**
+ * Damage-pop families. The pop is bitmap text over a LIT floor, so every one of
+ * these is read against `INK_KEYLINE`, not against the ground: `drawPops` lays a
+ * 2-px ink keyline under the glyph before the colour goes down. GLANCE was
+ * #9a95a8 and measured ~3:1 in the key pool — the weakest text in the frame —
+ * so it is lifted here and the keyline does the rest.
+ */
+export const POP_PHYSICAL = '#f4f0e8';
+export const POP_HEAL = '#9ff2c8';
+export const POP_GLANCE = '#cfc9d8';
+export const POP_CRIT = C_GOLD;
 
 // ------------------------------------------------------------- element ui --
+/** Element colours ride the same grade: warm amber, leaf, tide, gold, violet. */
 export const ELEMENT_COLOR: Record<Element, string> = {
-  FIRE: PICO8[9], WIND: PICO8[11], WATER: PICO8[12], LIGHT: PICO8[10], DARK: PICO8[2],
+  FIRE: ACCENT, WIND: ACCENT_HP, WATER: ACCENT_COOL, LIGHT: '#ffd98a', DARK: '#b18cd9',
+};
+/** The same five families as a damage number: brighter, because a pop is read for a third of a second. */
+export const POP_ELEMENT: Record<Element, string> = {
+  FIRE: '#ffb15c', WIND: '#a8e07a', WATER: '#7fdcef', LIGHT: '#ffe9a8', DARK: C_VIOLET,
 };
 
 export function clamp01(x: number): number {
@@ -173,20 +240,6 @@ export function drawBar(ctx: CanvasRenderingContext2D, x: number, y: number, w: 
   ctx.fillRect(x0, y0, Math.max(0, Math.round(w * clamp01(frac))), h);
 }
 
-// =============================================================== statuses ===
-/** Status icons stay what they were: a small element-coloured glyph, now lettered in the HUD face. */
-export function drawStatusChip(ctx: CanvasRenderingContext2D, x: number, y: number, label: string, color: string): void {
-  const s = STATUS_ICON;
-  ctx.save();
-  roundRectPath(ctx, Math.round(x) + 0.5, Math.round(y) + 0.5, s - 1, s - 1, 3);
-  ctx.fillStyle = 'rgba(6,8,16,0.72)';
-  ctx.fill();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  ctx.restore();
-  hudTextCentered(ctx, label, x, y, s, s, { px: HUD_SMALL, color });
-}
 
 // ============================================================== wrapping ===
 /**
@@ -257,11 +310,6 @@ export function drawFocusablePlate(
 }
 
 // ================================================================== relics ==
-/** The slot, as the two-letter glyph the inspect overlay already uses. */
-export const SLOT_ABBR: Record<Slot, string> = {
-  WEAPON: 'Wp', BOOTS: 'Bt', ARMOR: 'Ar', NECKLACE: 'Nk', CHALICE: 'Ch', TOME: 'Tm',
-};
-
 /** A set's bonus as one short line — screens render text, never a raw SetBonus shape. */
 export function formatSetBonus(bonus: SetBonus): string {
   switch (bonus.kind) {
@@ -342,4 +390,331 @@ export function portraitFor(recipe: ActorRecipe, element: Element): HTMLCanvasEl
   ctx.drawImage(pose, sx, y0, side, side, 0, 0, Math.round(side * scale), Math.round(side * scale));
   PORTRAIT_CACHE.set(key, out);
   return out;
+}
+
+// ============================================================ washes/plates ==
+/**
+ * A PLATE is not a box. The battle panels, the enemy plate and the log line all
+ * sit on a top-down gradient that starts at `topAlpha` and reaches zero at the
+ * foot, so the ink hangs under the text and the lit scene keeps coming through
+ * underneath. Gradients are cached per (height, alpha) and positioned by
+ * translate — a frame builds none.
+ */
+export const PANEL_TOP_ALPHA = 0.35;
+const V_GRADS = new Map<string, CanvasGradient>();
+const TINT_GRADS = new Map<string, CanvasGradient>();
+const H_GRADS = new Map<string, CanvasGradient>();
+
+function vGrad(ctx: CanvasRenderingContext2D, h: number, topAlpha: number): CanvasGradient {
+  const key = `${h}|${topAlpha}`;
+  let g = V_GRADS.get(key);
+  if (!g) {
+    g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, `rgba(${INK},${topAlpha})`);
+    g.addColorStop(0.62, `rgba(${INK},${topAlpha * 0.42})`);
+    g.addColorStop(1, `rgba(${INK},0)`);
+    V_GRADS.set(key, g);
+  }
+  return g;
+}
+/**
+ * `#rrggbb` -> `rgba(r,g,b,a)`. A gradient must fade a colour to ITS OWN zero
+ * alpha, never to CSS `transparent` (which is transparent BLACK and drags an
+ * amber wash toward soot on the way down).
+ */
+export function withAlpha(hex: string, a: number): string {
+  const h = hex.replace('#', '');
+  const n = parseInt(h.length === 3 ? h.split('').map((c) => c + c).join('') : h, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
+/** A top-down wash in an arbitrary colour — what makes the primary button read LIT rather than merely rimmed. */
+function tintGrad(ctx: CanvasRenderingContext2D, h: number, color: string, alpha: number): CanvasGradient {
+  const key = `${h}|${color}|${alpha}`;
+  let g = TINT_GRADS.get(key);
+  if (!g) {
+    g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, withAlpha(color, alpha));
+    g.addColorStop(0.55, withAlpha(color, alpha * 0.3));
+    g.addColorStop(1, withAlpha(color, 0));
+    TINT_GRADS.set(key, g);
+  }
+  return g;
+}
+
+/** Widths are BUCKETED to 32 px: the log line's width changes with every damage
+ * number it prints, and an exact-width key would grow this cache without bound. */
+const WASH_BUCKET = 32;
+function hWash(ctx: CanvasRenderingContext2D, w: number, alpha: number): CanvasGradient {
+  const key = `${w}|${alpha}`;
+  let g = H_GRADS.get(key);
+  if (!g) {
+    g = ctx.createLinearGradient(0, 0, w, 0);
+    g.addColorStop(0, `rgba(${INK},0)`);
+    g.addColorStop(0.1, `rgba(${INK},${alpha})`);
+    g.addColorStop(0.68, `rgba(${INK},${alpha})`);
+    g.addColorStop(1, `rgba(${INK},0)`);
+    H_GRADS.set(key, g);
+  }
+  return g;
+}
+
+/** The gradient plate: ink at the top fading to nothing, and a border ONLY when it is focused or targeted. */
+export function gradientPlate(
+  ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number,
+  o: { topAlpha?: number; border?: string; radius?: number } = {},
+): void {
+  const px = Math.round(x);
+  const py = Math.round(y);
+  const pw = Math.round(w);
+  const ph = Math.round(h);
+  ctx.save();
+  ctx.translate(px, py);
+  roundRectPath(ctx, 0, 0, pw, ph, o.radius ?? PLATE_RADIUS);
+  ctx.fillStyle = vGrad(ctx, ph, o.topAlpha ?? PANEL_TOP_ALPHA);
+  ctx.fill();
+  ctx.restore();
+  if (!o.border) return;
+  ctx.save();
+  roundRectPath(ctx, px + 0.5, py + 0.5, pw - 1, ph - 1, o.radius ?? PLATE_RADIUS);
+  ctx.strokeStyle = o.border;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** A short local wash under one line of text — the log line's whole background: no rule, no box. */
+export function textWash(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, alpha = 0.5): void {
+  const pw = Math.max(WASH_BUCKET, Math.ceil(w / WASH_BUCKET) * WASH_BUCKET);
+  ctx.save();
+  ctx.translate(Math.round(x), Math.round(y));
+  ctx.fillStyle = hWash(ctx, pw, alpha);
+  ctx.fillRect(0, 0, pw, Math.round(h));
+  ctx.restore();
+}
+
+// ================================================================ HP rules ===
+/** The panel's HP bar: a 4-px rule the width of the NUMBER, over a trough tinted to the actor's element. */
+export const HP_RULE_H = 4;
+export function drawHpRule(
+  ctx: CanvasRenderingContext2D, x: number, y: number, w: number, frac: number, element: Element, alive = true,
+): void {
+  const x0 = Math.round(x);
+  const y0 = Math.round(y);
+  const ww = Math.max(2, Math.round(w));
+  ctx.save();
+  ctx.fillStyle = 'rgba(3,4,10,0.66)';
+  ctx.fillRect(x0, y0, ww, HP_RULE_H);
+  ctx.globalAlpha = 0.3;
+  ctx.fillStyle = ELEMENT_COLOR[element];
+  ctx.fillRect(x0, y0, ww, HP_RULE_H);
+  ctx.restore();
+  ctx.fillStyle = alive ? ACCENT_HP : PICO8[5];
+  ctx.fillRect(x0, y0, Math.max(0, Math.round(ww * clamp01(frac))), HP_RULE_H);
+}
+
+// =============================================================== pictograms ==
+/**
+ * Icons, not letters. Every status, relic slot and element is a small vector
+ * mark authored in a 24x24 unit box and drawn at any size: colour carries the
+ * family (debuff / buff / ward / element), shape carries the effect. Each
+ * Path2D is built ONCE, on first use, and cached — a frame allocates nothing,
+ * and nothing here runs at module load, so a headless import never touches the
+ * DOM.
+ */
+export type IconName =
+  | 'flame' | 'droplet' | 'shield' | 'shieldCrack' | 'sword' | 'swordDown' | 'wing' | 'star'
+  | 'eye' | 'chain' | 'noHeal' | 'brand' | 'spiral' | 'halo' | 'counter'
+  | 'boot' | 'cuirass' | 'pendant' | 'chalice' | 'tome'
+  | 'swirl' | 'sun' | 'moon';
+
+/**
+ * `d` is the body. `cut` is stroked in INK over it — a crack, a seam, a split.
+ * `over` is a second SHAPE laid on top with a keyline gap around it, which is
+ * how a bar crosses a symbol without severing it (evenodd punched a hole
+ * through `noHeal`'s cross and left two loose arms).
+ */
+interface IconSpec { d: string; evenodd?: boolean; stroke?: number; flipY?: boolean; cut?: string; over?: string }
+
+const ICONS: Record<IconName, IconSpec> = {
+  // --- statuses ---
+  flame: { d: 'M12 1.5c3 5.2 6.2 6.6 6.2 11.4a6.2 6.2 0 0 1-12.4 0c0-3.1 2-4.4 3.1-7.2c1.1 3.1 2 4.2 2 6.2c1-2.1 1.1-6.2 1.1-10.4z' },
+  droplet: { d: 'M12 2.4c4.1 5.1 6.2 8.1 6.2 11.1a6.2 6.2 0 0 1-12.4 0c0-3 2.1-6 6.2-11.1z' },
+  shield: { d: 'M12 1.8l8.2 3v6.1c0 5.3-3.6 9.3-8.2 11.3c-4.6-2-8.2-6-8.2-11.3V4.8z' },
+  // A shield SPLIT by a crack that runs edge to tip — the punched-out bolt read as a shield with a lightning badge on it.
+  shieldCrack: { d: 'M12 1.8l8.2 3v6.1c0 5.3-3.6 9.3-8.2 11.3c-4.6-2-8.2-6-8.2-11.3V4.8z', cut: 'M12.8 2.2l-3.2 6.6l3.4 1.4l-3.4 4.2l2.4 1.6l-1.6 6.4' },
+  sword: { d: 'M12 1.4l3 4.6v8.4H9V6z M6.6 14.4h10.8v2.4H6.6z M10.8 16.8h2.4V22.6h-2.4z' },
+  swordDown: { d: 'M12 1.4l3 4.6v8.4H9V6z M6.6 14.4h10.8v2.4H6.6z M10.8 16.8h2.4V22.6h-2.4z', flipY: true },
+  // A leading edge and three finger feathers: the old pair of tapers read as a leaf.
+  wing: { d: 'M21.2 2.4C13 3.4 6 7.8 1.6 14.6l6.6-1l-3.2 4.4l6-1.6l-2.4 4.6l5-1.8l-1.2 3.6c6.6-3.6 10.4-11.6 9-20.8z' },
+  star: { d: 'M12 1.6l3 6.5l7.1.8l-5.3 4.8l1.5 7l-6.3-3.5l-6.3 3.5l1.5-7L1.9 8.9l7.1-.8z' },
+  eye: { d: 'M12 4.6c6.2 0 10.4 4.7 11.4 7.4c-1 2.7-5.2 7.4-11.4 7.4S1.6 14.7.6 12C1.6 9.3 5.8 4.6 12 4.6z M12 8.4a3.6 3.6 0 1 0 0 7.2a3.6 3.6 0 1 0 0-7.2z', evenodd: true },
+  chain: { d: 'M3.4 5.2h8.2a3.2 3.2 0 0 1 0 6.4H3.4a3.2 3.2 0 0 1 0-6.4z M5 6.8h6.6a1.6 1.6 0 0 1 0 3.2H5a1.6 1.6 0 0 1 0-3.2z M12.4 12.4h8.2a3.2 3.2 0 0 1 0 6.4h-8.2a3.2 3.2 0 0 1 0-6.4z M14 14h6.6a1.6 1.6 0 0 1 0 3.2H14a1.6 1.6 0 0 1 0-3.2z', evenodd: true },
+  // The bar lies OVER the cross with a keyline gap; as an evenodd hole it cut the cross into four loose arms.
+  noHeal: { d: 'M9.2 3.2h5.6v6h6v5.6h-6v6H9.2v-6h-6V9.2h6z', over: 'M3.8 5.0l1.4-1.4L20.2 18.6l-1.4 1.4z' },
+  brand: { d: 'M12 1.4l10.6 10.6L12 22.6L1.4 12z M12 6.2L6.2 12L12 17.8L17.8 12z M12 9.4a2.6 2.6 0 1 1 0 5.2a2.6 2.6 0 1 1 0-5.2z', evenodd: true },
+  spiral: { d: 'M12 12a2 2 0 1 1-2.1-2a4.6 4.6 0 1 1-3.3 7.9a7.7 7.7 0 1 1 10.9-10.9', stroke: 2.4 },
+  halo: { d: 'M12 5.6c5.6 0 10.2 2.1 10.2 4.7S17.6 15 12 15S1.8 12.9 1.8 10.3S6.4 5.6 12 5.6z M12 7.8c-4.1 0-7.2 1.2-7.2 2.5s3.1 2.5 7.2 2.5s7.2-1.2 7.2-2.5S16.1 7.8 12 7.8z', evenodd: true },
+  counter: { d: 'M5.6 3.6v6.6a4.2 4.2 0 0 0 4.2 4.2h5.4v3.2H9.8a7.4 7.4 0 0 1-7.4-7.4V3.6z M14.6 10.6l7.4 4.6l-7.4 4.6z' },
+  // --- relic slots ---
+  boot: { d: 'M6.4 2.2h4.8v8.6c0 2 1.2 3.2 3.2 4.2l4.4 2.2c1.2.6 2.4 1.4 2.4 3v1.6H6.4z' },
+  cuirass: { d: 'M8 2.4L12 5.4L16 2.4L20.4 4.6l-1.2 5.6l1.2 3.2l-2.2 8.2H5.8L3.6 13.4l1.2-3.2L3.6 4.6z' },
+  pendant: { d: 'M2.2 3.4c2 8.2 6.4 11.4 9.8 11.4s7.8-3.2 9.8-11.4l2.2.8c-2.2 9.2-7.6 12.8-12 12.8S2.2 13.4 0 4.2z M12 15.4l3.2 3.4l-3.2 3.6l-3.2-3.6z' },
+  chalice: { d: 'M4.6 2.6h14.8l-2 7.2a5.4 5.4 0 0 1-4.2 3.8v5.2h4v2.6H6.8v-2.6h4v-5.2a5.4 5.4 0 0 1-4.2-3.8z' },
+  // Drawn as an OUTLINE — two page edges and a spine. The filled pair closed into a plain square below 32 px.
+  tome: { d: 'M3 4.8h7.4v14.4H3z M13.6 4.8h7.4v14.4h-7.4z M12 3.4v17.2', stroke: 2 },
+  // --- elements ---
+  swirl: { d: 'M2.4 8.2h11.2a3.2 3.2 0 1 0-3.2-3.2 M2.4 13.4h14.8a3.6 3.6 0 1 1-3.6 3.6', stroke: 2.2 },
+  sun: { d: 'M12 7.2a4.8 4.8 0 1 1 0 9.6a4.8 4.8 0 1 1 0-9.6z M10.9.8h2.2v4h-2.2z M10.9 19.2h2.2v4h-2.2z M.8 10.9h4v2.2h-4z M19.2 10.9h4v2.2h-4z M3.9 5.4l1.5-1.5l2.9 2.9l-1.5 1.5z M15.7 17.2l1.5-1.5l2.9 2.9l-1.5 1.5z M5.4 20.1l-1.5-1.5l2.9-2.9l1.5 1.5z M17.2 8.3l-1.5-1.5l2.9-2.9l1.5 1.5z' },
+  moon: { d: 'M16 3.4A9.4 9.4 0 1 0 16 20.6A12 12 0 0 1 16 3.4z' },
+};
+
+const PATHS = new Map<IconName, Path2D>();
+function pathFor(name: IconName): Path2D {
+  let p = PATHS.get(name);
+  if (!p) {
+    p = new Path2D(ICONS[name].d);
+    PATHS.set(name, p);
+  }
+  return p;
+}
+
+/** The dark keyline every pictogram wears, so one mark reads over a lit floor AND over a plate. */
+const ICON_KEYLINE = 'rgba(3,4,10,0.9)';
+const CUT_CACHE = new Map<IconName, Path2D>();
+const OVER_CACHE = new Map<IconName, Path2D>();
+function subPath(cache: Map<IconName, Path2D>, name: IconName, d: string): Path2D {
+  let p = cache.get(name);
+  if (!p) {
+    p = new Path2D(d);
+    cache.set(name, p);
+  }
+  return p;
+}
+
+/** Draw a pictogram with its top-left at (x, y), `size` px square, in `color`. */
+export function drawIcon(
+  ctx: CanvasRenderingContext2D, name: IconName, x: number, y: number, size: number, color: string, alpha = 1,
+): void {
+  const spec = ICONS[name];
+  const path = pathFor(name);
+  const s = size / 24;
+  ctx.save();
+  if (alpha !== 1) ctx.globalAlpha *= alpha;
+  if (spec.flipY) {
+    ctx.translate(Math.round(x), Math.round(y) + size);
+    ctx.scale(s, -s);
+  } else {
+    ctx.translate(Math.round(x), Math.round(y));
+    ctx.scale(s, s);
+  }
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  if (spec.stroke) {
+    ctx.strokeStyle = ICON_KEYLINE;
+    ctx.lineWidth = spec.stroke + 2.2;
+    ctx.stroke(path);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = spec.stroke;
+    ctx.stroke(path);
+  } else {
+    ctx.strokeStyle = ICON_KEYLINE;
+    ctx.lineWidth = 2.6;
+    ctx.stroke(path);
+    ctx.fillStyle = color;
+    if (spec.evenodd) ctx.fill(path, 'evenodd');
+    else ctx.fill(path);
+  }
+  if (spec.cut) {
+    ctx.strokeStyle = ICON_KEYLINE;
+    ctx.lineWidth = 2.4;
+    ctx.stroke(subPath(CUT_CACHE, name, spec.cut));
+  }
+  if (spec.over) {
+    const q = subPath(OVER_CACHE, name, spec.over);
+    ctx.strokeStyle = ICON_KEYLINE;
+    ctx.lineWidth = 3.6;
+    ctx.stroke(q);
+    ctx.fillStyle = color;
+    ctx.fill(q);
+  }
+  ctx.restore();
+}
+
+/** Shape carries the effect: every status kind has its own mark. */
+export const STATUS_ICON_NAME: Record<StatusKind, IconName> = {
+  BURN: 'flame', SLOW: 'droplet', SHIELD: 'shield', DEF_UP: 'shield', DEF_BREAK: 'shieldCrack',
+  ATK_UP: 'sword', ATK_BREAK: 'swordDown', SPD_UP: 'wing', CRIT_UP: 'star', GLANCE: 'eye',
+  SILENCE: 'chain', HEAL_BLOCK: 'noHeal', BRAND: 'brand', STUN: 'spiral',
+  IMMUNITY: 'halo', INVINCIBLE: 'halo', COUNTER: 'counter',
+};
+/** The six relic slots, as the marks the cards and the inspect rows both draw. */
+export const SLOT_ICON_NAME: Record<Slot, IconName> = {
+  WEAPON: 'sword', BOOTS: 'boot', ARMOR: 'cuirass', NECKLACE: 'pendant', CHALICE: 'chalice', TOME: 'tome',
+};
+/** Colour carries the family: the element's own mark, in the element's own colour. */
+export const ELEMENT_ICON_NAME: Record<Element, IconName> = {
+  FIRE: 'flame', WIND: 'swirl', WATER: 'droplet', LIGHT: 'sun', DARK: 'moon',
+};
+
+// ================================================================= buttons ===
+/**
+ * TWO buttons in the whole game, and neither is a bordered rounded rectangle.
+ * The PRIMARY action is a lit borderless plate with a soft key-coloured glow —
+ * it is the thing to press, so it is the thing that is lit. The SECONDARY is
+ * plain text that grows a focus underline. Both keep their full contract hit
+ * rect; only the paint is smaller.
+ */
+export function drawPrimaryButton(
+  ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, label: string,
+  focused: boolean, pressed = false, accent: string = ACCENT,
+): void {
+  // The plate is drawn shorter than its hit rect: a lit slab, never a full-height slab.
+  const ph = Math.min(h, 56);
+  const py = Math.round(y + (h - ph) / 2) + (pressed ? 1 : 0);
+  const px = Math.round(x);
+  const pw = Math.round(w);
+  ctx.save();
+  // The glow: the accent bled around the plate, strongest when focused.
+  ctx.shadowColor = accent;
+  ctx.shadowBlur = focused ? 26 : 16;
+  ctx.globalAlpha = focused ? 0.5 : 0.32;
+  roundRectPath(ctx, px, py, pw, ph, 6);
+  ctx.fillStyle = accent;
+  ctx.fill();
+  ctx.restore();
+  // The body: ink under a top-lit accent wash, no border at all.
+  ctx.save();
+  ctx.translate(px, py);
+  roundRectPath(ctx, 0, 0, pw, ph, 6);
+  ctx.fillStyle = `rgba(${INK},0.86)`;
+  ctx.fill();
+  // Lit from above in the key's own colour, then a bright lip along the top —
+  // the plate reads as a thing with light falling on it, not as a bordered box.
+  ctx.clip();
+  ctx.fillStyle = tintGrad(ctx, ph, accent, focused ? 0.34 : 0.2);
+  ctx.fillRect(0, 0, pw, ph);
+  ctx.globalAlpha = focused ? 0.9 : 0.6;
+  ctx.fillStyle = accent;
+  ctx.fillRect(0, 0, pw, 2);
+  ctx.restore();
+  hudTextCentered(ctx, label, px, py, pw, ph, { color: focused ? PICO8[7] : '#e6dfd2' });
+}
+
+/** The quiet half of a pair: text, and a rule under it when it holds focus. */
+export function drawSecondaryButton(
+  ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, label: string,
+  focused: boolean, accent: string = ACCENT,
+): void {
+  const px = HUD_PX;
+  const tw = hudWidth(ctx, label, px);
+  const tx = Math.round(x + (w - tw) / 2);
+  const ty = Math.round(y + (h - px * 1.16) / 2);
+  hudText(ctx, label, tx, ty, { color: focused ? PICO8[7] : PICO8[6] });
+  if (!focused) return;
+  ctx.save();
+  ctx.globalAlpha = 0.9;
+  ctx.fillStyle = accent;
+  ctx.fillRect(tx, ty + Math.round(px * 1.16) + 3, Math.round(tw), 2);
+  ctx.restore();
 }
