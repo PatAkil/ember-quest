@@ -212,7 +212,17 @@ if (modes.has('phone')) {
 // enemy panels (976,96/212/328 280x104), the cards (CARD_X / centred rows), the
 // who-wears-it buttons (WEAR_X 40/344/648/952 at y 552) and SKIP (= CONTINUE).
 async function eqState(page) {
-  const read = () => page.evaluate(() => ({ scene: window.__eq.scene(), run: window.__eq.run(), battle: window.__eq.battle() }));
+  const read = () => page.evaluate(() => ({
+    scene: window.__eq.scene(), run: window.__eq.run(), battle: window.__eq.battle(),
+    // Whose turn it is, and just enough of the live sim Battle to act on it (cooldowns, who's still
+    // alive) without shipping the whole heroes/enemies/log payload across the bridge every poll.
+    actor: window.__eq.battleActor ? window.__eq.battleActor() : null,
+    tactics: window.__eq.battleObj ? (() => {
+      const b = window.__eq.battleObj();
+      if (!b) return null;
+      return { heroCooldowns: b.heroes.map((h) => h.cooldowns), enemiesAlive: b.enemies.map((e) => e.alive) };
+    })() : null,
+  }));
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       return await read();
@@ -285,10 +295,25 @@ async function play(page, prefix, touch) {
         if (dead) await once('play-ko-dead-pose');
       }
       if (s.battle === 'HERO_SKILL') {
-        await tap(page, [228, 640, 1052][skillTurn++ % 3], 648, touch); // an illegal skill is a disabled region: a no-op
+        // Cooldown-aware so a tanky boss (Hollow King: ~4-5x a normal enemy's HP) actually gets cleared
+        // within this loop's deadline instead of repeatedly tapping a disabled (on-cooldown) button: prefer
+        // the strongest legal skill (highest index) for every hero except the party's healer, who only
+        // has one damaging skill (slot 0) — the two heals/buffs on its other slots would stall the kill.
+        const heroIdx = ['EMBER', 'GALE', 'TIDE'].indexOf(s.actor); // fixed slice roster/slot order
+        let slot = skillTurn++ % 3; // no tactics info this poll (older build, or a mid-poll race): fall back to cycling
+        const cds = s.tactics?.heroCooldowns?.[heroIdx];
+        if (cds) {
+          slot = 0;
+          if (s.actor !== 'TIDE') for (let k = 2; k >= 0; k--) if (cds[k] === 0) { slot = k; break; }
+        }
+        await tap(page, [228, 640, 1052][slot], 648, touch); // an illegal skill is a disabled region: a no-op
         await wait(page, 220);
       } else if (s.battle === 'HERO_TARGET') {
-        await tap(page, 1116, [148, 264, 380][targetTurn++ % 3], touch); // a dead enemy's panel is disabled: a no-op
+        // The first LIVING enemy, not a blind cycle — a dead enemy's panel is disabled (a no-op), and with
+        // 1-2 enemies already down a blind 3-way cycle wastes most of its taps on corpses.
+        const alive = s.tactics?.enemiesAlive;
+        const idx = alive ? alive.findIndex((a) => a) : targetTurn++ % 3;
+        await tap(page, 1116, [148, 264, 380][idx < 0 ? 0 : idx], touch);
         await wait(page, 260);
       } else {
         await wait(page, 160);
