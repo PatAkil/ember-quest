@@ -2,20 +2,41 @@
 //
 // Procedural VFX at native (unscaled) resolution — the smooth layer that sits
 // on top of the actor plane's hard pixels (DESIGN.md → Presentation →
-// Procedural VFX). Every effect is gradients/arcs/paths drawn straight onto
-// the frame's context, composited with `'lighter'` where the spec calls for
-// glow, and keyed by SkillId (`VFX_RECIPES`, one of thirteen reusable
-// archetypes per skill) or by StatusKind (`drawStatusGlow`, an ambient ring).
-// Canvas 2D only — no DOM beyond the context passed in, so this runs fine
-// inside the smoke gate's headless Chromium.
+// Procedural VFX). The reference is Octopath Traveler's skill effects: a skill
+// is a CLOUD — bright motes, streaks and sparks with a hot white core, layered
+// over the sprite plane — never a flat gradient blob.
 //
-// A `VfxInstance` is a plain data record (kind, position, colour, a size and
-// an age/duration pair); `spawnVfx`/`updateVfx`/`renderVfx` operate on a
-// caller-owned array — main.ts (once it lands) owns exactly one such array
-// for the battle screen and passes it through every frame. Nothing here
-// allocates in the steady state except the occasional pushed/spliced
-// instance record, which is the point of the array being caller-owned rather
-// than a module-level singleton.
+// So every archetype here is a particle system. An instance owns an array of
+// `Particle` records taken from a pool at spawn; `updateVfx` integrates them
+// and `renderVfx` blits a cached sprite per particle. Nothing allocates in the
+// steady state: no gradients, no strings, no arrays, no closures per frame.
+//
+// Bloom (engine/light.ts → renderPost) thresholds by self-multiply: the frame
+// is multiplied by itself twice, so a pixel's value is cubed. Mid-grey drops to
+// 1/8, and only near-white or fully saturated pixels survive to be blurred back
+// over the frame. Every effect is therefore designed AROUND a hot core: the
+// particle sprites carry a white centre, and where motes overlap under
+// `'lighter'` the sum clips toward pure white — so a dense cluster grows its own
+// bloom core while the scattered outliers stay coloured and crisp. That is
+// exactly the reference frame's structure.
+//
+// Two caches, for two different things:
+//   * sprites — an offscreen canvas is context-independent, so the atlas is a
+//     plain Map keyed by (variant, colour), baked lazily on first use and
+//     blitted with `drawImage`. One blit per particle beats one gradient fill
+//     per particle by a wide margin.
+//   * gradients — a CanvasGradient belongs to the context that built it (like a
+//     CanvasPattern, see engine/draw.ts's DITHER_CACHE), so the two gradients
+//     drawn straight onto the frame (the light pillar, the ward dome) live in a
+//     per-context WeakMap and die with a dead context. Their keys are built at
+//     spawn, never per frame.
+//
+// The module never touches the DOM at import time — sprites bake on first
+// spawn — so a headless import stays headless.
+//
+// Screen shake, hit-stop and damage pops belong to the battle screen; this file
+// only draws light. It also never calls `setTransform`, because the caller
+// draws inside juice's shake transform and wiping it would unshake the effect.
 
 import { pulse } from '../../engine';
 import type { SkillId, StatusKind } from '../types';
@@ -64,82 +85,92 @@ const LIGHT = '#FFEC27';
 const LIGHT_WHITE = '#FFF1E8';
 const DARK = '#7E2553';
 const DARK_GLOW = '#FF77A8';
-const HEAL = '#00E436';
+// Restoration and warding are NOT elements, and they must not borrow an
+// element's hue: HEAL used to be WIND's exact green, so a Gust landing and a
+// Mend healing were the same colour on the same frame. Two dedicated friendly
+// hues instead — mint for life, pale ice-blue for a ward — both with a white
+// core, neither of them any attack's colour.
+const HEAL = '#58E8C8';
+const HEAL_WHITE = '#E6FFF7';
+const WARD = '#BFE6FF';
+const WARD_WHITE = '#F0FAFF';
 const PHYSICAL = '#C2C3C7';
 const RUST = '#AB5236';
 const FROST = '#FFF1E8';
 const GHOST = '#83769C';
+/** darkPulse's hole — not a palette hue, the absence of one. */
+const VOID = '#050308';
 
 /** One row per SkillId — `Record<SkillId, ...>` makes the compiler prove every skill in game/data/skills.ts has a VFX. */
 export const VFX_RECIPES: Record<SkillId, VfxRecipeConfig> = {
   // --- EMBER · FIRE --------------------------------------------------------
   CINDER: { kind: 'projectile', color: FIRE, color2: FIRE_HOT },
-  FLARE: { kind: 'fireBurst', color: FIRE, color2: FIRE_HOT, size: 56 },
-  INFERNO: { kind: 'fireBurst', color: FIRE, color2: FIRE_HOT, size: 76, duration: 0.5 },
-  INFERNO_BRAND: { kind: 'fireBurst', color: FIRE, color2: FIRE_HOT, size: 76, duration: 0.5 },
+  FLARE: { kind: 'fireBurst', color: FIRE, color2: FIRE_HOT, size: 68 },
+  INFERNO: { kind: 'fireBurst', color: FIRE, color2: FIRE_HOT, size: 92, duration: 0.6 },
+  INFERNO_BRAND: { kind: 'fireBurst', color: FIRE, color2: FIRE_HOT, size: 92, duration: 0.6 },
   // --- GALE · WIND -----------------------------------------------------------
   GUST: { kind: 'windBlade', color: WIND, color2: WIND_PALE },
-  SQUALL: { kind: 'windBlade', color: WIND, color2: WIND_PALE, size: 50 },
-  TAILWIND: { kind: 'healShimmer', color: WIND, color2: WIND_PALE, size: 48, duration: 0.6 },
+  SQUALL: { kind: 'windBlade', color: WIND, color2: WIND_PALE, size: 64 },
+  TAILWIND: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 60, duration: 0.8 },
   GUST_RIP: { kind: 'windBlade', color: WIND, color2: WIND_PALE },
   // --- TIDE · WATER ------------------------------------------------------------
   RIPPLE: { kind: 'waterWave', color: WATER, color2: WATER_FOAM },
-  TIDEPOOL: { kind: 'healShimmer', color: HEAL, color2: WATER_FOAM },
-  UNDERTOW: { kind: 'healShimmer', color: HEAL, color2: WATER_FOAM, size: 60, duration: 0.6 },
-  UNDERTOW_WARD: { kind: 'healShimmer', color: HEAL, color2: WATER_FOAM, size: 60, duration: 0.6 },
+  TIDEPOOL: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE },
+  UNDERTOW: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 74, duration: 0.85 },
+  UNDERTOW_WARD: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 74, duration: 0.85 },
   // --- BASALT · FIRE (DEF wall) ------------------------------------------------
   BASH: { kind: 'slash', color: PHYSICAL, color2: FIRE },
-  BULWARK: { kind: 'shieldDome', color: FIRE, color2: LIGHT_WHITE, duration: 0.5 },
-  QUAKE: { kind: 'shockwave', color: RUST, color2: FIRE, size: 60 },
-  BULWARK_RAMPART: { kind: 'shieldDome', color: FIRE, color2: LIGHT_WHITE, size: 60, duration: 0.5 },
+  BULWARK: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, duration: 0.7 },
+  QUAKE: { kind: 'shockwave', color: RUST, color2: FIRE, size: 78 },
+  BULWARK_RAMPART: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, size: 76, duration: 0.7 },
   // --- SABLE · DARK --------------------------------------------------------
   HEX: { kind: 'darkPulse', color: DARK, color2: DARK_GLOW },
-  MIRE: { kind: 'darkPulse', color: DARK, color2: DARK_GLOW, size: 60 },
-  ECLIPSE: { kind: 'stunStar', color: DARK_GLOW, color2: DARK, duration: 0.6 },
+  MIRE: { kind: 'darkPulse', color: DARK, color2: DARK_GLOW, size: 74 },
+  ECLIPSE: { kind: 'stunStar', color: DARK_GLOW, color2: DARK, duration: 0.7 },
   HEX_LINGER: { kind: 'darkPulse', color: DARK, color2: DARK_GLOW },
   // --- LUMEN · LIGHT -----------------------------------------------------------
   LANCE: { kind: 'projectile', color: LIGHT, color2: LIGHT_WHITE },
-  RADIANCE: { kind: 'lightBeam', color: LIGHT, color2: LIGHT_WHITE, duration: 0.5 },
-  JUDGEMENT: { kind: 'lightBeam', color: LIGHT, color2: LIGHT_WHITE, size: 70, duration: 0.5 },
-  JUDGEMENT_REFUND: { kind: 'lightBeam', color: LIGHT, color2: LIGHT_WHITE, size: 70, duration: 0.5 },
+  RADIANCE: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 64, duration: 0.8 },
+  JUDGEMENT: { kind: 'lightBeam', color: LIGHT, color2: LIGHT_WHITE, size: 86, duration: 0.65 },
+  JUDGEMENT_REFUND: { kind: 'lightBeam', color: LIGHT, color2: LIGHT_WHITE, size: 86, duration: 0.65 },
 
   // --- EMBER CRYPT -------------------------------------------------------------
   SCORCH: { kind: 'projectile', color: FIRE, color2: FIRE_HOT },
   KINDLE: { kind: 'burnFlicker', color: FIRE, color2: FIRE_HOT },
   BITE: { kind: 'slash', color: PHYSICAL, color2: FIRE },
-  REND: { kind: 'slash', color: PHYSICAL, color2: FIRE, duration: 0.35 },
+  REND: { kind: 'slash', color: PHYSICAL, color2: FIRE, duration: 0.42 },
   CUDGEL: { kind: 'slash', color: PHYSICAL, color2: FIRE },
-  RALLY: { kind: 'healShimmer', color: FIRE, color2: FIRE_HOT, size: 48, duration: 0.6 },
-  MEND: { kind: 'healShimmer', color: HEAL, color2: FIRE_HOT },
+  RALLY: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 60, duration: 0.8 },
+  MEND: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE },
   WAIL: { kind: 'windBlade', color: GHOST, color2: WIND_PALE },
   CHOKE: { kind: 'stunStar', color: GHOST, color2: WIND_PALE },
   SHIELD_BASH: { kind: 'slash', color: PHYSICAL, color2: FIRE },
-  BRACE: { kind: 'shieldDome', color: FIRE, color2: LIGHT_WHITE, duration: 0.5 },
-  IMMOLATE: { kind: 'fireBurst', color: FIRE, color2: FIRE_HOT, size: 68 },
+  BRACE: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, duration: 0.7 },
+  IMMOLATE: { kind: 'fireBurst', color: FIRE, color2: FIRE_HOT, size: 84 },
   REAP: { kind: 'slash', color: DARK, color2: DARK_GLOW },
-  DREAD_WAIL: { kind: 'darkPulse', color: DARK, color2: DARK_GLOW, size: 68 },
-  SHROUD: { kind: 'shieldDome', color: DARK, color2: DARK_GLOW, size: 60, duration: 0.6 },
-  DOOM: { kind: 'darkPulse', color: DARK, color2: DARK_GLOW, size: 60, duration: 0.5 },
+  DREAD_WAIL: { kind: 'darkPulse', color: DARK, color2: DARK_GLOW, size: 84 },
+  SHROUD: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, size: 76, duration: 0.8 },
+  DOOM: { kind: 'darkPulse', color: DARK, color2: DARK_GLOW, size: 76, duration: 0.6 },
 
   // --- FROST MARSH ---------------------------------------------------------------
   TONGUE_LASH: { kind: 'slash', color: WATER, color2: WATER_FOAM },
   BOG_SPIT: { kind: 'projectile', color: WATER, color2: RUST },
   CHILL: { kind: 'frostShards', color: FROST, color2: WATER },
-  DEEP_FREEZE: { kind: 'stunStar', color: FROST, color2: WATER, duration: 0.6 },
+  DEEP_FREEZE: { kind: 'stunStar', color: FROST, color2: WATER, duration: 0.7 },
   CANE: { kind: 'slash', color: WATER, color2: WATER_FOAM },
-  SALVE: { kind: 'healShimmer', color: HEAL, color2: WATER_FOAM },
-  BRINE_WARD: { kind: 'shieldDome', color: WATER, color2: WATER_FOAM, size: 60, duration: 0.5 },
+  SALVE: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE },
+  BRINE_WARD: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, size: 76, duration: 0.7 },
   PINCH: { kind: 'slash', color: WATER, color2: PHYSICAL },
-  CRUSH: { kind: 'shockwave', color: WATER, color2: PHYSICAL, size: 56 },
+  CRUSH: { kind: 'shockwave', color: WATER, color2: PHYSICAL, size: 72 },
   FLICKER: { kind: 'projectile', color: FIRE, color2: FIRE_HOT },
   IGNITE: { kind: 'burnFlicker', color: FIRE, color2: FIRE_HOT },
   RUSTED_BLADE: { kind: 'slash', color: RUST, color2: WATER },
   DRAG_UNDER: { kind: 'waterWave', color: WATER, color2: DARK },
-  DELUGE: { kind: 'waterWave', color: WATER, color2: WATER_FOAM, size: 68 },
+  DELUGE: { kind: 'waterWave', color: WATER, color2: WATER_FOAM, size: 86 },
   HALO_LASH: { kind: 'lightBeam', color: LIGHT, color2: LIGHT_WHITE },
-  SMITE: { kind: 'lightBeam', color: LIGHT, color2: LIGHT_WHITE, size: 72, duration: 0.5 },
-  PALE_FLOOD: { kind: 'waterWave', color: LIGHT_WHITE, color2: WATER, size: 68 },
-  SANCTIFY: { kind: 'healShimmer', color: LIGHT_WHITE, color2: LIGHT, size: 56, duration: 0.6 },
+  SMITE: { kind: 'lightBeam', color: LIGHT, color2: LIGHT_WHITE, size: 90, duration: 0.65 },
+  PALE_FLOOD: { kind: 'waterWave', color: LIGHT_WHITE, color2: WATER, size: 86 },
+  SANCTIFY: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 70, duration: 0.8 },
 };
 
 // --- Status glows -----------------------------------------------------------
@@ -148,6 +179,8 @@ interface StatusGlowConfig {
   color: string;
   /** Seconds per pulse cycle — a fast pulse (STUN) reads as urgent, a slow one (SHIELD) as steady. */
   period: number;
+  /** Lazily baked mote sprite for this colour, so a per-frame call builds no key string. */
+  sprite?: HTMLCanvasElement;
 }
 
 /** One row per StatusKind — same completeness trick as VFX_RECIPES. */
@@ -171,6 +204,333 @@ const STATUS_GLOW: Record<StatusKind, StatusGlowConfig> = {
   INVINCIBLE: { color: LIGHT_WHITE, period: 0.6 },
 };
 
+// --- Particles ----------------------------------------------------------------
+
+const TAU = Math.PI * 2;
+
+/** Particle shapes: a sprite blit for the glowing ones, a path for the solid ones. */
+const SH_MOTE = 0;
+const SH_STREAK = 1;
+const SH_STAR = 2;
+const SH_CHIP = 3;
+const SH_SHARD = 4;
+
+/**
+ * One particle. Allocated only when a pooled array has to grow, and reused in
+ * place for every later spawn — `reset` overwrites every field, so a recycled
+ * record never carries state from the effect that used it last.
+ *
+ * Positions are RELATIVE to the instance's (x, y): the renderer translates once
+ * and every particle draws in that local space.
+ */
+export interface Particle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  ax: number;
+  ay: number;
+  /** Velocity decay per second (0 = none, 3 ≈ a spark biting into air). */
+  drag: number;
+  r: number;
+  /** Radius change per second — negative shrinks. */
+  grow: number;
+  rot: number;
+  spin: number;
+  /** Half-length / half-width for SH_STREAK (4 = the sprite's own aspect). */
+  stretch: number;
+  /** Seconds after the instance's spawn before this particle appears. */
+  born: number;
+  life: number;
+  /** Peak alpha, before the fade-in / decay / twinkle envelope. */
+  alpha: number;
+  fadeIn: number;
+  /** Decay exponent: 1 linear, 2+ holds bright then drops away fast. */
+  pow: number;
+  /** Twinkle rate in rad/s (0 = steady). */
+  twinkle: number;
+  phase: number;
+  /** Sideways sway amplitude in px (a licking flame, a drifting ember). */
+  wav: number;
+  wHz: number;
+  /**
+   * Orbit rate in rad/s. Non-zero makes the particle ANALYTIC: the integrator
+   * skips it and the renderer places it on the (ox, oy) ellipse around (x, y),
+   * because a linear integrator cannot make a circle.
+   */
+  orbit: number;
+  ox: number;
+  oy: number;
+  /** Ghost copies drawn behind an orbiter, each one step back along the orbit. */
+  trail: number;
+  shape: number;
+  /** Blitted for SH_MOTE / SH_STREAK / SH_STAR. */
+  sprite: HTMLCanvasElement | null;
+  /** Fill for the path shapes (SH_CHIP, SH_SHARD). */
+  col: string;
+  /** Drawn in the 'source-over' pass instead of the 'lighter' one — the only way to put smoke, debris or a black core into a field of glow. */
+  dark: boolean;
+}
+
+function newParticle(): Particle {
+  return {
+    x: 0, y: 0, vx: 0, vy: 0, ax: 0, ay: 0, drag: 0,
+    r: 1, grow: 0, rot: 0, spin: 0, stretch: 4,
+    born: 0, life: 1, alpha: 1, fadeIn: 0, pow: 1,
+    twinkle: 0, phase: 0, wav: 0, wHz: 0,
+    orbit: 0, ox: 0, oy: 0, trail: 0,
+    shape: SH_MOTE, sprite: null, col: '#FFFFFF', dark: false,
+  };
+}
+
+function reset(p: Particle): void {
+  p.x = 0; p.y = 0; p.vx = 0; p.vy = 0; p.ax = 0; p.ay = 0; p.drag = 0;
+  p.r = 1; p.grow = 0; p.rot = 0; p.spin = 0; p.stretch = 4;
+  p.born = 0; p.life = 1; p.alpha = 1; p.fadeIn = 0; p.pow = 1;
+  p.twinkle = 0; p.phase = 0; p.wav = 0; p.wHz = 0;
+  p.orbit = 0; p.ox = 0; p.oy = 0; p.trail = 0;
+  p.shape = SH_MOTE; p.sprite = null; p.col = '#FFFFFF'; p.dark = false;
+}
+
+/** Free particle arrays, handed back when an effect ends. Pooled as arrays, not per kind: they only ever grow to the largest system's count. */
+const ARRAY_POOL: Particle[][] = [];
+const ARRAY_POOL_MAX = 24;
+
+function takeArray(): Particle[] {
+  return ARRAY_POOL.pop() ?? [];
+}
+
+function freeArray(a: Particle[]): void {
+  if (ARRAY_POOL.length < ARRAY_POOL_MAX) ARRAY_POOL.push(a);
+}
+
+/**
+ * What a finished instance's `parts` is set to when its array goes back to the
+ * pool. Without this an instance the caller still holds keeps pointing at an
+ * array that a later spawn is already overwriting — a use-after-free that draws
+ * some other skill's particles. Frozen so the aliasing can never come back.
+ */
+const EMPTY_PARTS = Object.freeze([]) as unknown as Particle[];
+
+/** Returns an instance's array to the pool and detaches it from the instance. */
+function release(v: VfxInstance): void {
+  freeArray(v.parts);
+  v.parts = EMPTY_PARTS;
+  v.count = 0;
+  v.darkCount = 0;
+}
+
+// --- Deterministic randomness -------------------------------------------------
+//
+// Module-level state rather than a seeded closure, so a spawn allocates nothing
+// at all. Every effect reseeds from its instance seed before it builds, so the
+// same seed always produces the same cloud (the test sheet depends on that).
+
+let rngState = 1;
+
+function rseed(seed: number): void {
+  rngState = (seed * 0x9e3779b1) >>> 0;
+}
+
+function rnd(): number {
+  rngState = (rngState + 0x6d2b79f5) >>> 0;
+  let t = rngState;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+/** Uniform in [lo, hi). */
+function rr(lo: number, hi: number): number {
+  return lo + rnd() * (hi - lo);
+}
+
+// --- Sprite atlas -------------------------------------------------------------
+
+type SpriteVariant = 'hot' | 'glow' | 'soft' | 'smoke' | 'streakHot' | 'streak' | 'star';
+
+const SPRITE_CACHE = new Map<string, HTMLCanvasElement>();
+
+const MOTE_PX = 64;
+const STREAK_W = 128;
+const STREAK_H = 32;
+const STAR_PX = 64;
+
+function makeCanvas(w: number, h: number): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  return c;
+}
+
+function ctxOf(c: HTMLCanvasElement): CanvasRenderingContext2D {
+  const g = c.getContext('2d');
+  if (!g) throw new Error('vfx: no 2d context for a sprite');
+  return g;
+}
+
+function rgbOf(hex: string): [number, number, number] {
+  const h = hex.replace('#', '');
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+}
+
+/** The same hue at a chosen alpha — a falloff must fade to its OWN colour at alpha 0, or the edge reads as a dirty grey ring. Bake time only. */
+function rgba(hex: string, a: number): string {
+  const [r, g, b] = rgbOf(hex);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+/** Blend two hexes. Bake time only. */
+function mixHex(a: string, b: string, t: number): string {
+  const [r1, g1, b1] = rgbOf(a);
+  const [r2, g2, b2] = rgbOf(b);
+  const to = (x: number, y: number): string => Math.round(x + (y - x) * t).toString(16).padStart(2, '0');
+  return `#${to(r1, r2)}${to(g1, g2)}${to(b1, b2)}`;
+}
+
+/**
+ * The falloff every particle is made of. 'hot' keeps a white plateau at the
+ * centre: that is the pixel the bloom's cube-threshold survives, and where two
+ * hot motes overlap under 'lighter' the sum clips to white and blooms harder —
+ * so a dense cluster grows its own core for free.
+ */
+function moteStops(g: CanvasGradient, color: string, variant: SpriteVariant): void {
+  if (variant === 'hot' || variant === 'streakHot') {
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.17, 'rgba(255,255,255,0.94)');
+    g.addColorStop(0.33, rgba(color, 0.96));
+    g.addColorStop(0.62, rgba(color, 0.32));
+    g.addColorStop(1, rgba(color, 0));
+  } else if (variant === 'glow' || variant === 'streak') {
+    g.addColorStop(0, 'rgba(255,255,255,0.7)');
+    g.addColorStop(0.2, rgba(color, 1));
+    g.addColorStop(0.55, rgba(color, 0.3));
+    g.addColorStop(1, rgba(color, 0));
+  } else if (variant === 'smoke') {
+    g.addColorStop(0, rgba(color, 0.85));
+    g.addColorStop(0.5, rgba(color, 0.5));
+    g.addColorStop(1, rgba(color, 0));
+  } else {
+    g.addColorStop(0, rgba(color, 0.8));
+    g.addColorStop(0.45, rgba(color, 0.28));
+    g.addColorStop(1, rgba(color, 0));
+  }
+}
+
+/**
+ * A particle bitmap, baked once per (variant, colour) and blitted from then on.
+ * Context-independent (unlike a CanvasGradient), so this is a plain Map — and
+ * lazy, so importing the module never touches the DOM.
+ */
+function spriteFor(color: string, variant: SpriteVariant): HTMLCanvasElement {
+  const key = variant + '|' + color;
+  const hit = SPRITE_CACHE.get(key);
+  if (hit) return hit;
+  let c: HTMLCanvasElement;
+  if (variant === 'streak' || variant === 'streakHot') {
+    // One elongated glow: a radial falloff filled through a 4:1 scale, so a
+    // rotated blit is a motion-blurred streak with a bright spine.
+    c = makeCanvas(STREAK_W, STREAK_H);
+    const g = ctxOf(c);
+    const grad = g.createRadialGradient(0, 0, 0, 0, 0, STREAK_H / 2);
+    moteStops(grad, color, variant);
+    g.translate(STREAK_W / 2, STREAK_H / 2);
+    g.scale(STREAK_W / STREAK_H, 1);
+    g.fillStyle = grad;
+    g.beginPath();
+    g.arc(0, 0, STREAK_H / 2, 0, TAU);
+    g.fill();
+  } else if (variant === 'star') {
+    // A four-point sparkle: two crossed thin ellipses plus a hot dot, summed.
+    c = makeCanvas(STAR_PX, STAR_PX);
+    const g = ctxOf(c);
+    const grad = g.createRadialGradient(0, 0, 0, 0, 0, STAR_PX / 2);
+    moteStops(grad, color, 'hot');
+    g.globalCompositeOperation = 'lighter';
+    g.translate(STAR_PX / 2, STAR_PX / 2);
+    g.fillStyle = grad;
+    for (let i = 0; i < 3; i++) {
+      const sx = i === 0 ? 1 : i === 1 ? 0.15 : 0.4;
+      const sy = i === 0 ? 0.15 : i === 1 ? 1 : 0.4;
+      g.save();
+      g.scale(sx, sy);
+      g.beginPath();
+      g.arc(0, 0, STAR_PX / 2, 0, TAU);
+      g.fill();
+      g.restore();
+    }
+  } else {
+    c = makeCanvas(MOTE_PX, MOTE_PX);
+    const g = ctxOf(c);
+    const grad = g.createRadialGradient(0, 0, 0, 0, 0, MOTE_PX / 2);
+    moteStops(grad, color, variant);
+    g.translate(MOTE_PX / 2, MOTE_PX / 2);
+    g.fillStyle = grad;
+    g.beginPath();
+    g.arc(0, 0, MOTE_PX / 2, 0, TAU);
+    g.fill();
+  }
+  SPRITE_CACHE.set(key, c);
+  return c;
+}
+
+// --- Cached gradients ---------------------------------------------------------
+//
+// A CanvasGradient belongs to the context that built it, so the cache is keyed
+// per-context in a WeakMap and dies with a dead context. Only the two effects
+// whose shape is a filled path rather than a cloud need one (the light pillar
+// and the ward dome); their keys are built at spawn and stored on the instance,
+// so the render path allocates no strings.
+
+const RADIAL_CACHE = new WeakMap<CanvasRenderingContext2D, Map<string, CanvasGradient>>();
+
+function cacheFor(ctx: CanvasRenderingContext2D): Map<string, CanvasGradient> {
+  let per = RADIAL_CACHE.get(ctx);
+  if (!per) {
+    per = new Map();
+    RADIAL_CACHE.set(ctx, per);
+  }
+  return per;
+}
+
+/**
+ * The cache LOOKUP is separate from the build on purpose. A single
+ * `gradient(ctx, key, [[0, rgba(c, 0)], ...])` call would build the stop array
+ * and its colour strings on every frame just to hand them to a cache hit — the
+ * arguments are evaluated before the function can check anything. Callers ask
+ * first and only build the stops when this returns undefined.
+ */
+function cachedGradient(ctx: CanvasRenderingContext2D, key: string): CanvasGradient | undefined {
+  return RADIAL_CACHE.get(ctx)?.get(key);
+}
+
+function putRadial(
+  ctx: CanvasRenderingContext2D,
+  key: string,
+  radius: number,
+  stops: ReadonlyArray<readonly [number, string]>,
+): CanvasGradient {
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, Math.max(1, radius));
+  for (const [offset, color] of stops) g.addColorStop(offset, color);
+  cacheFor(ctx).set(key, g);
+  return g;
+}
+
+function putLinear(
+  ctx: CanvasRenderingContext2D,
+  key: string,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  stops: ReadonlyArray<readonly [number, string]>,
+): CanvasGradient {
+  const g = ctx.createLinearGradient(x0, y0, x1, y1);
+  for (const [offset, color] of stops) g.addColorStop(offset, color);
+  cacheFor(ctx).set(key, g);
+  return g;
+}
+
 // --- Instances --------------------------------------------------------------
 
 export interface VfxSpawnOptions {
@@ -178,6 +538,8 @@ export interface VfxSpawnOptions {
   duration?: number;
   /** Origin for `projectile` (and any kind) to travel FROM, arriving at (x, y) at the end of its life. Omit for a stationary impact effect. */
   from?: { x: number; y: number };
+  /** Force the draw seed instead of taking the next one. Only a test sheet wants this — in play, consecutive casts of one skill should not produce identical clouds. */
+  seed?: number;
 }
 
 export interface VfxInstance {
@@ -190,45 +552,68 @@ export interface VfxInstance {
   readonly color2: string;
   readonly size: number;
   readonly duration: number;
-  /** Stable per-instance draw seed (e.g. which way frost shards scatter) — never re-rolled, so a effect doesn't jitter across frames. */
+  /** Stable per-instance draw seed (e.g. which way frost shards scatter) — never re-rolled, so an effect doesn't jitter across frames. */
   readonly seed: number;
   age: number;
+  /** This instance's particles, taken from the pool at spawn and returned when it ends. The array may be longer than `count`; only [0, count) is live. */
+  parts: Particle[];
+  count: number;
+  /** Particles [0, darkCount) draw in the 'source-over' pass (smoke, debris, a black core); the rest draw in 'lighter'. */
+  darkCount: number;
+  /** Gradient cache key, built once here so the render path never concatenates. */
+  key: string;
+  /** +1 when the effect faces right (the attacker stood to the left), -1 otherwise. */
+  face: number;
+  /**
+   * The two sprites a renderer's non-particle extras need (a hot core, a soft
+   * pool), resolved at spawn. `spriteFor` builds a lookup key string, so calling
+   * it from a renderer would allocate once per effect per frame; the meaning of
+   * each slot is the owning archetype's business.
+   */
+  hotSprite: HTMLCanvasElement | null;
+  softSprite: HTMLCanvasElement | null;
 }
 
 const DEFAULT_SIZE: Record<VfxKind, number> = {
-  slash: 40,
-  fireBurst: 44,
-  windBlade: 42,
-  waterWave: 44,
-  lightBeam: 56,
-  darkPulse: 44,
-  healShimmer: 40,
-  shieldDome: 46,
-  stunStar: 32,
-  burnFlicker: 24,
-  shockwave: 46,
-  projectile: 14,
-  frostShards: 30,
+  slash: 54,
+  fireBurst: 58,
+  windBlade: 56,
+  waterWave: 62,
+  lightBeam: 64,
+  darkPulse: 58,
+  healShimmer: 54,
+  shieldDome: 60,
+  stunStar: 46,
+  burnFlicker: 34,
+  shockwave: 62,
+  projectile: 36,
+  frostShards: 46,
 };
 
 const DEFAULT_DURATION: Record<VfxKind, number> = {
-  slash: 0.22,
-  fireBurst: 0.35,
-  windBlade: 0.3,
-  waterWave: 0.4,
-  lightBeam: 0.35,
-  darkPulse: 0.35,
-  healShimmer: 0.5,
-  shieldDome: 0.4,
-  stunStar: 0.5,
-  burnFlicker: 0.45,
-  shockwave: 0.4,
-  projectile: 0.2,
-  frostShards: 0.45,
+  slash: 0.34,
+  fireBurst: 0.5,
+  windBlade: 0.42,
+  waterWave: 0.6,
+  lightBeam: 0.55,
+  darkPulse: 0.5,
+  healShimmer: 0.75,
+  shieldDome: 0.6,
+  stunStar: 0.65,
+  burnFlicker: 0.5,
+  shockwave: 0.5,
+  projectile: 0.38,
+  frostShards: 0.6,
 };
 
-/** A battle screen never needs more live effects than this at once; spawning past the cap drops the oldest rather than growing unbounded. */
-export const VFX_MAX = 64;
+/**
+ * A battle screen never needs more live effects than this at once; spawning
+ * past the cap drops the oldest rather than growing unbounded. Twelve, not
+ * sixty-four: at 0.1-0.4 ms an effect, sixty-four live systems would be a
+ * 13 ms frame all by themselves, and the deepest real overlap is a multi-hit
+ * skill against a full enemy row.
+ */
+export const VFX_MAX = 12;
 
 let seedCounter = 1;
 
@@ -241,442 +626,1439 @@ let seedCounter = 1;
 export function spawnVfx(list: VfxInstance[], id: SkillId, x: number, y: number, opts: VfxSpawnOptions = {}): void {
   const cfg = VFX_RECIPES[id];
   if (!cfg) return;
-  if (list.length >= VFX_MAX) list.shift();
-  list.push({
+  if (list.length >= VFX_MAX) {
+    const dropped = list.shift();
+    if (dropped) release(dropped);
+  }
+  const fromX = opts.from?.x ?? x;
+  // Clamped: a zero or negative size reaches ctx.drawImage as a negative width
+  // and throws from inside the effect's save(), which would leave the shake
+  // transform applied to everything the HUD draws afterwards.
+  const size = Math.max(1, opts.size ?? cfg.size ?? DEFAULT_SIZE[cfg.kind]);
+  const color2 = cfg.color2 ?? cfg.color;
+  const v: VfxInstance = {
     kind: cfg.kind,
     x,
     y,
-    fromX: opts.from?.x ?? x,
+    fromX,
     fromY: opts.from?.y ?? y,
     color: cfg.color,
-    color2: cfg.color2 ?? cfg.color,
-    size: opts.size ?? cfg.size ?? DEFAULT_SIZE[cfg.kind],
-    duration: opts.duration ?? cfg.duration ?? DEFAULT_DURATION[cfg.kind],
-    seed: seedCounter++,
+    color2,
+    size,
+    duration: Math.max(0.01, opts.duration ?? cfg.duration ?? DEFAULT_DURATION[cfg.kind]),
+    seed: opts.seed ?? seedCounter++,
     age: 0,
-  });
+    parts: takeArray(),
+    count: 0,
+    darkCount: 0,
+    key: `${cfg.kind}|${Math.round(size)}|${cfg.color}|${color2}`,
+    face: fromX <= x ? 1 : -1,
+    hotSprite: null,
+    softSprite: null,
+  };
+  build(v);
+  list.push(v);
 }
 
-/** Ages every instance by `dt` seconds and removes the ones that finished. */
+/** Ages every instance by `dt` seconds, integrates its particles, and removes the ones that finished. */
 export function updateVfx(list: VfxInstance[], dt: number): void {
   for (let i = list.length - 1; i >= 0; i--) {
     const v = list[i];
     v.age += dt;
-    if (v.age >= v.duration) list.splice(i, 1);
+    if (v.age >= v.duration) {
+      release(v);
+      list.splice(i, 1);
+      continue;
+    }
+    const parts = v.parts;
+    const n = v.count;
+    for (let j = 0; j < n; j++) {
+      const p = parts[j];
+      if (p.orbit !== 0) continue; // analytic: placed by the renderer, never integrated
+      const t = v.age - p.born;
+      if (t < 0 || t > p.life) continue;
+      p.vx += p.ax * dt;
+      p.vy += p.ay * dt;
+      if (p.drag !== 0) {
+        const k = 1 - p.drag * dt;
+        const kk = k < 0 ? 0 : k;
+        p.vx *= kk;
+        p.vy *= kk;
+      }
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      if (p.spin !== 0) p.rot += p.spin * dt;
+    }
   }
+}
+
+// --- Drawn extent (the bloom feed) -------------------------------------------
+
+/** An axis-aligned rect in the same space the effect draws in. */
+export interface VfxBounds {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * Local extent per archetype as multiples of `size`: [left, top, right, bottom]
+ * around the instance's origin, y negative upward. These are the measured
+ * envelopes of the built particle systems, and they are NOT symmetric or
+ * uniform — a light pillar reaches 3.4 sizes upward and a heal barely leaves
+ * the actor's feet, so feeding `size` as a radius for both (as a square rect
+ * around the origin does) paints a key-coloured halo far bigger than the heal
+ * and far smaller than the pillar.
+ */
+const BOUNDS: Record<VfxKind, readonly [number, number, number, number]> = {
+  slash: [-1.7, -1.7, 1.7, 1.7],
+  fireBurst: [-1.8, -2.3, 1.8, 1.1],
+  windBlade: [-0.6, -1.3, 1.9, 1.3], // mirrored below when the effect faces left
+  waterWave: [-1.5, -2.2, 1.5, 0.8],
+  lightBeam: [-1.0, -3.4, 1.0, 0.6],
+  darkPulse: [-1.4, -1.3, 1.4, 1.3],
+  healShimmer: [-0.8, -1.1, 0.8, 0.6],
+  shieldDome: [-0.8, -0.7, 0.8, 0.4],
+  stunStar: [-1.0, -1.0, 1.0, 0.2],
+  burnFlicker: [-0.7, -1.5, 0.7, 0.4],
+  shockwave: [-1.4, -1.0, 1.4, 0.7],
+  projectile: [-2.2, -2.2, 2.2, 2.2], // around the travelling head, not the whole path
+  frostShards: [-1.1, -1.0, 1.1, 1.0],
+};
+
+const boundsScratch: VfxBounds = { x: 0, y: 0, w: 0, h: 0 };
+
+/**
+ * The rect this effect is currently drawing inside — what a light plane should
+ * treat as the glow source, instead of assuming a square of `size` around the
+ * origin.
+ *
+ * Allocation-free: writes into `out` when given, otherwise into a module-level
+ * scratch record that the NEXT call overwrites. Copy the fields out before
+ * calling again; never retain the returned object.
+ *
+ * The rect is the archetype's envelope over its whole life, except for
+ * `projectile`, which follows its head so the corridor behind it does not glow
+ * before the shot has been fired.
+ */
+export function vfxBounds(v: VfxInstance, out: VfxBounds = boundsScratch): VfxBounds {
+  const s = v.size;
+  const b = BOUNDS[v.kind];
+  let l = b[0];
+  let r = b[2];
+  if (v.face < 0) {
+    // The asymmetric archetypes are authored facing right.
+    const t = l;
+    l = -r;
+    r = -t;
+  }
+  let cx = v.x;
+  let cy = v.y;
+  if (v.kind === 'projectile') {
+    const p = v.duration > 0 ? v.age / v.duration : 1;
+    const f = Math.min(1, p / PROJ_ARRIVE);
+    const dx = v.fromX - v.x;
+    const dy = v.fromY - v.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const arc = Math.sin(f * Math.PI) * Math.min(len * 0.14, s * 4);
+    cx += dx * (1 - f) + (-dy / len) * arc;
+    cy += dy * (1 - f) + (dx / len) * arc;
+  }
+  out.x = cx + l * s;
+  out.y = cy + b[1] * s;
+  out.w = (r - l) * s;
+  out.h = (b[3] - b[1]) * s;
+  return out;
 }
 
 /** Draws every live instance, in list order (oldest first). */
 export function renderVfx(ctx: CanvasRenderingContext2D, list: VfxInstance[]): void {
-  for (let i = 0; i < list.length; i++) renderOne(ctx, list[i]);
+  for (let i = 0; i < list.length; i++) {
+    const v = list[i];
+    const p = v.duration > 0 ? v.age / v.duration : 1;
+    if (p >= 1) continue;
+    // One save/restore per effect: blend mode, alpha and the translate to the
+    // instance's origin all go back to what the caller had. The caller draws
+    // inside juice's shake transform, so this NEVER calls setTransform.
+    ctx.save();
+    ctx.translate(v.x, v.y);
+    ctx.globalCompositeOperation = 'lighter';
+    renderOne(ctx, v, p < 0 ? 0 : p);
+    ctx.restore();
+  }
 }
 
-/** A pulsing ambient ring for a status effect an actor is carrying — driven by the clock, not a VfxInstance (a status has no lifetime of its own). */
+/**
+ * A pulsing ambient ring for a status effect an actor is carrying — driven by
+ * the clock, not a VfxInstance (a status has no lifetime of its own). A ring of
+ * motes rather than a stroked circle, so it speaks the same light language as
+ * the skills; cheap enough to run per status per actor per frame, and it builds
+ * no string (the sprite is memoised on the config row).
+ */
 export function drawStatusGlow(ctx: CanvasRenderingContext2D, kind: StatusKind, x: number, y: number, r: number, time: number): void {
   const cfg = STATUS_GLOW[kind];
+  if (!cfg.sprite) cfg.sprite = spriteFor(cfg.color, 'glow');
   const t = pulse(time, cfg.period);
-  const alpha = 0.35 + 0.4 * t;
-  const radius = r * (0.85 + 0.15 * t);
+  const radius = r * (0.86 + 0.14 * t);
+  const spin = time * 0.9;
+  const mote = r * (0.16 + 0.05 * t);
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  ctx.globalAlpha = alpha;
-  ctx.strokeStyle = cfg.color;
-  ctx.lineWidth = Math.max(1, r * 0.12);
-  ctx.beginPath();
-  ctx.arc(x, y, radius, 0, Math.PI * 2);
-  ctx.stroke();
+  ctx.globalAlpha = 0.24 + 0.24 * t;
+  for (let i = 0; i < 8; i++) {
+    const a = spin + (i / 8) * TAU;
+    const px = x + Math.cos(a) * radius;
+    const py = y + Math.sin(a) * radius * 0.42;
+    ctx.drawImage(cfg.sprite, px - mote, py - mote, mote * 2, mote * 2);
+  }
   ctx.restore();
 }
 
-// --- Cached gradients ---------------------------------------------------------
+// --- Build --------------------------------------------------------------------
 //
-// A CanvasGradient belongs to the context that built it (like a
-// CanvasPattern — see engine/draw.ts's DITHER_CACHE), so the cache is keyed
-// per-context in a WeakMap and dies with a dead context. Every gradient is
-// built once per (kind of gradient, radius/size, colours) and reused by
-// translating the context to the instance's position before filling —
-// "cached per (recipe, size)" without needing a gradient per pixel position.
+// Builders run once, at spawn. They emit into the instance's pooled array
+// through the module-level cursor below — no closures, no per-particle
+// allocation once the pool is warm.
 
-const RADIAL_CACHE = new WeakMap<CanvasRenderingContext2D, Map<string, CanvasGradient>>();
+let curArr: Particle[] = [];
+let curN = 0;
 
-function radialGradient(
-  ctx: CanvasRenderingContext2D,
-  key: string,
-  radius: number,
-  stops: ReadonlyArray<readonly [number, string]>,
-): CanvasGradient {
-  let per = RADIAL_CACHE.get(ctx);
-  if (!per) {
-    per = new Map();
-    RADIAL_CACHE.set(ctx, per);
-  }
-  const hit = per.get(key);
-  if (hit) return hit;
-  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, Math.max(1, radius));
-  for (const [offset, color] of stops) g.addColorStop(offset, color);
-  per.set(key, g);
-  return g;
+function emit(): Particle {
+  if (curArr.length <= curN) curArr.push(newParticle());
+  const p = curArr[curN++];
+  reset(p);
+  return p;
 }
 
-function transparent(hex: string): string {
-  // Every colour here is an opaque hex triple; a transparent gradient stop
-  // needs the SAME hue at alpha 0, not black, or the fade reads as a dirty
-  // grey ring instead of dissolving into the scene.
-  const h = hex.replace('#', '');
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r},${g},${b},0)`;
-}
-
-// --- Archetype renderers ------------------------------------------------------
-//
-// Each takes the instance and its progress `p` in [0,1) (age / duration).
-// All draw in a `ctx.save()/restore()` sandwich so a kind's blend mode, alpha
-// and transform never leak to its neighbours in the list.
-
-function renderOne(ctx: CanvasRenderingContext2D, v: VfxInstance): void {
-  const p = Math.min(1, v.age / v.duration);
+function build(v: VfxInstance): void {
+  rseed(v.seed);
+  curArr = v.parts;
+  curN = 0;
+  // The extras' sprites, resolved once here so no renderer ever calls spriteFor.
   switch (v.kind) {
-    case 'slash':
-      return renderSlash(ctx, v, p);
-    case 'fireBurst':
-      return renderFireBurst(ctx, v, p);
-    case 'windBlade':
-      return renderWindBlade(ctx, v, p);
-    case 'waterWave':
-      return renderWaterWave(ctx, v, p);
-    case 'lightBeam':
-      return renderLightBeam(ctx, v, p);
     case 'darkPulse':
-      return renderDarkPulse(ctx, v, p);
-    case 'healShimmer':
-      return renderHealShimmer(ctx, v, p);
-    case 'shieldDome':
-      return renderShieldDome(ctx, v, p);
-    case 'stunStar':
-      return renderStunStar(ctx, v, p);
-    case 'burnFlicker':
-      return renderBurnFlicker(ctx, v, p);
-    case 'shockwave':
-      return renderShockwave(ctx, v, p);
-    case 'projectile':
-      return renderProjectile(ctx, v, p);
+      v.softSprite = spriteFor(VOID, 'smoke');
+      break;
     case 'frostShards':
-      return renderFrostShards(ctx, v, p);
+      v.softSprite = spriteFor(v.color2, 'soft');
+      break;
+    case 'projectile':
+      v.softSprite = spriteFor(v.color, 'glow');
+      v.hotSprite = spriteFor(v.color2, 'hot');
+      break;
+    default:
+      v.softSprite = spriteFor(v.color, 'soft');
+      v.hotSprite = spriteFor(v.color2, 'hot');
+  }
+  switch (v.kind) {
+    case 'slash': buildSlash(v); break;
+    case 'fireBurst': buildFireBurst(v); break;
+    case 'windBlade': buildWindBlade(v); break;
+    case 'waterWave': buildWaterWave(v); break;
+    case 'lightBeam': buildLightBeam(v); break;
+    case 'darkPulse': buildDarkPulse(v); break;
+    case 'healShimmer': buildHealShimmer(v); break;
+    case 'shieldDome': buildShieldDome(v); break;
+    case 'stunStar': buildStunStar(v); break;
+    case 'burnFlicker': buildBurnFlicker(v); break;
+    case 'shockwave': buildShockwave(v); break;
+    case 'projectile': buildProjectile(v); break;
+    case 'frostShards': buildFrostShards(v); break;
+  }
+  v.count = curN;
+  // Partition the dark particles to the front so the renderer can draw
+  // 'source-over' and 'lighter' as two straight runs. In place, at spawn.
+  let w = 0;
+  for (let i = 0; i < curN; i++) {
+    if (curArr[i].dark) {
+      const tmp = curArr[w];
+      curArr[w] = curArr[i];
+      curArr[i] = tmp;
+      w++;
+    }
+  }
+  v.darkCount = w;
+  curArr = [];
+}
+
+// --- slash: a drawn cut, a white core, sparks off the edge ---------------------
+
+function buildSlash(v: VfxInstance): void {
+  const s = v.size;
+  const d = v.duration;
+  const ang = (-0.62 + rr(-0.16, 0.16)) * v.face;
+  const L = s * 1.45;
+  const ca = Math.cos(ang);
+  const sa = Math.sin(ang);
+  // The blade is `color` — the weapon's own metal. Drawing it in `color2` made
+  // every physical hit (BASH, BITE, CUDGEL, SHIELD_BASH) look like a fire skill,
+  // because color2 is the element accent. The spine uses the same hue's 'hot'
+  // sprite, whose white plateau is what the bloom's threshold survives, so the
+  // cut still has a white core without borrowing another element's colour.
+  // color2 is spent only where an accent belongs: the sparks and the bite flash.
+  const edge = spriteFor(v.color, 'streak');
+  const core = spriteFor(v.color, 'streakHot');
+  const spark = spriteFor(v.color2, 'streakHot');
+  // The blade: fat in the middle, tapering at both tips, bowed slightly, and
+  // laid down in sequence so the cut draws itself in the first fifth of its life.
+  for (let i = 0; i < 21; i++) {
+    const u = i / 20;
+    const along = (u - 0.5) * 2 * L;
+    const bow = Math.sin(u * Math.PI) * s * 0.22 * v.face;
+    const p = emit();
+    p.x = ca * along - sa * bow;
+    p.y = sa * along + ca * bow;
+    // Radius and count are tuned together: adjacent motes have to OVERLAP or
+    // the cut reads as a dotted line instead of an edge.
+    p.r = s * 0.15 * (0.3 + Math.sin(u * Math.PI));
+    p.stretch = 3.6;
+    p.rot = ang;
+    p.born = u * d * 0.16;
+    p.life = d * 0.88;
+    p.pow = 1.5;
+    p.fadeIn = 0.015;
+    p.sprite = edge;
+  }
+  // The white core, a thinner cut riding the same line.
+  for (let i = 0; i < 13; i++) {
+    const u = i / 12;
+    const along = (u - 0.5) * 1.8 * L;
+    const bow = Math.sin(u * Math.PI) * s * 0.22 * v.face;
+    const p = emit();
+    p.x = ca * along - sa * bow;
+    p.y = sa * along + ca * bow;
+    p.r = s * 0.06 * (0.3 + Math.sin(u * Math.PI));
+    p.stretch = 4.6;
+    p.rot = ang;
+    p.born = u * d * 0.14;
+    p.life = d * 0.66;
+    p.pow = 2;
+    p.sprite = core;
+  }
+  // Sparks thrown off the cut, mostly perpendicular to it, falling as they die.
+  for (let i = 0; i < 18; i++) {
+    const u = rnd();
+    const along = (u - 0.5) * 2 * L * 0.9;
+    const side = rnd() < 0.5 ? 1 : -1;
+    const dir = ang + (Math.PI / 2) * side + rr(-0.55, 0.55);
+    const sp = s * rr(3.4, 9);
+    const p = emit();
+    p.x = ca * along;
+    p.y = sa * along;
+    p.vx = Math.cos(dir) * sp;
+    p.vy = Math.sin(dir) * sp;
+    p.ay = s * 6;
+    p.drag = 3.4;
+    p.r = s * rr(0.03, 0.055);
+    p.stretch = 3;
+    p.rot = dir;
+    p.born = u * d * 0.2;
+    p.life = d * rr(0.45, 0.95);
+    p.pow = 1.5;
+    p.sprite = spark;
+  }
+}
+
+function renderSlash(ctx: CanvasRenderingContext2D, v: VfxInstance, p: number): void {
+  // The bite point: small and brief. A big flash here reads as a fireball and
+  // buries the cut, which is the one thing this archetype has to say.
+  if (p < 0.2) {
+    const k = 1 - p / 0.2;
+    const r = v.size * (0.24 + 0.2 * (1 - k));
+    blit(ctx, v.hotSprite, 0, 0, r, r, k * 0.6);
+  }
+  drawParts(ctx, v);
+}
+
+// --- fireBurst: embers up, a white-yellow core, smoke at the rim ---------------
+
+function buildFireBurst(v: VfxInstance): void {
+  const s = v.size;
+  const d = v.duration;
+  const smoke = spriteFor(mixHex(v.color, '#0B0710', 0.78), 'smoke');
+  const hot = spriteFor(v.color2, 'hot');
+  const glow = spriteFor(v.color, 'glow');
+  // Smoke first: soot at the edge of the fireball, the only part that darkens.
+  for (let i = 0; i < 9; i++) {
+    const a = rr(-Math.PI, 0) + rr(-0.5, 0.5);
+    const dist = s * rr(0.3, 0.6);
+    const p = emit();
+    p.dark = true;
+    p.x = Math.cos(a) * dist;
+    p.y = Math.sin(a) * dist * 0.8 + s * 0.1;
+    p.vx = Math.cos(a) * s * rr(0.5, 1.4);
+    p.vy = -s * rr(0.9, 1.8);
+    p.drag = 1.6;
+    p.r = s * rr(0.14, 0.24);
+    p.grow = s * 0.55;
+    p.alpha = 0.6;
+    p.fadeIn = d * 0.18;
+    p.pow = 1.2;
+    p.born = d * rr(0.05, 0.3);
+    p.life = d * 0.8;
+    p.wav = s * 0.08;
+    p.wHz = rr(3, 6);
+    p.phase = rr(0, TAU);
+    p.sprite = smoke;
+  }
+  // Embers: out in every direction, then buoyant — they turn upward as they slow.
+  for (let i = 0; i < 34; i++) {
+    const a = rr(0, TAU);
+    const sp = s * rr(1.6, 5.4);
+    const p = emit();
+    p.x = Math.cos(a) * s * 0.12;
+    p.y = Math.sin(a) * s * 0.12;
+    p.vx = Math.cos(a) * sp;
+    p.vy = Math.sin(a) * sp * 0.85 - s * 1.1;
+    p.ay = -s * 1.7;
+    p.drag = 2.3;
+    p.r = s * rr(0.045, 0.095);
+    p.grow = -s * 0.05;
+    p.born = d * rr(0, 0.22);
+    p.life = d * rr(0.55, 1);
+    p.pow = 1.5;
+    p.twinkle = i % 2 === 0 ? rr(16, 26) : 0;
+    p.phase = rr(0, TAU);
+    p.wav = s * 0.05;
+    p.wHz = rr(4, 9);
+    p.sprite = i % 3 === 0 ? hot : glow;
+  }
+  // Ember trails: the few that get thrown hardest smear into long streaks, the
+  // reference's structural note — a burst is streaks AND motes, not motes alone.
+  const streak = spriteFor(v.color2, 'streakHot');
+  for (let i = 0; i < 12; i++) {
+    const a = rr(0, TAU);
+    const sp = s * rr(4, 7.5);
+    const p = emit();
+    p.x = Math.cos(a) * s * 0.1;
+    p.y = Math.sin(a) * s * 0.1;
+    p.vx = Math.cos(a) * sp;
+    p.vy = Math.sin(a) * sp * 0.8 - s * 1.4;
+    p.ay = -s * 1.2;
+    p.drag = 2.6;
+    p.r = s * rr(0.025, 0.05);
+    p.stretch = rr(8, 16);
+    p.rot = a;
+    p.born = d * rr(0, 0.14);
+    p.life = d * rr(0.35, 0.6);
+    p.pow = 1.6;
+    p.alpha = 0.9;
+    p.sprite = streak;
   }
 }
 
 function renderFireBurst(ctx: CanvasRenderingContext2D, v: VfxInstance, p: number): void {
-  const r = v.size * (0.35 + 0.65 * p);
-  const key = `fireBurst|${v.size}|${v.color}|${v.color2}`;
-  const g = radialGradient(ctx, key, v.size, [
-    [0, v.color2],
-    [0.4, v.color],
-    [1, transparent(v.color)],
-  ]);
-  ctx.save();
-  ctx.translate(v.x, v.y);
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.globalAlpha = 1 - p;
-  ctx.fillStyle = g;
-  ctx.beginPath();
-  ctx.arc(0, 0, r, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
+  // The core: a hot white-yellow ball that expands and is gone before half-life,
+  // so the embers are what the eye is left with. Held small on purpose — a core
+  // that outgrows its own embers is the gradient blob this archetype replaced.
+  if (p < 0.45) {
+    const k = 1 - p / 0.45;
+    const r = v.size * (0.2 + 0.34 * (p / 0.45));
+    blit(ctx, v.hotSprite, 0, 0, r, r, k * k * 0.9 + 0.1 * k);
+  }
+  drawParts(ctx, v);
 }
 
-function renderBurnFlicker(ctx: CanvasRenderingContext2D, v: VfxInstance, p: number): void {
-  const key = `burn|${v.size}|${v.color}|${v.color2}`;
-  const g = radialGradient(ctx, key, v.size, [
-    [0, v.color2],
-    [0.5, v.color],
-    [1, transparent(v.color)],
-  ]);
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  for (let i = 0; i < 3; i++) {
-    const phase = v.seed * 1.7 + i * 2.1 + v.age * 14;
-    const jx = Math.sin(phase) * v.size * 0.25;
-    const jy = -v.age * v.size * 1.4 - i * v.size * 0.18;
-    const r = v.size * (0.28 - i * 0.05) * (1 - p * 0.4);
-    ctx.globalAlpha = (1 - p) * (1 - i * 0.25);
-    ctx.translate(v.x + jx, v.y + jy);
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(0, 0, Math.max(1, r), 0, Math.PI * 2);
-    ctx.fill();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+// --- windBlade: crescents of pale motes, leaf flecks ---------------------------
+
+function buildWindBlade(v: VfxInstance): void {
+  const s = v.size;
+  const d = v.duration;
+  const base = v.face > 0 ? -0.1 : Math.PI + 0.1;
+  const pale = spriteFor(v.color2, 'streakHot');
+  const glow = spriteFor(v.color, 'streak');
+  const leaf = mixHex(v.color, '#1D2B53', 0.2);
+  // Three crescents, each drawn along its arc and shearing outward as it dies.
+  for (let k = 0; k < 3; k++) {
+    const R = s * (0.5 + k * 0.22);
+    for (let i = 0; i < 13; i++) {
+      const u = i / 12;
+      const a = base + (u - 0.5) * 2.1;
+      const p = emit();
+      p.x = Math.cos(a) * R;
+      p.y = Math.sin(a) * R * 0.9;
+      p.vx = Math.cos(a) * s * 1.9;
+      p.vy = Math.sin(a) * s * 1.6;
+      p.drag = 3.2;
+      p.r = s * 0.05 * (0.35 + Math.sin(u * Math.PI) * 1.05);
+      p.stretch = 3.6;
+      p.rot = a + Math.PI / 2;
+      p.born = k * d * 0.07 + u * d * 0.06;
+      p.life = d * (0.75 - k * 0.08);
+      p.pow = 1.6;
+      p.fadeIn = 0.02;
+      p.sprite = k === 0 ? pale : glow;
+    }
   }
-  ctx.restore();
+  // Leaf flecks: solid chips tumbling in the gust, the only opaque thing here.
+  for (let i = 0; i < 8; i++) {
+    const a = base + rr(-1.1, 1.1);
+    const R = s * rr(0.35, 0.95);
+    const p = emit();
+    p.dark = true;
+    p.x = Math.cos(a) * R;
+    p.y = Math.sin(a) * R * 0.9;
+    p.vx = Math.cos(a) * s * rr(1.2, 2.6);
+    p.vy = Math.sin(a) * s * rr(0.8, 1.8) - s * 0.3;
+    p.ay = s * 2.2;
+    p.drag = 1.1;
+    p.r = s * rr(0.05, 0.085);
+    p.rot = rr(0, TAU);
+    p.spin = rr(-14, 14);
+    p.born = d * rr(0, 0.25);
+    p.life = d * rr(0.6, 0.95);
+    p.alpha = 0.9;
+    p.pow = 1.2;
+    p.shape = SH_CHIP;
+    p.col = leaf;
+  }
 }
 
 function renderWindBlade(ctx: CanvasRenderingContext2D, v: VfxInstance, p: number): void {
-  ctx.save();
-  ctx.translate(v.x, v.y);
-  ctx.globalCompositeOperation = 'lighter';
+  drawParts(ctx, v);
+  // A hairline leading edge binds the inner crescent's motes into one blade.
+  const base = v.face > 0 ? -0.1 : Math.PI + 0.1;
+  const sweep = 1.05 * Math.min(1, p * 3.2);
+  ctx.globalAlpha = (1 - p) * (1 - p) * 0.9;
+  ctx.strokeStyle = v.color2;
+  ctx.lineWidth = Math.max(1, v.size * 0.028);
   ctx.lineCap = 'round';
-  for (let i = 0; i < 3; i++) {
-    const t = Math.min(1, p * 1.4 - i * 0.15);
-    if (t <= 0) continue;
-    const sweep = t * Math.PI * 1.1;
-    const rad = v.size * (0.5 + i * 0.22);
-    ctx.globalAlpha = (1 - p) * (1 - i * 0.3);
-    ctx.strokeStyle = i === 0 ? v.color2 : v.color;
-    ctx.lineWidth = 3 - i * 0.6;
-    ctx.beginPath();
-    ctx.arc(0, 0, rad, -Math.PI * 0.55, -Math.PI * 0.55 + sweep);
-    ctx.stroke();
-  }
+  ctx.save();
+  ctx.scale(1, 0.9);
+  ctx.beginPath();
+  ctx.arc(0, 0, v.size * (0.5 + p * 0.35), base - sweep, base + sweep);
+  ctx.stroke();
   ctx.restore();
+}
+
+// --- waterWave: a spiral of droplets and streaks, cyan-white core, foam --------
+
+function buildWaterWave(v: VfxInstance): void {
+  const s = v.size;
+  const d = v.duration;
+  const hot = spriteFor(v.color2, 'streakHot');
+  const glow = spriteFor(v.color, 'streak');
+  const foam = spriteFor(v.color2, 'hot');
+  const spin = rnd() < 0.5 ? 1 : -1;
+  // The long sheet. The reference frame's streaks run three to five times the
+  // sprite's width; ours were 39 px against a 112 px sprite, which is why the
+  // effect read as a scatter of dots. These are thin and 90-180 px long.
+  for (let i = 0; i < 20; i++) {
+    const u = i / 20;
+    const a = u * TAU * 1.7 + rr(-0.3, 0.3);
+    const R = s * rr(0.25, 0.95);
+    const vy = -s * rr(2.4, 4);
+    const vx = -Math.sin(a) * s * 2.4 * spin;
+    const p = emit();
+    p.x = Math.cos(a) * R;
+    p.y = s * 0.24 - u * s * 0.55;
+    p.vx = vx;
+    p.vy = vy;
+    p.ay = -s * 0.4;
+    p.drag = 1.2;
+    p.r = s * rr(0.03, 0.055);
+    p.stretch = rr(18, 30);
+    p.rot = Math.atan2(vy, vx);
+    p.born = u * d * 0.5;
+    p.life = d * rr(0.35, 0.5);
+    p.pow = 1.6;
+    p.fadeIn = 0.02;
+    p.alpha = rr(0.6, 1);
+    p.sprite = i % 4 === 0 ? hot : glow;
+  }
+  // Droplets climbing a cylinder: a tangential push plus lift, released in
+  // sequence up the column, so the whole sheet reads as one rising spiral.
+  for (let i = 0; i < 26; i++) {
+    const u = i / 26;
+    const a = u * TAU * 1.7 + rr(-0.2, 0.2);
+    const R = s * rr(0.3, 0.9);
+    const vy = -s * rr(1.5, 2.8);
+    const vx = -Math.sin(a) * s * 1.9 * spin;
+    const p = emit();
+    p.x = Math.cos(a) * R;
+    p.y = s * 0.26 - u * s * 0.5;
+    p.vx = vx;
+    p.vy = vy;
+    p.ay = -s * 0.4;
+    p.drag = 1.4;
+    p.r = s * rr(0.05, 0.095);
+    p.stretch = rr(4.5, 6.5);
+    p.rot = Math.atan2(vy, vx);
+    p.born = u * d * 0.55;
+    p.life = d * rr(0.4, 0.6);
+    p.pow = 1.5;
+    p.fadeIn = 0.02;
+    p.sprite = i % 5 < 2 ? hot : glow;
+  }
+  // Foam: round white motes flicked off the spiral, twinkling as they scatter
+  // wide — the scatter is what stops the column reading as one solid shape.
+  for (let i = 0; i < 22; i++) {
+    const a = rr(0, TAU);
+    const p = emit();
+    p.x = Math.cos(a) * s * rr(0.2, 1.05);
+    p.y = s * 0.24 - rnd() * s * 0.9;
+    p.vx = Math.cos(a) * s * rr(0.8, 2.4);
+    p.vy = -s * rr(0.6, 2);
+    p.ay = s * 1.6;
+    p.drag = 2.6;
+    p.r = s * rr(0.028, 0.055);
+    p.born = d * rr(0.05, 0.6);
+    p.life = d * rr(0.3, 0.55);
+    p.pow = 1.4;
+    p.twinkle = rr(14, 24);
+    p.phase = rr(0, TAU);
+    p.sprite = foam;
+  }
 }
 
 function renderWaterWave(ctx: CanvasRenderingContext2D, v: VfxInstance, p: number): void {
-  const r = v.size * (0.3 + 0.7 * p);
-  ctx.save();
-  ctx.translate(v.x, v.y);
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.globalAlpha = (1 - p) * 0.85;
-  ctx.strokeStyle = v.color2;
-  ctx.lineWidth = Math.max(2, v.size * 0.14 * (1 - p));
-  ctx.beginPath();
-  ctx.ellipse(0, 0, r, r * 0.45, 0, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.globalAlpha = (1 - p) * 0.5;
-  ctx.strokeStyle = v.color;
-  ctx.lineWidth = Math.max(1, v.size * 0.08);
-  ctx.beginPath();
-  ctx.ellipse(0, 0, r * 0.7, r * 0.32, 0, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
+  const s = v.size;
+  // The pool the column climbs out of, and a low hot core sitting in it. The
+  // core is deliberately WIDE AND SHORT: a tall bright bar here reads as a
+  // light pillar and steals lightBeam's silhouette.
+  const poolK = Math.min(1, p * 5) * (1 - p) * (1 - p);
+  blit(ctx, v.softSprite, 0, s * 0.28, s * 0.95, s * 0.34, poolK * 0.9);
+  if (p < 0.4) {
+    const k = 1 - p / 0.4;
+    blit(ctx, v.hotSprite, 0, s * 0.22, s * 0.36, s * 0.16, k * k * 0.6);
+  }
+  drawParts(ctx, v);
+}
+
+// --- lightBeam: a pillar with a white core and rising sparkles -----------------
+
+function buildLightBeam(v: VfxInstance): void {
+  const s = v.size;
+  const d = v.duration;
+  const H = s * 3.2;
+  const W = s * 0.42;
+  const pale = spriteFor(v.color2, 'streakHot');
+  const glow = spriteFor(v.color, 'streak');
+  const star = spriteFor(v.color2, 'star');
+  // The pillar IS the rays. It used to be a filled trapezoid with a solid white
+  // quad on top, which hid both the 27 ray particles inside it and the target's
+  // head; now forty long thin streaks carry it, with gaps between them, and the
+  // shaft behind is only a faint wash that binds them together.
+  for (let i = 0; i < 40; i++) {
+    const u = i / 39;
+    // Spread across the shaft with a gap-leaving jitter rather than evenly.
+    const lane = (u - 0.5) * 2 + rr(-0.09, 0.09);
+    const p = emit();
+    p.x = lane * W * 1.15;
+    p.y = -H * rr(0.3, 0.62);
+    p.vy = -s * rr(1.8, 4.4);
+    p.r = s * rr(0.032, 0.07);
+    p.stretch = rr(12, 20);
+    p.rot = Math.PI / 2;
+    p.born = d * rr(0, 0.3);
+    p.life = d * rr(0.45, 0.85);
+    p.alpha = rr(0.7, 1);
+    p.pow = 1.6;
+    p.fadeIn = 0.03;
+    p.sprite = Math.abs(lane) < 0.62 ? pale : glow;
+  }
+  // Sparkles drifting up the shaft and out around it.
+  for (let i = 0; i < 20; i++) {
+    const p = emit();
+    p.x = rr(-1, 1) * W * 2;
+    p.y = -rnd() * H * 0.95 + s * 0.15;
+    p.vy = -s * rr(0.5, 1.6);
+    p.vx = rr(-0.3, 0.3) * s;
+    p.drag = 1.2;
+    p.r = s * rr(0.035, 0.07);
+    p.born = d * rr(0, 0.5);
+    p.life = d * rr(0.35, 0.7);
+    p.pow = 1.3;
+    p.twinkle = rr(9, 18);
+    p.phase = rr(0, TAU);
+    p.shape = SH_STAR;
+    p.sprite = star;
+  }
 }
 
 function renderLightBeam(ctx: CanvasRenderingContext2D, v: VfxInstance, p: number): void {
-  const h = v.size * 2;
-  const w = v.size * (0.5 - 0.3 * p);
-  const grad = ctx.createLinearGradient(0, -h, 0, 0);
-  grad.addColorStop(0, transparent(v.color2));
-  grad.addColorStop(0.55, v.color2);
-  grad.addColorStop(1, v.color);
-  ctx.save();
-  ctx.translate(v.x, v.y);
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.globalAlpha = 1 - p;
-  ctx.fillStyle = grad;
+  const s = v.size;
+  const H = s * 3.2;
+  const W = s * 0.42 * (1 - p * 0.35);
+  const open = Math.min(1, p * 6);
+  const fade = (1 - p) * (1 - p);
+  // The shaft. One cached linear gradient per (context, recipe): white at the
+  // foot, the skill's colour up the body, transparent at the top. H is derived
+  // from `size`, which is in the key, so the cached gradient always fits.
+  const g = cachedGradient(ctx, v.key) ?? putLinear(ctx, v.key, 0, 0, 0, -H, [
+    [0, 'rgba(255,255,255,0.95)'],
+    [0.18, v.color2],
+    [0.55, v.color],
+    [1, rgba(v.color, 0)],
+  ]);
+  // A faint wash only — at full strength this slab buried the rays and the
+  // target's head both. There is no solid white core quad any more; the white
+  // lives in the streak sprites' own hot centres, which is where the bloom
+  // wants it and where it leaves the silhouette visible.
+  ctx.globalAlpha = fade * 0.22;
+  ctx.fillStyle = g;
   ctx.beginPath();
-  ctx.moveTo(-w, 0);
-  ctx.lineTo(w, 0);
-  ctx.lineTo(w * 0.35, -h);
-  ctx.lineTo(-w * 0.35, -h);
+  ctx.moveTo(-W, 0);
+  ctx.lineTo(W, 0);
+  ctx.lineTo(W * 0.42, -H * open);
+  ctx.lineTo(-W * 0.42, -H * open);
   ctx.closePath();
   ctx.fill();
-  ctx.restore();
+  // Where it lands. Small and ground-hugging: a foot flash scaled to `size`
+  // simply replaced the slab as the thing covering the target's head.
+  blit(ctx, v.hotSprite, 0, 0, s * (0.3 + p * 0.3), s * (0.12 + p * 0.14), fade * 0.75);
+  drawParts(ctx, v);
+}
+
+// --- darkPulse: violet motes imploding into a black-cored burst ----------------
+
+const DARK_TURN = 0.45;
+
+function buildDarkPulse(v: VfxInstance): void {
+  const s = v.size;
+  const d = v.duration;
+  const inT = d * DARK_TURN;
+  const glow = spriteFor(v.color2, 'streak');
+  const hot = spriteFor(v.color2, 'streakHot');
+  // The implosion: everything falls inward and arrives together at the turn.
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * TAU + rr(-0.12, 0.12);
+    const dist = s * rr(0.85, 1.3);
+    const p = emit();
+    p.x = Math.cos(a) * dist;
+    p.y = Math.sin(a) * dist * 0.9;
+    p.vx = (-Math.cos(a) * dist) / inT;
+    p.vy = (-Math.sin(a) * dist * 0.9) / inT;
+    p.r = s * rr(0.03, 0.06);
+    p.stretch = 4;
+    p.rot = a;
+    p.life = inT * 0.98;
+    p.alpha = 0.95;
+    p.pow = 0.6;
+    p.fadeIn = inT * 0.25;
+    p.sprite = glow;
+  }
+  // The burst: back out, faster, whiter, from nothing.
+  for (let i = 0; i < 18; i++) {
+    const a = rr(0, TAU);
+    const sp = s * rr(2.6, 6.5);
+    const p = emit();
+    p.vx = Math.cos(a) * sp;
+    p.vy = Math.sin(a) * sp * 0.85;
+    p.drag = 3.6;
+    p.r = s * rr(0.03, 0.065);
+    p.stretch = 3.4;
+    p.rot = a;
+    p.born = inT;
+    p.life = d - inT;
+    p.pow = 1.5;
+    p.sprite = hot;
+  }
 }
 
 function renderDarkPulse(ctx: CanvasRenderingContext2D, v: VfxInstance, p: number): void {
-  // An implosion then a burst: radius dips before it grows, unlike the other elemental bursts.
-  const t = p < 0.35 ? 1 - p / 0.35 : (p - 0.35) / 0.65;
-  const r = v.size * (0.15 + 0.85 * t);
-  const key = `dark|${v.size}|${v.color}|${v.color2}`;
-  const g = radialGradient(ctx, key, v.size, [
-    [0, v.color2],
-    [0.5, v.color],
-    [1, transparent(v.color)],
-  ]);
-  ctx.save();
-  ctx.translate(v.x, v.y);
+  const s = v.size;
+  // The core goes down FIRST and under 'multiply', not source-over on top.
+  // Painted over the motes at alpha 0.92 it was an opaque muddy disc stamped
+  // across the target; multiplying scales what is already there toward black,
+  // so the sprite's silhouette reads straight through the shadow, and the motes
+  // and rim then draw over it instead of under.
+  const grow = p < DARK_TURN ? p / DARK_TURN : 1;
+  const r = s * (0.08 + 0.46 * grow * grow);
+  const hold = p < DARK_TURN ? 1 : Math.max(0, 1 - (p - DARK_TURN) / (1 - DARK_TURN) / 0.8);
+  ctx.globalCompositeOperation = 'multiply';
+  blit(ctx, v.softSprite, 0, 0, r * 1.15, r * 1.05, 0.6 * hold);
   ctx.globalCompositeOperation = 'lighter';
-  ctx.globalAlpha = p < 0.35 ? 0.6 : 1 - (p - 0.35) / 0.65;
-  ctx.fillStyle = g;
-  ctx.beginPath();
-  ctx.arc(0, 0, Math.max(1, r), 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
+  drawParts(ctx, v);
+  // The rim: a hot ring on the edge of the hole, brightest at the turn.
+  const rim = 1 - Math.abs(p - DARK_TURN) / 0.3;
+  if (rim > 0) {
+    ctx.globalAlpha = rim * 0.95;
+    ctx.strokeStyle = v.color2;
+    ctx.lineWidth = Math.max(1.2, s * 0.05 * rim);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 1.05, r * 0.98, 0, 0, TAU);
+    ctx.stroke();
+  }
+}
+
+// --- healShimmer: rising sparkles over a soft pool -----------------------------
+
+function buildHealShimmer(v: VfxInstance): void {
+  const s = v.size;
+  const d = v.duration;
+  const star = spriteFor(v.color2, 'star');
+  const star2 = spriteFor(v.color, 'star');
+  const mote = spriteFor(v.color, 'soft');
+  // Nothing here is thrown: everything drifts up, slowly, with a long fade-in.
+  // That is the whole difference between a heal and a hit — but slow and gentle
+  // still has to be VISIBLE, so the sparkles are large and they climb the actor.
+  for (let i = 0; i < 26; i++) {
+    const a = rr(0, TAU);
+    const R = Math.sqrt(rnd()) * s * 0.55;
+    const p = emit();
+    p.x = Math.cos(a) * R;
+    p.y = s * 0.3 + Math.sin(a) * R * 0.28;
+    p.vy = -s * rr(0.9, 1.9);
+    p.ay = -s * 0.25;
+    p.r = s * rr(0.07, 0.13);
+    p.born = d * rr(0, 0.55);
+    p.life = d * rr(0.45, 0.7);
+    p.fadeIn = d * 0.12;
+    p.pow = 1.4;
+    p.twinkle = rr(5, 11);
+    p.phase = rr(0, TAU);
+    p.wav = s * rr(0.03, 0.08);
+    p.wHz = rr(2, 4.5);
+    p.shape = SH_STAR;
+    // Mostly the mint hue; white only as the occasional highlight. Inverted,
+    // the whole effect washed out to white and the restoration hue vanished.
+    p.sprite = i % 3 === 0 ? star : star2;
+  }
+  for (let i = 0; i < 12; i++) {
+    const a = rr(0, TAU);
+    const R = Math.sqrt(rnd()) * s * 0.6;
+    const p = emit();
+    p.x = Math.cos(a) * R;
+    p.y = s * 0.3 + Math.sin(a) * R * 0.28;
+    p.vy = -s * rr(0.4, 0.9);
+    p.r = s * rr(0.07, 0.14);
+    p.grow = s * 0.06;
+    p.alpha = 0.75;
+    p.born = d * rr(0, 0.5);
+    p.life = d * rr(0.4, 0.6);
+    p.fadeIn = d * 0.2;
+    p.pow = 1.4;
+    p.wav = s * 0.05;
+    p.wHz = rr(1.5, 3);
+    p.phase = rr(0, TAU);
+    p.sprite = mote;
+  }
 }
 
 function renderHealShimmer(ctx: CanvasRenderingContext2D, v: VfxInstance, p: number): void {
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  const key = `heal|${v.size}|${v.color}`;
-  const g = radialGradient(ctx, key, v.size * 0.5, [
-    [0, v.color2],
-    [1, transparent(v.color)],
-  ]);
-  ctx.globalAlpha = (1 - p) * 0.5;
-  ctx.translate(v.x, v.y + v.size * 0.3);
-  ctx.fillStyle = g;
-  ctx.beginPath();
-  ctx.ellipse(0, 0, v.size * 0.5, v.size * 0.22, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  for (let i = 0; i < 4; i++) {
-    const off = (i / 4 + v.seed * 0.13) % 1;
-    const rise = ((p + off) % 1) * v.size;
-    const sx = Math.sin((v.seed + i) * 2.4) * v.size * 0.22;
-    ctx.globalAlpha = (1 - rise / v.size) * 0.9;
-    ctx.fillStyle = v.color;
-    ctx.beginPath();
-    ctx.arc(v.x + sx, v.y - rise, Math.max(1, v.size * 0.05), 0, Math.PI * 2);
-    ctx.fill();
+  const s = v.size;
+  // The pool: a soft breathing ellipse under the actor's feet, never a flash.
+  const k = Math.min(1, p * 4) * (1 - p * p);
+  const breathe = 0.85 + 0.15 * pulse(v.age, 0.5);
+  blit(ctx, v.softSprite, 0, s * 0.32, s * 0.8 * breathe, s * 0.28 * breathe, k * 0.95);
+  blit(ctx, v.hotSprite, 0, s * 0.32, s * 0.3 * breathe, s * 0.1 * breathe, k * 0.4);
+  drawParts(ctx, v);
+}
+
+// --- shieldDome: a faceted ward with drifting motes ----------------------------
+
+const DOME_FACETS = 9;
+
+function buildShieldDome(v: VfxInstance): void {
+  const s = v.size;
+  const d = v.duration;
+  const R = s * 0.72;
+  const mote = spriteFor(v.color2, 'hot');
+  const soft = spriteFor(v.color, 'glow');
+  // Motes ON the shell, drifting along it, plus a few rising inside.
+  for (let i = 0; i < 15; i++) {
+    const a = Math.PI + rnd() * Math.PI;
+    const p = emit();
+    p.x = Math.cos(a) * R * rr(0.92, 1.04);
+    p.y = s * 0.18 + Math.sin(a) * R * rr(0.92, 1.04);
+    p.vx = -Math.sin(a) * s * rr(0.15, 0.5);
+    p.vy = Math.cos(a) * s * rr(0.15, 0.5);
+    p.r = s * rr(0.025, 0.055);
+    p.born = d * rr(0, 0.4);
+    p.life = d * rr(0.35, 0.6);
+    p.fadeIn = d * 0.1;
+    p.pow = 1.4;
+    p.twinkle = rr(6, 14);
+    p.phase = rr(0, TAU);
+    p.sprite = mote;
   }
-  ctx.restore();
+  for (let i = 0; i < 7; i++) {
+    const p = emit();
+    p.x = rr(-0.75, 0.75) * R;
+    p.y = s * 0.18;
+    p.vy = -s * rr(0.5, 1.1);
+    p.r = s * rr(0.03, 0.06);
+    p.alpha = 0.7;
+    p.born = d * rr(0, 0.5);
+    p.life = d * rr(0.3, 0.55);
+    p.fadeIn = d * 0.12;
+    p.pow = 1.5;
+    p.wav = s * 0.04;
+    p.wHz = rr(2, 5);
+    p.phase = rr(0, TAU);
+    p.sprite = soft;
+  }
 }
 
 function renderShieldDome(ctx: CanvasRenderingContext2D, v: VfxInstance, p: number): void {
-  const r = v.size * 0.55;
+  const s = v.size;
+  // The dome scales in, but the cached gradient is built at the FULL radius and
+  // the context is scaled to match: a gradient keyed by `size` cannot also be
+  // built at whatever radius the first frame happened to have.
+  const full = s * 0.72;
+  const grow = 0.55 + 0.45 * Math.min(1, p / 0.18);
+  const R = full;
+  const cy = s * 0.18;
+  const fade = 1 - p * p;
+  // A polygon, not an arc: nine flat facets read as faceted glass, and each one
+  // carries its own brightness so the shell has structure instead of a rim.
+  const g = cachedGradient(ctx, v.key) ?? putRadial(ctx, v.key, full, [
+    [0, rgba(v.color, 0)],
+    [0.62, rgba(v.color, 0.1)],
+    [1, rgba(v.color, 0.55)],
+  ]);
   ctx.save();
-  ctx.translate(v.x, v.y);
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.globalAlpha = (1 - p) * 0.4;
-  ctx.fillStyle = v.color2;
+  ctx.translate(0, cy);
+  ctx.scale(grow, grow);
   ctx.beginPath();
-  ctx.arc(0, 0, r, Math.PI, Math.PI * 2);
-  ctx.fill();
-  ctx.globalAlpha = 1 - p;
-  ctx.strokeStyle = v.color;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(0, 0, r, Math.PI, Math.PI * 2);
-  ctx.stroke();
-  // Two hex-facet lines for a "ward" read rather than a plain half-circle.
-  ctx.globalAlpha = (1 - p) * 0.7;
-  ctx.beginPath();
-  ctx.moveTo(-r * 0.5, -r * 0.05);
-  ctx.lineTo(-r * 0.2, -r * 0.85);
-  ctx.moveTo(r * 0.5, -r * 0.05);
-  ctx.lineTo(r * 0.2, -r * 0.85);
-  ctx.stroke();
-  ctx.restore();
-}
-
-function renderStunStar(ctx: CanvasRenderingContext2D, v: VfxInstance, p: number): void {
-  const count = 5;
-  const r = v.size * 0.4;
-  ctx.save();
-  ctx.translate(v.x, v.y - v.size * 0.55);
-  ctx.globalCompositeOperation = 'lighter';
-  for (let i = 0; i < count; i++) {
-    const ang = v.age * 4 + (i / count) * Math.PI * 2;
-    const px = Math.cos(ang) * r;
-    const py = Math.sin(ang) * r * 0.5;
-    ctx.globalAlpha = (1 - p) * (0.6 + 0.4 * Math.sin(v.age * 10 + i));
-    ctx.fillStyle = i % 2 === 0 ? v.color : v.color2;
-    drawSpark(ctx, px, py, v.size * 0.09);
+  for (let i = 0; i <= DOME_FACETS; i++) {
+    const a = Math.PI + (i / DOME_FACETS) * Math.PI;
+    const x = Math.cos(a) * R;
+    const y = Math.sin(a) * R;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
   }
+  ctx.closePath();
+  ctx.globalAlpha = fade * 0.8;
+  ctx.fillStyle = g;
+  ctx.fill();
+  // Facet edges, uneven so the shell glints rather than glowing evenly.
+  ctx.lineWidth = Math.max(1, s * 0.022);
+  ctx.lineCap = 'round';
+  for (let i = 0; i < DOME_FACETS; i++) {
+    const a0 = Math.PI + (i / DOME_FACETS) * Math.PI;
+    const a1 = Math.PI + ((i + 1) / DOME_FACETS) * Math.PI;
+    const lit = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(v.seed * 1.7 + i * 2.3 + v.age * 3));
+    ctx.globalAlpha = fade * lit;
+    ctx.strokeStyle = i % 2 === 0 ? v.color2 : v.color;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a0) * R, Math.sin(a0) * R);
+    ctx.lineTo(Math.cos(a1) * R, Math.sin(a1) * R);
+    ctx.stroke();
+  }
+  // The floor line closing the ward.
+  ctx.globalAlpha = fade * 0.7;
+  ctx.strokeStyle = v.color2;
+  ctx.beginPath();
+  ctx.moveTo(-R, 0);
+  ctx.lineTo(R, 0);
+  ctx.stroke();
   ctx.restore();
+  drawParts(ctx, v);
 }
 
-/** A tiny 4-point sparkle (a plus of two crossed diamonds), used by stunStar. */
-function drawSpark(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
-  ctx.beginPath();
-  ctx.moveTo(x, y - r);
-  ctx.lineTo(x + r * 0.3, y - r * 0.3);
-  ctx.lineTo(x + r, y);
-  ctx.lineTo(x + r * 0.3, y + r * 0.3);
-  ctx.lineTo(x, y + r);
-  ctx.lineTo(x - r * 0.3, y + r * 0.3);
-  ctx.lineTo(x - r, y);
-  ctx.lineTo(x - r * 0.3, y - r * 0.3);
-  ctx.closePath();
-  ctx.fill();
+// --- stunStar: orbiting stars with trails --------------------------------------
+
+function buildStunStar(v: VfxInstance): void {
+  const s = v.size;
+  const d = v.duration;
+  // A stun star has to be legible at a glance from across the frame, so both
+  // sprites keep a white core (mixing the darker `color2` toward white rather
+  // than using it raw — a maroon star on a navy floor is not a star).
+  const star = spriteFor(v.color, 'star');
+  const star2 = spriteFor(mixHex(v.color2, '#FFFFFF', 0.45), 'star');
+  const mote = spriteFor(v.color, 'glow');
+  const dir = rnd() < 0.5 ? 1 : -1;
+  for (let i = 0; i < 5; i++) {
+    const p = emit();
+    p.x = 0;
+    p.y = -s * 0.5;
+    p.orbit = 5.2 * dir;
+    p.ox = s * 0.78;
+    p.oy = s * 0.3;
+    p.phase = (i / 5) * TAU;
+    p.r = s * rr(0.16, 0.21);
+    p.spin = 3 * dir;
+    p.life = d;
+    p.fadeIn = d * 0.12;
+    p.pow = 1.2;
+    p.trail = 4;
+    p.twinkle = rr(7, 12);
+    p.shape = SH_STAR;
+    p.sprite = i % 2 === 0 ? star : star2;
+  }
+  // A little dust falling off the orbit, so the ring is not the only motion.
+  for (let i = 0; i < 8; i++) {
+    const p = emit();
+    p.x = rr(-0.7, 0.7) * s * 0.7;
+    p.y = -s * 0.5 + rr(-0.2, 0.2) * s;
+    p.vy = s * rr(0.2, 0.7);
+    p.vx = rr(-0.3, 0.3) * s;
+    p.drag = 1.5;
+    p.r = s * rr(0.03, 0.055);
+    p.alpha = 0.7;
+    p.born = d * rr(0, 0.6);
+    p.life = d * rr(0.25, 0.45);
+    p.pow = 1.3;
+    p.twinkle = rr(8, 16);
+    p.phase = rr(0, TAU);
+    p.sprite = mote;
+  }
+}
+
+function renderStunStar(ctx: CanvasRenderingContext2D, v: VfxInstance): void {
+  drawParts(ctx, v);
+}
+
+// --- burnFlicker: licking flame tongues ---------------------------------------
+
+function buildBurnFlicker(v: VfxInstance): void {
+  const s = v.size;
+  const d = v.duration;
+  const hot = spriteFor(v.color2, 'hot');
+  const glow = spriteFor(v.color, 'glow');
+  const tip = spriteFor(mixHex(v.color, '#FF004D', 0.45), 'glow');
+  // Four tongues, each a stack of motes that sways more the higher it sits —
+  // the classic candle-flame chain, hottest at the base.
+  for (let j = 0; j < 4; j++) {
+    const bx = (j - 1.5) * s * 0.3 + rr(-0.06, 0.06) * s;
+    const hz = rr(6, 10);
+    const ph = rr(0, TAU);
+    for (let i = 0; i < 6; i++) {
+      const p = emit();
+      p.x = bx;
+      p.y = -i * s * 0.19;
+      p.vy = -s * rr(0.4, 0.7);
+      p.r = s * (0.2 - i * 0.024);
+      p.grow = -s * 0.05;
+      p.born = i * 0.018;
+      p.life = d * rr(0.8, 0.95);
+      p.pow = 1.3;
+      p.fadeIn = 0.03;
+      p.twinkle = rr(11, 18);
+      p.phase = ph + i * 0.55;
+      p.wav = s * 0.055 * (i + 1) * 0.55;
+      p.wHz = hz;
+      p.sprite = i <= 1 ? hot : i >= 4 ? tip : glow;
+    }
+  }
+  // Embers breaking off the tips.
+  for (let i = 0; i < 6; i++) {
+    const p = emit();
+    p.x = rr(-0.6, 0.6) * s;
+    p.y = -s * rr(0.4, 0.9);
+    p.vy = -s * rr(1.2, 2.4);
+    p.r = s * rr(0.03, 0.055);
+    p.born = d * rr(0, 0.5);
+    p.life = d * rr(0.3, 0.5);
+    p.pow = 1.4;
+    p.twinkle = rr(14, 22);
+    p.phase = rr(0, TAU);
+    p.wav = s * 0.09;
+    p.wHz = rr(4, 8);
+    p.sprite = hot;
+  }
+}
+
+function renderBurnFlicker(ctx: CanvasRenderingContext2D, v: VfxInstance): void {
+  drawParts(ctx, v);
+}
+
+// --- shockwave: an expanding ring with debris chips ----------------------------
+
+function buildShockwave(v: VfxInstance): void {
+  const s = v.size;
+  const d = v.duration;
+  const glow = spriteFor(v.color, 'streak');
+  const hot = spriteFor(v.color2, 'streakHot');
+  const chip = mixHex(v.color, '#0B0710', 0.62);
+  // Debris: launched up and out, falling back under real gravity — the only
+  // effect with a ballistic arc, which is what sells weight.
+  for (let i = 0; i < 12; i++) {
+    const a = rr(0, TAU);
+    const p = emit();
+    p.dark = true;
+    p.x = Math.cos(a) * s * 0.14;
+    p.y = Math.sin(a) * s * 0.06;
+    p.vx = Math.cos(a) * s * rr(1.6, 3.6);
+    p.vy = -s * rr(1.8, 4);
+    p.ay = s * 11;
+    p.r = s * rr(0.03, 0.055);
+    p.rot = rr(0, TAU);
+    p.spin = rr(-16, 16);
+    p.alpha = 0.95;
+    p.life = d * rr(0.7, 1);
+    p.pow = 0.7;
+    p.shape = SH_CHIP;
+    p.col = chip;
+  }
+  // The ring itself: dust puffs stretched along their own outward motion, so
+  // the ring is made of movement rather than being a stroked ellipse.
+  for (let i = 0; i < 28; i++) {
+    const a = (i / 28) * TAU + rr(-0.06, 0.06);
+    const sp = s * rr(2.8, 3.8);
+    const p = emit();
+    p.x = Math.cos(a) * s * 0.12;
+    p.y = Math.sin(a) * s * 0.05;
+    p.vx = Math.cos(a) * sp;
+    p.vy = Math.sin(a) * sp * 0.4;
+    p.drag = 3.4;
+    p.r = s * rr(0.04, 0.07);
+    p.grow = s * 0.09;
+    p.stretch = 3.2;
+    p.rot = a;
+    p.life = d * rr(0.7, 0.9);
+    p.pow = 1.5;
+    p.fadeIn = 0.02;
+    p.sprite = i % 4 === 0 ? hot : glow;
+  }
 }
 
 function renderShockwave(ctx: CanvasRenderingContext2D, v: VfxInstance, p: number): void {
-  const r = v.size * p;
-  ctx.save();
-  ctx.translate(v.x, v.y);
-  ctx.globalAlpha = 1 - p;
+  const s = v.size;
+  const ease = 1 - (1 - p) * (1 - p);
+  const r = s * (0.12 + 0.88 * ease);
+  const fade = (1 - p) * (1 - p);
+  // The ground flash under the impact.
+  if (p < 0.3) {
+    const k = 1 - p / 0.3;
+    blit(ctx, v.hotSprite, 0, 0, s * (0.3 + 0.4 * (1 - k)), s * (0.14 + 0.2 * (1 - k)), k * 0.9);
+  }
+  drawParts(ctx, v);
+  // The leading edge, thinning as it runs out.
+  ctx.globalAlpha = fade * 0.9;
   ctx.strokeStyle = v.color2;
-  ctx.lineWidth = Math.max(1, v.size * 0.16 * (1 - p));
+  ctx.lineWidth = Math.max(1, s * 0.055 * (1 - p));
   ctx.beginPath();
-  ctx.ellipse(0, 0, r, r * 0.4, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 0, r, r * 0.4, 0, 0, TAU);
   ctx.stroke();
-  ctx.globalAlpha = (1 - p) * 0.6;
-  ctx.strokeStyle = v.color;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.ellipse(0, 0, r * 0.7, r * 0.28, 0, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
+}
+
+// --- projectile: a hot head, a mote trail, an impact spray ---------------------
+
+const PROJ_ARRIVE = 0.62;
+
+function buildProjectile(v: VfxInstance): void {
+  const s = v.size;
+  const d = v.duration;
+  // The path is stored relative to the target, which is where the renderer sits.
+  const dx = v.fromX - v.x;
+  const dy = v.fromY - v.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = -dy / len;
+  const ny = dx / len;
+  const bow = Math.min(len * 0.14, s * 4);
+  const glow = spriteFor(v.color, 'glow');
+  const hotStreak = spriteFor(v.color2, 'streakHot');
+  const spark = spriteFor(v.color2, 'streakHot');
+  const travel = Math.atan2(dy, dx);
+  // The trail: small motes laid down along the path, each appearing as the head
+  // passes it, so the tail is emitted without spawning anything per frame. Many
+  // and small — a handful of fat blobs is a smear, not a trail.
+  for (let i = 0; i < 26; i++) {
+    const f = i / 26;
+    const arc = Math.sin(f * Math.PI) * bow;
+    const p = emit();
+    p.x = dx * (1 - f) + nx * arc + rr(-0.35, 0.35) * s;
+    p.y = dy * (1 - f) + ny * arc + rr(-0.35, 0.35) * s;
+    p.vx = rr(-0.5, 0.5) * s;
+    p.vy = rr(-1.1, -0.2) * s;
+    p.drag = 2;
+    p.r = s * rr(0.07, 0.14);
+    p.grow = -s * 0.1;
+    p.born = (1 - f) * d * PROJ_ARRIVE * 0.94;
+    p.life = d * 0.55;
+    p.alpha = 0.9;
+    p.pow = 1.5;
+    p.twinkle = i % 3 === 0 ? rr(12, 20) : 0;
+    p.phase = rr(0, TAU);
+    p.sprite = glow;
+  }
+  // Streaks strung along the same path: the smear of a thing moving fast.
+  for (let i = 0; i < 8; i++) {
+    const f = i / 8;
+    const arc = Math.sin(f * Math.PI) * bow;
+    const p = emit();
+    p.x = dx * (1 - f) + nx * arc;
+    p.y = dy * (1 - f) + ny * arc;
+    p.r = s * rr(0.06, 0.11);
+    p.stretch = rr(5, 9);
+    p.rot = travel;
+    p.born = (1 - f) * d * PROJ_ARRIVE * 0.94;
+    p.life = d * 0.3;
+    p.alpha = 0.8;
+    p.pow = 1.8;
+    p.sprite = hotStreak;
+  }
+  // The impact: a spray of stretched streaks thrown radially off the hit, so
+  // arrival reads as a burst of shards rather than a slightly larger soft ball.
+  for (let i = 0; i < 20; i++) {
+    const a = rr(0, TAU);
+    const sp = s * rr(4, 10);
+    const p = emit();
+    p.vx = Math.cos(a) * sp;
+    p.vy = Math.sin(a) * sp * 0.9 - s * 1.2;
+    p.ay = s * 12;
+    p.drag = 3.2;
+    p.r = s * rr(0.1, 0.18);
+    p.stretch = rr(5, 8);
+    p.rot = a;
+    p.born = d * PROJ_ARRIVE;
+    p.life = d * (1 - PROJ_ARRIVE) * rr(0.7, 1);
+    p.pow = 1.4;
+    p.sprite = spark;
+  }
 }
 
 function renderProjectile(ctx: CanvasRenderingContext2D, v: VfxInstance, p: number): void {
-  const x = v.fromX + (v.x - v.fromX) * p;
-  const y = v.fromY + (v.y - v.fromY) * p;
-  const key = `proj|${v.size}|${v.color}|${v.color2}`;
-  const g = radialGradient(ctx, key, v.size, [
-    [0, v.color2],
-    [0.6, v.color],
-    [1, transparent(v.color)],
-  ]);
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  // A short ghost trail behind the head, along the travel direction.
-  for (let i = 1; i <= 2; i++) {
-    const tp = Math.max(0, p - i * 0.12);
-    const tx = v.fromX + (v.x - v.fromX) * tp;
-    const ty = v.fromY + (v.y - v.fromY) * tp;
-    ctx.globalAlpha = (1 - p) * (0.35 - i * 0.1);
-    ctx.translate(tx, ty);
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(0, 0, v.size * 0.6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const s = v.size;
+  drawParts(ctx, v);
+  const f = Math.min(1, p / PROJ_ARRIVE);
+  const dx = v.fromX - v.x;
+  const dy = v.fromY - v.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const bow = Math.min(len * 0.14, s * 4);
+  const arc = Math.sin(f * Math.PI) * bow;
+  const hx = dx * (1 - f) + (-dy / len) * arc;
+  const hy = dy * (1 - f) + (dx / len) * arc;
+  if (p < PROJ_ARRIVE) {
+    // The head: a tight white centre inside a small coloured halo. Kept small —
+    // a big soft ball is the blob this archetype replaced, and the trail is
+    // what says "travelling".
+    blit(ctx, v.softSprite, hx, hy, s * 0.5, s * 0.42, 0.85);
+    blit(ctx, v.hotSprite, hx, hy, s * 0.26, s * 0.23, 1);
+  } else {
+    const k = 1 - (p - PROJ_ARRIVE) / (1 - PROJ_ARRIVE);
+    blit(ctx, v.hotSprite, 0, 0, s * (0.32 + 0.4 * (1 - k)), s * (0.28 + 0.36 * (1 - k)), k * k * 0.9);
   }
-  ctx.globalAlpha = 1;
-  ctx.translate(x, y);
-  ctx.fillStyle = g;
-  ctx.beginPath();
-  ctx.arc(0, 0, v.size, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
+}
+
+// --- frostShards: glittering crystal in a frost mist ---------------------------
+
+function buildFrostShards(v: VfxInstance): void {
+  const s = v.size;
+  const d = v.duration;
+  // frostShards' `color` is very nearly white, so every layer taken straight
+  // from it stacks under 'lighter' into one white blob. The mist and the
+  // glitter are pulled toward `color2` (the cold hue) and held dim; only the
+  // shard highlights are allowed to be white.
+  const cold = mixHex(v.color, v.color2, 0.7);
+  const mist = spriteFor(cold, 'soft');
+  const glint = spriteFor(v.color2, 'streakHot');
+  const star = spriteFor(mixHex(v.color2, '#FFFFFF', 0.25), 'star');
+  const body = mixHex(v.color, '#1D2B53', 0.42);
+  // Shards: solid crystal, drawn source-over so they read as ice rather than as
+  // more glow, growing out of the mist and settling.
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * TAU + rr(-0.3, 0.3);
+    const R = s * rr(0.28, 0.68);
+    const p = emit();
+    p.dark = true;
+    p.x = Math.cos(a) * R;
+    p.y = Math.sin(a) * R * 0.75;
+    p.vx = Math.cos(a) * s * 0.7;
+    p.vy = Math.sin(a) * s * 0.5;
+    p.drag = 4;
+    p.r = s * rr(0.2, 0.36);
+    p.grow = s * 0.18;
+    p.rot = a + Math.PI / 2 + rr(-0.3, 0.3);
+    p.spin = rr(-1.2, 1.2);
+    p.alpha = 0.9;
+    p.born = d * rr(0, 0.22);
+    p.life = d * rr(0.7, 0.95);
+    p.fadeIn = d * 0.1;
+    p.pow = 1.4;
+    p.shape = SH_SHARD;
+    p.col = body;
+  }
+  // Mist: wide, dim, slow. The bed the crystal sits in.
+  for (let i = 0; i < 10; i++) {
+    const a = rr(0, TAU);
+    const p = emit();
+    p.x = Math.cos(a) * s * rr(0, 0.4);
+    p.y = Math.sin(a) * s * rr(0, 0.3) + s * 0.1;
+    p.vx = Math.cos(a) * s * rr(0.2, 0.6);
+    p.vy = -s * rr(0.1, 0.4);
+    p.r = s * rr(0.22, 0.4);
+    p.grow = s * 0.3;
+    p.alpha = 0.16;
+    p.fadeIn = d * 0.25;
+    p.born = d * rr(0, 0.2);
+    p.life = d * 0.9;
+    p.pow = 1.2;
+    p.sprite = mist;
+  }
+  // Glints on the shard faces.
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * TAU + rr(-0.3, 0.3);
+    const R = s * rr(0.25, 0.6);
+    const p = emit();
+    p.x = Math.cos(a) * R;
+    p.y = Math.sin(a) * R * 0.75;
+    p.r = s * rr(0.03, 0.06);
+    p.stretch = 4;
+    p.rot = a + Math.PI / 2;
+    p.born = d * rr(0.05, 0.4);
+    p.life = d * rr(0.3, 0.5);
+    p.pow = 1.4;
+    p.twinkle = rr(10, 20);
+    p.phase = rr(0, TAU);
+    p.sprite = glint;
+  }
+  // Glitter: tiny stars blinking on and off across the whole cloud.
+  for (let i = 0; i < 16; i++) {
+    const a = rr(0, TAU);
+    const R = Math.sqrt(rnd()) * s * 0.85;
+    const p = emit();
+    p.x = Math.cos(a) * R;
+    p.y = Math.sin(a) * R * 0.8;
+    p.vy = -s * rr(0.05, 0.3);
+    p.r = s * rr(0.03, 0.065);
+    p.born = d * rr(0, 0.6);
+    p.life = d * rr(0.25, 0.5);
+    p.pow = 1.3;
+    p.twinkle = rr(12, 24);
+    p.phase = rr(0, TAU);
+    p.shape = SH_STAR;
+    p.sprite = star;
+  }
 }
 
 function renderFrostShards(ctx: CanvasRenderingContext2D, v: VfxInstance, p: number): void {
-  const count = 5;
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  for (let i = 0; i < count; i++) {
-    const ang = (v.seed * 0.7 + i * 1.256) % (Math.PI * 2);
-    const dist = v.size * 0.5 * p;
-    const px = v.x + Math.cos(ang) * dist;
-    const py = v.y + Math.sin(ang) * dist * 0.6;
-    const s = v.size * 0.14 * (1 - p * 0.5);
-    ctx.globalAlpha = 1 - p;
-    ctx.fillStyle = i % 2 === 0 ? v.color2 : v.color;
-    ctx.save();
-    ctx.translate(px, py);
-    ctx.rotate(ang);
-    ctx.beginPath();
-    ctx.moveTo(0, -s);
-    ctx.lineTo(s * 0.5, 0);
-    ctx.lineTo(0, s);
-    ctx.lineTo(-s * 0.5, 0);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-  }
-  ctx.restore();
+  const s = v.size;
+  // A cold breath under the crystal — the cold hue, and dim: this archetype's
+  // brightness has to live in the shard highlights, not in a haze.
+  const k = Math.min(1, p * 4) * (1 - p) * (1 - p);
+  blit(ctx, v.softSprite, 0, s * 0.1, s * 0.85, s * 0.5, k * 0.32);
+  drawParts(ctx, v);
 }
 
-function renderSlash(ctx: CanvasRenderingContext2D, v: VfxInstance, p: number): void {
-  ctx.save();
-  ctx.translate(v.x, v.y);
-  ctx.rotate(-0.5 + p * 0.4);
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.globalAlpha = 1 - p;
-  ctx.strokeStyle = v.color2;
-  ctx.lineWidth = 4 * (1 - p * 0.5);
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.arc(0, 0, v.size * 0.55, -0.9, 0.9);
-  ctx.stroke();
-  ctx.globalAlpha = (1 - p) * 0.6;
-  ctx.strokeStyle = v.color;
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.arc(0, 0, v.size * 0.4, -0.7, 0.7);
-  ctx.stroke();
-  ctx.restore();
+// --- Dispatch -----------------------------------------------------------------
+
+function renderOne(ctx: CanvasRenderingContext2D, v: VfxInstance, p: number): void {
+  switch (v.kind) {
+    case 'slash': return renderSlash(ctx, v, p);
+    case 'fireBurst': return renderFireBurst(ctx, v, p);
+    case 'windBlade': return renderWindBlade(ctx, v, p);
+    case 'waterWave': return renderWaterWave(ctx, v, p);
+    case 'lightBeam': return renderLightBeam(ctx, v, p);
+    case 'darkPulse': return renderDarkPulse(ctx, v, p);
+    case 'healShimmer': return renderHealShimmer(ctx, v, p);
+    case 'shieldDome': return renderShieldDome(ctx, v, p);
+    case 'stunStar': return renderStunStar(ctx, v);
+    case 'burnFlicker': return renderBurnFlicker(ctx, v);
+    case 'shockwave': return renderShockwave(ctx, v, p);
+    case 'projectile': return renderProjectile(ctx, v, p);
+    case 'frostShards': return renderFrostShards(ctx, v, p);
+  }
+}
+
+// --- The particle pass --------------------------------------------------------
+
+/** One cached sprite, centred, at an explicit half-width / half-height. */
+function blit(ctx: CanvasRenderingContext2D, sp: HTMLCanvasElement | null, x: number, y: number, rx: number, ry: number, alpha: number): void {
+  if (!sp || alpha <= 0.004 || rx <= 0.05 || ry <= 0.05) return;
+  ctx.globalAlpha = alpha > 1 ? 1 : alpha;
+  ctx.drawImage(sp, x - rx, y - ry, rx * 2, ry * 2);
+}
+
+/**
+ * Draws an instance's particles: the dark run under 'source-over', the glowing
+ * run under 'lighter'. Allocation-free — every sprite, colour string and
+ * gradient it touches was built at spawn.
+ */
+function drawParts(ctx: CanvasRenderingContext2D, v: VfxInstance): void {
+  const parts = v.parts;
+  const age = v.age;
+  if (v.darkCount > 0) {
+    ctx.globalCompositeOperation = 'source-over';
+    for (let i = 0; i < v.darkCount; i++) drawPart(ctx, parts[i], age);
+    ctx.globalCompositeOperation = 'lighter';
+  }
+  for (let i = v.darkCount; i < v.count; i++) drawPart(ctx, parts[i], age);
+}
+
+function drawPart(ctx: CanvasRenderingContext2D, p: Particle, age: number): void {
+  const t = age - p.born;
+  if (t < 0 || t >= p.life) return;
+  const u = t / p.life;
+  let a = p.alpha * Math.pow(1 - u, p.pow);
+  if (p.fadeIn > 0 && t < p.fadeIn) a *= t / p.fadeIn;
+  if (p.twinkle !== 0) a *= 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(p.phase + t * p.twinkle));
+  if (a <= 0.004) return;
+  const r = p.r + p.grow * t;
+  if (r <= 0.05) return;
+  let x = p.x;
+  let y = p.y;
+  let rot = p.rot;
+  if (p.orbit !== 0) {
+    const ang = p.phase + p.orbit * t;
+    x += Math.cos(ang) * p.ox;
+    y += Math.sin(ang) * p.oy;
+    rot += p.spin * t;
+    if (p.trail > 0 && p.sprite) {
+      // Ghosts one step back along the orbit — analytic, so a trail needs no history buffer.
+      for (let k = p.trail; k >= 1; k--) {
+        const ga = ang - k * 0.17;
+        const gr = r * (1 - k * 0.15);
+        if (gr <= 0.05) continue;
+        ctx.globalAlpha = a * (0.34 / k);
+        ctx.drawImage(p.sprite, p.x + Math.cos(ga) * p.ox - gr, p.y + Math.sin(ga) * p.oy - gr, gr * 2, gr * 2);
+      }
+    }
+  } else if (p.wav !== 0) {
+    x += Math.sin(p.phase + t * p.wHz) * p.wav;
+  }
+  ctx.globalAlpha = a > 1 ? 1 : a;
+  switch (p.shape) {
+    case SH_MOTE:
+    case SH_STAR: {
+      if (!p.sprite) return;
+      if (rot === 0) {
+        ctx.drawImage(p.sprite, x - r, y - r, r * 2, r * 2);
+      } else {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(rot);
+        ctx.drawImage(p.sprite, -r, -r, r * 2, r * 2);
+        ctx.restore();
+      }
+      return;
+    }
+    case SH_STREAK: {
+      if (!p.sprite) return;
+      const len = r * p.stretch;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rot);
+      ctx.drawImage(p.sprite, -len, -r, len * 2, r * 2);
+      ctx.restore();
+      return;
+    }
+    case SH_CHIP: {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rot);
+      ctx.fillStyle = p.col;
+      ctx.fillRect(-r, -r * 0.6, r * 2, r * 1.2);
+      ctx.restore();
+      return;
+    }
+    default: {
+      // SH_SHARD: a crystal quad with a bright inner facet.
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rot);
+      ctx.fillStyle = p.col;
+      ctx.beginPath();
+      ctx.moveTo(0, -r);
+      ctx.lineTo(r * 0.42, 0);
+      ctx.lineTo(0, r);
+      ctx.lineTo(-r * 0.42, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = Math.min(1, a * 0.9);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.moveTo(0, -r * 0.85);
+      ctx.lineTo(r * 0.13, -r * 0.1);
+      ctx.lineTo(0, r * 0.5);
+      ctx.lineTo(-r * 0.13, -r * 0.1);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+  }
 }

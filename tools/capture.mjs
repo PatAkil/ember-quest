@@ -6,6 +6,9 @@
 //   node tools/capture.mjs sheets actor=EMBER   # one actor's pose sheet only
 //   node tools/capture.mjs battle          # title, room card, battle frames, a hit, pause, inspect
 //   node tools/capture.mjs phone           # the same battle frames on a phone viewport (touch)
+//   node tools/capture.mjs play            # a whole slice run through main.ts's dev state hook (window.__eq):
+//                                          # every room card, every card screen (offer + who-wears-it, or SKIP on
+//                                          # skip=1), the boss battle, VICTORY or GAME OVER -> play-*.png
 //   node tools/capture.mjs shot url=/tools/vfx.html?skill=CINDER name=vfx-CINDER [selector=#sheet]
 //                                          # any dev page that sets window.__lineup.ready (or window.__ready) -> tools/out/<name>.png
 //
@@ -42,10 +45,20 @@ function watch(page) {
 }
 
 async function sheet(page, name, query) {
-  await page.goto(`${BASE}/tools/lineup.html?${query}`, { waitUntil: 'load' });
-  await page.waitForFunction(() => window.__lineup && window.__lineup.ready, null, { timeout: 20000 });
-  await page.locator('#sheet').screenshot({ path: `${OUT}/${name}.png` });
-  return page.evaluate(() => window.__lineup.metrics);
+  // A hot reload from a concurrent save destroys the page context mid-capture: retry the whole sheet.
+  let last;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      await page.goto(`${BASE}/tools/lineup.html?${query}`, { waitUntil: 'load' });
+      await page.waitForFunction(() => window.__lineup && window.__lineup.ready, null, { timeout: 20000 });
+      await page.locator('#sheet').screenshot({ path: `${OUT}/${name}.png` });
+      return await page.evaluate(() => window.__lineup.metrics);
+    } catch (e) {
+      last = e;
+      await page.waitForTimeout(800);
+    }
+  }
+  throw last;
 }
 
 if (modes.has('sheets')) {
@@ -127,15 +140,19 @@ async function battle(page, prefix, touch) {
   await frame(page, `${prefix}battle-1`);
   // A hero's turn may or may not be up: try skill 1 on enemy 0 a few times and
   // snapshot right after, so at least one frame carries a hit and its VFX.
+  // Timing: the HIT event fires one CAST beat (0.16 s) after the target tap and
+  // its effect lives ~0.3-0.5 s, so the burst below samples early, mid and late life.
   for (let i = 0; i < 5; i++) {
     await tap(page, 228, 648, touch); // skill 1
     await wait(page, 120);
     await tap(page, 1116, 148, touch); // enemy panel 0 = target
-    await wait(page, 140);
+    await wait(page, 200);
     await frame(page, `${prefix}battle-hit-${i}a`);
-    await wait(page, 220);
+    await wait(page, 70);
     await frame(page, `${prefix}battle-hit-${i}b`);
-    await wait(page, 900);
+    await wait(page, 90);
+    await frame(page, `${prefix}battle-hit-${i}c`);
+    await wait(page, 800);
   }
   await frame(page, `${prefix}battle-2`);
   // Pause overlay and the inspect overlay.
@@ -165,6 +182,114 @@ if (modes.has('phone')) {
   // The phone frame as the phone actually shows it (CSS-fitted, chrome-free).
   await page.screenshot({ path: `${OUT}/phone-viewport.png` });
   await ctx.close();
+}
+
+// --- a whole slice run, steered by the dev state hook ------------------------------
+// main.ts exposes window.__eq = { scene(), run(), battle() } in dev builds only. The
+// loop below reads it every step and answers with taps at the contract's geometry:
+// CONTINUE (448,552 384x96), the skill buttons (SKILL_X 28/440/852 at y 600), the
+// enemy panels (976,96/212/328 280x104), the cards (CARD_X / centred rows), the
+// who-wears-it buttons (WEAR_X 40/344/648/952 at y 552) and SKIP (= CONTINUE).
+async function eqState(page) {
+  const read = () => page.evaluate(() => ({ scene: window.__eq.scene(), run: window.__eq.run(), battle: window.__eq.battle() }));
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await read();
+    } catch (e) {
+      // A hot reload while another writer saves destroys the context mid-poll: re-attach.
+      await page.waitForFunction(() => typeof window.__eq === 'object' && window.__eq !== null, null, { timeout: 20000 });
+      await wait(page, 600);
+    }
+  }
+  return null;
+}
+/** Card centre x for n offered cards — layout.ts's cardXs: 3-up/4-up rows verbatim, 1-2 centred. */
+function cardCentres(n) {
+  if (n >= 4) return [48, 348, 648, 948].map((x) => x + 142);
+  if (n === 3) return [40, 448, 856].map((x) => x + 192);
+  const gap = 24;
+  const total = n * 384 + (n - 1) * gap;
+  const start = 640 - total / 2;
+  return Array.from({ length: n }, (_, i) => Math.round(start + i * (384 + gap) + 192));
+}
+const CARD_COUNT = { FIGHT: 1, ELITE: 3, LOOT: 2, BOSS: 3, SUMMON: 1 };
+
+async function play(page, prefix, touch) {
+  await page.goto(`${BASE}/`, { waitUntil: 'load' });
+  await page.waitForSelector('#screen canvas', { state: 'attached', timeout: 15000 });
+  await page.waitForFunction(() => typeof window.__eq === 'object' && window.__eq !== null, null, { timeout: 15000 });
+  await wait(page, 600);
+  const shot = new Set();
+  const once = async (name, ms = 0) => {
+    if (shot.has(name)) return;
+    shot.add(name);
+    if (ms) await wait(page, ms);
+    await frame(page, `${prefix}${name}`);
+  };
+  let skillTurn = 0;
+  let targetTurn = 0;
+  let cardsSeen = 0;
+  const deadline = Date.now() + 16 * 60 * 1000; // a boss fight is ~45 actor turns of paced playback
+  for (let i = 0; i < 12000 && Date.now() < deadline; i++) {
+    const s = await eqState(page);
+    if (!s) break;
+    const phase = s.run?.phase;
+    if (s.scene === 'TITLE') {
+      await once('play-title');
+      await tap(page, 640, 400, touch);
+      await wait(page, 500);
+    } else if (s.scene === 'GAME_OVER' || s.scene === 'WIN') {
+      await once(`play-end-${s.scene}`, 500);
+      break;
+    } else if (phase === 'ROOM') {
+      await once(`play-room-${s.run.roomIndex}-${s.run.room}`, 300);
+      await tap(page, 640, 600, touch);
+      await wait(page, 700);
+    } else if (phase === 'BATTLE') {
+      if (s.run.room === 'BOSS') await once('play-battle-boss', 1400);
+      else await once(`play-battle-${s.run.roomIndex}`, 1000);
+      if (s.battle === 'HERO_SKILL') {
+        await tap(page, [228, 640, 1052][skillTurn++ % 3], 648, touch); // an illegal skill is a disabled region: a no-op
+        await wait(page, 220);
+      } else if (s.battle === 'HERO_TARGET') {
+        await tap(page, 1116, [148, 264, 380][targetTurn++ % 3], touch); // a dead enemy's panel is disabled: a no-op
+        await wait(page, 260);
+      } else {
+        await wait(page, 160);
+      }
+    } else if (phase === 'CARDS') {
+      const src = s.run.cardSource ?? 'FIGHT';
+      const n = CARD_COUNT[src] ?? 1;
+      const name = `play-cards-${src}-${n}`;
+      const skip = opts.skip === '1' || (opts.skip === 'alt' && cardsSeen % 2 === 1);
+      cardsSeen += 1;
+      if (!shot.has(name)) {
+        await once(name, 350);
+        if (!skip) {
+          await tap(page, cardCentres(n)[0], 308, touch); // the first card -> who-wears-it
+          await once(`play-wear-${src}`, 450);
+          await tap(page, 180, 600, touch); // wear it on member 0
+        } else {
+          await tap(page, 640, 600, touch); // SKIP
+        }
+        await wait(page, 600);
+      } else {
+        // The same screen again (another FIGHT drop): keep the run moving without re-shooting it.
+        await tap(page, 640, 600, touch);
+        await wait(page, 500);
+      }
+    } else {
+      await wait(page, 200);
+    }
+  }
+  console.log(`PLAY: ${[...shot].join(', ')}`);
+}
+
+if (modes.has('play')) {
+  const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 1 });
+  watch(page);
+  await play(page, '', false);
+  await page.close();
 }
 
 if (modes.has('shot') && opts.url) {
