@@ -41,22 +41,28 @@ import type { VfxInstance } from './vfx';
 
 export const ACTOR_PART = 64;
 export const BOSS_PART = 96;
-export const ACTOR_SCALE = 3;
+/**
+ * Two screen pixels per cell. At x3 a 48-cell hero was 144 px tall in a
+ * 720-px frame — twice Octopath's on-screen pixel size, which is what read as
+ * chunky. At x2 a 56-cell hero is 112 px, so the detail budget goes into MORE
+ * CELLS (heroes 52-60, enemies 24-56, bosses 84-96) rather than bigger ones.
+ */
+export const ACTOR_SCALE = 2;
 /** Derived, not re-authored, so the two numbers can never drift apart. */
 export const ACTOR_W = ACTOR_PART * ACTOR_SCALE;
 export const BOSS_W = BOSS_PART * ACTOR_SCALE;
 export const POSE_FPS = 12;
 
 /** The ground line every hero, normal and elite stands on inside the 64-cell canvas, and its boss-canvas twin. */
-const GROUND_Y = 57;
-const BOSS_GROUND_Y = 92;
+const GROUND_Y = 60;
+const BOSS_GROUND_Y = 93;
 const CENTRE_X = ACTOR_PART / 2;
 const BOSS_CENTRE_X = BOSS_PART / 2;
 
 export type PoseName = 'idle' | 'attack' | 'hurt' | 'cast' | 'dead';
 
 /** Frame count per pose — idle's 2-4 is DESIGN.md's own range; the rest are sized to their named beats (attack: wind-up / strike / recover). */
-export const POSE_FRAMES: Record<PoseName, number> = { idle: 3, attack: 3, hurt: 2, cast: 3, dead: 2 };
+export const POSE_FRAMES: Record<PoseName, number> = { idle: 3, attack: 3, hurt: 3, cast: 3, dead: 3 };
 
 // --- Recipe shape -------------------------------------------------------------
 
@@ -122,42 +128,108 @@ const INK = '#141126';
 
 type Palette = Record<Material, Ramp>;
 
+/** The stage navy every actor is read against — the contrast floor below is measured off it. */
+const COOL = 258; // shadows rotate toward this violet-blue
+const WARM = 42; // highlights rotate toward this cream
+
+function hex2(v: number): string {
+  const n = Math.max(0, Math.min(255, Math.round(v)));
+  return n.toString(16).padStart(2, '0');
+}
+
+/** HSL → hex. Saturation and lightness in percent. */
+function hsl(h: number, s: number, l: number): string {
+  const hh = ((h % 360) + 360) % 360;
+  const ss = Math.max(0, Math.min(100, s)) / 100;
+  const ll = Math.max(0, Math.min(100, l)) / 100;
+  const c = (1 - Math.abs(2 * ll - 1)) * ss;
+  const x = c * (1 - Math.abs(((hh / 60) % 2) - 1));
+  const m = ll - c / 2;
+  const seg = Math.floor(hh / 60) % 6;
+  const rgb = [
+    [c, x, 0],
+    [x, c, 0],
+    [0, c, x],
+    [0, x, c],
+    [x, 0, c],
+    [c, 0, x],
+  ][seg];
+  return '#' + hex2((rgb[0] + m) * 255) + hex2((rgb[1] + m) * 255) + hex2((rgb[2] + m) * 255);
+}
+
+/** Rotate `h` along the shortest arc toward `target`, by at most `amount` degrees. */
+function towards(h: number, target: number, amount: number): number {
+  const d = ((target - h + 540) % 360) - 180;
+  return h + Math.max(-amount, Math.min(amount, d));
+}
+
+/**
+ * A four-shade material ramp from ONE midtone. This is where the critique's
+ * hue rule lives, once, for every material in the game: going DOWN the ramp
+ * rotates toward violet-blue and drops saturation (a shadow is cool and
+ * greyer); going UP rotates toward cream and lifts (a highlight is warm).
+ * `l` is the midtone lightness, and it is deliberately high — every garment
+ * mass has to clear 3:1 against the #1d2b53 stage, which a 40 %-lightness
+ * fill never does.
+ */
+function ramp(h: number, s: number, l: number): Ramp {
+  return [
+    hsl(towards(h, COOL, 30), Math.max(10, s - 16), Math.max(9, l - 38)), // 0 rim / outline
+    hsl(towards(h, COOL, 17), Math.max(12, s - 9), Math.max(15, l - 20)), // 1 shadow
+    hsl(h, s, l), // 2 midtone
+    hsl(towards(h, WARM, 13), Math.max(12, s - 7), Math.min(95, l + 19)), // 3 highlight
+  ];
+}
+
+/** A glow ramp runs the other way: `autoShade` gives a glow its brightest shade in the CORE, so 0 is the cool outer falloff and 3 the hot centre. */
+function glowRamp(h: number, s = 84, top = 92): Ramp {
+  return [hsl(h - 8, Math.min(100, s + 6), 30), hsl(h, s, 46), hsl(h + 10, s - 6, 64), hsl(h + 20, Math.max(20, s - 40), top)];
+}
+
 const NEUTRAL: Palette = {
-  skin: ['#2e1a2a', '#8a5546', '#c99476', '#f2d5ae'],
-  hair: ['#1a1526', '#453a52', '#6f6274', '#a89aa4'],
-  cloth: ['#161a2e', '#46506f', '#78829f', '#bcc3d6'],
-  cloth2: ['#1e1428', '#5a3f60', '#8c6b8a', '#c6aac0'],
-  leather: ['#160f1a', '#493226', '#7a5539', '#ab8156'],
-  metal: ['#12162a', '#3e4661', '#727e9c', '#bcc6da'],
-  accent: ['#260c16', '#7c2530', '#c4463a', '#ef8a52'],
-  glow: ['#7a2410', '#d4621c', '#f8ab3e', '#ffeaa8'],
-  bone: ['#1c1a2e', '#57536e', '#928da2', '#ded9e2'],
+  skin: ramp(24, 40, 63),
+  hair: ramp(266, 14, 48),
+  cloth: ramp(220, 22, 54),
+  cloth2: ramp(296, 24, 52),
+  leather: ramp(28, 30, 50),
+  metal: ramp(222, 15, 58),
+  accent: ramp(6, 48, 55),
+  glow: glowRamp(26),
+  bone: ramp(252, 11, 66),
 };
 
 const ELEMENT_RAMPS: Record<Element, { accent: Ramp; glow: Ramp }> = {
-  FIRE: { accent: ['#260c16', '#7c2530', '#c4463a', '#ef8a52'], glow: ['#7a2410', '#d4621c', '#f8ab3e', '#ffeaa8'] },
-  WIND: { accent: ['#0d1c13', '#2f5c39', '#5c9455', '#a0cf7e'], glow: ['#2c4a1e', '#6ba24e', '#b9e07c', '#f2ffd2'] },
-  WATER: { accent: ['#0a1526', '#22476a', '#3f80a6', '#84c6d6'], glow: ['#123c4c', '#2f8ca8', '#82d9e6', '#e2ffff'] },
-  LIGHT: { accent: ['#241a0c', '#7d5c24', '#c69c40', '#f6de94'], glow: ['#7c5c1c', '#dab24a', '#f9e89c', '#fffce2'] },
-  DARK: { accent: ['#100a18', '#3c2249', '#66397c', '#9c6ab2'], glow: ['#3c1442', '#7c2c82', '#c264c2', '#f2b2ea'] },
+  FIRE: { accent: ramp(6, 48, 55), glow: glowRamp(26) },
+  WIND: { accent: ramp(102, 28, 50), glow: glowRamp(88, 70, 90) },
+  WATER: { accent: ramp(198, 34, 53), glow: glowRamp(186, 68, 92) },
+  LIGHT: { accent: ramp(42, 46, 57), glow: glowRamp(46, 72, 94) },
+  DARK: { accent: ramp(288, 26, 62), glow: glowRamp(300, 62, 86) },
 };
 
 // Named ramps reused across recipes, so the roster reads as one palette
 // rather than nineteen unrelated colour choices.
-const EMBER_HAIR: Ramp = ['#280c0a', '#8a3316', '#cf6529', '#f7a24a'];
-const GOLD_HAIR: Ramp = ['#2e2210', '#907230', '#d2ad5c', '#f7e6ae'];
-const FLAX_HAIR: Ramp = ['#232310', '#77762e', '#b3b055', '#e6dd93'];
-const DARK_HAIR: Ramp = ['#101020', '#332f45', '#524d66', '#7d7690'];
-const PALE_ROBE: Ramp = ['#151d33', '#465f86', '#7d9dbd', '#c9e0ea'];
-const DEEP_TEAL: Ramp = ['#05171c', '#1b4a52', '#2f7078', '#63a3a4'];
-const LINEN: Ramp = ['#241f14', '#6d6047', '#a89474', '#e3d3ae'];
-const OLIVE: Ramp = ['#121a12', '#3f4d38', '#6d7b5e', '#a7b48e'];
-const WHITE_CLOTH: Ramp = ['#1c1e2e', '#5b5e78', '#9298ac', '#eceff5'];
-const BLOOD_TABARD: Ramp = ['#1c0810', '#6b1f26', '#a83a34', '#d97a52'];
-const ASH_HIDE: Ramp = ['#14141e', '#40404e', '#6d6d7a', '#a5a5b0'];
-const MOSS: Ramp = ['#101a10', '#3a5232', '#5f7d48', '#95af6c'];
-const SILT: Ramp = ['#181209', '#54452a', '#867049', '#bda173'];
-const DUSK_CLOTH: Ramp = ['#11101c', '#393850', '#5d5c78', '#8d8ca6'];
+const EMBER_HAIR: Ramp = ramp(18, 62, 52);
+const GOLD_HAIR: Ramp = ramp(43, 48, 62);
+const FLAX_HAIR: Ramp = ramp(58, 34, 58);
+const DARK_HAIR: Ramp = ramp(258, 16, 44);
+const PALE_ROBE: Ramp = ramp(206, 26, 66);
+const DEEP_TEAL: Ramp = ramp(186, 34, 44);
+const LINEN: Ramp = ramp(38, 24, 66);
+const OLIVE: Ramp = ramp(96, 22, 50);
+const WHITE_CLOTH: Ramp = ramp(228, 12, 70);
+const BLOOD_TABARD: Ramp = ramp(354, 42, 47);
+const ASH_HIDE: Ramp = ramp(246, 8, 58);
+const MOSS: Ramp = ramp(108, 24, 54);
+const SILT: Ramp = ramp(34, 30, 54);
+const DUSK_CLOTH: Ramp = ramp(268, 16, 56);
+/** The Marsh Hag's hood is two steps down from her skin and cooled, so it stops reading as a tan bonnet. */
+const HAG_HOOD: Ramp = ramp(254, 15, 44);
+const HAG_SKIN: Ramp = ramp(74, 16, 56);
+const RUST_IRON: Ramp = ramp(20, 22, 52);
+const DROWNED_IRON: Ramp = ramp(166, 16, 52);
+/** The two will-o'-wisps are the only actors ALLOWED to be brighter than the cast — and capped, so they read as lit, not blown out. */
+const COLD_FIRE: Ramp = glowRamp(190, 56, 74);
+const MARSH_FIRE: Ramp = glowRamp(96, 52, 70);
 
 const paletteCache = new Map<string, Palette>();
 function paletteFor(recipe: ActorRecipe, element: Element): Palette {
@@ -260,6 +332,8 @@ function rotationSteps(rot: number | undefined): number {
  * off. Each part carries its own dark rim, so overlapping layers separate
  * without any global keyline pass.
  */
+const HURT_FLASH = '#fff2dc';
+
 function composePose(recipe: ActorRecipe, pose: PoseName, frame: number, element: Element): Sprite {
   const res = recipe.res;
   const pixels: (string | null)[] = new Array(res * res).fill(null);
@@ -317,6 +391,13 @@ function composePose(recipe: ActorRecipe, pose: PoseName, frame: number, element
       }
     }
   }
+  if (pose === 'hurt' && frame === 0) {
+    // The first frame of a recoil is a WHITE-OUT: the whole silhouette flashed
+    // to one hot cream. It costs nothing at draw time (it is baked into that
+    // frame's own bitmap) and it is the single clearest "that landed" signal
+    // a 12 fps rig has.
+    for (let i = 0; i < pixels.length; i++) if (pixels[i] !== null) pixels[i] = HURT_FLASH;
+  }
   return { w: res, h: res, pixels };
 }
 
@@ -356,7 +437,7 @@ export function bakedPoseCount(): number {
 }
 
 /** A 'dead' pose sinks AND fades — the sink is ordinary dy keyframes; the fade is applied here, since a baked Sprite has no per-pixel alpha. */
-const DEAD_ALPHA: readonly number[] = [0.8, 0.45];
+const DEAD_ALPHA: readonly number[] = [0.95, 0.8, 0.5];
 
 // A single reused options record: drawBaked reads it synchronously and keeps
 // no reference, so mutating and re-passing one object allocates nothing in
@@ -399,30 +480,96 @@ export function actorHitRect(recipe: ActorRecipe, x: number, y: number): { x: nu
 // Amplitudes are read at ×3: a one-cell breath is three screen pixels, which
 // is the whole of an idle; the attack is where the travel lives.
 
-function buildRig(layerCount: number, weaponIdx?: number, capeIdx?: number, thrust = false): Record<PoseName, LayerKeyframe[][]> {
+/** Which layer plays which part in a rig — the roles the five poses need to move differently. */
+interface RigRoles {
+  count: number;
+  /** Per layer: true when it is ANCHORED to another layer (so it inherits that layer's motion and needs only the difference). */
+  anchored: readonly boolean[];
+  /** The layer that swings, thrusts, and is dropped on death. */
+  weapon?: number;
+  /** A cloth layer that sways on its own beat. */
+  cape?: number;
+  /** The head: it holds still while the torso breathes, snaps back on a hit, and falls BELOW the shoulder line on death. */
+  head?: number;
+  /** The layer everything else hangs off. */
+  body: number;
+  /** A weapon too tall to rotate flat inside the bake is planted and driven forward instead. */
+  thrust?: boolean;
+  /** Per layer: where it has to go to lie flat on the ground line. An anchored layer carries only the rotation, since its parent's move already carries it. */
+  collapse: readonly LayerKeyframe[];
+}
+
+/**
+ * Every recipe shares the same five-pose shape; what differs is which layer
+ * is the weapon, which is the cape, and which is the head. Because an
+ * ANCHORED layer resolves against its parent's already-moved anchor, it only
+ * ever needs the DIFFERENCE from the body's motion — which is what lets a
+ * head snap back one cell further than the torso, and what keeps a
+ * literally-placed accessory (a crown, a halo, a sheathed blade) glued to
+ * its neighbour without an anchor of its own.
+ *
+ * Amplitudes are read at x2, so a cell is two screen pixels: the idle is a
+ * one-cell compression (torso down, head held, cape trailing), the attack is
+ * where the travel lives, the hurt is a real recoil with a white-out on its
+ * first frame, and the dead pose lays the whole figure down on its side.
+ */
+function buildRig(roles: RigRoles): Record<PoseName, LayerKeyframe[][]> {
   const idle: LayerKeyframe[][] = [];
   const attack: LayerKeyframe[][] = [];
   const cast: LayerKeyframe[][] = [];
   const hurt: LayerKeyframe[][] = [];
   const dead: LayerKeyframe[][] = [];
-  for (let i = 0; i < layerCount; i++) {
-    const isWeapon = i === weaponIdx;
-    const isCape = i === capeIdx;
-    idle.push(isCape ? [{ dx: 0 }, { dx: 2, dy: 1 }, { dx: 1, dy: 0 }] : [{ dy: 0 }, { dy: -1 }, { dy: 0 }]);
-    // A weapon SHORTER than its bearer swings through 90-degree steps; one
-    // taller than the canvas is wide (a staff, a bow) is planted and driven
-    // forward instead — a horizontal 52-cell staff would run off the bake.
-    if (isWeapon && thrust) attack.push([{ dy: -3 }, { dx: 9, dy: -1 }, { dx: 2 }]);
-    else if (isWeapon) attack.push([{ rot: 270, dx: -2 }, { rot: 90, dx: 4, dy: -2 }, { rot: 0 }]); // wind-up, the swing travels, recover
+  const rot = roles.collapse[roles.body].rot;
+  const HOLD: LayerKeyframe[] = [{}];
+  for (let i = 0; i < roles.count; i++) {
+    const isWeapon = i === roles.weapon;
+    const isCape = i === roles.cape;
+    const isHead = i === roles.head;
+    const isBody = i === roles.body;
+    const rides = roles.anchored[i] && !isWeapon && !isHead && !isCape; // an arm: inherits everything
+
+    // IDLE — frame B is a breath, not a hop: the torso settles one cell while
+    // the head holds its height and the cape trails.
+    if (isCape) idle.push([{ dx: 0 }, { dx: 2, dy: 1 }, { dx: 1, dy: 0 }]);
+    else if (isHead) idle.push([{ dy: 0 }, { dy: -1 }, { dy: 0 }]);
+    else if (isBody || !roles.anchored[i]) idle.push([{ dy: 0 }, { dy: 1 }, { dy: 0 }]);
+    else idle.push(HOLD);
+
+    // ATTACK — a weapon short enough to rotate swings through 90-degree steps;
+    // one taller than the canvas is wide (a staff, a bow) is planted and driven.
+    if (isWeapon && roles.thrust) attack.push([{ dy: -3 }, { dx: 9, dy: -1 }, { dx: 2 }]);
+    else if (isWeapon) attack.push([{ rot: 270, dx: -2 }, { rot: 90, dx: 4, dy: -2 }, { rot: 0 }]);
     else if (isCape) attack.push([{ dx: -3 }, { dx: 5 }, { dx: 0 }]);
-    else if (weaponIdx === undefined) attack.push([{ dx: -2 }, { dx: 6 }, { dx: 0 }]); // no weapon: a body lunge
+    else if (isHead) attack.push([{ dx: -1 }, { dx: 2 }, { dx: 0 }]);
+    else if (rides) attack.push(HOLD);
+    else if (roles.weapon === undefined) attack.push([{ dx: -2 }, { dx: 6 }, { dx: 0 }]);
     else attack.push([{ dx: -1 }, { dx: 4 }, { dx: 0 }]);
-    if (isWeapon) cast.push([{ dy: -2 }, { dy: -5 }, { dy: -5 }]);
+
+    if (isWeapon) cast.push([{ dy: -2 }, { dy: -6 }, { dy: -6 }]);
     else if (isCape) cast.push([{ dy: 0 }, { dy: 2 }, { dy: 1 }]);
+    else if (isHead) cast.push([{ dy: 0 }, { dy: -1 }, { dy: -1 }]);
+    else if (rides) cast.push(HOLD);
     else cast.push([{ dy: 0 }, { dy: -2 }, { dy: -2 }]);
-    hurt.push([{ dx: -4 }, { dx: 0 }]);
-    // The sink stays inside the bake: the fade in drawActor carries the rest.
-    dead.push([{ dy: 2 }, { dy: 5 }]);
+
+    // HURT — a recoil, never a hop: the torso is driven away from the blow,
+    // the head snaps back one further, and the weapon arm drops. Frame 0 is
+    // additionally flashed white by composePose.
+    if (isWeapon) hurt.push([{ dx: -2, dy: 3 }, { dx: -3, dy: 6 }, { dx: -1, dy: 2 }]);
+    else if (isCape) hurt.push([{ dx: 3 }, { dx: 5 }, { dx: 1 }]);
+    else if (isHead) hurt.push([{ dx: -1, dy: 1 }, { dx: -2, dy: 1 }, { dx: 0 }]);
+    else if (rides) hurt.push(HOLD);
+    else hurt.push([{ dx: -2 }, { dx: -4 }, { dx: -1 }]);
+
+    // DEAD — a real collapse: the whole figure is laid on its side on the
+    // ground line, the head drops BELOW the shoulder line, and the weapon is
+    // dropped as a separate part that lands flat beside the body.
+    if (isWeapon) dead.push([{ rot: 90, dx: 3, dy: 3 }, { rot: 90, dx: 9, dy: 12 }, { rot: 90, dx: 11, dy: 13 }]);
+    else if (isHead) dead.push([{ rot, dx: -1, dy: 3 }, { rot, dx: -2, dy: 5 }, { rot, dx: -2, dy: 5 }]);
+    else if (roles.anchored[i]) dead.push([{ rot }]);
+    else {
+      const c = roles.collapse[i];
+      dead.push([{ rot: c.rot, dx: (c.dx ?? 0) >> 1, dy: (c.dy ?? 0) - 8 }, c, c]);
+    }
   }
   return { idle, attack, hurt, cast, dead };
 }
@@ -431,6 +578,34 @@ function buildRig(layerCount: number, weaponIdx?: number, capeIdx?: number, thru
 const SWING_MAX_H = 34;
 function thrusts(weapon: PartId): boolean {
   return PART_LIBRARY[weapon].h > SWING_MAX_H;
+}
+
+/**
+ * Where a standing part has to go to lie FLAT on the ground line. Anything
+ * taller than it is wide takes a quarter turn counter-clockwise (which lays
+ * a biped down head-to-the-left); anything already wide and low — a hound, a
+ * toad — just settles where it stands.
+ */
+function collapseOf(bodyId: PartId, at: Point, cx: number, groundY: number): LayerKeyframe {
+  const p = PART_LIBRARY[bodyId];
+  if (p.h <= p.w) return { dy: Math.max(0, groundY - (at.y + p.h - 1)) + 2 };
+  return { rot: 270, dx: cx - (p.h >> 1) - at.x, dy: groundY - p.w + 1 - at.y };
+}
+
+/**
+ * The collapse keyframe for every layer of a recipe: an anchored layer takes
+ * only the body's rotation (its parent's move carries the rest), while a
+ * literally-placed one — a shield, a crest, a pair of wings — is laid out on
+ * the ground beside the body with a small spread so the pile reads as parts
+ * rather than one blob.
+ */
+function collapseAll(layers: readonly LayerDef[], anchored: readonly boolean[], body: number, cx: number, groundY: number): LayerKeyframe[] {
+  const rot = collapseOf(layers[body].part, layers[body].at as Point, cx, groundY).rot;
+  return layers.map((l, i) => {
+    if (anchored[i]) return { rot };
+    const spread = i === body ? 0 : (i % 2 === 0 ? 1 : -1) * (7 + 4 * i);
+    return collapseOf(l.part, l.at as Point, cx + spread, groundY);
+  });
 }
 
 function anchor(of: number, name: AnchorName): AnchorRef {
@@ -454,15 +629,16 @@ function anchorPoint(partId: PartId, at: Point, name: AnchorName): Point {
 const HERO_HIT_SIZE = { w: 34, h: 50 };
 const BOSS_HIT_SIZE = { w: 56, h: 88 };
 
-const TOWER_AT: Point = { x: 4, y: 28 }; // BASALT's tower shield, held across the body
-const SHIELD_AT: Point = { x: 13, y: 28 }; // the knights' kite shield
-const PLUME_AT: Point = { x: 29, y: 0 };
-const KELP_AT: Point = { x: 28, y: 0 };
-const HALO_AT: Point = { x: 24, y: 5 };
-const OFFHAND_AT: Point = { x: 22, y: 40 }; // GALE's sheathed second blade, at the hip
-const WINGS_AT: Point = { x: 16, y: 34 };
-const CROWN_AT: Point = { x: 39, y: 2 };
-const BOSS_HALO_AT: Point = { x: 35, y: 1 };
+const TOWER_AT: Point = { x: 3, y: 25 }; // BASALT's tower shield, held across the body
+const SHIELD_AT: Point = { x: 7, y: 25 }; // the knights' kite shield
+const PLUME_AT: Point = { x: 28, y: -4 };
+const KELP_AT: Point = { x: 27, y: 4 };
+const HALO_AT: Point = { x: 22, y: 3 };
+const OFFHAND_AT: Point = { x: 21, y: 41 }; // GALE's sheathed second blade, at the hip
+const WINGS_AT: Point = { x: 15, y: 33 };
+const CROWN_AT: Point = { x: 39, y: 4 };
+const BOSS_HALO_AT: Point = { x: 34, y: 2 };
+const CLAW_LEFT_AT: Point = { x: 24, y: 60 }; // the Hollow King's other hand
 
 interface HumanoidOpts {
   id: string;
@@ -472,6 +648,8 @@ interface HumanoidOpts {
   arms: PartId;
   weapon: PartId;
   weaponOff?: Point;
+  /** A static nudge on the head after the neck solve — how a hag hunches without a body of her own. */
+  headOff?: Point;
   cape?: PartId;
   extras?: { part: PartId; at: Point; z: number }[];
   palette?: Partial<Record<Material, Ramp>>;
@@ -482,21 +660,29 @@ interface HumanoidOpts {
  * biped — the six heroes and every humanoid enemy. Layer order is fixed
  * (body 0, arms 1, head 2, weapon 3) so the rig always knows which layer
  * swings; `extras` are literal ornaments and held objects that ride along.
+ * A weapon paints just ABOVE the arms and its shaft is authored narrower
+ * than the fist, so a cell of hand shows either side of the haft: gripped,
+ * not glued on.
  */
 function humanoid(opts: HumanoidOpts): ActorRecipe {
   const at = groundAt(opts.body, CENTRE_X, GROUND_Y);
   const layers: LayerDef[] = [
     { part: opts.body, at, z: 1 },
     { part: opts.arms, at: anchor(0, 'hand'), z: 2 },
-    { part: opts.head, at: anchor(0, 'head'), z: 4 },
+    { part: opts.head, at: anchor(0, 'head'), z: 4, off: opts.headOff },
     { part: opts.weapon, at: anchor(1, 'weaponGrip'), z: 3, off: opts.weaponOff },
   ];
+  const anchored = [false, true, true, true];
   let capeIdx: number | undefined;
   if (opts.cape) {
     capeIdx = layers.length;
     layers.push({ part: opts.cape, at: anchor(0, 'capePin'), z: 0 });
+    anchored.push(true);
   }
-  for (const e of opts.extras ?? []) layers.push({ part: e.part, at: e.at, z: e.z });
+  for (const e of opts.extras ?? []) {
+    layers.push({ part: e.part, at: e.at, z: e.z });
+    anchored.push(false);
+  }
   return {
     id: opts.id,
     element: opts.element,
@@ -505,7 +691,7 @@ function humanoid(opts: HumanoidOpts): ActorRecipe {
     feet: anchorPoint(opts.body, at, 'feet'),
     hit: anchorPoint(opts.body, at, 'hit'),
     hitSize: HERO_HIT_SIZE,
-    rigs: buildRig(layers.length, 3, capeIdx, thrusts(opts.weapon)),
+    rigs: buildRig({ count: layers.length, anchored, weapon: 3, cape: capeIdx, head: 2, body: 0, thrust: thrusts(opts.weapon), collapse: collapseAll(layers, anchored, 0, CENTRE_X, GROUND_Y) }),
     palette: opts.palette,
   };
 }
@@ -514,12 +700,16 @@ function humanoid(opts: HumanoidOpts): ActorRecipe {
 function monster(id: string, element: Element, bodyPart: PartId, palette?: Partial<Record<Material, Ramp>>, extra?: { part: PartId; at: Point; z: number; sway?: boolean }): ActorRecipe {
   const at = groundAt(bodyPart, CENTRE_X, GROUND_Y);
   const layers: LayerDef[] = [];
+  const anchored: boolean[] = [];
   let capeIdx: number | undefined;
   if (extra) {
     layers.push({ part: extra.part, at: extra.at, z: extra.z });
+    anchored.push(false);
     if (extra.sway) capeIdx = 0;
   }
+  const bodyIdx = layers.length;
   layers.push({ part: bodyPart, at, z: 1 });
+  anchored.push(false);
   return {
     id,
     element,
@@ -528,21 +718,50 @@ function monster(id: string, element: Element, bodyPart: PartId, palette?: Parti
     feet: anchorPoint(bodyPart, at, 'feet'),
     hit: anchorPoint(bodyPart, at, 'hit'),
     hitSize: HERO_HIT_SIZE,
-    rigs: buildRig(layers.length, undefined, capeIdx),
+    rigs: buildRig({ count: layers.length, anchored, cape: capeIdx, body: bodyIdx, collapse: collapseAll(layers, anchored, bodyIdx, CENTRE_X, GROUND_Y) }),
     palette,
   };
 }
 
-/** Boss scale: a body and head on the boss canvas, a cloak behind, a crown or halo above, and a weapon on the body's own grip (bosses carry no arms layer). */
-function boss(opts: { id: string; element: Element; body: PartId; head: PartId; cape: PartId; crest: PartId; crestAt: Point; weapon: PartId; weaponOff?: Point; palette?: Partial<Record<Material, Ramp>> }): ActorRecipe {
+interface BossOpts {
+  id: string;
+  element: Element;
+  body: PartId;
+  head: PartId;
+  cape: PartId;
+  crest: PartId;
+  crestAt: Point;
+  weapon: PartId;
+  weaponOff?: Point;
+  /** A boss that wears sleeves gets its own arms layer; a skeleton's arms are part of its body. */
+  arms?: PartId;
+  extras?: { part: PartId; at: Point; z: number }[];
+  palette?: Partial<Record<Material, Ramp>>;
+}
+
+/** Boss scale: a body and head on the boss canvas, a cloak behind, a crown or halo above, and a weapon on the body's (or its sleeves') own grip. */
+function boss(opts: BossOpts): ActorRecipe {
   const at = groundAt(opts.body, BOSS_CENTRE_X, BOSS_GROUND_Y);
   const layers: LayerDef[] = [
     { part: opts.body, at, z: 1 },
     { part: opts.cape, at: anchor(0, 'capePin'), z: 0 },
     { part: opts.head, at: anchor(0, 'head'), z: 4 },
     { part: opts.crest, at: opts.crestAt, z: 5 },
-    { part: opts.weapon, at: anchor(0, 'weaponGrip'), z: 3, off: opts.weaponOff },
   ];
+  const anchored = [false, true, true, false];
+  let gripOf = 0;
+  if (opts.arms) {
+    gripOf = layers.length;
+    layers.push({ part: opts.arms, at: anchor(0, 'hand'), z: 2 });
+    anchored.push(true);
+  }
+  const weaponIdx = layers.length;
+  layers.push({ part: opts.weapon, at: anchor(gripOf, 'weaponGrip'), z: 3, off: opts.weaponOff });
+  anchored.push(true);
+  for (const e of opts.extras ?? []) {
+    layers.push({ part: e.part, at: e.at, z: e.z });
+    anchored.push(false);
+  }
   return {
     id: opts.id,
     element: opts.element,
@@ -551,7 +770,7 @@ function boss(opts: { id: string; element: Element; body: PartId; head: PartId; 
     feet: anchorPoint(opts.body, at, 'feet'),
     hit: anchorPoint(opts.body, at, 'hit'),
     hitSize: BOSS_HIT_SIZE,
-    rigs: buildRig(layers.length, 4, 1, thrusts(opts.weapon)),
+    rigs: buildRig({ count: layers.length, anchored, weapon: weaponIdx, cape: 1, head: 2, body: 0, thrust: thrusts(opts.weapon), collapse: collapseAll(layers, anchored, 0, BOSS_CENTRE_X, BOSS_GROUND_Y) }),
     palette: opts.palette,
   };
 }
@@ -617,7 +836,8 @@ export const ACTOR_RECIPES: Record<string, ActorRecipe> = {
     head: 'head_sable',
     arms: 'arms_sleeve',
     weapon: 'dagger_curved',
-    palette: { cloth: DUSK_CLOTH },
+    cape: 'cloak_short',
+    palette: { cloth: DUSK_CLOTH, cloth2: ramp(300, 26, 46) },
   }),
   LUMEN: humanoid({
     id: 'LUMEN',
@@ -631,7 +851,7 @@ export const ACTOR_RECIPES: Record<string, ActorRecipe> = {
     palette: { hair: GOLD_HAIR, cloth: WHITE_CLOTH },
   }),
   // --- EMBER CRYPT ---
-  CINDER_IMP: monster('CINDER_IMP', 'FIRE', 'imp_body', undefined, { part: 'imp_wings', at: WINGS_AT, z: 0, sway: true }),
+  CINDER_IMP: monster('CINDER_IMP', 'FIRE', 'imp_body', { accent: ramp(8, 46, 60), cloth2: ramp(346, 30, 54), bone: ramp(38, 18, 70) }, { part: 'imp_wings', at: WINGS_AT, z: 0, sway: true }),
   ASH_HOUND: monster('ASH_HOUND', 'FIRE', 'hound_body', { cloth: ASH_HIDE }),
   CRYPT_WARDEN: humanoid({
     id: 'CRYPT_WARDEN',
@@ -647,13 +867,14 @@ export const ACTOR_RECIPES: Record<string, ActorRecipe> = {
     id: 'PYRE_KNIGHT',
     element: 'FIRE',
     body: 'body_basalt',
-    head: 'head_basalt',
+    head: 'head_pyre',
     arms: 'arms_plate',
     weapon: 'sword',
     extras: [
       { part: 'shield', at: SHIELD_AT, z: 3 },
       { part: 'plume', at: PLUME_AT, z: 5 },
     ],
+    palette: { metal: RUST_IRON, accent: BLOOD_TABARD },
   }),
   HOLLOW_KING: boss({
     id: 'HOLLOW_KING',
@@ -664,11 +885,12 @@ export const ACTOR_RECIPES: Record<string, ActorRecipe> = {
     crest: 'crown',
     crestAt: CROWN_AT,
     weapon: 'claw',
-    palette: { cloth2: BLOOD_TABARD, cloth: DUSK_CLOTH },
+    extras: [{ part: 'claw_left', at: CLAW_LEFT_AT, z: 2 }],
+    palette: { cloth2: BLOOD_TABARD, cloth: DUSK_CLOTH, accent: ramp(282, 30, 44) },
   }),
   // --- FROST MARSH ---
   BOG_TOAD: monster('BOG_TOAD', 'WATER', 'toad_body', { accent: MOSS }),
-  FROST_WISP: monster('FROST_WISP', 'WATER', 'wisp_body'),
+  FROST_WISP: monster('FROST_WISP', 'WATER', 'wisp_body', { glow: COLD_FIRE, accent: PALE_ROBE }),
   MARSH_HAG: humanoid({
     id: 'MARSH_HAG',
     element: 'WATER',
@@ -676,22 +898,23 @@ export const ACTOR_RECIPES: Record<string, ActorRecipe> = {
     head: 'head_hag',
     arms: 'arms_sleeve',
     weapon: 'cane',
-    palette: { accent: MOSS, cloth: SILT },
+    headOff: { x: 1, y: 2 }, // the hunch
+    palette: { accent: MOSS, cloth: HAG_HOOD, skin: HAG_SKIN, leather: SILT },
   }),
   SILT_CRAB: monster('SILT_CRAB', 'WATER', 'crab_body', { accent: SILT }),
-  FEN_FIRE: monster('FEN_FIRE', 'FIRE', 'fenfire_body', { glow: ELEMENT_RAMPS.WIND.glow, accent: MOSS }),
+  FEN_FIRE: monster('FEN_FIRE', 'FIRE', 'fenfire_body', { glow: MARSH_FIRE, accent: MOSS }),
   DROWNED_KNIGHT: humanoid({
     id: 'DROWNED_KNIGHT',
     element: 'WATER',
     body: 'body_basalt',
-    head: 'head_basalt',
+    head: 'head_drowned',
     arms: 'arms_plate',
     weapon: 'sword',
     extras: [
-      { part: 'shield', at: SHIELD_AT, z: 3 },
+      { part: 'shield_broken', at: SHIELD_AT, z: 5 },
       { part: 'kelp', at: KELP_AT, z: 5 },
     ],
-    palette: { metal: ['#0d1618', '#38524f', '#688079', '#a8bdae'] },
+    palette: { metal: DROWNED_IRON, cloth: DEEP_TEAL },
   }),
   PALE_SAINT: boss({
     id: 'PALE_SAINT',
@@ -701,8 +924,8 @@ export const ACTOR_RECIPES: Record<string, ActorRecipe> = {
     cape: 'cloak_holy',
     crest: 'halo_boss',
     crestAt: BOSS_HALO_AT,
+    arms: 'arms_robe_boss',
     weapon: 'orb',
-    weaponOff: { x: 4, y: -4 },
     palette: { cloth: WHITE_CLOTH, cloth2: GOLD_HAIR },
   }),
 };

@@ -3,35 +3,39 @@
 // The shared ASCII part library for the layered-actor pipeline (DESIGN.md →
 // Presentation → Layered actors). Pure data: no engine import, no DOM.
 //
-// ART DIRECTION (v3.2, the Octopath Traveler pass). Every part is authored
-// as flat MATERIAL regions; the shading is computed here, once, at module
-// load, so a hundred silhouettes share one light. The rules, in the order
-// the pass applies them:
+// ART DIRECTION (v3.3, the Octopath Traveler pass, round 2). Every part is
+// authored as flat MATERIAL regions; the shading is computed here, once, at
+// module load, so a hundred silhouettes share one light. The rules, in the
+// order the pass applies them:
 //
-//   1. PROPORTIONS — about three heads tall. A hero is 48 cells composed:
-//      a 17-cell head, 21 cells wide and mostly hair mass, over a 32-cell
-//      body (2 neck, 17 torso, 13 leg and boot). Hands are mitts. Faces are
-//      a 2x2 dark eye cluster each side with a one-cell catchlight, a hair
-//      shadow across the brow and a single cell of mouth.
+//   1. PROPORTIONS — about three heads tall at TWO screen pixels per cell,
+//      so the detail budget buys cells rather than bigger blocks. A hero is
+//      56 cells: a 19-cell head (9 of hair/hood/helm over a 10-row face)
+//      over a 38-cell body (2 neck, 21 torso, 15 leg and boot), 25–29 wide.
+//      Every humanoid ends its arms in a real five-cell HAND and every
+//      weapon's grip lands inside one.
 //   2. RAMPS — nine materials (skin, hair, cloth, cloth2, leather, metal,
 //      accent, glow, bone), each a FOUR-SHADE ramp: 0 darkest → 3 lightest,
-//      hue-shifted (shadows cooler, highlights warmer). actors.ts owns the
-//      colours; a part only ever names a material and, where it matters, an
-//      explicit shade.
-//   3. SHADING — `autoShade` below. One key light from the top-left:
-//      every region gets a dark rim (shade 0) where it meets the
-//      background, ONE cell of the material's lightest shade just inside
-//      the top-left of that rim, a shadow band just inside the bottom-right,
-//      and the base tone everywhere else. Material boundaries inside a part
-//      (a belt over a tunic, a trim down a vest) get the same one-cell
-//      light/shadow step, which is what makes trims, hems and buckles read.
-//      Glow inverts the rule — brightest in the core, dimmest at the edge —
-//      so a flame or an orb looks lit rather than outlined.
+//      hue-shifted (shadows toward violet-blue and desaturated, highlights
+//      warm). actors.ts owns the colours; a part only ever names a material
+//      and, where it matters, an explicit shade. Four shades per material
+//      per body is the floor, not the ceiling: a garment carries fold lines
+//      (shade 1) and a hem band (shade 0) as authored cells.
+//   3. SHADING — `autoShade` below. One key light from the upper LEFT:
+//      the upper-left silhouette takes a one-cell RIM in the material's
+//      lightest shade, the lower-right silhouette takes the material's dark
+//      rim, and inside those, top-left faces catch the light while
+//      bottom-right faces fall into shadow. The rim never closes into a loop,
+//      which is what separates a lit figure from an outlined sticker.
+//      Material boundaries inside a part (a belt over a tunic, a trim down a
+//      vest) get the same one-cell light/shadow step, which is what makes
+//      trims, hems and buckles read. Glow inverts the rule — brightest in
+//      the core, dimmest at the edge — so a flame or an orb looks lit.
 //   4. OUTLINES are therefore selective and per-material: shade 0 of the
 //      material that owns the edge, never one global black keyline, and
 //      never between two shades of the same material. `#` (a dark navy ink)
 //      is reserved for hand-placed features: eyes, mouths, visor slits,
-//      the seam under a belt.
+//      the seam under a belt, the split between two fingers.
 //
 // Authoring alphabet (one char per cell):
 //   '.' or ' '  transparent            '#'  ink (dark navy)
@@ -66,7 +70,7 @@ export type Ramp = readonly [string, string, string, string];
 export const MATERIALS: readonly Material[] = ['skin', 'hair', 'cloth', 'cloth2', 'leather', 'metal', 'accent', 'glow', 'bone'];
 
 export const MAT_EMPTY = -1;
-/** A hand-placed dark-navy feature line (eyes, a visor slit, the seam under a belt) — the one colour that is not part of a material ramp. */
+/** A hand-placed dark-navy feature line (eyes, a visor slit, the seam under a belt). */
 export const MAT_INK = -2;
 const AUTO = -1;
 
@@ -97,7 +101,7 @@ export interface Point {
  * `feet` / `hit` mark whole-recipe ground contact and hurtbox centre;
  * `head` marks where a head sits on a body and, on a head, the neck point
  * that lands there; `hand` is the shoulder seam shared by a body and its
- * arms; `weaponGrip` is the fist on an arms part and the handle on a
+ * arms; `weaponGrip` is the FIST on an arms part and the handle on a
  * weapon; `capePin` is the back-collar point shared by a body and a cloak.
  */
 export type AnchorName = 'hand' | 'head' | 'weaponGrip' | 'capePin' | 'feet' | 'hit';
@@ -113,12 +117,18 @@ export interface PartDef {
 }
 
 /**
- * One key light from the top-left, applied to a whole part at module load.
- * A cell touching transparency is the material's own dark rim; one cell
- * further in it is the material's lightest shade on the top-left faces and
- * its shadow on the bottom-right; a material CHANGE inside the part gets the
- * same one-cell step, which is what makes a belt sit on a tunic and a trim
- * sit on a vest. Glow inverts (bright core, dim edge) so lit things read lit.
+ * One key light from the upper left, applied to a whole part at module load.
+ *
+ * A cell on the UPPER-LEFT silhouette takes the material's lightest shade —
+ * the rim light: the top of a head, the outer shoulder, the outer thigh. A
+ * cell on the lower-right silhouette takes the material's dark rim instead,
+ * so the figure still has a contained edge where the light is not. Because
+ * the two tests are exclusive, the rim can never close into a loop, and a
+ * one-cell-thin feature (a strand, a talon, a fold) reads as neither and
+ * stays dark. Inside that edge, a left- or top-facing plane catches the
+ * light and a right- or bottom-facing one falls away, and any material
+ * CHANGE gets the same one-cell step, which is what makes a belt sit on a
+ * tunic. Glow inverts (bright core, dim edge) so lit things read lit.
  */
 function autoShade(w: number, h: number, mat: Int8Array, shade: Int8Array): void {
   const at = (x: number, y: number): number => (x < 0 || y < 0 || x >= w || y >= h ? MAT_EMPTY : mat[y * w + x]);
@@ -128,22 +138,54 @@ function autoShade(w: number, h: number, mat: Int8Array, shade: Int8Array): void
       const i = y * w + x;
       const m = mat[i];
       if (m < 0 || shade[i] !== AUTO) continue;
-      const rim = empty(x, y - 1) || empty(x, y + 1) || empty(x - 1, y) || empty(x + 1, y);
+      const up = empty(x, y - 1);
+      const down = empty(x, y + 1);
+      const left = empty(x - 1, y);
+      const right = empty(x + 1, y);
       if (m === GLOW) {
-        // A flame or an orb: hottest in the middle, falling off outward.
-        shade[i] = rim ? 1 : empty(x - 2, y) || empty(x + 2, y) || empty(x, y - 2) || empty(x, y + 2) ? 2 : 3;
+        // A flame or an orb: hottest in the middle, falling off outward. The
+        // shade-3 core is deliberately hard to reach (three cells clear on
+        // every side) so a glowing body keeps a hotspot, not a white mass.
+        // A spark, an ember crack, a lit eye — anything three cells or
+        // thinner — has no room for a falloff and is simply lit; a real body
+        // of light gets the falloff, hottest in the middle.
+        const thin = (empty(x - 2, y) && empty(x + 2, y)) || (empty(x, y - 2) && empty(x, y + 2));
+        if (thin) {
+          shade[i] = 2;
+          continue;
+        }
+        const edge = up || down || left || right;
+        const near = empty(x - 2, y) || empty(x + 2, y) || empty(x, y - 2) || empty(x, y + 2);
+        const core = !(empty(x - 3, y) || empty(x + 3, y) || empty(x, y - 3) || empty(x, y + 3));
+        shade[i] = edge ? 0 : near ? 1 : core ? 3 : 2;
         continue;
       }
-      if (rim) {
-        shade[i] = 0;
+      if (up || down || left || right) {
+        shade[i] = (up || left) && !(down || right) ? 3 : 0;
         continue;
       }
-      // A left-facing plane catches the key light; a right-facing one falls
-      // away from it; and anything sitting UNDER another material — a skirt
-      // under a belt, a hem under a trim — takes that material's cast shadow.
-      const lit = at(x - 1, y) !== m || empty(x - 2, y) || empty(x, y - 2) || empty(x - 1, y - 1);
-      const shd = at(x + 1, y) !== m || at(x, y - 1) !== m || at(x, y + 1) !== m || empty(x + 2, y) || empty(x, y + 2) || empty(x + 1, y + 1);
-      shade[i] = shd && !lit ? 1 : lit && !shd ? 3 : 2;
+      const lit = at(x - 1, y) !== m || at(x, y - 1) !== m || empty(x - 1, y - 1);
+      const shd = at(x + 1, y) !== m || at(x, y + 1) !== m || empty(x + 1, y + 1);
+      if (lit !== shd) {
+        shade[i] = lit ? 3 : 1;
+        continue;
+      }
+      // FORM SHADE. A flat region is not flat: the far side of it turns away
+      // from the key light. Walk the cell's own run of this material across
+      // and down, and give the last third across (and the last sixth down)
+      // the material's shadow. This is what makes a torso a cylinder and a
+      // skirt a cone instead of two slabs of one colour.
+      let x0 = x;
+      while (x0 > 0 && at(x0 - 1, y) === m) x0--;
+      let x1 = x;
+      while (x1 < w - 1 && at(x1 + 1, y) === m) x1++;
+      let y1 = y;
+      while (y1 < h - 1 && at(x, y1 + 1) === m) y1++;
+      let y0 = y;
+      while (y0 > 0 && at(x, y0 - 1) === m) y0--;
+      const across = x1 - x0 > 1 ? (x - x0) / (x1 - x0) : 0.5;
+      const along = y1 - y0 > 3 ? (y - y0) / (y1 - y0) : 0;
+      shade[i] = across > 0.68 || along > 0.88 ? 1 : 2;
     }
   }
 }
@@ -185,6 +227,12 @@ function hb(lh: number, pad: number, ch: string, inner = ''): string {
   const body = Math.max(0, lh - pad - inner.length);
   return '.'.repeat(Math.min(pad, lh)) + ch.repeat(body) + inner.slice(0, lh - Math.min(pad, lh));
 }
+/** `hb` with vertical FOLD lines knocked down to `fold` at the given offsets from the outer edge — the one-cell shadow creases every garment needs. */
+function hbf(lh: number, pad: number, ch: string, fold: string, folds: readonly number[], inner = ''): string {
+  const cells = [...hb(lh, pad, ch, inner)];
+  for (const f of folds) if (f >= 0 && f < lh && cells[f] === ch) cells[f] = fold;
+  return cells.join('');
+}
 /** A gapped left half: a `w`-wide block of `ch` starting `pad` cells in, blank to the centreline — mirrors into two limbs with a gap between them. */
 function hg(lh: number, pad: number, w: number, ch: string): string {
   return ('.'.repeat(pad) + ch.repeat(w)).slice(0, lh).padEnd(lh, '.');
@@ -221,6 +269,18 @@ function shiftX(row: string, dx: number): string {
 function padRow(width: number, lead: number, mid: string): string {
   return ('.'.repeat(lead) + mid).slice(0, width).padEnd(width, '.');
 }
+/** Overwrite cells of an already-built row, left to right — eyes, catchlights, a visor glint, an asymmetric lit panel. */
+function stamp(row: string, ...edits: readonly (readonly [x: number, s: string])[]): string {
+  const cells = [...row];
+  for (const [x, s] of edits) for (let i = 0; i < s.length; i++) if (x + i >= 0 && x + i < cells.length) cells[x + i] = s[i];
+  return cells.join('');
+}
+/** Apply `stamp` edits to a RANGE of already-built rows — a lit panel down one side of a robe, a run of rivets. */
+function stampRows(rows: string[], from: number, to: number, ...edits: readonly (readonly [x: number, s: string])[]): string[] {
+  const out = rows.slice();
+  for (let y = from; y <= to && y < out.length; y++) if (y >= 0) out[y] = stamp(out[y], ...edits);
+  return out;
+}
 /** Append `add` to the right of each row starting at `from` (a jaw, a tail, a trailing scarf) without re-typing the body. */
 function graft(rows: string[], from: number, add: readonly string[], lead = 0): string[] {
   const out = rows.slice();
@@ -235,392 +295,432 @@ function graft(rows: string[], from: number, add: readonly string[], lead = 0): 
 
 // --- Hero bodies --------------------------------------------------------------
 // A body is torso + legs in one part (a separate leg layer bought nothing at
-// POSE_FPS 12 and doubled the anchor bookkeeping). Every hero body is 32
-// rows: 2 neck, 17 of torso, 13 of leg and boot — which, under a 16-cell
-// head overlapping the neck by one, composes a 47-cell figure that is almost
-// exactly three heads tall. Widths differ by build: 23 for the slim three,
-// 25 for the cloaked, 27 for the robed and the armoured.
+// POSE_FPS 12 and doubled the anchor bookkeeping). Every hero body is 38
+// rows: 2 neck, 21 of torso, 15 of leg and boot — which, under a 19-cell
+// head overlapping the neck by one, composes a 56-cell figure almost exactly
+// three heads tall. Widths differ by build: 25 for the slim two, 27 for the
+// cloaked and the mantled, 29 for the robed and the armoured. Every garment
+// carries fold creases (shade 1) from the belt to the hem and a dark band
+// under that hem, which is what stops a tunic reading as a flat slab.
 
-const SLIM = 11; // half-width; composed width 2·SLIM + 1 = 23
-const WIDE = 12; // 25
-const BULK = 13; // 27
+const SLIM = 12; // half-width; composed width 2·SLIM + 1 = 25
+const WIDE = 13; // 27
+const BULK = 14; // 29
 
 /** The five anchors every biped body shares: neck at the top centre, shoulder seam, cape collar, ground contact, centre mass. */
 function bodyAnchors(lh: number, h: number, hitY: number): Partial<Record<AnchorName, Point>> {
   return { head: { x: lh, y: 0 }, hand: { x: lh, y: 3 }, capePin: { x: lh, y: 2 }, feet: { x: lh, y: h - 1 }, hit: { x: lh, y: hitY } };
 }
 
-// EMBER — a short leather vest with an orange trim down the front, a
-// buckled belt, cloth trousers and tall boots. Sleeveless: the bare arms are
-// their own layer.
+// EMBER — a short leather-plackéted crimson vest with a bright trim down
+// both front edges, a dark band at its hem, a buckled belt, creased cloth
+// trousers and tall boots with a real gap between the legs.
 const BODY_EMBER = part(
   bands(SLIM, [
-    [2, hb(SLIM, 8, 'S'), 'S'], // neck
-    [1, hb(SLIM, 4, 'L'), 'L'], // vest collar
-    [1, hb(SLIM, 2, 'A', 'L'), 'L'], // shoulder line + leather placket
-    [6, hb(SLIM, 1, 'A', 'L'), 'L'], // crimson vest, placket down the centre
-    [1, hb(SLIM, 1, 'a', 'L'), 'L'], // the vest falls into shadow above the belt
-    [1, hb(SLIM, 1, '4'), 'M'], // belt strap + buckle
-    [1, hb(SLIM, 1, '#'), 'M'], // seam under the belt
-    [1, hb(SLIM, 1, 'C'), 'C'], // hip
-    [3, hb(SLIM, 2, 'C'), 'C'], // trousers
-    [1, hb(SLIM, 2, 'c'), 'c'], // fold
-    [8, hg(SLIM, 2, 7, 'C'), '.'], // legs
-    [1, hg(SLIM, 2, 7, 'c'), '.'],
-    [3, hg(SLIM, 2, 7, 'L'), '.'], // boot shafts
-    [2, hg(SLIM, 1, 8, 'l'), '.'], // boots
+    [2, hb(SLIM, 9, 'S'), 'S'], // neck
+    [1, hb(SLIM, 5, 'L'), 'L'], // vest collar
+    [1, hb(SLIM, 3, 'A'), 'A'], // shoulder line
+    [7, hb(SLIM, 2, 'A', '!L'), 'L'], // crimson vest, bright trim beside a leather placket
+    [1, hb(SLIM, 2, '6', '!L'), 'L'], // the vest hem falls into its darkest band
+    [1, hb(SLIM, 2, '4'), 'M'], // belt strap + buckle
+    [1, hb(SLIM, 2, '#'), 'M'], // seam under the belt
+    [1, hb(SLIM, 3, 'C'), 'C'], // hip
+    [3, hbf(SLIM, 3, 'C', 'c', [6]), 'C'], // trousers with a crease
+    [1, hb(SLIM, 3, 'c'), 'c'],
+    [11, stamp(hg(SLIM, 3, 7, 'C'), [8, 'c']), '.'], // legs, a five-cell gap between them
+    [1, hg(SLIM, 3, 7, 'c'), '.'], // knee shadow
+    [4, hg(SLIM, 3, 7, 'L'), '.'], // boot shafts
+    [3, hg(SLIM, 2, 8, 'l'), '.'], // boots
   ]),
-  bodyAnchors(SLIM, 32, 14),
+  bodyAnchors(SLIM, 38, 15),
 );
 
 // GALE — fitted leathers in the element colour, a chest strap, a buckled
-// belt, slim legs and turned-down boots; the whole upper body is then
+// belt, creased legs and turned-down boots; the whole upper body is then
 // translated forward so the figure leans into a run (the lean bends at the
 // belt, a natural seam, rather than snapping mid-chest).
 const galeRows = bands(SLIM, [
-  [2, hb(SLIM, 8, 'S'), 'S'], // neck
+  [2, hb(SLIM, 9, 'S'), 'S'], // neck
   [1, hb(SLIM, 4, 'A'), 'A'], // collar
-  [1, hb(SLIM, 2, 'A'), 'A'], // shoulders
-  [4, hb(SLIM, 1, 'A'), 'A'], // chest
-  [1, hb(SLIM, 1, 'L'), 'L'], // chest strap
-  [3, hb(SLIM, 1, 'A'), 'A'], // midriff
-  [1, hb(SLIM, 1, '4'), 'M'], // belt
-  [1, hb(SLIM, 1, '#'), 'M'], // seam
-  [1, hb(SLIM, 2, 'A'), 'A'], // hip
-  [2, hb(SLIM, 3, 'A'), 'A'],
-  [7, hg(SLIM, 3, 6, 'A'), '.'], // slim legs
-  [2, hg(SLIM, 3, 6, 'a'), '.'],
-  [3, hg(SLIM, 2, 7, 'L'), '.'], // boot shafts, turned down
-  [2, hg(SLIM, 1, 8, 'l'), '.'],
+  [1, hb(SLIM, 3, 'A'), 'A'], // shoulders
+  [4, hbf(SLIM, 2, 'A', 'a', [5]), 'A'], // chest
+  [1, hb(SLIM, 2, 'L'), 'L'], // chest strap
+  [3, hbf(SLIM, 2, 'A', 'a', [5]), 'A'], // midriff
+  [1, hb(SLIM, 2, '4'), 'M'], // belt
+  [1, hb(SLIM, 2, '#'), 'M'], // seam
+  [1, hb(SLIM, 3, 'A'), 'A'], // hip
+  [2, hb(SLIM, 4, 'A'), 'A'],
+  [9, hg(SLIM, 4, 6, 'A'), '.'], // slim legs
+  [2, hg(SLIM, 4, 6, 'a'), '.'],
+  [5, hg(SLIM, 3, 7, 'L'), '.'], // boot shafts
+  [2, hg(SLIM, 2, 8, '~'), '.'], // turned down at the top
+  [3, hg(SLIM, 2, 8, 'l'), '.'],
 ]);
-for (let i = 0; i < 14; i++) galeRows[i] = shiftX(galeRows[i], 2);
-const BODY_GALE = part(galeRows, { head: { x: SLIM + 2, y: 0 }, hand: { x: SLIM + 2, y: 3 }, capePin: { x: SLIM + 2, y: 2 }, feet: { x: SLIM, y: 30 }, hit: { x: SLIM, y: 14 } });
+for (let i = 0; i < 17; i++) galeRows[i] = shiftX(galeRows[i], 3);
+const BODY_GALE = part(galeRows, { head: { x: SLIM + 3, y: 0 }, hand: { x: SLIM + 3, y: 3 }, capePin: { x: SLIM - 4, y: 5 }, feet: { x: SLIM, y: 37 }, hit: { x: SLIM, y: 15 } });
 
-// TIDE — a pale robe to the ground over a teal underdress, a sash, vertical
-// folds, and a scalloped wave hem. No legs: the robe reaches the floor.
-const BODY_TIDE = part(
-  bands(BULK, [
-    [2, hb(BULK, 10, 'S'), 'S'], // neck
-    [1, hb(BULK, 6, 'C'), 'C'], // collar
-    [1, hb(BULK, 4, 'A'), 'A'], // shoulders
-    [3, hb(BULK, 3, 'A'), 'A'],
-    [3, hb(BULK, 2, 'A'), 'A'],
-    [1, hb(BULK, 2, '4'), 'M'], // sash + clasp
-    [2, '.AAaAAAAAAAAA', 'A'], // robe, one fold to each side
-    [3, '.AAaAAAAaAAAA', 'A'],
-    [6, 'AAAaAAAAaAAAA', 'A'], // the robe flares to the floor
-    [3, 'AAaAAAAAaAAAA', 'A'],
-    [1, 'AAAaAAAAaAAAA', 'A'],
-    [1, hb(BULK, 0, '#'), '#'], // hem seam
-    [3, hb(BULK, 0, 'C'), 'C'], // wave hem
-    [1, 'CC.CC.CC.CCC.', 'C'], // scallop
-    [1, '.C..C..C..CC.', '.'],
-  ]),
-  bodyAnchors(BULK, 32, 15),
-);
+// TIDE — a pale robe to the ground over a teal underdress, a sash, four
+// vertical creases, a two-cell lit panel down the key-light side and a
+// scalloped wave hem. No legs: the robe reaches the floor.
+const tideRows = bands(BULK, [
+  [2, hb(BULK, 11, 'S'), 'S'], // neck
+  [1, hb(BULK, 7, 'C'), 'C'], // collar
+  [1, hb(BULK, 5, 'A'), 'A'], // shoulders
+  [3, hb(BULK, 4, 'A'), 'A'],
+  [3, hb(BULK, 3, 'A'), 'A'],
+  [1, hb(BULK, 3, '4'), 'M'], // sash + clasp
+  [1, hb(BULK, 3, '#'), 'M'],
+  [3, hbf(BULK, 3, 'A', 'a', [7]), 'A'], // the robe falls from the sash
+  [4, hbf(BULK, 2, 'A', 'a', [6, 11]), 'A'],
+  [5, hbf(BULK, 1, 'A', 'a', [5, 10]), 'A'],
+  [6, hbf(BULK, 0, 'A', 'a', [4, 9]), 'A'], // flaring to the floor
+  [2, hbf(BULK, 0, 'A', 'a', [4, 9]), 'A'],
+  [1, hb(BULK, 0, '6'), '6'], // hem band, the robe's darkest
+  [3, hb(BULK, 0, 'C'), 'C'], // wave hem
+  [1, 'CC.CC.CC.CCC.', 'C'], // scallop
+  [1, '.C..C..C..CC.', '.'],
+]);
+const BODY_TIDE = part(stampRows(tideRows, 16, 29, [8, '!!']), bodyAnchors(BULK, 38, 16));
 
-// BASALT — mail with a dark tabard over it, broad pauldrons, a heavy belt,
-// mailed legs and sabatons. The mail shows as a two-cell band down each
-// side of the tabard so the two materials both read.
+// BASALT — mail with a dark tabard over it, a heavy belt, mailed legs and
+// sabatons. The mail shows as a three-cell band down each side of the
+// tabard so the two materials both read, and the tabard skirt is creased.
 const BODY_BASALT = part(
   bands(BULK, [
-    [2, hb(BULK, 10, 'M'), 'M'], // gorget
-    [1, hb(BULK, 2, 'M'), 'M'], // pauldron line
-    [2, hb(BULK, 0, 'M'), 'M'], // broad pauldrons
-    [1, hb(BULK, 1, 'm'), 'm'], // pauldron underside
-    [6, '.MMAAAAAAAAAA', 'A'], // tabard over mail
-    [1, '.MM4444444444'.slice(0, BULK), 'M'], // belt + buckle
-    [1, '.MM##########'.slice(0, BULK), 'M'], // seam
-    [4, '.MMAAAAAAAAAA', 'A'], // tabard skirt
-    [1, '.MMaaaaaaaaaa', 'a'], // hem shadow
-    [5, hg(BULK, 4, 8, 'M'), '.'], // mailed legs
-    [2, hg(BULK, 4, 8, 'm'), '.'],
-    [2, hg(BULK, 3, 9, 'M'), '.'], // sabatons
-    [2, hg(BULK, 2, 10, '5'), '.'],
-    [2, hg(BULK, 2, 10, 'm'), '.'],
+    [2, hb(BULK, 11, 'M'), 'M'], // gorget
+    [1, hb(BULK, 3, 'M'), 'M'], // pauldron line
+    [2, hb(BULK, 1, 'M'), 'M'],
+    [1, hb(BULK, 2, 'm'), 'm'], // pauldron underside
+    [8, '.MMMAAAAAAAAAA', 'A'], // tabard over mail
+    [1, '.MMM4444444444', 'M'], // belt + buckle
+    [1, '.MMM##########', 'M'], // seam
+    [5, '.MMMAAaAAAAaAA', 'A'], // tabard skirt, creased
+    [1, '.MMMaaaaaaaaaa', 'a'], // hem shadow
+    [1, hb(BULK, 1, '6'), '6'], // hem band
+    [7, hg(BULK, 4, 9, 'M'), '.'], // mailed legs
+    [2, hg(BULK, 4, 9, 'm'), '.'],
+    [3, hg(BULK, 3, 10, 'M'), '.'], // sabatons
+    [3, hg(BULK, 3, 10, 'm'), '.'],
   ]),
-  bodyAnchors(BULK, 32, 14),
+  bodyAnchors(BULK, 38, 15),
 );
 
 // SABLE — a hooded cloak to the knees over dark leathers: the cloak IS the
-// silhouette, its inner lining showing as a band down the front where it
-// hangs open, and the legs below it.
+// silhouette, its plum lining showing as a band down the front where it
+// hangs open and as a cowl draped over both shoulders, and the legs below.
 const BODY_SABLE = part(
   bands(WIDE, [
-    [2, hb(WIDE, 9, 'S'), 'S'], // neck
+    [2, hb(WIDE, 10, 'D'), 'D'], // collar of the cowl, not bare neck
     [1, hb(WIDE, 5, 'A'), 'A'], // cloak collar
-    [2, hb(WIDE, 2, 'A'), 'A'], // shoulders
-    [3, hb(WIDE, 1, 'A', 'D'), 'D'], // cloak, a lining edge where it hangs open
-    [2, hb(WIDE, 0, 'A', 'D'), 'D'],
-    [1, hb(WIDE, 0, '4'), 'M'], // belt over the cloak
-    [5, hb(WIDE, 0, 'A', 'D'), 'D'],
+    [2, hb(WIDE, 2, 'D'), 'D'], // the cowl drapes onto the shoulders
+    [1, hb(WIDE, 2, 'd'), 'd'],
+    [3, hbf(WIDE, 1, 'A', 'a', [5], 'D'), 'D'], // cloak, a lining edge where it hangs open
+    [1, hb(WIDE, 1, '4'), 'M'], // belt over the cloak
+    [1, hb(WIDE, 1, '#'), 'M'],
+    [6, hbf(WIDE, 0, 'A', 'a', [4, 9], 'D'), 'D'],
+    [4, hbf(WIDE, 0, 'A', 'a', [3, 8], 'D'), 'D'],
     [1, hb(WIDE, 0, 'a', 'd'), 'd'],
-    [2, hb(WIDE, 0, 'A', 'D'), 'D'],
     [1, hb(WIDE, 0, '6'), '6'], // cloak hem
-    [5, hg(WIDE, 3, 6, 'L'), '.'], // leathered legs
-    [2, hg(WIDE, 3, 6, 'l'), '.'],
-    [3, hg(WIDE, 2, 7, '4'), '.'], // soft boots
-    [2, hg(WIDE, 1, 8, 'l'), '.'],
+    [6, hg(WIDE, 4, 6, 'L'), '.'], // leathered legs
+    [2, hg(WIDE, 4, 6, 'l'), '.'],
+    [4, hg(WIDE, 3, 7, '4'), '.'], // soft boots
+    [3, hg(WIDE, 3, 7, 'l'), '.'],
   ]),
-  bodyAnchors(WIDE, 32, 14),
+  bodyAnchors(WIDE, 38, 15),
 );
 
-// LUMEN — a mantle with a gold-trimmed edge over a long pale tunic, a
-// cinched sash, and a hem trim; boots peek out under it.
+// LUMEN — TWO gold shoulder plates with a clean lower edge (not a dithered
+// mantle) over a long creased tunic, a cinched sash, a gold hem trim, and
+// boots peeking out under it.
 const BODY_LUMEN = part(
   bands(WIDE, [
-    [2, hb(WIDE, 9, 'S'), 'S'], // neck
-    [1, hb(WIDE, 5, 'A'), 'A'], // mantle collar
-    [1, hb(WIDE, 2, 'A'), 'A'], // mantle shoulders
-    [4, hb(WIDE, 1, 'C', 'AA'), 'C'], // mantle over the tunic, gold edge
-    [1, hb(WIDE, 1, 'A', 'AA'), 'A'], // mantle hem band
+    [2, hb(WIDE, 10, 'S'), 'S'], // neck
+    [1, hb(WIDE, 6, 'A'), 'A'], // gold collar
+    [3, hb(WIDE, 1, 'A', 'CCCC'), 'C'], // two shoulder plates, clean inner edge
+    [1, hb(WIDE, 1, '6', 'CCCC'), 'C'], // and a clean lower edge
+    [4, hbf(WIDE, 2, 'C', 'c', [6]), 'C'], // tunic
     [1, hb(WIDE, 2, '4'), 'M'], // sash + clasp
     [1, hb(WIDE, 2, '#'), 'M'],
-    [3, '..CCcCCCCCCC', 'C'], // tunic with a fold
-    [4, '.CCcCCCCCCCC', 'C'],
-    [3, 'CCcCCCCCCCCC', 'C'],
+    [4, hbf(WIDE, 2, 'C', 'c', [6, 10]), 'C'],
+    [4, hbf(WIDE, 1, 'C', 'c', [5, 9]), 'C'],
+    [4, hbf(WIDE, 0, 'C', 'c', [4, 8]), 'C'],
     [1, hb(WIDE, 0, 'A'), 'A'], // hem trim
-    [1, hb(WIDE, 0, '#'), '#'],
-    [5, hg(WIDE, 3, 6, 'C'), '.'], // legs under the tunic
-    [2, hg(WIDE, 2, 7, 'L'), '.'], // boots
-    [2, hg(WIDE, 1, 8, 'l'), '.'],
+    [1, hb(WIDE, 0, '2'), '2'], // hem band
+    [5, hg(WIDE, 4, 6, 'C'), '.'], // legs under the tunic
+    [3, hg(WIDE, 3, 7, 'L'), '.'], // boots
+    [3, hg(WIDE, 3, 7, 'l'), '.'],
   ]),
-  bodyAnchors(WIDE, 32, 14),
+  bodyAnchors(WIDE, 38, 15),
 );
 
 // --- Heads --------------------------------------------------------------------
-// Every head is 17 rows and its neck anchor is the last one, so a head
-// lands with its chin on the body's neck row: seven or eight rows of hair,
-// hood or helm above ten rows of face, at a width that matches the
-// shoulders. That head is a third of the composed figure — the proportion
-// the whole style rests on.
+// Every head is 19 rows and its neck anchor is the last one, so a head lands
+// with its chin on the body's neck row: nine rows of hair, hood or helm over
+// a ten-row face, 23 wide. That head is a third of the composed figure — the
+// proportion the whole style rests on.
 
-const HLH = 10; // half-width; composed width 21
+const HLH = 11; // half-width; composed width 23
 
-/** Overwrite cells of an already-built row, left to right — eyes, catchlights, a visor glint. */
-function stamp(row: string, ...edits: readonly (readonly [x: number, s: string])[]): string {
-  const cells = [...row];
-  for (const [x, s] of edits) for (let i = 0; i < s.length; i++) if (x + i >= 0 && x + i < cells.length) cells[x + i] = s[i];
-  return cells.join('');
+/** Per-character face variation: the same ten rows, but no two characters wear them the same way. */
+interface FaceOpts {
+  /** What frames the face: hair, a hood, a helm cheek. */
+  side: string;
+  /** Face material — `s` for a face inside a deep hood, plain `S` in the open. */
+  skin?: string;
+  eye?: string;
+  /** Outer end of the brow dropped (1) or raised (-1) by a cell — the single strongest read of temperament at this size. */
+  brow?: number;
+  /** Mouth width in cells, 1–3. */
+  mouth?: number;
+  /** A one-cell cheek shadow under each eye. */
+  cheek?: boolean;
 }
 
 /**
- * The ten rows every human face shares: forehead, brow, a 2x2 eye cluster
- * with a one-cell catchlight in each, cheeks, a one-cell mouth, jaw, chin.
- * `side` frames the face (hair, a hood, a helm cheek); `skin` is the face
- * material — `s` for a face under a deep hood, plain `S` in the open.
+ * The ten rows every human face shares: forehead under a cast hair shadow,
+ * a brow, a 2x2 eye cluster each side with a one-cell catchlight, cheeks, a
+ * mouth, jaw and chin. The eyes sit two rows higher and one cell closer
+ * together than a naive centre would put them, which is what stops every
+ * character reading as the same doll.
  */
-function faceBlock(side: string, skin = 'S', eye = '#'): string[] {
+function faceBlock(opts: FaceOpts): string[] {
+  const { side, skin = 'S', eye = '#', brow = 0, mouth = 1, cheek = false } = opts;
   const r = (pad: number, sides: number): string => sym(HLH, '.'.repeat(pad) + side.repeat(sides) + skin.repeat(Math.max(0, HLH - pad - sides)), skin);
-  const rows = [r(0, 2), r(0, 2), r(0, 2), r(0, 2), r(0, 2), r(0, 2), r(1, 2), r(2, 2), r(3, 1), r(4, 1)];
-  if (skin === 'S') rows[0] = stamp(rows[0], [2, 's'.repeat(2 * HLH - 3)]); // the hair casts onto the brow
-  rows[2] = stamp(rows[2], [HLH - 4, '$' + eye], [HLH + 3, eye + '$']);
-  rows[3] = stamp(rows[3], [HLH - 4, eye + eye], [HLH + 3, eye + eye]);
-  rows[6] = stamp(rows[6], [HLH, skin === 'S' ? 's' : skin]); // one cell of mouth
+  const dim = skin === 'S' ? 's' : skin;
+  // Seventeen cells of face inside twenty-three of head, tapering to seven at
+  // the chin — the hair, hood or helm carries the rest of the width, which is
+  // what keeps a head from reading as a doll's.
+  const rows = [r(0, 4), r(0, 4), r(0, 4), r(0, 4), r(1, 4), r(2, 4), r(3, 4), r(4, 4), r(5, 4), r(6, 4)];
+  rows[0] = stamp(rows[0], [4, dim.repeat(2 * HLH - 7)]); // the fringe casts onto the brow
+  rows[1] = stamp(rows[1], [4, dim], [2 * HLH - 4, dim]); // and down both temples
+  if (brow !== 0) {
+    const b = brow > 0 ? dim : skin === 'S' ? '$' : skin;
+    rows[1] = stamp(rows[1], [HLH - 5, b], [HLH + 4, b]);
+  }
+  rows[1] = stamp(rows[1], [HLH - 4, '$' + eye], [HLH + 3, eye + '$']); // eyes, raised two rows
+  rows[2] = stamp(rows[2], [HLH - 4, eye + eye], [HLH + 3, eye + eye]);
+  if (cheek) rows[3] = stamp(rows[3], [HLH - 4, dim + dim], [HLH + 3, dim + dim]);
+  rows[3] = stamp(rows[3], [HLH, dim]); // the bridge of a nose
+  rows[5] = stamp(rows[5], [HLH - ((mouth / 2) | 0), dim.repeat(mouth)]);
+  rows[7] = stamp(rows[7], [HLH - 2, dim.repeat(5)]); // and a chin shadow under it
   return rows;
 }
 
-/** A hair or hood crown: `pads` outer-edge insets top to bottom, optionally swept sideways per row. */
+/** A hair or hood crown: `pads` outer-edge insets top to bottom (nine of them), optionally swept sideways per row. */
 function crown(ch: string, pads: readonly number[], sweep: readonly number[] = []): string[] {
   return pads.map((pad, i) => shiftX(sym(HLH, hb(HLH, pad, ch), ch), sweep[i] ?? 0));
 }
 
-const NECK: Partial<Record<AnchorName, Point>> = { head: { x: HLH, y: 16 } };
+const NECK: Partial<Record<AnchorName, Point>> = { head: { x: HLH, y: 18 } };
 
-// EMBER — a big upswept mane with strand notches, swept back off the brow.
-const emberCrown = crown('H', [7, 5, 3, 1, 0], [-4, -3, -2, -1, 0]);
-emberCrown[3] = stamp(emberCrown[3], [4, '^^^^^']);
-emberCrown[4] = stamp(emberCrown[4], [3, '^^^']);
-const HEAD_EMBER = part(
-  [
-    ...emberCrown,
-    sym(HLH, 'HHhHHHHHHh', 'H'), // strand notches
-    sym(HLH, 'HHHhHHHHHH', 'H'),
-    ...faceBlock('H'),
-  ],
-  NECK,
-);
+// EMBER — a big upswept mane with strand notches, swept back off the brow;
+// a dropped outer brow and a shadowed cheek make him the scowler of the six.
+const emberCrown = crown('H', [8, 6, 4, 2, 1, 0, 0], [-4, -4, -3, -2, -1, 0, 0]);
+emberCrown[4] = stamp(emberCrown[4], [4, '^^^^^^']);
+emberCrown[5] = stamp(emberCrown[5], [3, '^^^^']);
+const HEAD_EMBER = part([...emberCrown, sym(HLH, 'HHhHHHHHHHh', 'H'), sym(HLH, 'HHHhHHHHHHH', 'H'), ...faceBlock({ side: 'H', brow: 1, cheek: true })], NECK);
 
-// GALE — a windswept crop: the whole mass leans back off the run.
-const galeCrown = crown('H', [8, 6, 4, 2, 0], [-6, -5, -4, -3, -2]);
-galeCrown[3] = stamp(galeCrown[3], [2, '^^^^^']);
-galeCrown[4] = stamp(galeCrown[4], [1, '^^^']);
-const HEAD_GALE = part(
-  [
-    ...galeCrown,
-    shiftX(sym(HLH, 'HhHHHHHHHh', 'H'), -2),
-    shiftX(sym(HLH, 'HHhHHHHHHH', 'H'), -1),
-    ...faceBlock('H'),
-  ],
-  NECK,
-);
+// GALE — a windswept crop, the whole mass leaning back off the run; a
+// raised brow and a wide mouth: the only one of the six who looks cheerful.
+const galeCrown = crown('H', [9, 7, 5, 3, 1, 0, 0], [-6, -6, -5, -4, -3, -2, -1]);
+galeCrown[4] = stamp(galeCrown[4], [2, '^^^^^^']);
+galeCrown[5] = stamp(galeCrown[5], [1, '^^^^']);
+const HEAD_GALE = part([...galeCrown, shiftX(sym(HLH, 'HhHHHHHHHHh', 'H'), -2), shiftX(sym(HLH, 'HHhHHHHHHHH', 'H'), -1), ...faceBlock({ side: 'H', brow: -1, mouth: 3 })], NECK);
 
-// TIDE — a deep teal hood with dark hair showing beneath it; the face sits
-// in the hood's shade, so its skin is authored one step down the ramp.
+// TIDE — a deep teal hood with dark hair showing beneath it, and a level
+// brow: the composed one.
 const HEAD_TIDE = part(
-  [
-    ...crown('C', [7, 5, 3, 1, 0, 0, 0]),
-    ...faceBlock('C', 'S').map((row, i) => (i < 2 ? stamp(row, [HLH - 7, 'HHHH'], [HLH + 4, 'HHHH']) : row)),
-  ],
+  [...crown('C', [8, 6, 4, 2, 1, 0, 0, 0, 0]), ...faceBlock({ side: 'C' }).map((row, i) => (i < 2 ? stamp(row, [HLH - 8, 'HHHH'], [HLH + 5, 'HHHH']) : row))],
   NECK,
 );
 
-// BASALT — a full iron helm: a crest ridge, a dark slit visor with one
-// glint, a cheek guard. No face at all, which is the point.
-const HEAD_BASALT = part(
+// BASALT — a full iron helm: ONE continuous visor slit with a single glint,
+// breathing holes below it, and a helm deliberately NARROWER than the
+// pauldrons that carry it. No face at all, which is the point.
+const basaltHelm = [
+  ...crown('M', [4, 3, 2, 2, 2, 2, 2]),
+  stamp(sym(HLH, '...########', '#'), [3, 'M'], [4, '*']), // slit + glint
+  sym(HLH, '...########', '#'),
+  sym(HLH, hb(HLH, 2, 'M'), 'M'),
+  sym(HLH, hb(HLH, 2, 'M'), 'M'),
+  sym(HLH, hb(HLH, 2, 'm'), 'm'),
+  stamp(sym(HLH, hb(HLH, 3, 'M'), 'M'), [5, '#'], [8, '#'], [14, '#'], [17, '#']), // breathing holes
+  sym(HLH, hb(HLH, 3, 'M'), 'M'),
+  sym(HLH, hb(HLH, 4, 'm'), 'm'),
+  sym(HLH, hb(HLH, 4, 'M'), 'M'),
+  sym(HLH, hb(HLH, 5, 'M'), 'M'),
+  sym(HLH, hb(HLH, 6, 'm'), 'm'),
+  sym(HLH, hb(HLH, 7, 'M'), 'M'),
+];
+const HEAD_BASALT = part(basaltHelm, NECK);
+
+// PYRE KNIGHT — the same iron family, a different helm entirely: a KEELED
+// brow, a raised centre ridge running the whole dome, and two eye holes
+// rather than a slit.
+const HEAD_PYRE = part(
   [
-    ...crown('M', [7, 5, 3, 1, 0, 0, 0]),
-    sym(HLH, hb(HLH, 0, 'M'), 'M'),
-    stamp(sym(HLH, hb(HLH, 0, 'M'), 'M'), [HLH - 7, '######'], [HLH + 2, '######'], [HLH - 7, '*']), // visor slit + glint
-    stamp(sym(HLH, hb(HLH, 0, 'M'), 'M'), [HLH - 7, '######'], [HLH + 2, '######']),
-    sym(HLH, hb(HLH, 0, 'M'), 'M'),
-    sym(HLH, hb(HLH, 0, 'M'), 'M'),
-    sym(HLH, hb(HLH, 0, 'm'), 'm'),
-    sym(HLH, hb(HLH, 1, 'M'), 'M'),
+    ...crown('M', [7, 5, 3, 2, 2, 2, 2]).map((r, i) => (i > 1 ? stamp(r, [HLH - 1, '***']) : r)), // the keel
+    stamp(sym(HLH, hb(HLH, 2, 'M'), 'M'), [HLH - 1, '***'], [4, '###'], [16, '###']), // brow keeled between two eye holes
+    stamp(sym(HLH, hb(HLH, 2, 'M'), 'M'), [HLH - 1, '*m*'], [4, '###'], [16, '###']),
     sym(HLH, hb(HLH, 2, 'M'), 'M'),
-    sym(HLH, hb(HLH, 3, 'm'), 'm'),
+    stamp(sym(HLH, hb(HLH, 2, 'M'), 'M'), [6, '#'], [9, '#'], [13, '#'], [16, '#']),
+    sym(HLH, hb(HLH, 2, 'm'), 'm'),
+    sym(HLH, hb(HLH, 3, 'M'), 'M'),
+    sym(HLH, hb(HLH, 3, 'M'), 'M'),
+    sym(HLH, hb(HLH, 4, 'm'), 'm'),
     sym(HLH, hb(HLH, 5, 'M'), 'M'),
+    sym(HLH, hb(HLH, 6, 'M'), 'M'),
+    sym(HLH, hb(HLH, 7, 'm'), 'm'),
   ],
   NECK,
 );
 
-// SABLE — a pointed hood whose interior is pure shadow but for two lit
-// eyes. Nothing else of the face reads, ever.
+// DROWNED KNIGHT — a helm the sea has been through: the crown BROKEN open
+// along the top, holes rusted through the cheek, and a ragged lower edge.
+const HEAD_DROWNED = part(
+  [
+    stamp(sym(HLH, hb(HLH, 4, 'M'), 'M'), [7, '..'], [12, '.'], [15, '..']), // the crown, broken open
+    stamp(sym(HLH, hb(HLH, 3, 'M'), 'M'), [8, '.'], [14, '.']),
+    sym(HLH, hb(HLH, 2, 'M'), 'M'),
+    stamp(sym(HLH, hb(HLH, 2, 'M'), 'M'), [5, '#'], [17, '#']),
+    sym(HLH, hb(HLH, 2, 'M'), 'M'),
+    sym(HLH, hb(HLH, 2, 'M'), 'M'),
+    sym(HLH, hb(HLH, 2, 'm'), 'm'),
+    stamp(sym(HLH, '..#########', '#'), [3, 'M'], [8, 'M'], [14, 'M']), // a slit with the bar rusted out of it
+    stamp(sym(HLH, '..#########', '#'), [3, 'M']),
+    stamp(sym(HLH, hb(HLH, 2, 'M'), 'M'), [4, '#'], [18, '#']),
+    sym(HLH, hb(HLH, 2, 'M'), 'M'),
+    stamp(sym(HLH, hb(HLH, 2, 'm'), 'm'), [6, '#'], [16, '#']),
+    sym(HLH, hb(HLH, 3, 'M'), 'M'),
+    stamp(sym(HLH, hb(HLH, 3, 'M'), 'M'), [9, '#'], [13, '#']),
+    sym(HLH, hb(HLH, 4, 'm'), 'm'),
+    stamp(sym(HLH, hb(HLH, 4, 'M'), 'M'), [7, '.'], [15, '.']), // and a ragged edge
+    sym(HLH, hb(HLH, 5, 'M'), 'M'),
+    stamp(sym(HLH, hb(HLH, 6, 'm'), 'm'), [11, '.']),
+    sym(HLH, hb(HLH, 7, 'M'), 'M'),
+  ],
+  NECK,
+);
+
+// SABLE — a pointed hood with a TWO-CELL peak and a cowl draping onto the
+// shoulders; its interior is pure shadow but for two lit eyes. Nothing else
+// of the face reads, ever.
 const HEAD_SABLE = part(
   [
-    ...crown('A', [8, 6, 4, 3, 2, 1, 0]),
-    sym(HLH, hb(HLH, 0, 'A'), 'A'),
-    sym(HLH, 'AA########', '#'),
-    stamp(sym(HLH, 'AA########', '#'), [HLH - 6, 'GG'], [HLH + 4, 'GG']), // lit eyes
-    stamp(sym(HLH, 'AA########', '#'), [HLH - 6, 'gg'], [HLH + 4, 'gg']),
-    sym(HLH, 'AA########', '#'),
-    sym(HLH, 'AA########', '#'),
-    sym(HLH, 'AAA#######', '#'),
-    sym(HLH, hb(HLH, 2, 'A'), 'A'),
-    sym(HLH, hb(HLH, 3, 'A'), 'A'),
-    sym(HLH, hb(HLH, 5, 'a'), 'a'),
+    sym(HLH, hb(HLH, 10, 'A'), 'A'), // the peak
+    sym(HLH, hb(HLH, 9, 'A'), 'A'),
+    ...crown('A', [7, 5, 4, 3, 2, 1, 0]),
+    sym(HLH, 'AAd3333333', '3'),
+    stamp(sym(HLH, 'AAd3333333', '3'), [HLH - 6, 'GG'], [HLH + 5, 'GG']), // lit eyes
+    stamp(sym(HLH, 'AAd3333333', '3'), [HLH - 6, 'gg'], [HLH + 5, 'gg']),
+    sym(HLH, 'AAd3333333', '3'),
+    sym(HLH, 'AAAd333333', '3'),
+    sym(HLH, 'AAAAd33333', '3'),
+    sym(HLH, hb(HLH, 0, 'A'), 'A'), // the cowl closes and spreads
+    sym(HLH, hb(HLH, 0, 'a'), 'a'),
+    sym(HLH, hb(HLH, 1, 'A'), 'A'),
+    sym(HLH, hb(HLH, 2, 'a'), 'a'),
   ],
   NECK,
 );
 
-// LUMEN — long cream-gold hair parted off the brow and falling well past
-// the shoulders (the rows below the neck paint over the mantle, since the
-// head layer is always on top).
-const lumenCrown = crown('H', [7, 5, 3, 1, 0]);
-lumenCrown[3] = stamp(lumenCrown[3], [4, '^^^^^']);
-lumenCrown[4] = stamp(lumenCrown[4], [3, '^^^']);
+// LUMEN — long cream-gold hair parted off the brow, a braid down one side,
+// falling well past the shoulders (the rows below the neck paint over the
+// mantle, since the head layer is always on top).
+const lumenCrown = crown('H', [8, 6, 4, 2, 1, 0, 0]);
+lumenCrown[4] = stamp(lumenCrown[4], [4, '^^^^^^']);
+lumenCrown[5] = stamp(lumenCrown[5], [3, '^^^^']);
 const HEAD_LUMEN = part(
   [
     ...lumenCrown,
-    sym(HLH, 'HHhHHHHHHH', 'h'),
-    sym(HLH, 'HHHhHHHHHH', 'H'),
-    ...faceBlock('H'),
-    sym(HLH, hb(HLH, 3, 'H'), '.'),
-    sym(HLH, hb(HLH, 3, 'H'), '.'),
-    sym(HLH, hb(HLH, 4, 'H'), '.'),
-    sym(HLH, hb(HLH, 4, 'h'), '.'),
-    sym(HLH, hb(HLH, 5, 'H'), '.'),
-    sym(HLH, hb(HLH, 6, 'h'), '.'),
+    sym(HLH, 'HHhHHHHHHHH', 'h'),
+    sym(HLH, 'HHHhHHHHHHH', 'H'),
+    ...faceBlock({ side: 'H', mouth: 2 }),
+    stamp(sym(HLH, hb(HLH, 5, 'H'), '.'), [6, '^']),
+    stamp(sym(HLH, hb(HLH, 6, 'H'), '.'), [7, 'h']),
+    stamp(sym(HLH, hb(HLH, 7, 'H'), '.'), [8, '^']),
+    sym(HLH, hb(HLH, 8, 'h'), '.'),
   ],
   NECK,
 );
 
-// --- Arms ---------------------------------------------------------------------
+// --- Arms and hands -----------------------------------------------------------
 // An arms part holds BOTH arms as one symmetric layer that lands on the
-// body's shoulder seam, so a figure never reads as one-armed. Its own
-// `weaponGrip` is the right-hand mitt (or, for the robed pair, the two
-// hands meeting in front); a weapon's grip lands there and stays there
-// through every rotation.
+// body's shoulder seam, so a figure never reads as one-armed. Twenty-two
+// rows: a shoulder cap, an upper arm one cell narrower, a forearm one
+// narrower again, and then a real five-cell HAND that juts back out — the
+// widest thing below the elbow, split by an ink line between the fingers and
+// closed by a knuckle shadow. `weaponGrip` is the centre of the right fist,
+// and every weapon's own grip lands there, which is what puts a haft IN a
+// hand instead of beside one.
 
-const ALH = 12; // arms half-width; composed 25 — one cell proud of a slim body on each side
-const PLH = 14; // plated arms: 29, one cell proud of an armoured body
+const ALH = 13; // arms half-width; composed 27 — one cell proud of a slim body on each side
+const PLH = 15; // plated arms: 31, two cells proud of an armoured body on each side
+const RLH = 14; // wide robe sleeves: 29
 
-/** Both arms of a hero: the mitt is the widest thing below the elbow, which is what makes hands read at this size. */
-function armsPart(lh: number, list: readonly Band[], gripY: number, gripX: number): PartDef {
-  return part(bands(lh, list), { hand: { x: lh, y: 0 }, weaponGrip: { x: 2 * lh - gripX, y: gripY } });
+interface ArmOpts {
+  /** Sleeve or bare-arm material. */
+  arm: string;
+  /** Forearm covering — a bracer, a vambrace, a gold cuff, or more sleeve. */
+  fore: string;
+  /** The one-cell seam where the covering ends. */
+  cuff: string;
+  /** Hand material: skin for bare, leather for gloved, metal for a gauntlet. */
+  hand: string;
+  handShadow: string;
 }
 
-// EMBER — bare arms with leather bracers.
-const ARMS_BARE = armsPart(
-  ALH,
-  [
-    [2, hg(ALH, 0, 6, 'S'), '.'],
-    [6, hg(ALH, 1, 5, 'S'), '.'],
-    [1, hg(ALH, 1, 5, 's'), '.'],
-    [3, hg(ALH, 2, 4, 'L'), '.'], // bracer
-    [2, hg(ALH, 2, 4, 'S'), '.'],
-    [3, hg(ALH, 1, 5, 'S'), '.'], // mitt
-    [1, hg(ALH, 1, 5, 's'), '.'],
-  ],
-  15,
-  3,
-);
+/** Both arms of a hero, ending in hands. `w` is the shoulder width; the limb narrows by one to the elbow and again to the wrist, then the fist comes back out to the full shoulder width. */
+function armsPart(lh: number, o: ArmOpts, w = 5): PartDef {
+  const dim = o.arm.toLowerCase();
+  const rows = bands(lh, [
+    [3, hg(lh, 0, w, o.arm), '.'], // shoulder cap
+    [1, hg(lh, 0, w, dim), '.'],
+    [6, hg(lh, 0, w - 1, o.arm), '.'], // upper arm
+    [1, hg(lh, 0, w - 1, dim), '.'], // elbow
+    [4, hg(lh, 1, w - 2, o.fore), '.'], // forearm covering
+    [1, hg(lh, 0, w, o.cuff), '.'], // cuff seam
+    [5, hg(lh, 0, w, o.hand), '.'], // the fist, back out to the widest
+    [1, hg(lh, 0, w, o.handShadow), '.'], // knuckle shadow
+  ]);
+  const rx = 2 * lh - w;
+  const out = stampRows(rows, 18, 18, [2, '#'], [rx + w - 3, '#']); // the split between two fingers
+  return part(out, { hand: { x: lh, y: 0 }, weaponGrip: { x: 2 * lh - ((w / 2) | 0) - 1, y: 19 } });
+}
 
-// GALE, SABLE and the cloth-sleeved enemies — a sleeve, a cuff seam, a
-// leather glove.
-const ARMS_SLEEVE = armsPart(
-  ALH,
-  [
-    [2, hg(ALH, 0, 6, 'C'), '.'],
-    [6, hg(ALH, 1, 5, 'C'), '.'],
-    [1, hg(ALH, 1, 5, 'c'), '.'],
-    [3, hg(ALH, 2, 4, 'C'), '.'],
-    [1, hg(ALH, 2, 4, '#'), '.'], // cuff seam
-    [4, hg(ALH, 1, 5, 'L'), '.'], // glove
-    [1, hg(ALH, 1, 5, 'l'), '.'],
-  ],
-  15,
-  3,
-);
+// EMBER — bare arms with leather bracers and bare hands.
+const ARMS_BARE = armsPart(ALH, { arm: 'S', fore: 'L', cuff: '4', hand: 'S', handShadow: 's' });
+// GALE, SABLE and the cloth-sleeved enemies — a sleeve, a cuff seam, a leather glove.
+const ARMS_SLEEVE = armsPart(ALH, { arm: 'C', fore: 'C', cuff: '#', hand: 'L', handShadow: 'l' });
+// LUMEN — a sleeve with a gold cuff over a bare drawing hand.
+const ARMS_MANTLE = armsPart(ALH, { arm: 'C', fore: 'A', cuff: '6', hand: 'S', handShadow: 's' });
+// BASALT and the knights — pauldrons, vambraces, gauntleted fists.
+const ARMS_PLATE = armsPart(PLH, { arm: 'M', fore: 'M', cuff: 'm', hand: 'M', handShadow: 'm' }, 7);
 
-// LUMEN — a mantle sleeve with a gold cuff over a pale glove.
-const ARMS_MANTLE = armsPart(
-  ALH,
-  [
-    [2, hg(ALH, 0, 6, 'C'), '.'],
-    [6, hg(ALH, 1, 5, 'C'), '.'],
-    [1, hg(ALH, 1, 5, 'c'), '.'],
-    [2, hg(ALH, 2, 4, 'C'), '.'],
-    [2, hg(ALH, 2, 4, 'A'), '.'], // gold cuff
-    [4, hg(ALH, 1, 5, 'L'), '.'],
-    [1, hg(ALH, 1, 5, 'l'), '.'],
-  ],
-  15,
-  3,
-);
-
-// BASALT and the knights — pauldrons, vambraces, gauntlet mitts.
-const ARMS_PLATE = armsPart(
-  PLH,
-  [
-    [3, hg(PLH, 0, 7, 'M'), '.'], // pauldron
-    [1, hg(PLH, 0, 7, 'm'), '.'],
-    [5, hg(PLH, 2, 5, 'M'), '.'],
-    [1, hg(PLH, 2, 5, 'm'), '.'],
-    [3, hg(PLH, 3, 4, 'M'), '.'], // vambrace
-    [4, hg(PLH, 2, 5, 'M'), '.'], // gauntlet
-    [1, hg(PLH, 2, 5, 'm'), '.'],
-  ],
-  15,
-  4,
-);
-
-// TIDE and the Pale Saint — wide sleeves converging on two hands cupped in
-// front of the belly; the grip is the centre, where the orb sits.
-const RLH = 13;
+// TIDE and the Pale Saint — wide sleeves converging on two hands CUPPED in
+// front of the belly, palms up; the grip is the centre of that cradle, so
+// the orb sits in them rather than floating over them.
 const ARMS_ROBE = part(
-  bands(RLH, [
-    [2, hg(RLH, 0, 6, 'A'), '.'],
-    [2, hg(RLH, 1, 6, 'A'), '.'],
-    [2, hg(RLH, 2, 6, 'A'), '.'],
-    [2, hg(RLH, 3, 6, 'A'), '.'],
-    [2, hg(RLH, 4, 6, 'A'), '.'],
-    [2, hg(RLH, 5, 6, 'A'), '.'],
-    [2, hg(RLH, 6, 6, 'a'), '.'],
-    [2, hb(RLH, 8, 'C'), 'C'], // cuffs meeting
-    [2, hb(RLH, 9, 'S'), 'S'], // mitts, cupped
-  ]),
-  { hand: { x: RLH, y: 0 }, weaponGrip: { x: RLH, y: 16 } },
+  stampRows(
+    bands(RLH, [
+      [2, hg(RLH, 0, 6, 'A'), '.'],
+      [2, hg(RLH, 1, 6, 'A'), '.'],
+      [2, hg(RLH, 2, 6, 'A'), '.'],
+      [2, hg(RLH, 3, 6, 'A'), '.'],
+      [2, hg(RLH, 4, 6, 'A'), '.'],
+      [2, hg(RLH, 5, 6, 'A'), '.'],
+      [2, hg(RLH, 6, 6, 'A'), '.'],
+      [1, hg(RLH, 7, 6, 'a'), '.'],
+      [2, hb(RLH, 9, 'C'), 'C'], // cuffs meeting
+      [3, hb(RLH, 10, 'S'), 'S'], // cupped palms
+      [2, hb(RLH, 11, 'S'), 'S'], // fingers
+    ]),
+    19,
+    21,
+    [12, '#'],
+    [16, '#'],
+  ),
+  { hand: { x: RLH, y: 0 }, weaponGrip: { x: RLH, y: 18 } },
 );
 
 // --- Weapons ------------------------------------------------------------------
@@ -628,63 +728,86 @@ const ARMS_ROBE = part(
 // as tall, a sword about body length, a tower shield about torso size — and
 // shaded by the same ramp rules as everything else. Each rests vertically
 // with its grip in the lower half, so the idle pose reads as "held ready"
-// and the attack rig can rotate it about that grip in 90° steps.
+// and the attack rig can rotate it about that grip in 90° steps. Every grip
+// row is authored as a WRAPPED section, so the fist that closes over it has
+// something to close over.
 
-// STAFF — EMBER: 52 cells, taller than its 47-cell bearer, crowned with a flame.
+// STAFF — EMBER: 58 cells, taller than its 56-cell bearer, crowned with a flame.
 const STL = 4; // half-width 4 → 9 wide
 const STAFF = part(
   bands(STL, [
     [1, hb(STL, 3, 'G'), 'G'],
     [1, hb(STL, 2, 'G'), 'G'],
     [2, hb(STL, 1, 'G'), 'G'],
-    [3, hb(STL, 0, 'G'), 'G'], // flame body
+    [4, hb(STL, 0, 'G'), 'G'], // flame body
     [2, hb(STL, 1, 'G'), 'G'],
     [1, hb(STL, 2, 'G'), 'G'],
     [1, hb(STL, 2, 'A'), 'A'], // ferrule
     [1, hb(STL, 2, '6'), '6'],
-    [22, hb(STL, 3, 'L'), 'L'], // shaft
-    [3, hb(STL, 3, 'A'), 'A'], // grip wrap
-    [12, hb(STL, 3, 'L'), 'L'],
+    [26, hb(STL, 3, 'L'), 'L'], // shaft
+    [5, hb(STL, 3, 'A'), 'A'], // grip wrap, where the fist closes
+    [11, hb(STL, 3, 'L'), 'L'],
     [1, hb(STL, 2, 'M'), 'M'], // heel cap
-    [2, hb(STL, 3, 'M'), 'M'],
+    [2, hb(STL, 3, 'm'), 'm'],
   ]),
-  { weaponGrip: { x: STL, y: 38 } },
+  { weaponGrip: { x: STL, y: 42 } },
 );
 
-// DAGGER — GALE's drawn blade: a leaf blade, a crossguard, a wrapped grip.
-const DGL = 3;
+// DAGGER — GALE's drawn blade: SHORT (20 cells, not a plank), a tapered leaf
+// blade with a lit edge, a real crossguard, a dark wrapped grip, a pommel.
 const DAGGER = part(
-  bands(DGL, [
-    [1, hb(DGL, 2, 'M'), 'M'],
-    [2, hb(DGL, 1, 'M'), 'M'],
-    [8, hb(DGL, 1, 'M'), '*'], // blade with a lit edge
-    [1, hb(DGL, 0, 'M'), 'M'], // crossguard
-    [4, hb(DGL, 2, 'L'), 'L'], // grip
-    [1, hb(DGL, 1, 'A'), 'A'], // pommel
-  ]),
-  { weaponGrip: { x: DGL, y: 14 } },
+  [
+    '...M...',
+    '..MMM..',
+    '..M*M..',
+    '.MM*MM.',
+    '.MM*MM.',
+    '.MM*MM.',
+    '.MM*MM.',
+    '.MM*Mm.',
+    '.MM*Mm.',
+    '.mM*Mm.',
+    '..M*M..',
+    '..MmM..',
+    'MMMMMMM', // crossguard
+    'mm###mm',
+    '..LLL..',
+    '..LLL..',
+    '..LLL..',
+    '..LLL..',
+    '.AAAAA.', // pommel
+    '.6aaa6.',
+  ],
+  { weaponGrip: { x: 3, y: 16 } },
 );
 
 // DAGGER_SHEATHED — GALE's off-hand blade riding at the hip: "twin daggers"
 // without a second arm rig, so it anchors to nothing and travels with the body.
-const DAGGER_SHEATHED = part(
-  bands(2, [
-    [1, hb(2, 1, 'M'), 'M'],
-    [7, hb(2, 0, 'L'), 'L'],
-    [1, hb(2, 0, 'A'), 'A'],
-    [2, hb(2, 1, 'l'), 'l'],
-  ]),
-);
+const DAGGER_SHEATHED = part([
+  '.MMM.',
+  'LLLLL',
+  'L444L',
+  'LLLLL',
+  'L444L',
+  'LLLLL',
+  'L444L',
+  'LLLLL',
+  '.LLL.',
+  '.lll.',
+  '..l..',
+]);
 
-// DAGGER_CURVED — SABLE: gripped near the top so the curved blade hangs
-// low and sweeps back behind the hip.
+// DAGGER_CURVED — SABLE: gripped near the top so the curved blade hangs low
+// and sweeps back behind the hip.
 const DAGGER_CURVED = part(
   [
     '..LLL..',
     '..LLL..',
     '..LLL..',
-    '..MMM..',
+    '..LLL..',
+    '.MMMMM.',
     '..MMm..',
+    '..MM*..',
     '..MM*..',
     '...MM*.',
     '...MM*.',
@@ -695,129 +818,142 @@ const DAGGER_CURVED = part(
     '....MM*',
     '.....M*',
     '.....M*',
-    '.....##',
+    '.....Mm',
+    '......#',
   ],
   { weaponGrip: { x: 3, y: 2 } },
 );
 
 // BOW_TALL — LUMEN: as tall as its bearer, the limbs bowing away from a
-// taut string, a wrapped grip at the centre.
-const BOW_H = 44;
-const BOW_W = 13;
+// taut string, a wrapped grip at the centre where the fist closes.
+const BOW_H = 50;
+const BOW_W = 14;
 const bowRows: string[] = [];
 for (let i = 0; i < BOW_H; i++) {
   const t = Math.sin((Math.PI * i) / (BOW_H - 1));
-  const off = 2 + Math.round(7 * t);
+  const off = 2 + Math.round(8 * t);
   const cells = new Array(BOW_W).fill('.');
-  if (i > 1 && i < BOW_H - 2) cells[1] = '6'; // string
-  const grip = i >= 19 && i <= 24;
+  if (i > 1 && i < BOW_H - 2) cells[1] = '!'; // string
+  const grip = i >= 21 && i <= 28;
   for (let k = 0; k < (grip ? 4 : 3); k++) if (off + k < BOW_W) cells[off + k] = grip ? 'L' : k === 2 ? 'a' : 'A';
   bowRows.push(cells.join(''));
 }
-const BOW_TALL = part(bowRows, { weaponGrip: { x: 9, y: 21 } });
+const BOW_TALL = part(bowRows, { weaponGrip: { x: 10, y: 24 } });
 
-// ORB — TIDE and the Pale Saint: a floating sphere of light. Its grip is
-// the BOTTOM centre, so it rests above two cupped hands.
-const OLH = 5;
+// ORB — TIDE and the Pale Saint: a sphere of light with a two-cell hotspot
+// off centre. Its grip is the BOTTOM centre, so it rests IN two cupped hands.
+const OLH = 6;
 const ORB = part(
   bands(OLH, [
-    [1, hb(OLH, 3, 'G'), 'G'],
+    [1, hb(OLH, 4, 'G'), 'G'],
     [1, hb(OLH, 2, 'G'), 'G'],
     [1, hb(OLH, 1, 'G'), 'G'],
-    [5, hb(OLH, 0, 'G'), 'G'],
+    [6, hb(OLH, 0, 'G'), 'G'],
     [1, hb(OLH, 1, 'G'), 'G'],
     [1, hb(OLH, 2, 'G'), 'G'],
-    [1, hb(OLH, 3, 'G'), 'G'],
+    [1, hb(OLH, 4, 'G'), 'G'],
   ]),
-  { weaponGrip: { x: OLH, y: 10 } },
+  { weaponGrip: { x: OLH, y: 11 } },
 );
 
 // MACE — BASALT: a flanged head on a short haft, gripped low.
 const MLH = 5;
 const MACE = part(
   bands(MLH, [
-    [1, hb(MLH, 2, 'M'), 'M'],
-    [1, hb(MLH, 0, 'M'), 'M'],
+    [1, hb(MLH, 3, 'M'), 'M'],
+    [1, hb(MLH, 1, 'M'), 'M'],
     [2, hb(MLH, 0, 'M'), 'A'], // flanged head, accent ridge
     [3, hb(MLH, 0, 'M'), 'M'],
     [1, hb(MLH, 1, 'm'), 'm'],
     [1, hb(MLH, 2, 'M'), 'M'],
-    [10, hb(MLH, 3, 'L'), 'L'], // haft
-    [3, hb(MLH, 3, 'A'), 'A'], // grip wrap
+    [11, hb(MLH, 3, 'L'), 'L'], // haft
+    [5, hb(MLH, 3, 'A'), 'A'], // grip wrap
     [4, hb(MLH, 3, 'L'), 'L'],
     [2, hb(MLH, 2, 'M'), 'M'], // pommel
   ]),
-  { weaponGrip: { x: MLH, y: 24 } },
+  { weaponGrip: { x: MLH, y: 26 } },
 );
 
-// SWORD — the knights: about body length, with a fullered blade and a
-// broad crossguard.
+// SWORD — the knights: about body length, a fullered blade, a broad
+// crossguard and a wrapped grip.
 const SWL = 4;
 const SWORD = part(
   bands(SWL, [
     [1, hb(SWL, 3, 'M'), 'M'],
     [2, hb(SWL, 2, 'M'), '*'],
-    [20, hb(SWL, 1, 'M'), '*'], // blade + fuller highlight
+    [22, hb(SWL, 1, 'M'), '*'], // blade + fuller highlight
     [1, hb(SWL, 1, 'm'), 'm'],
     [1, hb(SWL, 0, 'M'), 'M'], // crossguard
     [1, hb(SWL, 0, 'm'), 'm'],
-    [5, hb(SWL, 3, 'L'), 'L'], // grip
+    [6, hb(SWL, 3, 'L'), 'L'], // grip
     [1, hb(SWL, 2, 'A'), 'A'], // pommel
   ]),
-  { weaponGrip: { x: SWL, y: 29 } },
+  { weaponGrip: { x: SWL, y: 32 } },
 );
 
-// TOWER_SHIELD — BASALT: about torso size, a metal rim around a bold
-// element-coloured face with a raised boss, so it reads as a held object in
-// front of an armoured body rather than more chest.
+// TOWER_SHIELD — BASALT: about torso size, a bevelled metal rim around a
+// bold element-coloured face, the LOWER CORNERS ROUNDED off and a raised
+// three-cell boss at its centre, so it reads as a held object rather than
+// more chest.
 const TWL = 8;
+const towerRows = bands(TWL, [
+  [1, hb(TWL, 2, 'M'), 'M'], // rim, chamfered at the top
+  [1, hb(TWL, 1, 'M'), 'M'],
+  [2, hb(TWL, 0, 'M'), 'M'],
+  [4, hb(TWL, 0, 'M', 'AAAAAA'), 'A'],
+  [6, hb(TWL, 0, 'M', 'AAAAAA'), 'A'],
+  [4, hb(TWL, 0, 'M', 'AAAAAA'), 'A'],
+  [3, hb(TWL, 0, 'm', 'aaaaaa'), 'a'],
+  [2, hb(TWL, 1, 'M'), 'M'], // and rounded away at the bottom
+  [1, hb(TWL, 2, 'm'), 'm'],
+  [1, hb(TWL, 4, 'm'), 'm'],
+]);
 const TOWER_SHIELD = part(
-  bands(TWL, [
-    [2, hb(TWL, 1, 'M'), 'M'], // rim
-    [2, hb(TWL, 0, 'M'), 'M'],
-    [3, hb(TWL, 0, 'M', 'AA'), 'A'], // emblem: a bar down
-    [2, hb(TWL, 0, 'M', 'AAAAA'), 'A'], // and a bar across
-    [3, hb(TWL, 0, 'M', 'AA'), 'A'],
-    [6, hb(TWL, 0, 'M', 'AA'), 'A'],
-    [3, hb(TWL, 0, 'm', 'aa'), 'a'],
-    [2, hb(TWL, 0, 'M'), 'M'],
-    [2, hb(TWL, 1, 'm'), 'm'],
-  ]),
+  towerRows.map((r, i) =>
+    i === 9 ? stamp(r, [TWL - 1, 'MMM']) : i === 10 ? stamp(r, [TWL - 2, '**MMm']) : i === 11 ? stamp(r, [TWL - 2, '*MMmm']) : i === 12 ? stamp(r, [TWL - 1, 'mmm']) : r,
+  ),
 );
 
-// SHIELD — the knights' kite shield: rounded at the top, tapering to a
-// point, an element-coloured band across the middle.
-const SHL = 9;
-const SHIELD = part(
-  bands(SHL, [
-    [1, hb(SHL, 4, 'M'), 'M'],
-    [1, hb(SHL, 2, 'M'), 'M'],
-    [4, hb(SHL, 0, 'M'), 'M'],
-    [3, hb(SHL, 0, 'A'), 'A'], // emblem band
-    [6, hb(SHL, 0, 'M'), 'M'],
-    [2, hb(SHL, 1, 'M'), 'M'],
-    [2, hb(SHL, 2, 'M'), 'M'],
-    [2, hb(SHL, 3, 'M'), 'M'],
-    [2, hb(SHL, 4, 'm'), 'm'],
-    [2, hb(SHL, 5, 'm'), 'm'],
-    [1, hb(SHL, 6, 'm'), 'm'],
-  ]),
+// SHIELD — the knights' kite shield: a bevelled rim, an element band, a
+// central boss and four rivets, tapering to a point.
+const SHL = 8;
+const shieldRows = bands(SHL, [
+  [1, hb(SHL, 4, 'M'), 'M'],
+  [1, hb(SHL, 2, 'M'), 'M'],
+  [5, hb(SHL, 0, 'M'), 'M'],
+  [4, hb(SHL, 0, 'A'), 'A'], // emblem band
+  [6, hb(SHL, 0, 'M'), 'M'],
+  [2, hb(SHL, 1, 'M'), 'M'],
+  [2, hb(SHL, 2, 'M'), 'M'],
+  [2, hb(SHL, 3, 'm'), 'm'],
+  [2, hb(SHL, 4, 'm'), 'm'],
+  [1, hb(SHL, 6, 'm'), 'm'],
+]);
+const riveted = stampRows(shieldRows, 3, 3, [3, '5'], [SHL * 2 - 3, '5']);
+const SHIELD = part(stampRows(stampRows(riveted, 16, 16, [3, '5'], [SHL * 2 - 3, '5']), 9, 11, [SHL - 1, '*5*']));
+
+// SHIELD_BROKEN — the Drowned Knight's: the same kite split down one side,
+// its lower half torn away and the edge notched by barnacles.
+const SHIELD_BROKEN = part(
+  stampRows(stampRows(shieldRows, 12, 15, [SHL + 2, '.......']), 16, 23, [SHL - 1, '..........']).map((r, i) =>
+    i === 5 || i === 9 || i === 13 ? stamp(r, [2, '#'], [SHL + 4, '#']) : i === 11 ? stamp(r, [SHL + 1, '.'], [1, '#']) : r,
+  ),
 );
 
-// LANTERN — the Crypt Warden: carried by its ring, the glowing body
-// hanging BELOW the fist, so its grip is at the top.
-const LNL = 5;
+// LANTERN — the Crypt Warden: carried by its ring, the glowing body hanging
+// BELOW the fist, so its grip is at the top and the arm above it shows.
+const LNL = 6;
 const LANTERN = part(
   bands(LNL, [
-    [1, hb(LNL, 4, 'M'), '.'],
+    [3, hb(LNL, 5, 'M'), '.'], // the bail the fist closes on
+    [1, hb(LNL, 5, 'M'), 'M'],
     [1, hb(LNL, 4, 'M'), 'M'],
-    [1, hb(LNL, 3, 'M'), 'M'],
-    [1, hb(LNL, 1, 'M'), 'M'], // cap
-    [8, hb(LNL, 2, 'M', 'GG'), 'G'], // glazed body
-    [1, hb(LNL, 1, 'M'), 'M'],
-    [1, hb(LNL, 2, 'm'), 'm'],
+    [1, hb(LNL, 2, 'M'), 'M'], // cap
+    [10, hb(LNL, 2, 'M', 'GG'), 'G'], // a metal frame around a glazed body
+    [1, hb(LNL, 2, 'M'), 'M'],
+    [1, hb(LNL, 3, 'm'), 'm'],
   ]),
-  { weaponGrip: { x: LNL, y: 1 } },
+  { weaponGrip: { x: LNL, y: 2 } },
 );
 
 // CANE — the Marsh Hag: a crooked hook over a knotted shaft, nothing like
@@ -831,74 +967,79 @@ const CANE = part(
     '..LLLL..LLL',
     '..LLLL.....',
     ...bands(CNL, [
-      [6, hb(CNL, 2, 'L'), 'L'],
+      [7, hb(CNL, 2, 'L'), 'L'],
       [1, hb(CNL, 1, 'l'), 'l'], // knot
-      [8, hb(CNL, 2, 'L'), 'L'],
+      [9, hb(CNL, 2, 'L'), 'L'],
       [1, hb(CNL, 1, 'l'), 'l'],
-      [8, hb(CNL, 2, 'L'), 'L'],
+      [9, hb(CNL, 2, 'L'), 'L'],
       [2, hb(CNL, 2, '4'), '4'],
     ]),
   ],
-  { weaponGrip: { x: 3, y: 22 } },
+  { weaponGrip: { x: 3, y: 24 } },
 );
 
 // CLAW — the Hollow King (boss scale): a bony wrist and palm at the grip,
-// four long hooked talons hanging from it.
+// four long talons that HOOK inward at the tip rather than hanging straight.
 const CLL = 8;
-const CLAW = part(
-  bands(CLL, [
-    [3, hb(CLL, 5, 'B'), 'B'], // wrist
-    [5, hb(CLL, 1, 'B'), 'B'], // palm
-    [4, hg2(CLL, 1, 2, 5, 2, 'B'), 'B'],
-    [10, hg2(CLL, 2, 2, 5, 2, 'B'), '.'],
-    [6, hg2(CLL, 3, 2, 5, 2, 'B'), '.'],
-    [4, hg2(CLL, 4, 1, 6, 1, 'B'), '.'],
-    [2, hg2(CLL, 5, 1, 6, 1, '%'), '.'], // talon tips catch the light
-  ]),
-  { weaponGrip: { x: CLL, y: 2 } },
-);
+const clawRows = bands(CLL, [
+  [3, hb(CLL, 5, 'B'), 'B'], // wrist
+  [5, hb(CLL, 1, 'B'), 'B'], // palm
+  [4, hg2(CLL, 1, 2, 5, 2, 'B'), 'B'],
+  [5, hg2(CLL, 2, 2, 5, 2, 'B'), '.'],
+  [3, hg2(CLL, 3, 2, 5, 2, 'B'), '.'],
+  [2, hg2(CLL, 4, 2, 6, 1, 'B'), '.'],
+]);
+const hooked = [...clawRows, sym(CLL, hg2(CLL, 5, 2, 7, 1, 'B'), '.'), sym(CLL, hg2(CLL, 6, 2, 7, 1, '%'), '.'), sym(CLL, hg2(CLL, 7, 1, 8, 1, '%'), '.')];
+const CLAW = part(hooked, { weaponGrip: { x: CLL, y: 2 } });
+/** The king's other hand — literally placed, so both arms end in talons. */
+const CLAW_LEFT = part(hooked.map((r) => [...r].reverse().join('')));
 
 // --- Capes, cloaks and crests -------------------------------------------------
 
 // SCARF — GALE: pinned at the collar and streaming back the other way from
-// the lean. Its pin sits at the far RIGHT of its own grid so the whole
-// streamer lands behind the shoulder instead of under it.
+// the lean. Its pin sits near the far RIGHT of its own grid so the streamer
+// lands behind the shoulder — and the grid is only as wide as the tail is
+// long, so none of it falls off the bake.
 const SCARF = part(
   [
-    padRow(34, 24, 'DDDDDDDDDD'),
-    padRow(34, 20, 'DDDDDDDDDDDDDD'),
-    padRow(34, 16, 'DDDDDDDDDDDDDDDDDD'),
-    padRow(34, 12, 'DDDDDDDDDDDDDDDDDDDD'),
-    padRow(34, 9, 'DDDDDDDDDDDDDDDDDDDD'),
-    padRow(34, 6, 'DDDDDDDDDDDDDDDDDDDd'),
-    padRow(34, 3, 'DDDDDDDDDDDDDDDDDDd'),
-    padRow(34, 1, 'DDDDDDDDDDDDDDDDd'),
-    padRow(34, 0, 'DDDDDDDDDDDDDd'),
-    padRow(34, 0, 'DDDDDDDDDd'),
-    padRow(34, 1, 'DDDDd'),
+    padRow(20, 14, 'DDDDDD'),
+    padRow(20, 11, 'DDDDDDDDD'),
+    padRow(20, 9, 'DDDDDDDDDDD'),
+    padRow(20, 7, 'DDDDDDDDDDDDD'),
+    padRow(20, 5, 'DDDDDDdDDDDDDD'),
+    padRow(20, 4, 'DDDDDDdDDDDDD'),
+    padRow(20, 3, 'DDDDDdDDDDD'),
+    padRow(20, 2, 'DDDDdDDDDD'),
+    padRow(20, 2, 'DDDdDDDD'),
+    padRow(20, 1, 'DDdDDDD'),
+    padRow(20, 1, 'DDdDDD'),
+    padRow(20, 0, 'DDDdD'),
+    padRow(20, 0, 'DDd'),
+    padRow(20, 1, 'Dd'),
   ],
-  { capePin: { x: 32, y: 1 } },
+  { capePin: { x: 18, y: 1 } },
 );
 
 // CLOAK_RAGGED / CLOAK_HOLY — the two bosses (boss scale), drawn BEHIND the
 // body and authored wider and longer than it so the drape actually shows.
 // Same collar and body; only the hem differs — torn strips of uneven length
 // for the skeleton king, a clean trimmed edge for the saint. The inner
-// lining is a second colour down both leading edges.
+// lining is a second colour down both leading edges, and both carry fold
+// creases from the shoulder down.
 const BCL = 24;
 const cloakTop: Band[] = [
   [2, hb(BCL, 18, 'C'), 'C'],
   [2, hb(BCL, 14, 'C'), 'C'],
   [2, hb(BCL, 10, 'A'), 'A'],
   [3, hb(BCL, 6, 'A'), 'A'],
-  [4, hb(BCL, 3, 'A'), 'A'],
-  [6, hb(BCL, 1, 'A', 'DD'), 'A'],
-  [16, hb(BCL, 0, 'A', 'DD'), 'A'],
+  [4, hbf(BCL, 3, 'A', 'a', [9, 16]), 'A'],
+  [6, hbf(BCL, 1, 'A', 'a', [7, 14], 'DD'), 'A'],
+  [16, hbf(BCL, 0, 'A', 'a', [6, 13], 'DD'), 'A'],
 ];
 const CLOAK_RAGGED = part(
   bands(BCL, [
     ...cloakTop,
-    [2, hb(BCL, 0, 'A', 'DD'), 'A'],
+    [2, hbf(BCL, 0, 'A', 'a', [6, 13], 'DD'), 'A'],
     [3, hg2(BCL, 0, 13, 15, 9, 'A'), 'A'],
     [3, hg2(BCL, 0, 11, 16, 7, 'A'), '.'],
     [3, hg2(BCL, 1, 9, 17, 5, 'a'), '.'],
@@ -910,7 +1051,7 @@ const CLOAK_RAGGED = part(
 const CLOAK_HOLY = part(
   bands(BCL, [
     ...cloakTop,
-    [18, hb(BCL, 0, 'A', 'DD'), 'A'],
+    [18, hbf(BCL, 0, 'A', 'a', [6, 13], 'DD'), 'A'],
     [3, hb(BCL, 0, 'C'), 'C'], // trimmed hem
     [2, hb(BCL, 0, '2'), '2'],
   ]),
@@ -924,27 +1065,28 @@ const CROWN = part([
   sym(CRL, '.AA..AA.A', 'A'),
   sym(CRL, 'AAA.AAAAA', 'A'),
   sym(CRL, 'AAAAAAAAA', 'A'),
-  stamp(sym(CRL, hb(CRL, 0, 'A'), 'A'), [CRL - 1, 'GGG']),
+  stamp(sym(CRL, hb(CRL, 0, 'A'), 'A'), [CRL - 1, 'G@G']),
   sym(CRL, hb(CRL, 0, 'A'), 'A'),
   sym(CRL, hb(CRL, 0, '6'), '6'),
 ]);
 
-// HALO — LUMEN and the Pale Saint: a thin hovering ring of light.
+// HALO — LUMEN and the Pale Saint: a hovering ELLIPSE seen a little from
+// above, two tones, the back arc dimmer than the front.
 function halo(lh: number): PartDef {
-  const bore = 2;
-  const hole = stamp(sym(lh, hb(lh, 0, 'G'), 'G'), [lh - bore, '.'.repeat(bore * 2 + 1)]);
-  const cap = sym(lh, hb(lh, bore, 'g'), 'g');
-  return part([cap, hole, hole, cap]);
+  const bore = lh - 3;
+  const solid = (ch: string, pad: number): string => sym(lh, hb(lh, pad, ch), ch);
+  const open = (ch: string): string => stamp(solid(ch, 1), [lh - bore, '.'.repeat(2 * bore + 1)]);
+  return part([solid('g', 3), open('g'), open('@'), open('@'), solid('@', 2)]);
 }
-const HALO = halo(8);
-const HALO_BOSS = halo(13);
+const HALO = halo(9);
+const HALO_BOSS = halo(14);
 
 // PLUME — the Pyre Knight's helm crest: an upward flame.
 const PLUME = part(
   bands(3, [
     [1, hb(3, 2, 'G'), 'G'],
     [2, hb(3, 1, 'G'), 'G'],
-    [6, hb(3, 0, 'G'), 'G'],
+    [7, hb(3, 0, 'G'), 'G'],
     [3, hb(3, 1, 'G'), 'G'],
     [2, hb(3, 2, 'A'), 'A'],
   ]),
@@ -953,43 +1095,52 @@ const PLUME = part(
 // KELP — the Drowned Knight's crest: waterlogged strands hanging off the
 // helm, the same family as PLUME, inverted.
 const KELP = part(
-  bands(5, [
-    [2, hb(5, 0, 'A'), 'A'],
-    [3, hb(5, 1, 'A'), 'A'],
-    [4, hg2(5, 0, 3, 4, 2, 'A'), 'A'],
-    [4, hg2(5, 1, 3, 4, 2, 'A'), '.'],
-    [3, hg2(5, 2, 3, 4, 1, 'a'), '.'],
+  bands(6, [
+    [2, hb(6, 0, 'A'), 'A'],
+    [3, hb(6, 1, 'A'), 'A'],
+    [4, hg2(6, 0, 3, 4, 2, 'A'), 'A'],
+    [5, hg2(6, 1, 3, 4, 2, 'A'), '.'],
+    [4, hg2(6, 2, 3, 5, 1, 'a'), '.'],
   ]),
 );
 
 // --- Enemy heads --------------------------------------------------------------
 
-// HEAD_HAG — a crooked, lopsided hood over a jutting chin; the whole crown
-// leans, which reads as "old and hunched" before any colour arrives.
+// HEAD_HAG — a crooked, lopsided hood over a HOOKED profile: the crown
+// leans, the nose juts a cell past the cheek and the chin comes up to meet
+// it, which reads as "old and bent" before any colour arrives.
+const hagFace = faceBlock({ side: 'C', skin: 's', brow: 1, cheek: true }).map((row, i) => (i < 2 ? stamp(row, [2, 'C'.repeat(19)]) : i > 4 ? shiftX(row, 1) : row));
 const HEAD_HAG = part(
   [
-    ...crown('C', [8, 6, 4, 3, 2, 1, 0], [-5, -4, -4, -3, -2, -1, 0]),
-    ...faceBlock('C', 's').map((row, i) => (i < 2 ? stamp(row, [2, 'CCCCCCCCCCCCCCCCC']) : i > 5 ? shiftX(row, 1) : row)),
+    ...crown('C', [9, 7, 5, 4, 3, 2, 1, 0, 0], [-5, -5, -4, -4, -3, -2, -1, 0, 0]),
+    ...stampRows(stampRows(hagFace, 3, 4, [15, 'SS']), 6, 6, [14, 'ss']), // the hooked nose and the chin under it
   ],
   NECK,
 );
 
-// HEAD_BRUTE — the Crypt Warden: a low shelled skull-cap over a shadowed
-// face with two ember slits, and no jaw to speak of.
+// HEAD_BRUTE — the Crypt Warden: a FLAT-TOPPED bucket helm, straight-sided,
+// with a low slot and two ember slits behind it; no dome, no crest.
 const HEAD_BRUTE = part(
   [
-    ...crown('M', [7, 5, 3, 1, 0, 0]),
-    sym(HLH, hb(HLH, 0, 'm'), 'm'),
-    sym(HLH, 'CC########', '#'),
-    stamp(sym(HLH, 'CC########', '#'), [HLH - 6, 'GGG'], [HLH + 3, 'GGG']),
-    sym(HLH, 'CC########', '#'),
-    sym(HLH, hb(HLH, 1, 'C'), 'C'),
-    sym(HLH, hb(HLH, 1, 'C'), 'C'),
+    sym(HLH, hb(HLH, 2, 'm'), 'm'), // the flat top
+    sym(HLH, hb(HLH, 1, 'M'), 'M'),
+    sym(HLH, hb(HLH, 1, 'M'), 'M'),
+    sym(HLH, hb(HLH, 1, 'M'), 'M'),
+    sym(HLH, hb(HLH, 1, 'M'), 'M'),
+    sym(HLH, hb(HLH, 1, 'M'), 'M'),
+    sym(HLH, hb(HLH, 1, 'm'), 'm'),
+    sym(HLH, 'CCc2222222', '2'),
+    stamp(sym(HLH, 'CCc2222222', '2'), [HLH - 6, 'GGG'], [HLH + 4, 'GGG']),
+    sym(HLH, 'CCc2222222', '2'),
+    sym(HLH, hb(HLH, 1, 'M'), 'M'),
+    sym(HLH, hb(HLH, 1, 'M'), 'M'),
+    stamp(sym(HLH, hb(HLH, 1, 'M'), 'M'), [5, '#'], [8, '#'], [14, '#'], [17, '#']),
+    sym(HLH, hb(HLH, 1, 'm'), 'm'),
     sym(HLH, hb(HLH, 2, 'C'), 'C'),
-    sym(HLH, hb(HLH, 2, 'c'), 'c'),
     sym(HLH, hb(HLH, 3, 'C'), 'C'),
     sym(HLH, hb(HLH, 4, 'c'), 'c'),
-    sym(HLH, hb(HLH, 6, 'c'), 'c'),
+    sym(HLH, hb(HLH, 5, 'C'), 'C'),
+    sym(HLH, hb(HLH, 7, 'c'), 'c'),
   ],
   NECK,
 );
@@ -998,209 +1149,254 @@ const HEAD_BRUTE = part(
 // Single-part creatures: no head/arms rig, one silhouette per layer, so a
 // quadruped or a legless shroud never has to fake a biped skeleton. Each
 // name's defining feature — horns, a jaw, a shell, no legs — is authored as
-// a one-off graft on a mirrored base.
+// a one-off graft on a mirrored base, and each carries all four shades of
+// its material: a lit rim, a base, a crease and a dark band.
 
-// CINDER_IMP — small, horned, hunched, with a curling tail and lit eyes.
-const IML = 9;
+// CINDER_IMP — small, horned, hunched, with a curling tail, a lighter belly
+// band and lit eyes.
+const IML = 10;
 const impRows = bands(IML, [
-  [1, hg2(IML, 1, 1, 7, 1, 'A'), '.'], // horn tips
-  [2, hg2(IML, 1, 2, 6, 2, 'A'), '.'],
+  [1, hg2(IML, 1, 2, 7, 2, 'B'), '.'], // bone horn tips
+  [1, hg2(IML, 1, 3, 6, 3, 'B'), '.'],
+  [1, hg2(IML, 1, 3, 6, 3, 'B'), '.'],
   [1, hb(IML, 3, 'A'), 'A'],
   [2, hb(IML, 2, 'A'), 'A'],
   [2, hb(IML, 2, 'A'), 'A'], // eye rows
   [1, hb(IML, 3, 'a'), 'a'], // jaw shadow
   [2, hb(IML, 1, 'A'), 'A'], // hunched shoulders
-  [6, hb(IML, 3, 'A'), 'A'],
+  [4, hb(IML, 3, 'A'), 'A'],
+  [3, hb(IML, 3, 'A', '!!'), 'A'], // belly band, lighter
+  [2, hb(IML, 3, 'a'), 'a'],
   [2, hb(IML, 2, 'A'), 'A'],
-  [5, hg(IML, 3, 3, 'A'), '.'], // stubby legs
-  [2, hg(IML, 2, 4, 'a'), '.'],
-]);
-impRows[6] = stamp(impRows[6], [4, 'GG'], [13, 'GG']);
-impRows[7] = stamp(impRows[7], [5, '#'], [13, '#']);
-const IMP_BODY = part(graft(impRows, 14, ['.AAA', '..AAA', '...AAA', '...AAA', '..AAA', '.AAA', 'AAA'], 0), { feet: { x: IML, y: 25 }, hit: { x: IML, y: 12 } });
+  [7, hg(IML, 3, 3, 'A'), '.'], // stubby legs
+  [3, hg(IML, 2, 4, 'L'), '.'], // and clawed feet
 
-// Bat wings, spread WIDER than the imp so they show behind it.
-const IWL = 16;
+]);
+impRows[6] = stamp(impRows[6], [5, 'GG'], [14, 'GG']);
+impRows[7] = stamp(impRows[7], [6, '#'], [14, '#']);
+const IMP_BODY = part(graft(impRows, 17, ['.AAA', '..AAA', '...AAA', '...AAA', '..AAA', '.AAA', 'AAA', '6'], 0), { feet: { x: IML, y: 31 }, hit: { x: IML, y: 15 } });
+
+// Bat wings, spread WIDER than the imp and two shades DOWN from it, so the
+// membrane sits behind the body instead of merging into it.
+const IWL = 17;
 const IMP_WINGS = part(
   bands(IWL, [
-    [1, hg(IWL, 0, 3, 'a'), '.'],
-    [2, hg(IWL, 0, 6, 'a'), '.'],
-    [2, hg(IWL, 1, 8, 'a'), '.'],
-    [2, hg(IWL, 2, 9, 'a'), '.'],
-    [2, hg(IWL, 4, 8, 'a'), '.'],
-    [2, hg(IWL, 6, 6, 'a'), '.'],
-    [2, hg(IWL, 8, 4, 'a'), '.'],
+    [1, hg(IWL, 0, 3, 'D'), '.'],
+    [2, hg(IWL, 0, 6, 'D'), '.'],
+    [2, hg(IWL, 1, 8, 'D'), '.'],
+    [3, hg(IWL, 2, 9, 'D'), '.'],
+    [2, hg(IWL, 4, 8, 'D'), '.'],
+    [2, hg(IWL, 6, 6, 'D'), '.'],
+    [2, hg(IWL, 8, 4, 'd'), '.'],
   ]),
 );
 
-// ASH_HOUND — a low, long-bodied quadruped with a heavy head at the front
-// and ember cracks glowing through the ash-grey hide. Authored as full rows
-// (not mirrored) because a head at one end is the whole point of it.
+// ASH_HOUND — a low, long-bodied quadruped with a heavy head at the front,
+// two pricked EARS, a clear shoulder/haunch break and ember cracks glowing
+// through the ash-grey hide. Authored as full rows (not mirrored) because a
+// head at one end is the whole point of it.
 const HOUND_BODY = part(
   [
+    '.........................C....C.........',
+    '........................CC...CC.........',
+    '.......................CCC..CCC.........',
+    '.........................CCCCCC.........',
     '..........................CCCCCCCC......',
     '...........CCCCCCCCC...CCCCCCCCCCCCC....',
     '........CCCCCCCCCCCCCCCCCCCCCCCCCCCCC...',
-    '......CCCCCCCCCCCCCCCCCCCCCCCCCGGCCCCC..',
-    '.....CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC.',
-    '....CCCCCCCCCCCCCCCCCCCCCCCC##########..',
-    '....CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC...',
-    '....CCCCACCCCCCCCACCCCCCCCCCCCCCCCC.....',
-    '....CCCCCCCCCCCCCCCCCCCCCCCCCCCCC.......',
-    '.....CCCCCCCCCCCCCCCCCCCCCCCCCC.........',
-    '.....cccccccccccccccccccccccc...........',
+    '......CCCCCCCCCCCCCCCCCCCCCGGGGCCCCCCC..',
+    '.....CCCCCCCCCCCCCCCCCCCCCGGGGGCCCCCCCC.',
+    '....CCCCCCCCCCCCCCCCCCCCCCCC#BBBBBBBB#..',
+    '....CCCCCCCCCCCCCCCCCCCCCCCC#BBBBBBB#...',
+    '....CCCCcCCCCCCCCcCCCCCCCCCCCCCCCCC.....', // shoulder and haunch breaks
+    '....CCCCcCCCCCCCCcCCCCCCCCCCCCCCC.......',
+    '.....CCCcCCCCCCCCcCCCCCCCCCCCCC.........',
+    '.....ccccccccccccccccccccccccc..........',
     '.....CCCC..CCCC......CCCC..CCCC.........',
     ...rep(7, '.....CCCC..CCCC......CCCC..CCCC.........'),
+    '.....cccc..cccc......cccc..cccc.........',
     '.....LLLL..LLLL......LLLL..LLLL.........',
     '....llllllllllll....llllllllllll........',
   ],
-  { feet: { x: 18, y: 20 }, hit: { x: 18, y: 6 } },
+  { feet: { x: 18, y: 25 }, hit: { x: 18, y: 10 } },
 );
 
 // DUST_WRAITH — a tall shroud with nothing under it: no legs, a hood whose
-// interior is a void with two lit eyes, and a hem that frays into wisps.
-const WRL = 13;
+// interior is a void with two lit eyes, and a hem that FRAYS the whole way
+// round and fades toward the ground rather than ending on a flat edge.
+const WRL = 14;
 const wraithRows = bands(WRL, [
-  [1, hb(WRL, 12, 'C'), 'C'], // hood peak
+  [1, hb(WRL, 13, 'C'), 'C'], // hood peak
+  [1, hb(WRL, 12, 'C'), 'C'],
   [1, hb(WRL, 11, 'C'), 'C'],
+  [1, hb(WRL, 10, 'C'), 'C'],
   [1, hb(WRL, 9, 'C'), 'C'],
-  [1, hb(WRL, 7, 'C'), 'C'],
-  [1, hb(WRL, 6, '#'), '#'], // the void inside the hood
-  [2, hb(WRL, 6, '#'), '#'],
-  [1, hb(WRL, 7, 'C'), 'C'], // the hood closes
-  [2, hb(WRL, 4, 'A'), 'A'], // shoulders
-  [4, hb(WRL, 2, 'A', 'aA'), 'A'],
-  [8, hb(WRL, 0, 'A', 'aA'), 'A'], // the shroud at its widest
-  [6, hb(WRL, 1, 'A', 'aA'), 'A'], // and drawing back in
-  [4, hb(WRL, 3, 'a'), 'a'],
-  [2, hb(WRL, 3, 'A'), 'A'],
-  [1, 'aaAAaAAAAaAAa', 'A'], // the hem frays rather than splitting into legs
-  [1, '.aA.AAa.AAaA.', 'A'],
-  [1, '..A..Aa..Aa..', '.'],
+  [1, hb(WRL, 8, 'C', 'ccc'), 'c'], // the void inside the cowl
+  [3, hb(WRL, 8, 'C', 'cccc'), 'c'],
+  [1, hb(WRL, 9, 'C'), 'C'], // the hood closes
+  [1, hb(WRL, 11, 'c'), 'c'], // on a thin neck
+  [2, hb(WRL, 6, 'A'), 'A'], // shoulders
+  [4, hbf(WRL, 4, 'A', 'a', [8]), 'A'],
+  [8, hbf(WRL, 2, 'A', 'a', [6, 11]), 'A'], // the shroud at its widest
+  [6, hbf(WRL, 3, 'A', 'a', [7, 11]), 'A'], // and drawing back in
+  [2, hb(WRL, 4, 'a'), 'a'],
+  [1, 'aaaaAAaAAAAaAA', 'A'], // and then frays away rather than ending flat
+  [1, '...aAaA.AAaAaA', 'a'],
+  [1, '...aA.a.AaaAa.', 'A'],
+  [1, '....6..a.6aAa.', 'a'],
+  [1, '.......6..a6..', '6'],
+  [1, '..........6...', '.'],
 ]);
-wraithRows[5] = stamp(wraithRows[5], [8, 'GGG'], [16, 'GGG']);
-wraithRows[6] = stamp(wraithRows[6], [8, 'ggg'], [16, 'ggg']);
-const WRAITH_BODY = part(wraithRows, { feet: { x: WRL, y: 39 }, hit: { x: WRL, y: 18 } });
+wraithRows[6] = stamp(wraithRows[6], [10, 'GG'], [17, 'GG']);
+wraithRows[7] = stamp(wraithRows[7], [10, 'gg'], [17, 'gg']);
+const WRAITH_BODY = part(wraithRows, { feet: { x: WRL, y: wraithRows.length - 1 }, hit: { x: WRL, y: 20 } });
 
 // CRYPT_WARDEN — a broad shelled brute: a plate across the chest, heavy
-// shoulders, short thick legs.
-const BRL = 17;
+// shoulders, a creased hide skirt, short thick legs.
+const BRL = 16;
 const BRUTE_BODY = part(
   bands(BRL, [
-    [2, hb(BRL, 14, 'C'), 'C'], // neck
-    [1, hb(BRL, 3, 'M'), 'M'], // shell shoulders
-    [3, hb(BRL, 0, 'M'), 'M'],
-    [2, hb(BRL, 1, 'm'), 'm'],
-    [7, hb(BRL, 4, 'C', 'MMMMMMMMM'), 'M'], // chest plate over hide
-    [1, hb(BRL, 4, '4'), 'M'], // belt
-    [1, hb(BRL, 4, '#'), 'M'],
-    [6, hb(BRL, 5, 'C'), 'C'],
-    [5, hg(BRL, 4, 10, 'C'), '.'], // thick short legs
-    [2, hg(BRL, 3, 11, 'L'), '.'],
-    [2, hg(BRL, 2, 12, 'l'), '.'],
+    [2, hb(BRL, 13, 'C'), 'C'], // neck
+    [1, hb(BRL, 4, 'M'), 'M'], // shell shoulders
+    [3, hb(BRL, 1, 'M'), 'M'],
+    [2, hb(BRL, 2, 'm'), 'm'],
+    [8, hb(BRL, 5, 'C', 'MMMMMMMM'), 'M'], // chest plate over hide
+    [1, hb(BRL, 5, '4'), 'M'], // belt
+    [1, hb(BRL, 5, '#'), 'M'],
+    [6, hbf(BRL, 5, 'C', 'c', [9]), 'C'],
+    [1, hb(BRL, 5, '2'), '2'], // hem band
+    [7, hg(BRL, 4, 10, 'C'), '.'], // thick short legs
+    [3, hg(BRL, 3, 11, 'L'), '.'],
+    [3, hg(BRL, 2, 12, 'l'), '.'],
   ]),
-  bodyAnchors(BRL, 32, 14),
+  bodyAnchors(BRL, 38, 15),
 );
 
-// BOG_TOAD — squat and very wide, two bulging eyes riding on top.
-const TDL = 16;
+// BOG_TOAD — squat and very wide, two bulging eyes riding on top, a CURVED
+// mouth that turns up at the corners, and a pale belly band under it.
+const TDL = 17;
 const toadRows = bands(TDL, [
   [1, hg(TDL, 5, 6, 'A'), '.'], // two bulging eyes
   [2, hg(TDL, 4, 8, 'A'), '.'],
   [1, hg(TDL, 4, 8, 'a'), '.'],
   [2, hb(TDL, 4, 'A'), 'A'], // brow
   [2, hb(TDL, 2, 'A'), 'A'],
-  [8, hb(TDL, 0, 'A'), 'A'], // wide body
+  [4, hb(TDL, 0, 'A'), 'A'], // wide body
+  [2, hb(TDL, 0, 'A'), 'A'], // mouth line stamped over this
+  [4, hb(TDL, 0, 'A', 'CCCC'), 'C'], // pale belly band
   [1, hb(TDL, 1, 'a'), 'a'],
   [2, hb(TDL, 4, 'a'), 'a'],
-  [3, hg2(TDL, 2, 4, 9, 4, 'A'), '.'], // squat legs
-  [2, hg2(TDL, 1, 5, 8, 5, 'a'), '.'],
+  [4, hg2(TDL, 2, 4, 10, 4, 'A'), '.'], // squat legs
+  [3, hg2(TDL, 1, 5, 9, 5, 'L'), '.'],
 ]);
-toadRows[1] = stamp(toadRows[1], [6, '$#'], [25, '#$']); // pupils with a catchlight
-toadRows[2] = stamp(toadRows[2], [6, '##'], [25, '##']);
-toadRows[7] = stamp(toadRows[7], [6, '#'.repeat(21)]); // a mouth the width of the face
-const TOAD_BODY = part(toadRows, { feet: { x: TDL, y: 23 }, hit: { x: TDL, y: 11 } });
+toadRows[1] = stamp(toadRows[1], [6, '%#'], [26, '#%']); // pupils with a catchlight
+toadRows[2] = stamp(toadRows[2], [6, '##'], [26, '##']);
+toadRows[11] = stamp(toadRows[11], [4, '##'], [29, '##']); // the mouth turns up at both corners
+toadRows[12] = stamp(toadRows[12], [5, '#'.repeat(25)]);
+const TOAD_BODY = part(toadRows, { feet: { x: TDL, y: 27 }, hit: { x: TDL, y: 13 } });
 
-// FROST_WISP — a small crystalline glow with a trail of motes, nothing like
-// FEN_FIRE's flame lick.
+// FROST_WISP — a tall crystalline shard trailing a tail of motes, nothing
+// like FEN_FIRE's flame lick. Its core is deliberately capped at a two-cell
+// hotspot: everything else falls to the glow ramp's cooler shades, so it
+// reads as lit rather than blown out.
 const WSL = 8;
-const WISP_BODY = part(
-  bands(WSL, [
-    [2, hb(WSL, 7, 'A'), 'A'], // spire
-    [1, hb(WSL, 5, 'A'), 'A'],
-    [1, hb(WSL, 4, 'G'), 'G'],
-    [1, hb(WSL, 2, 'G'), 'G'],
-    [1, hb(WSL, 1, 'G'), 'G'],
-    [3, hb(WSL, 0, 'G'), 'G'], // the crystal at its widest
-    [1, hb(WSL, 1, 'G'), 'G'],
-    [1, hb(WSL, 2, 'G'), 'G'],
-    [1, hb(WSL, 3, 'G'), 'G'],
-    [1, hb(WSL, 4, 'A'), 'A'],
-    [1, hb(WSL, 5, 'A'), 'A'],
-    [1, hb(WSL, 6, 'A'), 'A'],
-    [4, hg(WSL, 6, 2, 'g'), '.'],
-  ]),
-  { feet: { x: WSL, y: 17 }, hit: { x: WSL, y: 8 } },
-);
-
-// SILT_CRAB — a wide shell low to the ground with a big open pincer to each
-// side, reaching from above the shell down to it rather than perched on top.
-const CBL = 19;
-const crabRows = bands(CBL, [
-  [3, 'MMMMMMM............', '.'], // upper jaw of the pincer
-  [2, 'MMMM...............', '.'], // the pincer stands open
-  [4, 'MMMMMMM............', '.'], // lower jaw
-  [1, '.MMMMMM....AAAAAAAA', 'A'], // the shell starts between the arms
-  [1, '..MMMMM...AAAAAAAAA', 'A'],
-  [1, '...MMMM.AAAAAAAAAAA', 'A'],
-  [1, '....MM.AAAAAAAAAAAA', 'A'],
-  [8, '...AAAAAAAAAAAAAAAA', 'A'], // shell
-  [2, '....aaaaaaaaaaaaaaa', 'a'],
-  [2, hg2(CBL, 4, 3, 10, 3, 'M'), '.'], // legs
-  [2, hg2(CBL, 3, 3, 9, 3, 'm'), '.'],
+const wispRows = bands(WSL, [
+  [1, hb(WSL, 7, 'A'), 'A'], // spire
+  [2, hb(WSL, 6, 'A'), 'A'],
+  [1, hb(WSL, 5, 'g'), 'g'],
+  [1, hb(WSL, 4, 'g'), 'g'],
+  [1, hb(WSL, 2, 'g'), 'g'],
+  [1, hb(WSL, 1, 'G'), 'G'],
+  [4, hb(WSL, 0, 'G'), 'G'], // the crystal at its widest
+  [1, hb(WSL, 1, 'G'), 'G'],
+  [1, hb(WSL, 2, 'g'), 'g'],
+  [1, hb(WSL, 3, 'g'), 'g'],
+  [1, hb(WSL, 4, 'g'), 'g'],
+  [2, hb(WSL, 5, 'A'), 'A'],
+  [1, hb(WSL, 6, 'a'), 'a'],
+  [1, hg(WSL, 6, 2, 'g'), '.'], // the tail trails away in motes
+  [1, hg(WSL, 7, 1, 'g'), '.'],
+  [1, hg(WSL, 6, 2, 'a'), '.'],
+  [2, hg(WSL, 7, 1, 'a'), '.'],
+  [1, hg(WSL, 7, 1, '6'), '.'],
+  [2, hg(WSL, 7, 1, 'a'), '.'],
+  [1, hg(WSL, 7, 1, '6'), '.'],
 ]);
-crabRows[13] = stamp(crabRows[13], [15, 'G'], [23, 'G']); // stalked eyes
-const CRAB_BODY = part(crabRows, { feet: { x: CBL, y: 24 }, hit: { x: CBL, y: 15 } });
+const WISP_BODY = part(stampRows(wispRows, 9, 10, [WSL - 1, '@@@']), { feet: { x: WSL, y: 26 }, hit: { x: WSL, y: 10 } });
 
-// FEN_FIRE — a slender flame lick, taller than it is wide.
-const FFL = 7;
+// SILT_CRAB — a ROUNDED carapace low to the ground, two silt-brown arms
+// (never steel) two cells thick reaching up and out into open pincers, and
+// stalked eyes on the shell.
+const CBL = 20;
+const crabRows = bands(CBL, [
+  [3, 'AAAAAA..............', '.'], // upper jaw of the pincer
+  [2, 'AAAA................', '.'], // the pincer stands open
+  [3, 'AAAAAA..............', '.'], // lower jaw
+  [1, '.AAAAA..............', '.'],
+  [1, '..AAAA.....AAAAAAAAA', 'A'], // the shell starts between the arms
+  [1, '...AAA...AAAAAAAAAAA', 'A'],
+  [1, '...AAA.AAAAAAAAAAAAA', 'A'],
+  [1, '...AA.AAAAAAAAAAAAAA', 'A'],
+  [7, '...AAAAAAAAAAAAAAAAA', 'A'], // rounded shell
+  [1, '....AAAAAAAAAAAAAAAA', 'A'],
+  [2, '.....aaaaaaaaaaaaaaa', 'a'],
+  [1, '......aaaaaaaaaaaaaa', 'a'],
+  [3, hg2(CBL, 5, 3, 11, 3, 'L'), '.'], // legs
+  [3, hg2(CBL, 4, 3, 10, 3, 'l'), '.'],
+]);
+const crabEyed = stampRows(stampRows(crabRows, 13, 13, [15, 'GG'], [24, 'GG']), 14, 15, [15, 'GG'], [24, 'GG']); // stalked eyes
+const CRAB_BODY = part(crabEyed, { feet: { x: CBL, y: 29 }, hit: { x: CBL, y: 17 } });
+
+// FEN_FIRE — a flame lick, not an egg: two tongues cut out of the top
+// silhouette and a dark core, so the shape reads as fire even in one frame.
+const FFL = 8;
+const fenRows = bands(FFL, [
+  [1, hb(FFL, 7, 'g'), '.'],
+  [1, hb(FFL, 6, 'g'), '.'],
+  [1, hb(FFL, 5, 'g'), 'g'],
+  [2, hb(FFL, 4, 'g'), 'g'],
+  [2, hb(FFL, 3, 'G'), 'G'],
+  [4, hb(FFL, 2, 'G'), 'G'],
+  [5, hb(FFL, 1, 'G'), 'G'],
+  [3, hb(FFL, 2, 'g'), 'g'],
+  [2, hb(FFL, 3, 'A'), 'A'],
+  [2, hg(FFL, 4, 2, 'a'), '.'],
+  [1, hg(FFL, 5, 1, '6'), '.'],
+  [2, hg(FFL, 5, 1, 'a'), '.'],
+]);
 const FENFIRE_BODY = part(
-  bands(FFL, [
-    [1, hb(FFL, 5, 'G'), 'G'],
-    [1, hb(FFL, 4, 'G'), 'G'],
-    [2, hb(FFL, 3, 'G'), 'G'],
-    [2, hb(FFL, 2, 'G'), 'G'],
-    [4, hb(FFL, 1, 'G'), 'G'],
-    [4, hb(FFL, 0, 'G'), 'G'],
-    [2, hb(FFL, 1, 'G'), 'G'],
-    [2, hb(FFL, 2, 'A'), 'A'],
-    [2, hg(FFL, 3, 2, 'g'), '.'],
-  ]),
-  { feet: { x: FFL, y: 19 }, hit: { x: FFL, y: 8 } },
+  stampRows(stampRows(fenRows, 0, 4, [5, '.'], [11, '.']), 10, 14, [FFL - 1, '@@@']).map((r, i) => (i === 2 ? stamp(r, [7, 'g'], [9, 'g']) : r)),
+  { feet: { x: FFL, y: 25 }, hit: { x: FFL, y: 12 } },
 );
 
 // --- Boss-scale bodies and heads ----------------------------------------------
 // Authored for the 96-cell boss canvas. The two bosses share no silhouette:
-// the Hollow King is BONE — a ribcage you can see daylight through and long
-// separated legs, with negative space as its identity — while the Pale
-// Saint is an unbroken robed mass. Crown-and-claws versus halo-and-orb is
-// the second read, not the first.
+// the Hollow King is BONE — a ribcage you can see daylight through, two long
+// bone arms and long separated legs, with negative space as its identity —
+// while the Pale Saint is an unbroken robed mass with a flared hem.
+// Crown-and-claws versus halo-and-orb is the second read, not the first.
 
 const KBL = 20; // boss body half-width → 41
 const KHL = 15; // boss head half-width → 31
 
-const kingRibs: Band[] = [];
-for (const pad of [2, 2, 3, 3, 4, 5]) {
-  kingRibs.push([2, hb(KBL, pad, 'B'), 'B']); // a rib
-  kingRibs.push([1, hb(KBL, 14, 'b'), 'b']); // the gap between two, spine only
+// Six rib PAIRS: each rib starts near the spine and sweeps DOWN AND OUT (the
+// lower of its two rows is the wider), and each pair is shorter than the one
+// above, so the cage tapers to the pelvis instead of reading as a radiator.
+const kingRibs: string[] = [];
+for (const pad of [3, 3, 4, 5, 6, 8]) {
+  kingRibs.push(sym(KBL, hb(KBL, pad + 3, 'B'), 'B'));
+  kingRibs.push(sym(KBL, hb(KBL, pad, 'B'), 'B'));
+  kingRibs.push(sym(KBL, hb(KBL, KBL - 3, 'b'), 'b')); // the gap between two, spine only
 }
-const KING_BODY = part(
-  bands(KBL, [
+const kingRows = [
+  ...bands(KBL, [
     [2, hb(KBL, 16, 'B'), 'B'], // neck vertebrae
     [1, hb(KBL, 6, 'B'), 'B'], // clavicle
     [2, hb(KBL, 2, 'B'), 'B'], // shoulder girdle, the widest bone
     [1, hb(KBL, 3, 'b'), 'b'],
-    ...kingRibs,
+  ]),
+  ...kingRibs,
+  ...bands(KBL, [
     [2, hb(KBL, 14, 'B'), 'B'], // lumbar spine
     [3, hb(KBL, 7, 'B'), 'B'], // pelvis
     [2, hb(KBL, 10, '#'), '#'], // hip sockets
@@ -1208,8 +1404,17 @@ const KING_BODY = part(
     [3, hg(KBL, 6, 7, 'B'), '.'],
     [2, hg(KBL, 5, 8, 'b'), '.'],
   ]),
-  { head: { x: KBL, y: 0 }, hand: { x: KBL, y: 4 }, weaponGrip: { x: 38, y: 6 }, capePin: { x: KBL, y: 3 }, feet: { x: KBL, y: 57 }, hit: { x: KBL, y: 26 } },
-);
+];
+// Both arms, hanging clear of the cage from the shoulder girdle to the hip —
+// the king is not a one-armed skeleton.
+const KING_BODY = part(stampRows(stampRows(kingRows, 5, 24, [0, 'BBB'], [38, 'BBB']), 25, 26, [1, 'BB'], [38, 'BB']), {
+  head: { x: KBL, y: 0 },
+  hand: { x: KBL, y: 4 },
+  weaponGrip: { x: 38, y: 25 },
+  capePin: { x: KBL, y: 3 },
+  feet: { x: KBL, y: kingRows.length - 1 },
+  hit: { x: KBL, y: 28 },
+});
 
 const kingHeadRows = bands(KHL, [
   [1, hb(KHL, 10, 'B'), 'B'],
@@ -1228,33 +1433,43 @@ const kingHeadRows = bands(KHL, [
   [2, hb(KHL, 6, 'b'), 'b'],
   [2, hb(KHL, 8, 'b'), 'b'],
 ]);
-kingHeadRows[10] = stamp(kingHeadRows[10], [6, '#####'], [20, '#####']);
-kingHeadRows[11] = stamp(kingHeadRows[11], [6, '#GGG#'], [20, '#GGG#']);
-kingHeadRows[12] = stamp(kingHeadRows[12], [7, '###'], [21, '###']);
+kingHeadRows[9] = stamp(kingHeadRows[9], [5, '######'], [20, '######']);
+kingHeadRows[10] = stamp(kingHeadRows[10], [5, '#G@GG#'], [20, '#GG@G#']);
+kingHeadRows[11] = stamp(kingHeadRows[11], [5, '#g##g#'], [20, '#g##g#']);
+kingHeadRows[12] = stamp(kingHeadRows[12], [6, '####'], [21, '####']);
+kingHeadRows[15] = stamp(kingHeadRows[15], [13, 'b##b'], [0, '']); // the nasal cavity
 kingHeadRows[20] = stamp(kingHeadRows[20], [9, '#'], [12, '#'], [15, '#'], [18, '#'], [21, '#']);
 kingHeadRows[21] = stamp(kingHeadRows[21], [9, '#'], [12, '#'], [15, '#'], [18, '#'], [21, '#']);
 const KING_HEAD = part(kingHeadRows, { head: { x: KHL, y: 27 } });
 
 // The Pale Saint: a pale mantle with a gold placket, sash, collar and hem —
-// the gold is trim on white, never the whole garment.
-const SAINT_BODY = part(
-  bands(KBL, [
-    [2, hb(KBL, 16, 'S'), 'S'], // neck
-    [1, hb(KBL, 10, 'A'), 'A'], // gold collar
-    [2, hb(KBL, 6, 'C'), 'C'], // mantle shoulders
-    [1, hb(KBL, 7, 'c'), 'c'],
-    [6, hb(KBL, 4, 'C', 'AA'), 'C'], // mantle, gold placket down the front
-    [1, hb(KBL, 4, 'A'), 'A'], // sash
-    [1, hb(KBL, 4, '#'), 'M'],
-    [8, hb(KBL, 3, 'C', 'AA'), 'C'],
-    [3, hb(KBL, 2, 'C', 'AA'), 'C'],
-    [14, hb(KBL, 1, 'C', 'AA'), 'C'],
-    [18, hb(KBL, 0, 'C', 'AA'), 'C'], // the robe reaches the floor, unbroken
-    [3, hb(KBL, 0, 'A'), 'A'], // gold hem
-    [3, hb(KBL, 0, '2'), '2'],
-  ]),
-  { head: { x: KBL, y: 0 }, hand: { x: KBL, y: 3 }, weaponGrip: { x: KBL, y: 26 }, capePin: { x: KBL, y: 2 }, feet: { x: KBL, y: 62 }, hit: { x: KBL, y: 26 } },
-);
+// the gold is trim on white, never the whole garment — creased down its
+// length, an off-centre medallion, and a hem that FLARES four cells past the
+// robe so the figure ends in a skirt rather than a fridge door.
+const saintRows = bands(KBL, [
+  [2, hb(KBL, 16, 'S'), 'S'], // neck
+  [1, hb(KBL, 10, 'A'), 'A'], // gold collar
+  [2, hb(KBL, 6, 'C'), 'C'], // mantle shoulders
+  [1, hb(KBL, 7, 'c'), 'c'],
+  [6, hb(KBL, 4, 'C', 'AA'), 'C'], // mantle, gold placket down the front
+  [1, hb(KBL, 4, 'A'), 'A'], // sash
+  [1, hb(KBL, 4, '#'), 'M'],
+  [8, hbf(KBL, 3, 'C', 'c', [8, 14], 'AA'), 'C'],
+  [3, hbf(KBL, 2, 'C', 'c', [7, 13], 'AA'), 'C'],
+  [14, hbf(KBL, 1, 'C', 'c', [6, 12], 'AA'), 'C'],
+  [14, hbf(KBL, 0, 'C', 'c', [5, 11], 'AA'), 'C'],
+  [4, hbf(KBL, 0, 'C', 'c', [4, 10], 'AA'), 'C'], // and flares
+  [3, hb(KBL, 0, 'A'), 'A'], // gold hem
+  [2, hb(KBL, 0, '2'), '2'],
+]);
+const SAINT_BODY = part(stampRows(saintRows, 11, 13, [KBL - 5, 'AAA'], [KBL - 4, 'A!A']), {
+  head: { x: KBL, y: 0 },
+  hand: { x: KBL, y: 3 },
+  weaponGrip: { x: KBL, y: 30 },
+  capePin: { x: KBL, y: 2 },
+  feet: { x: KBL, y: saintRows.length - 1 },
+  hit: { x: KBL, y: 30 },
+});
 
 const saintHeadRows = bands(KHL, [
   [1, hb(KHL, 10, 'C'), 'C'], // veil crown
@@ -1265,16 +1480,68 @@ const saintHeadRows = bands(KHL, [
   [4, hb(KHL, 1, 'C'), 'C'],
   [1, hb(KHL, 1, 'C'), 'C'],
   [3, '.CCCSSSSSSSSSSS', 'S'], // the veil parts over the brow
-  [3, '.CCCSSSSSSSSSSS', 'S'], // eyes, closed
+  [3, '.CCCSSSSSSSSSSS', 'S'], // a real eye cluster
   [3, '.CCCSSSSSSSSSSS', 'S'],
   [2, '.CCCCSSSSSSSSSS', 'S'],
   [2, hb(KHL, 3, 'C'), 'C'], // the veil closes under the chin
   [3, hb(KHL, 5, 'C'), 'C'],
   [1, hb(KHL, 8, 'c'), 'c'],
 ]);
-saintHeadRows[14] = stamp(saintHeadRows[14], [7, '###'], [21, '###']);
-saintHeadRows[15] = stamp(saintHeadRows[15], [7, '$$$'], [21, '$$$']);
-const SAINT_HEAD = part(saintHeadRows, { head: { x: KHL, y: 27 } });
+const SAINT_HEAD = part(
+  stampRows(
+    stampRows(stampRows(saintHeadRows, 14, 14, [7, '####'], [20, '####']), 15, 15, [7, '#$$#'], [20, '#$$#']),
+    16,
+    16,
+    [8, '##'],
+    [21, '##'],
+  ).map((r, i) => (i === 19 ? stamp(r, [12, 'sssssss']) : r)), // chin shadow
+  { head: { x: KHL, y: 27 } },
+);
+
+// The Pale Saint's sleeves: the same cradle as TIDE's, at boss width.
+const SLH = 19;
+const ARMS_ROBE_BOSS = part(
+  stampRows(
+    bands(SLH, [
+      [3, hg(SLH, 0, 8, 'C'), '.'],
+      [3, hg(SLH, 1, 8, 'C'), '.'],
+      [3, hg(SLH, 3, 8, 'C'), '.'],
+      [3, hg(SLH, 5, 8, 'C'), '.'],
+      [3, hg(SLH, 7, 8, 'C'), '.'],
+      [3, hg(SLH, 9, 8, 'C'), '.'],
+      [2, hg(SLH, 11, 8, 'c'), '.'],
+      [3, hb(SLH, 13, 'A'), 'A'], // gold cuffs meeting
+      [4, hb(SLH, 14, 'S'), 'S'], // cupped palms
+      [2, hb(SLH, 15, 'S'), 'S'],
+    ]),
+    28,
+    30,
+    [16, '#'],
+    [22, '#'],
+  ),
+  { hand: { x: SLH, y: 0 }, weaponGrip: { x: SLH, y: 22 } },
+);
+
+// CLOAK_SHORT — SABLE: a hero-scale drape hung behind the body, wider and
+// longer than it so a cloak silhouette actually shows past the shoulders and
+// below the hem; the lining is a second colour down both leading edges and
+// the whole thing is creased.
+const SCL = 17;
+const CLOAK_SHORT = part(
+  bands(SCL, [
+    [1, hb(SCL, 13, 'D'), 'D'], // collar
+    [2, hb(SCL, 10, 'D'), 'D'],
+    [2, hb(SCL, 6, 'D'), 'D'],
+    [3, hbf(SCL, 3, 'D', 'd', [7]), 'D'],
+    [5, hbf(SCL, 1, 'D', 'd', [5, 11]), 'D'],
+    [12, hbf(SCL, 0, 'D', 'd', [4, 10]), 'D'],
+    [4, hbf(SCL, 1, 'D', 'd', [5, 11]), 'D'],
+    [2, hb(SCL, 2, 'd'), 'd'],
+    [1, hg2(SCL, 2, 6, 10, 5, 'd'), 'd'], // a torn hem
+    [1, hg2(SCL, 3, 4, 11, 3, '3'), '.'],
+  ]),
+  { capePin: { x: SCL, y: 1 } },
+);
 
 // --- Library ------------------------------------------------------------------
 
@@ -1292,6 +1559,8 @@ export const PART_LIBRARY = {
   head_gale: HEAD_GALE,
   head_tide: HEAD_TIDE,
   head_basalt: HEAD_BASALT,
+  head_pyre: HEAD_PYRE,
+  head_drowned: HEAD_DROWNED,
   head_sable: HEAD_SABLE,
   head_lumen: HEAD_LUMEN,
   head_hag: HEAD_HAG,
@@ -1302,6 +1571,7 @@ export const PART_LIBRARY = {
   arms_mantle: ARMS_MANTLE,
   arms_plate: ARMS_PLATE,
   arms_robe: ARMS_ROBE,
+  arms_robe_boss: ARMS_ROBE_BOSS,
   // weapons
   staff: STAFF,
   dagger: DAGGER,
@@ -1313,11 +1583,14 @@ export const PART_LIBRARY = {
   sword: SWORD,
   tower_shield: TOWER_SHIELD,
   shield: SHIELD,
+  shield_broken: SHIELD_BROKEN,
   lantern: LANTERN,
   cane: CANE,
   claw: CLAW,
+  claw_left: CLAW_LEFT,
   // capes and crests
   scarf: SCARF,
+  cloak_short: CLOAK_SHORT,
   cloak_ragged: CLOAK_RAGGED,
   cloak_holy: CLOAK_HOLY,
   crown: CROWN,
