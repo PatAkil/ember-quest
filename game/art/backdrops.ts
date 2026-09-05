@@ -156,9 +156,9 @@ function fadeTop(ctx: CanvasRenderingContext2D, width: number, y: number, h: num
  * A WHISPER of the room's own courses: a few lines converging on the vanishing
  * point and flagstone courses foreshortening toward the wall. This used to be
  * the only texture on the floor and read as a demo grid; it survives as one
- * faint layer under the scatter — jittered spacing, per-line alpha, partial
- * spans and a fade-out well before the bottom edge, so the near field is
- * debris and the lattice never crosses the whole frame.
+ * faint layer under the scatter — DASHED into three to five pieces per line
+ * with gaps, jittered spacing, per-dash alpha and a fade-out well before the
+ * bottom edge, so the near field is debris and no course ever runs end to end.
  */
 function floorGrid(
   ctx: CanvasRenderingContext2D,
@@ -172,32 +172,50 @@ function floorGrid(
   ctx.save();
   ctx.strokeStyle = line;
   ctx.lineWidth = 1;
-  // Every line runs through (VP_X, VP_Y); only a stretch below the wall is drawn.
+  // Every line runs through (VP_X, VP_Y); only a stretch below the wall is
+  // drawn, and it is drawn in THREE TO FIVE DASHES with gaps. A worn course in
+  // stone is not continuous, and an unbroken converging line is the only
+  // straight thing left on a masonry floor once the scatter and grain are in.
   for (let i = -5; i <= 5; i++) {
     if (rand() < 0.3) continue;
     const xb = VP_X + i * 190 + (rand() - 0.5) * 84;
     const k = (FLOOR_Y - VP_Y) / (height - VP_Y);
     const yEnd = FLOOR_Y + (height - FLOOR_Y) * (0.45 + rand() * 0.45);
     const t = (yEnd - VP_Y) / (height - VP_Y);
-    ctx.globalAlpha = alpha * (0.45 + rand() * 0.7);
-    ctx.beginPath();
-    ctx.moveTo(VP_X + (xb - VP_X) * k, FLOOR_Y);
-    ctx.lineTo(VP_X + (xb - VP_X) * t, yEnd);
-    ctx.stroke();
+    const ax = VP_X + (xb - VP_X) * k;
+    const bx = VP_X + (xb - VP_X) * t;
+    const pieces = 3 + Math.floor(rand() * 3);
+    let u = rand() * 0.16;
+    for (let d = 0; d < pieces && u < 1; d++) {
+      const v = Math.min(1, u + 0.1 + rand() * 0.17);
+      ctx.globalAlpha = alpha * (0.4 + rand() * 0.75);
+      ctx.beginPath();
+      ctx.moveTo(ax + (bx - ax) * u, FLOOR_Y + (yEnd - FLOOR_Y) * u);
+      ctx.lineTo(ax + (bx - ax) * v, FLOOR_Y + (yEnd - FLOOR_Y) * v);
+      ctx.stroke();
+      u = v + 0.07 + rand() * 0.18;
+    }
   }
-  // Courses: y advances geometrically so the flagstones foreshorten, but each
-  // is a partial span at its own alpha and they give out before the front.
+  // Courses: y advances geometrically so the flagstones foreshorten. Each is
+  // dashed the same way and they give out well before the front.
   let y = FLOOR_Y + 6;
   let step = 8;
   while (y < height) {
     const t = (y - FLOOR_Y) / (height - FLOOR_Y);
-    ctx.globalAlpha = alpha * (0.4 + rand() * 0.7) * Math.max(0, 1 - t * t * 1.35);
+    const fade = Math.max(0, 1 - t * t * 1.35);
     const x0 = rand() * width * 0.34;
     const x1 = width - rand() * width * 0.34;
-    ctx.beginPath();
-    ctx.moveTo(x0, y);
-    ctx.lineTo(x1, y + (rand() - 0.5) * 3);
-    ctx.stroke();
+    const pieces = 2 + Math.floor(rand() * 3);
+    let u = rand() * 0.12;
+    for (let d = 0; d < pieces && u < 1; d++) {
+      const v = Math.min(1, u + 0.14 + rand() * 0.24);
+      ctx.globalAlpha = alpha * (0.4 + rand() * 0.7) * fade;
+      ctx.beginPath();
+      ctx.moveTo(x0 + (x1 - x0) * u, y + (rand() - 0.5) * 2);
+      ctx.lineTo(x0 + (x1 - x0) * v, y + (rand() - 0.5) * 3);
+      ctx.stroke();
+      u = v + 0.06 + rand() * 0.2;
+    }
     y += step * (0.8 + rand() * 0.5);
     step *= 1.34;
   }
@@ -784,7 +802,7 @@ function readingShade(ctx: CanvasRenderingContext2D, W: number, H: number, ink: 
 /** Where a ground pass thins out: the pool it crowds into, in logical px. */
 interface ScatterOptions {
   seed: number;
-  /** 60-120 pieces, per the scene brief. */
+  /** Pieces to place. The six biomes run 108-132. */
   count: number;
   kinds: readonly ScatterKind[];
   ink: GroundInk;
@@ -863,6 +881,53 @@ function scatterGround(ctx: CanvasRenderingContext2D, W: number, H: number, o: S
       kind.draw(ctx, s, rand, o.ink);
       ctx.restore();
     }
+  }
+  ctx.restore();
+}
+
+/**
+ * A structural crack running down the floor. Drawn as a chain of short,
+ * jittered, tapering segments with gaps rather than one polyline: a crack in
+ * stone branches, pinches out and picks up again, and an unbroken 2-px line
+ * from the wall to the frame edge is exactly the kind of straight run the rest
+ * of this file spends its effort breaking.
+ */
+function crackRun(
+  ctx: CanvasRenderingContext2D,
+  x0: number,
+  x1: number,
+  yTop: number,
+  yBot: number,
+  color: string,
+  alpha: number,
+  seed: number,
+): void {
+  const rand = rng(seed);
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineCap = 'round';
+  let u = rand() * 0.1;
+  while (u < 1) {
+    const v = Math.min(1, u + 0.1 + rand() * 0.16);
+    const px = (t: number) => x0 + (x1 - x0) * t + (rand() - 0.5) * 9;
+    const py = (t: number) => yTop + (yBot - yTop) * t;
+    ctx.globalAlpha = alpha * (0.55 + rand() * 0.7);
+    ctx.lineWidth = 1 + u * 1.8;
+    ctx.beginPath();
+    ctx.moveTo(px(u), py(u));
+    ctx.lineTo(px((u + v) / 2), py((u + v) / 2));
+    ctx.lineTo(px(v), py(v));
+    ctx.stroke();
+    // A branch, now and then.
+    if (rand() < 0.3) {
+      ctx.globalAlpha = alpha * 0.5;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(px(v), py(v));
+      ctx.lineTo(px(v) + (rand() - 0.5) * 60, py(v) + 12 + rand() * 26);
+      ctx.stroke();
+    }
+    u = v + 0.05 + rand() * 0.13;
   }
   ctx.restore();
 }
@@ -1011,6 +1076,37 @@ function rimEdge(
   ctx.restore();
 }
 
+/**
+ * Model a prop's faces. A flat fill under a 2-px keyline is a line drawing:
+ * the eye gets an outline and no form. This clips to the shape and lays a
+ * gradient down its short axis — a lit top face, an unlit mid flank, a dark
+ * underside — which is the same barrel trick `fallenColumn` uses, applied to
+ * every slab, box and trough so one rule shades them all.
+ */
+function faceShade(
+  ctx: CanvasRenderingContext2D,
+  pts: readonly number[],
+  top: number,
+  bottom: number,
+  lit: string,
+  litA: number,
+): void {
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(pts[0], pts[1]);
+  for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]);
+  ctx.closePath();
+  ctx.clip();
+  const g = ctx.createLinearGradient(0, top, 0, bottom);
+  g.addColorStop(0, hexA(lit, litA * 1.5));
+  g.addColorStop(0.22, hexA(lit, litA * 0.55));
+  g.addColorStop(0.5, 'rgba(0,0,0,0)');
+  g.addColorStop(1, 'rgba(0,0,0,0.38)');
+  ctx.fillStyle = g;
+  ctx.fillRect(-4000, top - 4, 8000, bottom - top + 8);
+  ctx.restore();
+}
+
 /** A rectangular mass standing on the floor, tilted, with a key rim and a cast shadow. */
 function slabProp(
   ctx: CanvasRenderingContext2D,
@@ -1028,7 +1124,9 @@ function slabProp(
   ctx.translate(x, baseY);
   ctx.rotate(rot);
   const hw = w / 2;
-  poly(ctx, [-hw, 0, -hw * 0.92, -h, hw * 0.92, -h, hw, 0], fill);
+  const face = [-hw, 0, -hw * 0.92, -h, hw * 0.92, -h, hw, 0];
+  poly(ctx, face, fill);
+  faceShade(ctx, face, -h, 0, rim, rimA);
   rimEdge(ctx, [-hw, 0, -hw * 0.92, -h, hw * 0.92, -h], rim, rimA);
   ctx.restore();
 }
@@ -1146,15 +1244,151 @@ function wedgeBox(
   ctx.rotate(rot);
   const hw = w / 2;
   const tw = hw * taper;
-  poly(ctx, [-hw, 0, -tw, -h, tw, -h, hw, 0], fill);
+  const body = [-hw, 0, -tw, -h, tw, -h, hw, 0];
+  poly(ctx, body, fill);
+  faceShade(ctx, body, -h, 0, rim, rimA);
   if (lid) {
     // Slid off to the key side, proud by a hair — a lid that overhangs on both
     // sides stops being a lid and becomes a table top.
     const sh = w * 0.09;
-    poly(ctx, [-tw - w * 0.03 + sh, -h, -tw + sh, -h - h * 0.16, tw + sh, -h - h * 0.16, tw + w * 0.03 + sh, -h], fill);
-    rimEdge(ctx, [-tw - w * 0.03 + sh, -h, -tw + sh, -h - h * 0.16, tw + sh, -h - h * 0.16], rim, rimA);
+    const cap = [-tw - w * 0.03 + sh, -h, -tw + sh, -h - h * 0.16, tw + sh, -h - h * 0.16, tw + w * 0.03 + sh, -h];
+    poly(ctx, cap, fill);
+    // The lid catches the key across its whole top face, not on a hairline.
+    faceShade(ctx, cap, -h - h * 0.16, -h, rim, rimA * 1.35);
+    rimEdge(ctx, [-tw - w * 0.03 + sh, -h, -tw + sh, -h - h * 0.16, tw + sh, -h - h * 0.16], rim, rimA * 0.8, 1.5);
   }
   rimEdge(ctx, [-hw, 0, -tw, -h], rim, rimA);
+  ctx.restore();
+}
+
+/**
+ * A bell on its side. Its predecessor was one flat fill a couple of L* off the
+ * floor with a 2.5-px keyline over it, so all that reached the frame was a
+ * bare white chevron. This one is modelled: a body a clear step lighter than
+ * the ground, a barrel gradient across the short axis (lit crown, mid flank,
+ * dark underside), two raised mouldings, a dark mouth with a lit rim, and the
+ * canon loop at the closed end.
+ */
+function fallenBell(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  len: number,
+  r: number,
+  rot: number,
+  fill: string,
+  lit: string,
+  litA: number,
+): void {
+  propShadow(ctx, x + len * 0.05, y + r * 0.85, len * 0.5, 0.44);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+  const hl = len / 2;
+  const crownR = r * 0.46;
+  // The flare, crown at the left and mouth at the right.
+  ctx.beginPath();
+  ctx.moveTo(-hl, -crownR);
+  ctx.bezierCurveTo(-hl * 0.1, -crownR * 1.05, hl * 0.45, -r * 0.82, hl, -r);
+  ctx.lineTo(hl, r);
+  ctx.bezierCurveTo(hl * 0.45, r * 0.82, -hl * 0.1, crownR * 1.05, -hl, crownR);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.save();
+  ctx.clip();
+  const g = ctx.createLinearGradient(0, -r * 1.05, 0, r * 1.05);
+  g.addColorStop(0, hexA(lit, litA * 1.9));
+  g.addColorStop(0.26, hexA(lit, litA * 0.7));
+  g.addColorStop(0.54, 'rgba(0,0,0,0)');
+  g.addColorStop(1, 'rgba(0,0,0,0.5)');
+  ctx.fillStyle = g;
+  ctx.fillRect(-hl - 6, -r - 6, len + 12, r * 2 + 12);
+  // Two raised mouldings around the waist.
+  ctx.globalAlpha = litA * 0.7;
+  ctx.fillStyle = lit;
+  ctx.fillRect(hl * 0.12, -r, 1.6, r * 2);
+  ctx.fillRect(hl * 0.4, -r, 1.4, r * 2);
+  ctx.globalAlpha = 0.22;
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(hl * 0.12 + 1.6, -r, 2, r * 2);
+  ctx.fillRect(hl * 0.4 + 1.4, -r, 1.8, r * 2);
+  ctx.restore();
+  // The mouth: the inside of a bell is the darkest thing on it.
+  ctx.beginPath();
+  ctx.ellipse(hl, 0, r * 0.3, r, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#07080e';
+  ctx.fill();
+  ctx.save();
+  ctx.globalAlpha = litA * 1.4;
+  ctx.strokeStyle = lit;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(hl, 0, r * 0.3, r, 0, Math.PI * 0.75, Math.PI * 1.6);
+  ctx.stroke();
+  ctx.restore();
+  // The canon: the loop it hung from.
+  ctx.save();
+  ctx.globalAlpha = litA * 1.2;
+  ctx.strokeStyle = lit;
+  ctx.lineWidth = 3.5;
+  ctx.beginPath();
+  ctx.arc(-hl - crownR * 0.5, 0, crownR * 0.62, Math.PI * 0.55, Math.PI * 1.45);
+  ctx.stroke();
+  ctx.restore();
+  rimEdge(ctx, [-hl, -crownR, 0, -r * 0.74, hl, -r], lit, litA * 1.5, 2);
+  ctx.restore();
+}
+
+/**
+ * A quench trough: three modelled faces (a lit coping along the top, a mid
+ * flank, a dark underside) with soft-edged slack water sitting inside the
+ * mouth. Drawn as a flat slab with a keyline it read as a line drawing at 3x.
+ */
+function trough(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  baseY: number,
+  w: number,
+  h: number,
+  fill: string,
+  lit: string,
+  litA: number,
+  water: string,
+): void {
+  propShadow(ctx, x, baseY, w * 0.6, 0.42);
+  const hw = w / 2;
+  const lip = Math.max(9, h * 0.44);
+  // The front flank.
+  const flank = [x - hw, baseY, x - hw * 0.96, baseY - h, x + hw * 0.96, baseY - h, x + hw, baseY];
+  poly(ctx, flank, fill);
+  faceShade(ctx, flank, baseY - h, baseY, lit, litA * 0.8);
+  // The coping the water sits in, seen from slightly above.
+  const cope = [
+    x - hw * 0.96, baseY - h,
+    x - hw * 0.88, baseY - h - lip,
+    x + hw * 0.88, baseY - h - lip,
+    x + hw * 0.96, baseY - h,
+  ];
+  poly(ctx, cope, fill);
+  // A top face is the lightest plane on the prop, so it is FILLED with the key
+  // tone rather than outlined with it — an outline plus a gradient read as two
+  // parallel bright bars at 3x, which is a line drawing, not a coping.
+  ctx.save();
+  ctx.globalAlpha = litA * 0.9;
+  poly(ctx, cope, lit);
+  ctx.restore();
+  faceShade(ctx, cope, baseY - h - lip, baseY - h, lit, litA * 0.8);
+  // Slack water inside the mouth: soft at both ends, with one specular streak.
+  blobAt(ctx, x - w * 0.02, baseY - h - lip * 0.42, hw * 0.78, lip * 0.5, water, 0.16, true);
+  ctx.save();
+  ctx.globalAlpha = 0.2;
+  ctx.strokeStyle = water;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x - hw * 0.5, baseY - h - lip * 0.56);
+  ctx.lineTo(x + hw * 0.16, baseY - h - lip * 0.62);
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -1424,19 +1658,11 @@ const CRYPT: BiomeLook = {
     fallenColumn(ctx, 568, FLOOR_Y + 120, 140, 24, -0.06, '#0e0a19', '#8a7896', 0.32);
     slabProp(ctx, 658, FLOOR_Y + 134, 54, 26, 0.3, '#0c0816', '#8a7896', 0.3);
     drum(ctx, 502, FLOOR_Y + 146, 56, 40, '#0e0a19', '#8a7896', 0.3);
-    // The deep structural cracks the flagstones broke around.
-    ctx.save();
-    ctx.globalAlpha = 0.4;
-    ctx.strokeStyle = '#080610';
-    ctx.lineWidth = 2;
+    // The deep structural cracks the flagstones broke around — broken into
+    // segments and branches, not three continuous rules down the floor.
     for (const [x0, x1] of [[560, 470], [760, 900], [640, 660]] as const) {
-      ctx.beginPath();
-      ctx.moveTo(x0, FLOOR_Y + 20);
-      ctx.lineTo((x0 + x1) / 2, FLOOR_Y + 130);
-      ctx.lineTo(x1, H);
-      ctx.stroke();
+      crackRun(ctx, x0, x1, FLOOR_Y + 20, H, '#080610', 0.42, CRYPT_SEED ^ x0);
     }
-    ctx.restore();
     readingShade(ctx, W, H, '#07050d');
     fadeTop(ctx, W, FLOOR_Y - 26, 40, CRYPT_SEED);
   },
@@ -2002,7 +2228,7 @@ const RUINS: BiomeLook = {
     // Broken masonry and the weeds that took the joints.
     scatterGround(ctx, W, H, {
       seed: RUINS_SEED ^ 0x2d,
-      count: 112,
+      count: 124,
       kinds: [kBrick, kStone, kTuft, kSlab, kCrack, kBrick, kTuft, kStone],
       ink: RUINS_GROUND,
       pool: [566, 476, 520, 140],
@@ -2012,21 +2238,23 @@ const RUINS: BiomeLook = {
     // The two masses standing forward of the wall line — the floor plane is
     // opaque from FLOOR_Y down, so they belong to it and not to mid().
     fallenColumn(ctx, 552, FLOOR_Y + 122, 144, 23, 0.05, '#12102a', '#a294bc', 0.32);
+    // The right third measured the least local detail of the three: a spill of
+    // rubble at the stair foot and a toppled lintel past the stage's edge.
+    for (const [x, y, w, h, r] of [
+      [872, FLOOR_Y + 96, 46, 16, 0.08],
+      [906, FLOOR_Y + 108, 34, 13, -0.2],
+      [858, FLOOR_Y + 120, 28, 11, 0.3],
+    ] as const) {
+      slabProp(ctx, x, y, w, h, r, '#131029', '#a294bc', 0.15);
+    }
+    fallenColumn(ctx, 1062, FLOOR_Y + 142, 118, 19, -0.05, '#131029', '#a294bc', 0.3);
+    drum(ctx, 1156, FLOOR_Y + 106, 46, 34, '#131029', '#a294bc', 0.3);
     drum(ctx, 648, FLOOR_Y + 140, 60, 46, '#131029', '#a294bc', 0.3);
     // Cracks radiating between the broken slabs — a platform holding itself
     // together, not a void.
-    ctx.save();
-    ctx.globalAlpha = 0.45;
-    ctx.strokeStyle = '#080612';
-    ctx.lineWidth = 2;
     for (const [x0, x1] of [[520, 440], [740, 860], [640, 620], [420, 340], [900, 960]] as const) {
-      ctx.beginPath();
-      ctx.moveTo(x0, FLOOR_Y + 18);
-      ctx.lineTo((x0 + x1) / 2, FLOOR_Y + 120);
-      ctx.lineTo(x1, H);
-      ctx.stroke();
+      crackRun(ctx, x0, x1, FLOOR_Y + 18, H, '#080612', 0.46, RUINS_SEED ^ x0);
     }
-    ctx.restore();
     // The platform's broken edge, hard left and right — this floor ends in open air.
     poly(ctx, [0, H, 0, FLOOR_Y + 30, 60, FLOOR_Y + 50, 30, FLOOR_Y + 90, 0, H], '#0c0a16');
     poly(ctx, [W, H, W, FLOOR_Y + 34, W - 54, FLOOR_Y + 56, W - 26, FLOOR_Y + 96, W, H], '#0c0a16');
@@ -2266,12 +2494,7 @@ const FORGE: BiomeLook = {
     slabProp(ctx, 940, FLOOR_Y + 176, 108, 18, 0.04, '#0d0a09', '#a07a5e', 0.24);
     // The quench trough and the billet stack stand forward of the wall, so
     // they belong to the floor plane — the floor is opaque from FLOOR_Y down.
-    slabProp(ctx, 570, FLOOR_Y + 128, 160, 38, 0.02, '#0d0a09', '#a07a5e', 0.3);
-    ctx.save();
-    ctx.globalAlpha = 0.085;
-    ctx.fillStyle = '#79a8c0';
-    ctx.fillRect(500, FLOOR_Y + 96, 138, 6);
-    ctx.restore();
+    trough(ctx, 570, FLOOR_Y + 128, 166, 34, '#221a16', '#a07a5e', 0.28, '#79a8c0');
     for (const [x, y, w, h, r] of [
       [612, FLOOR_Y + 86, 118, 17, 0.02],
       [618, FLOOR_Y + 69, 100, 16, -0.04],
@@ -2755,7 +2978,7 @@ const SPIRE: BiomeLook = {
     // Wet stone and standing water, with the bolts caught in the puddles.
     scatterGround(ctx, W, H, {
       seed: SPIRE_SEED ^ 0x37,
-      count: 114,
+      count: 126,
       kinds: [kWetStone, kPuddle, kCrack, kStone, kWetStone, kPuddle, kSlab],
       ink: SPIRE_GROUND,
       pool: [566, 476, 520, 140],
@@ -2764,19 +2987,18 @@ const SPIRE: BiomeLook = {
     groundGrain(ctx, W, H, SPIRE_GROUND, SPIRE_SEED ^ 0x9c, 1250);
     // The fallen bell lies forward of the parapet, so it belongs to the floor
     // plane — the floor is opaque from FLOOR_Y down.
-    ctx.save();
-    ctx.translate(582, FLOOR_Y + 126);
-    ctx.rotate(0.38);
-    propShadow(ctx, 0, 28, 50, 0.42);
-    ctx.beginPath();
-    ctx.moveTo(-38, 34);
-    ctx.quadraticCurveTo(-31, -38, 0, -42);
-    ctx.quadraticCurveTo(31, -38, 38, 34);
-    ctx.closePath();
-    ctx.fillStyle = '#141827';
-    ctx.fill();
-    rimEdge(ctx, [-38, 34, -31, -16, 0, -42], '#9fb0d8', 0.32, 2.5);
-    ctx.restore();
+    fallenBell(ctx, 578, FLOOR_Y + 124, 132, 38, 0.3, '#2b3148', '#9fb0d8', 0.28);
+    // Rubble and a snapped staff on the right third, which measured the least
+    // local detail of the three.
+    for (const [x, y, w, h, r] of [
+      [1146, FLOOR_Y + 104, 52, 18, 0.07],
+      [1188, FLOOR_Y + 118, 38, 14, -0.22],
+      [1112, FLOOR_Y + 128, 30, 12, 0.28],
+    ] as const) {
+      slabProp(ctx, x, y, w, h, r, '#151928', '#9fb0d8', 0.3);
+    }
+    fallenColumn(ctx, 1024, FLOOR_Y + 152, 96, 8, -0.28, '#151928', '#9fb0d8', 0.3);
+    drum(ctx, 902, FLOOR_Y + 96, 40, 28, '#151928', '#9fb0d8', 0.15);
     readingShade(ctx, W, H, '#06070d', 0.9);
     fadeTop(ctx, W, FLOOR_Y - 26, 40, SPIRE_SEED);
   },
