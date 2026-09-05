@@ -81,7 +81,7 @@ type Stat = 'HP' | 'ATK' | 'DEF' | 'SPD' | 'CRIT' | 'CDMG' | 'ACC' | 'RES';
 type Stats = Record<Stat, number>;                           // flat ×4, points ×4
 type RelicStat = 'HP' | 'HP_PCT' | 'ATK' | 'ATK_PCT' | 'DEF' | 'DEF_PCT' | 'SPD' | 'CRIT' | 'CDMG' | 'ACC' | 'RES';
 type TargetSpec = 'ENEMY' | 'ALL_ENEMIES' | 'ALLY' | 'ALL_ALLIES' | 'SELF' | 'LOWEST_HP_ALLY';
-type StatusKind = 'STUN' | 'DEF_BREAK' | 'ATK_BREAK' | 'SLOW' | 'BURN' | 'HEAL_BLOCK' | 'BRAND' | 'SILENCE'
+type StatusKind = 'STUN' | 'DEF_BREAK' | 'ATK_BREAK' | 'SLOW' | 'BURN' | 'HEAL_BLOCK' | 'BRAND' | 'SILENCE' | 'GLANCE'
                 | 'ATK_UP' | 'DEF_UP' | 'SPD_UP' | 'CRIT_UP' | 'SHIELD' | 'IMMUNITY' | 'COUNTER' | 'INVINCIBLE';
 type RoomType = 'FIGHT' | 'ELITE' | 'REST' | 'LOOT' | 'SHRINE' | 'FORGE' | 'SUMMON' | 'ALTAR' | 'BOSS';
 type LootSource = 'FIGHT' | 'ELITE' | 'LOOT' | 'BOSS' | 'SUMMON';
@@ -465,7 +465,7 @@ the WARDEN; numbers are phase 8's):
 | CINDER IMP | FIRE | normal SPREAD | Scorch ×1.0 / Kindle ×0.8 + BURN 0.75 (3) |
 | ASH HOUND | FIRE | normal FOCUS, spd +10 | Bite ×1.1 / Rend 2 × 0.6 + BRAND 0.75 (3) |
 | CRYPT WARDEN | FIRE | normal support | Cudgel ×0.8 / Rally ALL_ALLIES SPD_UP (4) / Mend LOWEST_HP_ALLY 0.20 (3) |
-| DUST WRAITH | WIND | normal SPREAD | Wail ×0.9 / Choke ×0.7 + SILENCE 0.75 (3) |
+| DUST WRAITH | WIND | normal SPREAD | Wail ×0.9 + GLANCE 0.50 / Choke ×0.7 + SILENCE 0.75 (3) |
 | PYRE KNIGHT | FIRE | elite FOCUS | Shield Bash DEF ×1.3 / Brace SELF DEF_UP + COUNTER (4) / Immolate ALL_ENEMIES ×0.7 + BURN 0.50 (5) |
 | HOLLOW KING | DARK | boss FOCUS | Reap ×1.2 / Dread Wail ALL_ENEMIES ×0.8 + SLOW 0.50 (3) / Shroud SELF INVINCIBLE 1 (5) / A5: Doom ×2.0 + HEAL_BLOCK 0.75 (4) |
 
@@ -656,7 +656,7 @@ phase 8's.
 | Name | El. | Role | Skill 1 / 2 (cd) / 3 (cd) | Awakening | Leader |
 |---|---|---|---|---|---|
 | EMBER | FIRE | AoE burner | Cinder ATK ×1.0 / Flare ALL_ENEMIES ×0.7 + BURN 0.50 (3) / Inferno ALL_ENEMIES ×1.0, 2 hits, ×1.5 vs BURN (5) | Inferno also BRANDs (0.75) | ATK +20 %, FIRE +35 % |
-| GALE | WIND | speed stripper | Gust ATK ×0.9, −15 % ATB / Squall 2 hits + SLOW 0.60 (3) / Tailwind ALL_ALLIES +40 % ATB + SPD_UP (4) | Gust strips 30 % | SPD +15 %, WIND +25 % |
+| GALE | WIND | speed stripper | Gust ATK ×0.9, −15 % ATB / Squall 2 hits + SLOW 0.60 + GLANCE 0.50 (3) / Tailwind ALL_ALLIES +40 % ATB + SPD_UP (4) | Gust strips 30 % | SPD +15 %, WIND +25 % |
 | TIDE | WATER | healer | Ripple ATK ×0.9, leech 0.20 / Tidepool LOWEST_HP_ALLY heal 0.18 (3) / Undertow ALL_ALLIES heal 0.10 + cleanse all (5) | Undertow also grants IMMUNITY 1 | HP +20 %, WATER +30 % |
 | BASALT | FIRE | DEF wall | Bash DEF ×1.2 / Bulwark SELF DEF_UP + COUNTER (3) / Quake ALL_ENEMIES DEF ×1.0 + DEF_BREAK 0.50 (5) | Bulwark also shields the party 0.20 (`target: ALL_ALLIES`) | DEF +25 % |
 | SABLE | DARK | ACC debuffer | Hex ATK ×0.8 + ATK_BREAK 0.75 / Mire ALL_ENEMIES SLOW + HEAL_BLOCK 0.50 (3) / Eclipse ATK ×1.2 + STUN 0.75 + SILENCE 0.75 (5) | Hex extends every debuff on the target by 1 turn | ACC +20 |
@@ -705,8 +705,10 @@ Six acts, then laps. Room types: FIGHT, ELITE, REST, LOOT, **SHRINE**,
 **landmark**: act 1 SUMMON, act 2 SHRINE, act 3 ALTAR, act 4 FORGE, act 5
 SUMMON, act 6 REST. In order: (1) every other node rolls from `ROOM_WEIGHTS =
 { FIGHT 46, ELITE 16, LOOT 12, REST 10, FORGE 8, SHRINE 5, SUMMON 3 }`; (2) an
-ELITE in stage 1, or rolled while the party is smaller than three, becomes
-FIGHT; (3) guarantees — no REST (the landmark
+ELITE in stage 1, or rolled in a stage before the act's SUMMON landmark
+while the party is smaller than three, becomes FIGHT, and an ELITE room
+entered with fewer than three members is played as a FIGHT (pack and
+rewards); (3) guarantees — no REST (the landmark
 counts; skipped at A3+): the lowest-index FIGHT of stage 4, else of stages 5,
 2, 1 in that order, else stage 4's node 0, becomes REST; then no LOOT: the
 lowest-index FIGHT in the first REST's stage, else the first FIGHT in stage
@@ -1091,7 +1093,7 @@ panels, only gauges and a short status row sit on the actor plane.
 | Region | Geometry |
 |---|---|
 | turn ribbon | y 24–88: `QUEUE_LEN = 8` chips of `QUEUE_CHIP = 48` at `QUEUE_Y = 32` from `QUEUE_X = 24` at `QUEUE_GAP = 4` (display-only; an `INTENT_BADGE = 24` at (chip.x + 24, chip.y + 24) on enemy chips, the STUN icon when stunned), the current actor's name at `TEXT_LABEL` from (`NAME_X = 452`, 40), `ENRAGE_CHIP = (848, 40, 112, 32)` with ENRAGED at `TEXT_BODY`, ACT/LAP and SCORE lines right-aligned at `RIBBON_RIGHT = 1160` (y 32 / 57); PAUSE draws 64×64 at (1192, 24) with an explicit hit rect (1176, 0, 96, 96) |
-| hero panels | x 24–304, three of `PANEL 280×104` at y 96/212/328; `PANEL_PAD = 7`, rows NAME 22 · HP 22 · ATB 6 · STATUS 28 (six 28-px icons + a 32×28 element chip), gaps 4; tap = target while a target prompt is open, else inspect |
+| hero panels | x 24–304, three of `PANEL 280×104` at y 96/212/328; `PANEL_PAD = 7`, rows NAME 22 · HP 22 · ATB 6 · STATUS 28 (up to six 28-px icons + a 32×28 element chip; past six, five icons and a "+N" chip), gaps 4; tap = target while a target prompt is open, else inspect |
 | stage | x 312–968 (the panels are the bounds): heroes at (408, 380) · (464, 448) · (520, 516) feet, `DIAG_DX 56 / DIAG_DY 68`; enemies mirrored about x 640; a boss at (816, 516); HP 96×12 and ATB 96×6 under the feet on the outer side; ≤ `STATUS_ABOVE_MAX = 4` icons above the head (then 3 + "+N"); pops at head + 64 |
 | enemy panels | x 976–1256, mirror of the hero panels; **tap = target**, the canonical enemy target |
 | log | `LOG = (24, 558, 1232, 32)`, text at (32, 563), one line; the target prompt is this line |

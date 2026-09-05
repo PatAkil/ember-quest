@@ -619,3 +619,17 @@ reviewer and decided as independent, with an act-1 target that turns the
 link on if Vault runs at A0 prove trivial; LIGHT and DARK never glance and
 are advantaged against each other both ways (`ELEMENT_CRIT_LD` as phase
 8's lever); (4) all six characters unlocked at launch.
+
+## Round 6 — 2026-09-05 (scoped, after the owner's decisions)
+
+Two passes the five-round loop could not make: a cross-lane pass over the
+whole document, and a review of the element model the owner chose after
+the loop closed.
+
+### Cross-lane
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| X1 | BLOCKING | GLANCE had no `StatusKind` in the Types block; Squall's and Wail's rows did not show it | The union and both kit rows updated (code already carried it) |
+| X2 | GAP | Act 1's ELITE gate ran once at `buildMap`, before the landmark SUMMON grew the party, so the act-1 elite was unreachable | The gate applies to stages before the SUMMON landmark; an ELITE entered short-handed is played as a FIGHT |
+| X3 | GAP | Hero-panel status icons had no overflow rule | Past six: five icons and a "+N" chip |
