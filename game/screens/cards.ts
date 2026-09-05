@@ -5,14 +5,28 @@
 // (each member's current piece in the three card slots, a compare() line per
 // WEAR_BTN, the fourth button decline). DESIGN.md → UI constraints (cards,
 // skip rows), Relics (compare, rollRelic's card text).
+//
+// Drawn in the battle screen's language: main.ts's shared scene pass puts the
+// lit crypt behind, and the cards are thin translucent plates over it, not
+// boxes on black. Bitmap FONT_HD survives in exactly one place per the
+// contract — the CARD TITLE (the room's name, the relic's name) at
+// TEXT_LABEL. Everything else the player reads is HUD text at HUD_PX /
+// HUD_SMALL, and the focused plate carries the focus ring.
 
 import type { Audio, HitRegions, Input, PixelCanvas, TextOptions } from '../../engine';
-import { FONT_HD, PICO8, drawPanel, drawText, textWidth } from '../../engine';
+import { FONT_HD, PICO8, drawText, textWidth } from '../../engine';
 import {
   BLURB_LINES_MAX, CANVAS_W, CARD_PAD, CARD_W, CARD_W_FOUR, CARD_X, CARD_X_FOUR, CARD_Y, CARD_H,
-  CONTINUE, SKIP, TEXT_BODY, TEXT_LABEL, WEAR_BTN, WEAR_X, WEAR_Y, fitText,
+  CONTINUE, HUD_LARGE, HUD_PX, HUD_SMALL, NAME_MAX_CHARACTER, PORTRAIT, SKIP, TEXT_LABEL,
+  WEAR_BTN, WEAR_X, WEAR_Y,
 } from './layout';
-import type { Rarity, Relic } from '../types';
+import {
+  SLOT_ABBR, drawFocusablePlate, formatSetBonus, hudFit, hudText, hudTextCentered, plate, portraitFor,
+  roundRectPath,
+} from './hud';
+import type { PartyMember, Rarity, Relic } from '../types';
+import { SETS } from '../data/sets';
+import { ACTOR_RECIPES } from '../art/actors';
 import { compare, isKindled, mainLine, relicTitle, sigilBlurb, substatLine } from '../sim/relics';
 import type { DeriveCtx } from '../sim/relics';
 import type { RunScreen } from './run';
@@ -20,16 +34,32 @@ import type { RunScreen } from './run';
 const hd = { font: FONT_HD };
 const C_TEXT = PICO8[7];
 const C_DIM = PICO8[6];
-const C_PANEL = PICO8[1];
 const C_ACCENT = PICO8[10];
-const RARITY_COLOR: Record<Rarity, string> = { COMMON: PICO8[7], RARE: PICO8[12], EPIC: PICO8[14], LEGENDARY: PICO8[9] };
-const LINE_H = FONT_HD.glyphH * TEXT_BODY + 5;
+const C_KINDLED = PICO8[9];
+// COMMON is the DIM grey, not the cream: cream belongs to the focus ring alone
+// (hud.ts's FOCUS_RING), and a COMMON card wearing it would say "focused" on
+// every row it appeared in.
+const RARITY_COLOR: Record<Rarity, string> = { COMMON: PICO8[6], RARE: PICO8[12], EPIC: PICO8[14], LEGENDARY: PICO8[9] };
+/** A card's plate is a shade denser than a bare panel: it carries five rows of small text. */
+const CARD_ALPHA = 0.58;
+/** The slot glyph beside a relic's slot name, and the portrait chip on a candidate column. */
+const SLOT_CHIP = 32;
+
+/** The one bitmap line on a card: its title, at TEXT_LABEL (FONT_HD is 11 rows tall). */
+const TITLE_H = FONT_HD.glyphH * TEXT_LABEL;
+/** Row pitch for HUD lines — body and small. */
+const ROW = 26;
+const ROW_SMALL = 21;
+/** The banner over a card row (which drop this is, or which relic is being placed). */
+const BANNER_Y = 40;
 
 export interface CardsScreenDeps {
   pc: PixelCanvas;
   input: Input;
   regions: HitRegions;
   audio: Audio;
+  /** main.ts's one scene pass: the lit diorama every screen draws its HUD over. */
+  scene(): void;
 }
 
 export interface CardsScreen {
@@ -37,9 +67,19 @@ export interface CardsScreen {
   render(time: number, run: RunScreen): void;
 }
 
+/** Bitmap, centred — card titles only. */
 function centerText(ctx: CanvasRenderingContext2D, text: string, x: number, w: number, y: number, opts: TextOptions): void {
   const tw = textWidth(text, opts.scale ?? 1, opts.spacing ?? 1, opts.font);
   drawText(ctx, text, Math.round(x + (w - tw) / 2), y, opts);
+}
+
+/** The hairline under a card title: the rarity's colour, the width of the card's inner box. */
+function titleRule(ctx: CanvasRenderingContext2D, x: number, w: number, y: number, color: string): void {
+  ctx.save();
+  ctx.globalAlpha = 0.55;
+  ctx.fillStyle = color;
+  ctx.fillRect(Math.round(x + CARD_PAD), Math.round(y), Math.round(w - CARD_PAD * 2), 1);
+  ctx.restore();
 }
 
 /** x positions for n offered cards: the authored 3-up/4-up rows verbatim, or a centred row for 1-2 (n=1 lands exactly on the room-card's middle slot). */
@@ -52,35 +92,101 @@ function cardXs(n: number): { xs: number[]; w: number } {
   return { xs: Array.from({ length: n }, (_, i) => Math.round(start + i * (CARD_W + gap))), w: CARD_W };
 }
 
-function drawRelicCard(pc: PixelCanvas, regions: HitRegions, relic: Relic, x: number, w: number, id: string): void {
-  const ctx = pc.ctx;
-  const color = RARITY_COLOR[relic.rarity];
-  const focused = regions.focused() === id;
-  drawPanel(pc, x, CARD_Y, w, CARD_H, { color: C_PANEL, border: focused ? C_TEXT : color });
-  let y = CARD_Y + CARD_PAD;
-  centerText(ctx, relicTitle(relic), x, w, y, { ...hd, color, scale: TEXT_LABEL });
-  y += LINE_H + 6;
-  centerText(ctx, relic.slot, x, w, y, { ...hd, color: C_DIM, scale: TEXT_BODY });
-  y += LINE_H + 4;
-  if (isKindled(relic)) {
-    centerText(ctx, 'KINDLED', x, w, y, { ...hd, color: PICO8[9], scale: TEXT_BODY });
-    y += LINE_H + 4;
-  }
-  y += 6;
-  drawText(ctx, mainLine(relic), x + CARD_PAD, y, { ...hd, color: C_TEXT, scale: TEXT_BODY });
-  y += LINE_H;
+/** Every button on these screens is the same object: a thin plate, a HUD label, a ring when focused. */
+function drawButton(
+  ctx: CanvasRenderingContext2D,
+  rect: { x: number; y: number; w: number; h: number },
+  label: string,
+  focused: boolean,
+  accent: string,
+): void {
+  drawFocusablePlate(ctx, rect.x, rect.y, rect.w, rect.h, focused, accent, 0.55);
+  // The ring says "focused", not the ink: a label the player has to read is
+  // never dimmed just because the keyboard is elsewhere.
+  hudTextCentered(ctx, label, rect.x, rect.y, rect.w, rect.h, { color: C_TEXT });
+}
+
+/** A small square chip with a two-letter glyph — the inspect overlay's slot icon, reused. */
+function drawSlotChip(ctx: CanvasRenderingContext2D, x: number, y: number, label: string, color: string): void {
+  plate(ctx, x, y, SLOT_CHIP, SLOT_CHIP, { alpha: 0.5, border: color, radius: 3 });
+  hudTextCentered(ctx, label, x, y, SLOT_CHIP, SLOT_CHIP, { px: HUD_SMALL, color });
+}
+
+/** An actor's baked face in a chip — the ribbon's portrait, at the head of a candidate's column. */
+function drawPortraitChip(ctx: CanvasRenderingContext2D, member: PartyMember, x: number, y: number, accent: string): void {
+  plate(ctx, x, y, PORTRAIT, PORTRAIT, { alpha: 0.5, border: accent, radius: 3 });
+  const recipe = ACTOR_RECIPES[member.def.id];
+  const art = recipe ? portraitFor(recipe, member.def.element) : null;
+  if (!art) return;
+  ctx.save();
+  roundRectPath(ctx, Math.round(x) + 1.5, Math.round(y) + 1.5, PORTRAIT - 3, PORTRAIT - 3, 3);
+  ctx.clip();
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(art, Math.round(x), Math.round(y), PORTRAIT, PORTRAIT);
+  ctx.restore();
+}
+
+/** A relic's numbers, from the main line down through its substats. Returns the y it finished at. */
+function drawRelicStats(ctx: CanvasRenderingContext2D, relic: Relic, x: number, w: number, y: number, px: number): number {
+  hudText(ctx, mainLine(relic), x + CARD_PAD, y, { px, color: C_TEXT });
+  y += px === HUD_PX ? ROW : ROW_SMALL;
   for (let i = 0; i < 4; i++) {
     const line = substatLine(relic, i);
     if (!line) continue;
-    drawText(ctx, line, x + CARD_PAD, y, { ...hd, color: C_DIM, scale: TEXT_BODY });
-    y += LINE_H;
+    hudText(ctx, line, x + CARD_PAD, y, { px: HUD_SMALL, color: C_DIM });
+    y += ROW_SMALL;
   }
+  return y;
+}
+
+/**
+ * One offered relic, filled out the way the battle's panels are: what it is
+ * (title, rarity, slot), what it gives (main, substats), what its SET gives,
+ * and — anchored at the foot, over its own hairline — what its sigil does.
+ */
+function drawRelicCard(pc: PixelCanvas, regions: HitRegions, relic: Relic, x: number, w: number, id: string): void {
+  const ctx = pc.ctx;
+  const color = RARITY_COLOR[relic.rarity];
+  drawFocusablePlate(ctx, x, CARD_Y, w, CARD_H, regions.focused() === id, color, CARD_ALPHA);
+
+  let y = CARD_Y + CARD_PAD;
+  // The card title stays bitmap — the contract's one exception on this screen.
+  centerText(ctx, relicTitle(relic), x, w, y, { ...hd, color, scale: TEXT_LABEL });
+  y += TITLE_H + 8;
+  titleRule(ctx, x, w, y, color);
+  y += 12;
+  // Rarity as a word, not only as a colour — and KINDLED rides the same line.
+  const rarity = isKindled(relic) ? `${relic.rarity} . KINDLED` : relic.rarity;
+  hudTextCentered(ctx, rarity, x, y, w, HUD_SMALL, { px: HUD_SMALL, color: isKindled(relic) ? C_KINDLED : color });
+  y += ROW_SMALL + 6;
+
+  drawSlotChip(ctx, x + CARD_PAD, y, SLOT_ABBR[relic.slot], color);
+  hudText(ctx, relic.slot, x + CARD_PAD + SLOT_CHIP + 12, y + (SLOT_CHIP - HUD_PX) / 2 - 1, { color: C_TEXT });
+  y += SLOT_CHIP + 12;
+
+  y = drawRelicStats(ctx, relic, x, w, y, HUD_PX);
+
+  // What the SET is worth: the title already names it, so this is the number.
+  const set = SETS[relic.set];
+  if (set) {
+    y += 8;
+    titleRule(ctx, x, w, y, C_DIM);
+    y += 12;
+    hudText(ctx, `${set.pieces}-PIECE SET`, x + CARD_PAD, y, { px: HUD_SMALL, color: C_DIM });
+    y += ROW_SMALL;
+    hudText(ctx, formatSetBonus(set.bonus), x + CARD_PAD, y, { px: HUD_SMALL, color: C_TEXT });
+  }
+
+  // The sigil is what makes the relic worth taking, so it gets the card's foot
+  // to itself: numbers at the top, the effect at the bottom, air in between.
   const blurb = sigilBlurb(relic);
   if (blurb) {
-    y += 6;
-    for (const ln of fitText(blurb, w - 2 * CARD_PAD, TEXT_BODY, FONT_HD, BLURB_LINES_MAX)) {
-      drawText(ctx, ln, x + CARD_PAD, y, { ...hd, color, scale: TEXT_BODY });
-      y += LINE_H;
+    const lines = hudFit(ctx, blurb, w - 2 * CARD_PAD, HUD_SMALL, BLURB_LINES_MAX);
+    let by = CARD_Y + CARD_H - CARD_PAD - lines.length * ROW_SMALL;
+    titleRule(ctx, x, w, by - 14, color);
+    for (const ln of lines) {
+      hudText(ctx, ln, x + CARD_PAD, by, { px: HUD_SMALL, color });
+      by += ROW_SMALL;
     }
   }
 }
@@ -91,7 +197,7 @@ function ctxFor(run: RunScreen): DeriveCtx {
 }
 
 export function createCardsScreen(deps: CardsScreenDeps): CardsScreen {
-  const { pc, input, regions, audio } = deps;
+  const { pc, input, regions, audio, scene } = deps;
   let wearing: number | null = null;
   let lastOffer: Relic[] | null = null;
 
@@ -132,7 +238,15 @@ export function createCardsScreen(deps: CardsScreenDeps): CardsScreen {
       return;
     }
     const party = s.party;
-    for (let m = 0; m < party.members.length; m++) regions.add(`wear-${m}`, WEAR_X[m], WEAR_Y, WEAR_BTN.w, WEAR_BTN.h, { index: m, group: 'wear' });
+    // The button FIRST — a twin id takes its geometry (and so its focus ring)
+    // from the first registration — then the candidate's whole column as its
+    // twin, because on a phone the column is the biggest thing on the screen
+    // and DESIGN's Input section wants a panel and its target to share an id.
+    const wearCols = cardXs(3);
+    for (let m = 0; m < party.members.length; m++) {
+      regions.add(`wear-${m}`, WEAR_X[m], WEAR_Y, WEAR_BTN.w, WEAR_BTN.h, { index: m, group: 'wear' });
+      regions.add(`wear-${m}`, wearCols.xs[m], CARD_Y, wearCols.w, CARD_H, { index: m, group: 'wear' });
+    }
     regions.add('wear-decline', WEAR_X[3], WEAR_Y, WEAR_BTN.w, WEAR_BTN.h, { index: 3, group: 'wear' });
     regions.end();
     if (input.pressed('B')) {
@@ -150,45 +264,76 @@ export function createCardsScreen(deps: CardsScreenDeps): CardsScreen {
 
   function renderOffer(run: RunScreen, offer: readonly Relic[]): void {
     const ctx = pc.ctx;
-    const label = run.state().cardSource === 'BOSS' ? 'BOSS REWARD' : run.state().cardSource === 'LOOT' ? 'TREASURE' : 'FIGHT DROP';
-    centerText(ctx, label, 0, CANVAS_W, 52, { ...hd, color: C_ACCENT, scale: TEXT_LABEL });
+    const source = run.state().cardSource;
+    const label = source === 'BOSS' ? 'BOSS REWARD' : source === 'LOOT' ? 'TREASURE' : 'FIGHT DROP';
+    hudTextCentered(ctx, label, 0, BANNER_Y, CANVAS_W, HUD_LARGE, { px: HUD_LARGE, color: C_ACCENT });
     const { xs, w } = cardXs(offer.length);
     offer.forEach((relic, i) => drawRelicCard(pc, regions, relic, xs[i], w, `card-${i}`));
-    const skipFocused = regions.focused() === 'skip';
-    drawPanel(pc, SKIP.x, SKIP.y, SKIP.w, SKIP.h, { color: C_PANEL, border: skipFocused ? C_TEXT : C_DIM });
-    centerText(ctx, 'SKIP', SKIP.x, SKIP.w, SKIP.y + 30, { ...hd, color: skipFocused ? C_TEXT : C_DIM, scale: TEXT_LABEL });
+    drawButton(ctx, SKIP, 'SKIP', regions.focused() === 'skip', C_DIM);
   }
 
   function renderWear(run: RunScreen, relic: Relic): void {
     const ctx = pc.ctx;
     const color = RARITY_COLOR[relic.rarity];
-    centerText(ctx, `${relicTitle(relic)} — ${mainLine(relic)}`, 0, CANVAS_W, 52, { ...hd, color, scale: TEXT_LABEL });
+    // The relic being placed, as its own card title (bitmap) + its main line (HUD).
+    centerText(ctx, relicTitle(relic), 0, CANVAS_W, 26, { ...hd, color, scale: TEXT_LABEL });
+    hudTextCentered(ctx, mainLine(relic), 0, 26 + TITLE_H + 4, CANVAS_W, HUD_SMALL, { px: HUD_SMALL, color: C_DIM });
+
     const { xs, w } = cardXs(3);
     const party = run.state().party;
     const ctxD = ctxFor(run);
     party.members.forEach((member, i) => {
-      const current = member.relics[relic.slot];
-      drawPanel(pc, xs[i], CARD_Y, w, CARD_H, { color: C_PANEL, border: C_DIM });
-      let y = CARD_Y + CARD_PAD;
-      centerText(ctx, member.def.name.toUpperCase(), xs[i], w, y, { ...hd, color: C_TEXT, scale: TEXT_LABEL });
-      y += LINE_H + 10;
-      if (current) {
-        centerText(ctx, relicTitle(current), xs[i], w, y, { ...hd, color: RARITY_COLOR[current.rarity], scale: TEXT_BODY });
-        y += LINE_H;
-        drawText(ctx, mainLine(current), xs[i] + CARD_PAD, y, { ...hd, color: C_DIM, scale: TEXT_BODY });
-      } else {
-        centerText(ctx, 'EMPTY', xs[i], w, y, { ...hd, color: C_DIM, scale: TEXT_BODY });
-      }
-      const btn = { x: WEAR_X[i], y: WEAR_Y, w: WEAR_BTN.w, h: WEAR_BTN.h };
       const focused = regions.focused() === `wear-${i}`;
-      drawPanel(pc, btn.x, btn.y, btn.w, btn.h, { color: C_PANEL, border: focused ? C_TEXT : color });
-      drawText(ctx, member.def.name.toUpperCase(), btn.x + 10, btn.y + 10, { ...hd, color: focused ? C_TEXT : C_DIM, scale: TEXT_BODY });
-      drawText(ctx, compare(member, relic, ctxD).line, btn.x + 10, btn.y + 10 + LINE_H, { ...hd, color: C_TEXT, scale: TEXT_BODY });
+      // The column and its button are one target (twinned ids), so they light together.
+      drawFocusablePlate(ctx, xs[i], CARD_Y, w, CARD_H, focused, undefined, CARD_ALPHA);
+      const current = member.relics[relic.slot];
+      const line = compare(member, relic, ctxD).line;
+
+      // Who: the baked face, then the name.
+      let y = CARD_Y + CARD_PAD;
+      drawPortraitChip(ctx, member, xs[i] + CARD_PAD, y, focused ? C_TEXT : C_DIM);
+      hudText(ctx, member.def.name.slice(0, NAME_MAX_CHARACTER), xs[i] + CARD_PAD + PORTRAIT + 14, y + (PORTRAIT - HUD_LARGE) / 2 - 1, {
+        px: HUD_LARGE, color: C_TEXT,
+      });
+      y += PORTRAIT + 10;
+      titleRule(ctx, xs[i], w, y, focused ? C_TEXT : C_DIM);
+      y += 14;
+
+      // What they are wearing there now, centred in the space between the header
+      // and the compare line — a one-substat COMMON and a four-substat LEGENDARY
+      // both sit in the middle of the column instead of hanging off the top,
+      // the way renderRoom centres its block.
+      hudTextCentered(ctx, `${relic.slot} NOW`, xs[i], y, w, HUD_SMALL, { px: HUD_SMALL, color: C_DIM });
+      y += ROW;
+      const footY = CARD_Y + CARD_H - CARD_PAD - ROW_SMALL;
+      const bodyTop = y;
+      const bodyBottom = footY - 14; // the foot hairline
+      if (current) {
+        let subs = 0;
+        for (let k = 0; k < 4; k++) if (substatLine(current, k)) subs += 1;
+        const blockH = TITLE_H + 10 + ROW_SMALL * (1 + subs);
+        let by = Math.round(bodyTop + (bodyBottom - bodyTop - blockH) / 2);
+        centerText(ctx, relicTitle(current), xs[i], w, by, { ...hd, color: RARITY_COLOR[current.rarity], scale: TEXT_LABEL });
+        by += TITLE_H + 10;
+        drawRelicStats(ctx, current, xs[i], w, by, HUD_SMALL);
+      } else {
+        // Nothing to compare against: say so once, in the middle of the same space.
+        hudTextCentered(ctx, 'EMPTY', xs[i], (bodyTop + bodyBottom - HUD_PX) / 2, w, HUD_PX, { color: C_DIM });
+      }
+
+      // And what taking it would change — the same line the button carries, at
+      // the foot of the column where there is room to read it.
+      titleRule(ctx, xs[i], w, footY - 14, focused ? C_TEXT : C_DIM);
+      hudTextCentered(ctx, line, xs[i], footY, w, HUD_SMALL, { px: HUD_SMALL, color: focused ? C_TEXT : C_DIM });
+
+      const btn = { x: WEAR_X[i], y: WEAR_Y, w: WEAR_BTN.w, h: WEAR_BTN.h };
+      drawFocusablePlate(ctx, btn.x, btn.y, btn.w, btn.h, focused, color, 0.55);
+      hudText(ctx, member.def.name.slice(0, NAME_MAX_CHARACTER), btn.x + 14, btn.y + 22, { color: C_TEXT });
+      hudText(ctx, line, btn.x + 14, btn.y + 50, { px: HUD_SMALL, color: focused ? C_TEXT : C_DIM });
     });
+
     const declineBtn = { x: WEAR_X[3], y: WEAR_Y, w: WEAR_BTN.w, h: WEAR_BTN.h };
-    const declineFocused = regions.focused() === 'wear-decline';
-    drawPanel(pc, declineBtn.x, declineBtn.y, declineBtn.w, declineBtn.h, { color: C_PANEL, border: declineFocused ? C_TEXT : C_DIM });
-    centerText(ctx, 'DECLINE', declineBtn.x, declineBtn.w, declineBtn.y + 38, { ...hd, color: declineFocused ? C_TEXT : C_DIM, scale: TEXT_BODY });
+    drawButton(ctx, declineBtn, 'DECLINE', regions.focused() === 'wear-decline', C_DIM);
   }
 
   function renderRoom(run: RunScreen): void {
@@ -196,24 +341,30 @@ export function createCardsScreen(deps: CardsScreenDeps): CardsScreen {
     const s = run.state();
     const { xs, w } = cardXs(1);
     const x = xs[0];
-    drawPanel(pc, x, CARD_Y, w, CARD_H, { color: C_PANEL, border: C_ACCENT });
-    let y = CARD_Y + CARD_PAD + 6;
+    plate(ctx, x, CARD_Y, w, CARD_H, { border: C_ACCENT, alpha: 0.58 });
+    // The slot's 384x440 is the contract's; the room's three lines are centred
+    // inside it, so the space around them reads as margin, not as a hole.
+    const blurb = hudFit(ctx, s.roomCard.blurb, w - 2 * CARD_PAD, HUD_PX, BLURB_LINES_MAX);
+    const blockH = TITLE_H + 20 + HUD_SMALL + 14 + blurb.length * ROW;
+    let y = Math.round(CARD_Y + (CARD_H - blockH) / 2);
+    // The room's name is a card title: bitmap, per the contract.
     centerText(ctx, s.roomCard.title, x, w, y, { ...hd, color: C_ACCENT, scale: TEXT_LABEL });
-    y += LINE_H + 4;
-    centerText(ctx, s.roomCard.biome, x, w, y, { ...hd, color: C_DIM, scale: TEXT_BODY });
-    y += LINE_H + 16;
-    for (const ln of fitText(s.roomCard.blurb, w - 2 * CARD_PAD, TEXT_BODY, FONT_HD, BLURB_LINES_MAX)) {
-      centerText(ctx, ln, x, w, y, { ...hd, color: C_TEXT, scale: TEXT_BODY });
-      y += LINE_H;
+    y += TITLE_H + 8;
+    titleRule(ctx, x, w, y, C_ACCENT);
+    y += 12;
+    hudTextCentered(ctx, s.roomCard.biome, x, y, w, HUD_SMALL, { px: HUD_SMALL, color: C_DIM });
+    y += HUD_SMALL + 14;
+    for (const ln of blurb) {
+      hudTextCentered(ctx, ln, x, y, w, HUD_PX, { color: C_TEXT });
+      y += ROW;
     }
-    const focused = regions.focused() === 'room-continue';
-    drawPanel(pc, CONTINUE.x, CONTINUE.y, CONTINUE.w, CONTINUE.h, { color: C_PANEL, border: focused ? C_TEXT : C_ACCENT });
-    centerText(ctx, 'CONTINUE', CONTINUE.x, CONTINUE.w, CONTINUE.y + 30, { ...hd, color: focused ? C_TEXT : C_DIM, scale: TEXT_LABEL });
+    drawButton(ctx, CONTINUE, 'CONTINUE', regions.focused() === 'room-continue', C_ACCENT);
   }
 
   return {
     update,
     render(_time: number, run: RunScreen) {
+      scene();
       const s = run.state();
       if (s.phase === 'ROOM') { renderRoom(run); return; }
       if (s.phase !== 'CARDS') return;

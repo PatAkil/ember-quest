@@ -11,26 +11,40 @@
 // surfaces as a forfeit result" needs no special case here: it is just
 // another way battleScreen.result() turns non-null.
 //
+// ONE SCENE. `engine/light.ts` is created here, once, and handed to every
+// screen: the diorama bakes per (biome, tier) and the title, the room card,
+// the relic offer, the end screens and this file's pause overlay all draw
+// over the same lit crypt the battle does, in the battle's own order
+// (renderBackground → world → renderLightPlane → renderPost, HUD last and
+// un-bloomed). ARCADE lives here for the same reason: it swaps the light
+// module to its flat tier AND applies the CRT, and "bloom XOR CRT halation"
+// is a rule about the whole frame, not about one screen.
+//
 // STYLE CARD: PALETTE PICO8 for UI, element tints per actor layer (art/).
-// TEXT FONT_HD, nothing below scale 2. INPUT every tap target is a hit
-// region; A/arrows route to it. CRT off by default; ARCADE is the toggle.
+// TEXT the HUD face (screens/hud.ts) for everything the player reads as UI;
+// bitmap FONT_HD only for the logo, card titles, door labels and damage pops.
+// INPUT every tap target is a hit region; A/arrows route to it. CRT off by
+// default; ARCADE is the toggle.
 
 import {
   createPixelCanvas, createLoop, createInput, createScenes, createAudio, createRuntime,
-  createHitRegions, setSafeInset, createJuice, createParticles, createCrt, pickBackingScale,
-  drawTextCentered, drawPanel, drawText, textWidth, dimScene, FONT_HD, PICO8,
+  createHitRegions, setSafeInset, createJuice, createParticles, createCrt, createLight, pickBackingScale,
+  dimScene, PICO8,
 } from '../engine';
+import type { BiomeLook, Light, LightActor, LightTier } from '../engine';
 import type { Battle } from './sim/battle';
 import type { BattleResult } from './types';
 import {
-  CANVAS_W, CANVAS_H, PAUSE_BTN, PAUSE_BTN_X, PAUSE_BTN_Y, PAUSED_TEXT_Y, SAFE_INSET, TEXT_LABEL,
+  CANVAS_W, CANVAS_H, PAUSE_BTN, PAUSE_BTN_X, PAUSE_BTN_Y, PAUSED_TEXT_Y, SAFE_INSET,
 } from './screens/layout';
+import { hudText, hudTextCentered, hudWidth, plate } from './screens/hud';
 import { RUN_BIOME, createRunScreen } from './screens/run';
 import type { RunPhase, RunScreen } from './screens/run';
 import { createCardsScreen } from './screens/cards';
 import { createTitleScreen } from './screens/title';
 import { createEndScreen } from './screens/end';
 import { createBattleScreen } from './screens/battle';
+import { backdropFor } from './art/backdrops';
 
 // --- Boot --------------------------------------------------------------------
 const W = CANVAS_W;
@@ -58,11 +72,72 @@ const juice = createJuice();
 const particles = createParticles({ width: W, height: H, ambient: 'embers' });
 const crt = createCrt();
 
-const hd = { font: FONT_HD };
 const C_TEXT = PICO8[7];
-const C_DIM = PICO8[6];
-const C_ACCENT = PICO8[10];
-const C_PANEL = PICO8[1];
+/** PAUSED in the HUD face, at roughly the height the contract's bitmap scale 4 drew (battle.ts's own number). */
+const PAUSED_PX = 44;
+
+// --- The scene ----------------------------------------------------------------
+// One light module for the life of the page. It bakes a diorama per (biome,
+// tier), so the title, the cards, the end screens and every battle share one
+// bake — entering or leaving a battle swaps nothing and re-bakes nothing.
+const BASE_TIER: LightTier = 'HIGH';
+const light: Light = createLight({ width: W, height: H, tier: BASE_TIER });
+let sceneBiome: BiomeLook | null = null;
+
+/** Swaps the diorama (and the ambient field that goes with it); a no-op when that look is already up. */
+function useBiome(name: string): void {
+  const look = backdropFor(name);
+  if (look === sceneBiome) return;
+  sceneBiome = look;
+  light.setBiome(look);
+  // The look owns the ambient field too: the flat tiers draw it, the HD tiers
+  // let the light plane's own motes and fog do that job.
+  particles.setAmbient(look.ambient, look.ambientColor);
+}
+
+/**
+ * ARCADE, owned here because it is a rule about the whole frame: ON = the light
+ * module at its flat ARCADE tier PLUS crt.render; OFF = the HD tier and no CRT
+ * call at all. Bloom and CRT halation are the same effect and exactly one is
+ * alight. Every screen reads this one flag, so a toggle in the battle's pause
+ * menu still holds on the room card and the title.
+ */
+let arcadeOn = false;
+const arcade = {
+  get on(): boolean {
+    return arcadeOn;
+  },
+  toggle(): void {
+    arcadeOn = !arcadeOn;
+    light.setTier(arcadeOn ? 'ARCADE' : BASE_TIER);
+  },
+};
+/** The flat tiers have no light plane, so the engine's ambient field is their dust. */
+function flatTier(): boolean {
+  const t = light.tier();
+  return t === 'LOW' || t === 'ARCADE';
+}
+
+/**
+ * The one out-of-battle scene pass, in the battle screen's own order:
+ * preRender → diorama → world → light plane → postRender → post. The juice
+ * transform OPENS and CLOSES in here, exactly as it does inside battle.render,
+ * so the bloom, the grade and every screen's HUD are drawn on the restored
+ * frame: a shake can never offset the bloom, and a flash can never paint over a
+ * number the player has to read. Every screen calls this first thing in its
+ * render and then draws its HUD on top, un-shaken, un-bloomed and un-graded.
+ */
+function renderScene(drawWorld?: () => void, actors?: readonly LightActor[]): void {
+  const ctx = pc.ctx;
+  juice.preRender(ctx);
+  const shake = juice.offset();
+  light.renderBackground(ctx, { time: clock, shakeX: shake.x, shakeY: shake.y });
+  if (flatTier()) particles.render(ctx);
+  drawWorld?.();
+  light.renderLightPlane(ctx, { time: clock, actors });
+  juice.postRender(ctx, W, H); // restore the shake, then the flash
+  light.renderPost(ctx, { time: clock });
+}
 
 // --- Screens (created once; each reads screens/run.ts's state on its own) ----
 let run: RunScreen | null = null;
@@ -70,7 +145,6 @@ let activeBattle: Battle | null = null;
 let lastHeroKillAttacker: string | null = null;
 let lastRunPhase: RunPhase | null = null;
 let lastScore = 0;
-let arcade = false;
 let clock = 0;
 
 function startRun(): void {
@@ -82,10 +156,16 @@ function startRun(): void {
   scenes.to('PLAYING');
 }
 
-const titleScreen = createTitleScreen({ pc, input, regions, audio, onStart: startRun });
-const cardsScreen = createCardsScreen({ pc, input, regions, audio });
-const endScreen = createEndScreen({ pc, input, regions, audio, onRetry: startRun, onContinue: startRun });
-const battleScreen = createBattleScreen({ pc, input, regions, audio, juice, particles, crt });
+const titleScreen = createTitleScreen({ pc, input, regions, audio, light, scene: renderScene, onStart: startRun });
+const cardsScreen = createCardsScreen({ pc, input, regions, audio, scene: renderScene });
+const endScreen = createEndScreen({ pc, input, regions, audio, scene: renderScene, onRetry: startRun, onContinue: startRun });
+const battleScreen = createBattleScreen({
+  pc, input, regions, audio, juice, particles, crt, light, arcade, setBiome: useBiome,
+});
+
+// The slice never leaves the EMBER CRYPT, so the title already stands in the
+// biome the first battle will use: one bake, and no swap on the way in.
+useBiome(RUN_BIOME.name);
 
 scenes.onEnter('TITLE', () => runtime.stateChanged('TITLE'));
 scenes.onEnter('PLAYING', () => runtime.stateChanged('PLAYING'));
@@ -120,25 +200,38 @@ function updatePauseOverlay(): void {
   regions.end();
   const act = regions.activated();
   if (act === 'pause-resume' || resumeKey) { audio.play('blip'); scenes.to('PLAYING'); }
-  else if (act === 'pause-arcade') { audio.play('blip'); arcade = !arcade; }
+  else if (act === 'pause-arcade') { audio.play('blip'); arcade.toggle(); }
   else if (act === 'pause-quit') { audio.play('blip'); scenes.to('TITLE'); }
   input.endFrame();
 }
 
+/**
+ * The region table's pause row — dimScene, PAUSED, three buttons — drawn by the
+ * battle screen's rules so the two overlays are one object: the LIVE screen
+ * stays underneath (the card the player paused on, not an empty crypt), every
+ * label reads bright whether or not it holds focus, and the ring is what says
+ * "focused". The one difference is the dim: what is under this overlay is a
+ * screenful of card text rather than the battle's scenery, so it has to fall
+ * further back before the menu is unambiguous.
+ */
+const PAUSE_DIM = 0.7;
+
 function renderPauseOverlay(): void {
   const ctx = pc.ctx;
-  dimScene(pc); // DESIGN.md's pause row: dimScene, PAUSED at scale 4, then the three buttons
-  drawTextCentered(ctx, 'PAUSED', W, PAUSED_TEXT_Y, { ...hd, color: C_TEXT, scale: 4, outline: true });
+  dimScene(pc, PAUSE_DIM);
+  const title = 'PAUSED';
+  const tw = hudWidth(ctx, title, PAUSED_PX, 200);
+  hudText(ctx, title, (W - tw) / 2, PAUSED_TEXT_Y, { px: PAUSED_PX, weight: 200, color: C_TEXT });
   const labels: [string, string][] = [
     ['pause-resume', 'RESUME'],
-    ['pause-arcade', `ARCADE ${arcade ? 'ON' : 'OFF'}`],
+    ['pause-arcade', `ARCADE ${arcade.on ? 'ON' : 'OFF'}`],
     ['pause-quit', 'QUIT TO TITLE'],
   ];
   labels.forEach(([id, label], i) => {
     const focused = regions.focused() === id;
-    drawPanel(pc, PAUSE_BTN_X, PAUSE_BTN_Y[i], PAUSE_BTN.w, PAUSE_BTN.h, { color: C_PANEL, border: focused ? C_TEXT : C_ACCENT });
-    const lx = Math.round(PAUSE_BTN_X + (PAUSE_BTN.w - textWidth(label, TEXT_LABEL, 1, FONT_HD)) / 2);
-    drawText(ctx, label, lx, PAUSE_BTN_Y[i] + 30, { ...hd, color: focused ? C_TEXT : C_DIM, scale: TEXT_LABEL });
+    const y = PAUSE_BTN_Y[i];
+    plate(ctx, PAUSE_BTN_X, y, PAUSE_BTN.w, PAUSE_BTN.h, focused ? { border: C_TEXT, alpha: 0.7 } : { alpha: 0.6 });
+    hudTextCentered(ctx, label, PAUSE_BTN_X, y, PAUSE_BTN.w, PAUSE_BTN.h, { color: C_TEXT });
   });
 }
 
@@ -203,30 +296,52 @@ function update(dt: number): void {
 }
 
 // --- Render ---------------------------------------------------------------------
-// Same rule: the battle screen clears, wraps juice pre/postRender, draws
-// particles and applies its OWN CRT pass internally, so it is the only thing
-// drawn on a battle frame. Every other scene shares this file's own pipeline.
+// Same rule: the battle screen clears, wraps juice pre/postRender, draws the
+// scene and applies its OWN CRT pass internally, so it is the only thing drawn
+// on a battle frame. Every other scene shares this file's pipeline — clear, the
+// screen (which opens with renderScene, and renderScene is where the juice
+// transform opens and closes, then draws its HUD on the restored frame), and
+// the CRT only when ARCADE is on.
 function render(): void {
   if (run && run.state().phase === 'BATTLE') {
     battleScreen.render(clock);
     return;
   }
 
+  const t0 = performance.now();
   pc.clear(PICO8[0]);
-  juice.preRender(pc.ctx);
 
   if (scenes.is('TITLE')) {
     titleScreen.render(clock);
   } else if ((scenes.is('PLAYING') || scenes.is('PAUSED')) && run) {
+    // PAUSED keeps the screen it paused: the card is the context for the menu.
     cardsScreen.render(clock, run);
-    particles.render(pc.ctx);
     if (scenes.is('PAUSED')) renderPauseOverlay();
   } else if ((scenes.is('GAME_OVER') || scenes.is('WIN')) && run) {
     endScreen.render(clock, run);
+  } else {
+    renderScene(); // no run yet: the lit crypt on its own, never a black frame
   }
 
-  juice.postRender(pc.ctx, W, H);
-  if (arcade) crt.render(pc.ctx, W, H, 1 / 60);
+  if (arcade.on) crt.render(pc.ctx, W, H, 1 / 60);
+  // The same feedback the battle frame gives: 60 consecutive slow frames drop
+  // the scene to LOW for good.
+  light.note(performance.now() - t0);
 }
 
 createLoop({ update, render }).start();
+
+// --- Dev state hook -------------------------------------------------------------
+// The test driver reads the live scene, run phase and battle phase off the page
+// rather than guessing them from pixels. Dev only: Vite substitutes
+// `import.meta.env.DEV` with `false` in the Pages build, so the whole block is
+// constant-folded away — zero production impact. (The cast is how this file
+// reaches `env` without pulling vite/client's ambient types into tsconfig; it
+// leaves the member expression Vite actually substitutes untouched.)
+if ((import.meta as unknown as { env: { DEV: boolean } }).env.DEV) {
+  (window as unknown as { __eq: unknown }).__eq = {
+    scene: () => scenes.current,
+    run: () => run?.state() ?? null,
+    battle: () => battleScreen.phase,
+  };
+}

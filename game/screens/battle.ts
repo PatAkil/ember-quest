@@ -16,27 +16,30 @@
 // the caller's CRT — bloom and halation are never both on.
 
 import type {
-  PixelCanvas, Input, HitRegions, Audio, Juice, ParticleSystem, Crt, Light, LightActor, LightTier,
+  PixelCanvas, Input, HitRegions, Audio, Juice, ParticleSystem, Crt, Light, LightActor,
 } from '../../engine';
-import { drawText, textWidth, FONT_HD, dimScene, createLight, PICO8 } from '../../engine';
+import { drawText, textWidth, FONT_HD, dimScene, PICO8 } from '../../engine';
+import {
+  ELEMENT_COLOR, SLOT_ABBR, clamp01, drawBar, drawStatusChip, formatSetBonus, hudText, hudTextCentered,
+  hudWidth, plate, portraitFor, roundRectPath,
+} from './hud';
 
 import type { Battle, BattleEvent } from '../sim/battle';
 import { nextReady, runTurn, isOver, battleOutcome, forecast, actOptions, intent } from '../sim/battle';
-import type { ActOption, Actor, BattleResult, Element, EnemyDef, SetBonus, SetId, SkillId, Slot, StatusKind } from '../types';
+import type { ActOption, Actor, BattleResult, EnemyDef, SetId, SkillId, StatusKind } from '../types';
 import { ATB_TURN, SLOTS } from '../types';
 import { SKILLS } from '../data/skills';
 import { SETS } from '../data/sets';
 import { wornRelics, activeSets, relicTitle, mainLine, substatLine } from '../sim/relics';
 
-import { ACTOR_RECIPES, bakePose, drawActor, actorHitRect, ACTOR_W, BOSS_W } from '../art/actors';
-import type { ActorRecipe, PoseName } from '../art/actors';
-import { spawnVfx, updateVfx, renderVfx } from '../art/vfx';
-import type { VfxInstance } from '../art/vfx';
-import { backdropFor } from '../art/backdrops';
+import { ACTOR_RECIPES, drawActor, actorHitRect, ACTOR_W, BOSS_W } from '../art/actors';
+import type { PoseName } from '../art/actors';
+import { spawnVfx, updateVfx, renderVfx, vfxBounds } from '../art/vfx';
+import type { VfxBounds, VfxInstance } from '../art/vfx';
 
 import {
   CANVAS_W, CANVAS_H, TEXT_POP, TEXT_POP_CRIT, TEXT_BODY, LOG_LINE_MAX,
-  HUD_FONT, HUD_PX, HUD_SMALL, HUD_LARGE, HUD_LETTER_SPACING, PORTRAIT,
+  HUD_SMALL, HUD_LARGE, PORTRAIT,
   PANEL_W, PANEL_H, PANEL_PAD, PANEL_X_HERO, PANEL_X_ENEMY, PANEL_Y, PANEL_ROW_GAP,
   PANEL_ROW_NAME_H, PANEL_ROW_HP_H, PANEL_ROW_ATB_H, STATUS_ICON, STATUS_ICON_MAX, ELEMENT_CHIP,
   QUEUE_LEN, QUEUE_CHIP, INTENT_BADGE, queueChipPos, intentBadgePos,
@@ -56,8 +59,17 @@ export interface BattleScreenDeps {
   juice: Juice;
   particles: ParticleSystem;
   crt?: Crt;
-  /** The scene tier the host picked at boot. Defaults to HIGH; the ARCADE toggle overrides it while on. */
-  tier?: LightTier;
+  /** The one scene layer, created and tiered by main.ts and shared with every other screen. */
+  light: Light;
+  /** Swaps the baked diorama and the ambient field to a biome's look; a no-op when that look is already up. */
+  setBiome(biome: string): void;
+  /**
+   * The ARCADE toggle, owned by main.ts so every screen agrees: `on` means the
+   * light module runs its flat ARCADE tier and the caller applies the CRT —
+   * bloom and halation are never both alight. This screen only reads it and
+   * asks for the flip; main.ts does the tier swap.
+   */
+  arcade: { readonly on: boolean; toggle(): void };
 }
 
 export interface BattleScreenOpts {
@@ -73,6 +85,8 @@ export interface BattleScreen {
   render(time: number): void;
   result(): BattleResult | null;
   readonly paused: boolean;
+  /** Which half of the turn the screen is in — read-only, for the dev state hook and nothing else. */
+  readonly phase: BattlePhase;
   togglePause(): void;
 }
 
@@ -94,11 +108,6 @@ const PLAYBACK_TAIL = 0.35;
 // --------------------------------------------------------- pose durations --
 // Roughly one POSE_FRAMES/POSE_FPS cycle (12 fps): a single pass, not a loop.
 const POSE_DUR: Record<PoseName, number> = { idle: Infinity, attack: 0.28, cast: 0.32, hurt: 0.22, dead: Infinity };
-
-// ------------------------------------------------------------- element ui --
-const ELEMENT_COLOR: Record<Element, string> = {
-  FIRE: PICO8[9], WIND: PICO8[11], WATER: PICO8[12], LIGHT: PICO8[10], DARK: PICO8[2],
-};
 
 // -------------------------------------------------------------- gauges ----
 /** A panel's HP row draws its bar this thin — the contract's "thin 4-px bar". */
@@ -148,27 +157,6 @@ function statusColor(kind: StatusKind): string {
   return PICO8[11];
 }
 
-const SLOT_ABBR: Record<Slot, string> = {
-  WEAPON: 'Wp', BOOTS: 'Bt', ARMOR: 'Ar', NECKLACE: 'Nk', CHALICE: 'Ch', TOME: 'Tm',
-};
-
-/** A set's bonus as one short line — screens render text, never raw SetBonus shape. */
-function formatSetBonus(bonus: SetBonus): string {
-  switch (bonus.kind) {
-    case 'STAT_PCT': return `+${bonus.pct}% ${bonus.stat}`;
-    case 'STAT_PTS': return `+${bonus.pts} ${bonus.stat}`;
-    case 'EXTRA_TURN': return `${Math.round(bonus.chance * 100)}% extra turn`;
-    case 'STUN_ON_HIT': return `${Math.round(bonus.chance * 100)}% stun on hit`;
-    case 'LEECH': return `heal ${Math.round(bonus.fraction * 100)}% dealt`;
-    case 'IMMUNITY_START': return `IMMUNITY ${bonus.turns}t, +${bonus.res} RES`;
-    case 'ATB_ON_HIT': return `+${Math.round(bonus.fraction * 100)}% ATB on hit`;
-    case 'COUNTER': return `${Math.round(bonus.chance * 100)}% counter`;
-    case 'SHIELD_START': return `party SHIELD ${Math.round(bonus.fraction * 100)}%`;
-    case 'DESTROY': return 'shreds max HP';
-    default: return '';
-  }
-}
-
 // ---------------------------------------------------------------- geometry --
 /** Where an actor's feet stand on the diagonal stage — the boss position for a lone BOSS enemy. */
 function feetFor(battle: Battle, actor: Actor): { x: number; y: number } {
@@ -191,71 +179,6 @@ function headY(battle: Battle, actor: Actor): number {
 // --------------------------------------------------------------- pops ------
 interface Pop { x: number; y: number; text: string; color: string; scale: number; age: number; dur: number; vy: number }
 
-// ------------------------------------------------------------ portraits ---
-/**
- * The ribbon's queue chips are actor portraits, per the contract. A portrait is
- * the recipe's own head: the idle pose baked once by the art pipeline, cropped
- * to the top of its silhouette and blown up into a PORTRAIT-square bitmap with
- * smoothing off, so the face keeps its hard pixels inside a smooth HUD.
- *
- * Baked once per (recipe, element) — eight chips a frame are eight drawImage
- * calls, no per-frame composition and no per-frame getImageData: the one alpha
- * scan happens here, at bake time, exactly as the plane bakes do.
- */
-const PORTRAIT_CACHE = new Map<string, HTMLCanvasElement>();
-/** How much of the silhouette's height is "the head" — the crop the portrait keeps. */
-const PORTRAIT_HEAD_FRACTION = 0.42;
-
-function portraitFor(recipe: ActorRecipe, element: Element): HTMLCanvasElement | null {
-  const key = `${recipe.id}|${element}`;
-  const hit = PORTRAIT_CACHE.get(key);
-  if (hit) return hit;
-  const pose = bakePose(recipe, 'idle', 0, element);
-  const out = document.createElement('canvas');
-  out.width = PORTRAIT;
-  out.height = PORTRAIT;
-  const ctx = out.getContext('2d');
-  // The alpha scan runs off a scratch copy that declares willReadFrequently —
-  // reading straight off the art pipeline's own bitmap would demote it to a
-  // software canvas for the rest of the run, and it is drawn every frame.
-  const scan = document.createElement('canvas');
-  scan.width = pose.width;
-  scan.height = pose.height;
-  const src = scan.getContext('2d', { willReadFrequently: true });
-  if (!ctx || !src) return null;
-  src.drawImage(pose, 0, 0);
-
-  // Alpha bounding box of the baked pose — a recipe's silhouette sits wherever
-  // its parts put it inside the res-square, so the crop is measured, not assumed.
-  let x0 = pose.width;
-  let y0 = pose.height;
-  let x1 = -1;
-  let y1 = -1;
-  const data = src.getImageData(0, 0, pose.width, pose.height).data;
-  for (let y = 0; y < pose.height; y++) {
-    for (let x = 0; x < pose.width; x++) {
-      if (data[(y * pose.width + x) * 4 + 3] < 24) continue;
-      if (x < x0) x0 = x;
-      if (x > x1) x1 = x;
-      if (y < y0) y0 = y;
-      if (y > y1) y1 = y;
-    }
-  }
-  ctx.imageSmoothingEnabled = false;
-  if (x1 < x0 || y1 < y0) return out; // fully transparent pose: an empty chip beats a crash
-  const bw = x1 - x0 + 1;
-  const bh = y1 - y0 + 1;
-  const headH = Math.max(4, Math.round(bh * PORTRAIT_HEAD_FRACTION));
-  // Square the crop around the silhouette's centre line so the face is centred.
-  const side = Math.max(headH, Math.min(bw, Math.round(headH * 1.15)));
-  const cx = x0 + bw / 2;
-  const sx = Math.round(cx - side / 2);
-  const scale = PORTRAIT / side;
-  ctx.drawImage(pose, sx, y0, side, side, 0, 0, Math.round(side * scale), Math.round(side * scale));
-  PORTRAIT_CACHE.set(key, out);
-  return out;
-}
-
 /** Linear approach — used for both HP and ATB gauges: a constant SPEED (not a constant time), so a full
  * bar and a tiny nudge both read as motion at the same visual rate. */
 function approach(cur: number, target: number, rate: number, dt: number): number {
@@ -265,12 +188,10 @@ function approach(cur: number, target: number, rate: number, dt: number): number
   return cur + Math.sign(diff) * step;
 }
 
-function clamp01(x: number): number {
-  return x < 0 ? 0 : x > 1 ? 1 : x;
-}
-
 // ============================================================== the screen ==
-type Phase = 'HERO_SKILL' | 'HERO_TARGET' | 'ENEMY_PENDING' | 'PLAYBACK' | 'INSPECT' | 'DONE';
+/** The screen's own turn phase. Exposed read-only through `BattleScreen.phase` — main.ts's dev hook reads it. */
+export type BattlePhase = 'HERO_SKILL' | 'HERO_TARGET' | 'ENEMY_PENDING' | 'PLAYBACK' | 'INSPECT' | 'DONE';
+type Phase = BattlePhase;
 
 export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
   const { pc, input, regions, audio, juice, particles } = deps;
@@ -292,17 +213,38 @@ export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
   let playHead = 0;
   let playClock = 0;
   let playEndAt = 0;
-  let arcadeOn = false;
   let paused = false;
   let lastCastSkill: SkillId = 'CINDER';
 
   // ------------------------------------------------------------- the scene --
-  // One light module for the life of the screen: it caches a baked diorama per
-  // (biome, tier), so `begin` only ever hands it a look.
-  const baseTier: LightTier = deps.tier ?? 'HIGH';
-  const light: Light = createLight({ width: CANVAS_W, height: CANVAS_H, tier: baseTier });
-  /** Rebuilt once per frame from the live actor list — pooled, never reallocated. */
+  // main.ts owns the one light module — the same baked diorama the title, the
+  // cards and the end screens draw over, so entering a battle swaps no scene
+  // and re-bakes nothing.
+  const light: Light = deps.light;
+  // The rects renderLightPlane reads, rebuilt every frame and never reallocated:
+  // `lightActorPool` owns the records for the life of the screen, `lightActors`
+  // is the view handed to the light module (its length is trimmed to the live
+  // count, the pool keeps the records for the next frame).
+  const lightActorPool: LightActor[] = [];
   const lightActors: LightActor[] = [];
+  let lightActorN = 0;
+  /** One scratch rect for vfxBounds — the numbers are copied straight into a pooled record. */
+  const vfxBox: VfxBounds = { x: 0, y: 0, w: 0, h: 0 };
+
+  function addLightActor(x: number, y: number, w: number, h: number, glow: number): void {
+    let rec = lightActorPool[lightActorN];
+    if (!rec) {
+      rec = { x: 0, y: 0, w: 0, h: 0, glow: 0 };
+      lightActorPool[lightActorN] = rec;
+    }
+    rec.x = x;
+    rec.y = y;
+    rec.w = w;
+    rec.h = h;
+    rec.glow = glow;
+    lightActors[lightActorN] = rec;
+    lightActorN += 1;
+  }
   /** Last frame's full render cost in ms, fed back to light.note() so a slow device drops itself to LOW. */
   let lastFrameMs = 0;
 
@@ -567,16 +509,12 @@ export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
     opts = newOpts;
     finalResult = null;
     paused = false;
-    arcadeOn = false;
     clock = 0;
     resetPresentation(newBattle);
-    const look = backdropFor(newOpts.biome);
-    light.setBiome(look);
-    light.setTier(baseTier);
+    // The biome (and with it the ambient field the flat tiers draw) is main.ts's
+    // to swap: the HD tiers let the light plane's own motes and fog do that job.
+    deps.setBiome(newOpts.biome);
     flashLeft = 0;
-    // The look owns the ambient field too: the flat tiers draw it, the HD tiers
-    // let the light plane's own motes and fog do that job.
-    particles.setAmbient(look.ambient, look.ambientColor);
     regions.focus(null);
     scheduleNextTurn();
   }
@@ -651,9 +589,9 @@ export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
       if (act === 'pause-0') togglePauseInternal();
       else if (act === 'pause-1' && crt) {
         // Bloom and CRT halation are the same effect: exactly one is on. ARCADE
-        // swaps the scene to its flat LOW planes and hands the glow to the CRT.
-        arcadeOn = !arcadeOn;
-        light.setTier(arcadeOn ? 'ARCADE' : baseTier);
+        // swaps the scene to its flat LOW planes and hands the glow to the CRT;
+        // main.ts owns that swap, and it holds for every screen at once.
+        deps.arcade.toggle();
       }
       else if (act === 'pause-2') quitBattle();
       input.endFrame();
@@ -956,21 +894,26 @@ export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
 
   /** The rects renderLightPlane needs for rim light and prop glow — refilled in place, never reallocated. */
   function fillLightActors(b: Battle, order: readonly Actor[]): void {
-    lightActors.length = 0;
+    lightActorN = 0;
     for (const a of order) {
       if (!a.alive) continue;
       const feet = feetFor(b, a);
       const w = isBossActor(b, a) ? BOSS_W : ACTOR_W;
       const top = headY(b, a);
-      lightActors.push({ x: feet.x - w / 2, y: top, w, h: feet.y - top, glow: ACTOR_GLOW[a.def.id] ?? 0 });
+      addLightActor(feet.x - w / 2, top, w, feet.y - top, ACTOR_GLOW[a.def.id] ?? 0);
     }
     // Live VFX are light too: an impact or a projectile is the brightest thing
     // on the plane for its handful of frames, and the bloom should catch it.
+    // vfx.ts owns what each archetype actually covers — a light beam stands 3.2
+    // sizes tall, a slash reaches ±1.7 across, a projectile spans from its
+    // origin to the target, a heal barely leaves its centre — so a ±size box
+    // would under-light half of them and over-light the rest.
     for (const v of vfx) {
       if (v.age >= v.duration) continue;
-      const r = v.size;
-      lightActors.push({ x: v.x - r, y: v.y - r, w: r * 2, h: r * 2, glow: 0.7 });
+      const box = vfxBounds(v, vfxBox);
+      addLightActor(box.x, box.y, box.w, box.h, 0.7);
     }
+    lightActors.length = lightActorN;
   }
 
   function drawInspectOverlay(ctx: CanvasRenderingContext2D, b: Battle): void {
@@ -1016,7 +959,7 @@ export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
     const title = 'PAUSED';
     const tw = hudWidth(ctx, title, PAUSED_PX, 200);
     hudText(ctx, title, (CANVAS_W - tw) / 2, PAUSED_TEXT_Y, { px: PAUSED_PX, weight: 200, color: PICO8[7] });
-    const labels = ['RESUME', `ARCADE ${arcadeOn ? 'ON' : 'OFF'}`, 'QUIT'];
+    const labels = ['RESUME', `ARCADE ${deps.arcade.on ? 'ON' : 'OFF'}`, 'QUIT'];
     for (let i = 0; i < 3; i++) {
       const y = PAUSE_BTN_Y[i];
       const disabled = i === 1 && !crt;
@@ -1065,7 +1008,7 @@ export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
 
     if (phase === 'INSPECT') drawInspectOverlay(ctx, b);
     if (paused) drawPauseOverlay(ctx);
-    if (arcadeOn && crt) crt.render(ctx, CANVAS_W, CANVAS_H, 1 / 60);
+    if (deps.arcade.on && crt) crt.render(ctx, CANVAS_W, CANVAS_H, 1 / 60);
 
     lastFrameMs = performance.now() - t0;
     light.note(lastFrameMs);
@@ -1081,176 +1024,18 @@ export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
     get paused() {
       return paused;
     },
+    get phase() {
+      return phase;
+    },
     togglePause: togglePauseInternal,
   };
 }
 
-// ======================================================= pure draw helpers ==
-// No screen state: geometry and text only, safe to share and to call before
-// createBattleScreen's own body is reached (function declarations hoist).
-//
-// Everything the player reads as UI goes through hudText/hudWidth — the vector
-// HUD_FONT at HUD_PX / HUD_SMALL / HUD_LARGE, light weight, letter-spaced, on a
-// 1-px dark drop shadow (DESIGN.md, "Two kinds of text"). The only bitmap text
-// left on this screen is the damage pop.
-
-/** `ctx.letterSpacing` is a recent addition; the manual path draws glyph by glyph where it is missing. */
-type SpacedCtx = CanvasRenderingContext2D & { letterSpacing?: string };
-let spacingSupported: boolean | null = null;
-function canSpace(ctx: CanvasRenderingContext2D): boolean {
-  if (spacingSupported === null) spacingSupported = typeof (ctx as SpacedCtx).letterSpacing === 'string';
-  return spacingSupported;
-}
-
-/** Light weight everywhere: the contract asks for a light vector face, not the system default. */
-const HUD_WEIGHT = 300;
-/** The one drop shadow, 1 px down-right — never a stroke, never a glow. */
-const HUD_SHADOW = 'rgba(3,4,10,0.85)';
-
-function setHudFont(ctx: CanvasRenderingContext2D, px: number, weight: number): void {
-  ctx.font = `${weight} ${px}px ${HUD_FONT}`;
-  if (canSpace(ctx)) (ctx as SpacedCtx).letterSpacing = `${HUD_LETTER_SPACING}px`;
-  ctx.textBaseline = 'top';
-  ctx.textAlign = 'left';
-}
-function clearHudFont(ctx: CanvasRenderingContext2D): void {
-  if (canSpace(ctx)) (ctx as SpacedCtx).letterSpacing = '0px';
-}
-
-/** Width of `text` as hudText would draw it, letter spacing included. */
-function hudWidth(ctx: CanvasRenderingContext2D, text: string, px: number, weight: number = HUD_WEIGHT): number {
-  setHudFont(ctx, px, weight);
-  const w = canSpace(ctx)
-    ? ctx.measureText(text).width
-    : ctx.measureText(text).width + Math.max(0, text.length - 1) * HUD_LETTER_SPACING;
-  clearHudFont(ctx);
-  return w;
-}
-
-function fillSpaced(ctx: CanvasRenderingContext2D, text: string, x: number, y: number): void {
-  if (canSpace(ctx)) {
-    ctx.fillText(text, x, y);
-    return;
-  }
-  let cx = x;
-  for (const ch of text) {
-    ctx.fillText(ch, cx, y);
-    cx += ctx.measureText(ch).width + HUD_LETTER_SPACING;
-  }
-}
-
-interface HudTextOptions {
-  px?: number;
-  weight?: number;
-  color?: string;
-  /** 'left' (default) or 'right' — a right-aligned line is measured and drawn from x - width. */
-  align?: 'left' | 'right';
-  alpha?: number;
-}
-
-/** The one UI text call. `y` is the TOP of the line (textBaseline 'top'), matching the region table's row tops. */
-function hudText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, o: HudTextOptions = {}): number {
-  const px = o.px ?? HUD_PX;
-  const weight = o.weight ?? HUD_WEIGHT;
-  setHudFont(ctx, px, weight);
-  const w = canSpace(ctx)
-    ? ctx.measureText(text).width
-    : ctx.measureText(text).width + Math.max(0, text.length - 1) * HUD_LETTER_SPACING;
-  const dx = o.align === 'right' ? x - w : x;
-  const prevAlpha = ctx.globalAlpha;
-  if (o.alpha !== undefined) ctx.globalAlpha = prevAlpha * o.alpha;
-  ctx.fillStyle = HUD_SHADOW;
-  fillSpaced(ctx, text, Math.round(dx) + 1, Math.round(y) + 1);
-  ctx.fillStyle = o.color ?? PICO8[7];
-  fillSpaced(ctx, text, Math.round(dx), Math.round(y));
-  ctx.globalAlpha = prevAlpha;
-  clearHudFont(ctx);
-  return w;
-}
-
-/** Centred inside a box — chips, buttons, tooltips. */
-function hudTextCentered(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, w: number, h: number, o: HudTextOptions = {}): void {
-  const px = o.px ?? HUD_PX;
-  const tw = hudWidth(ctx, text, px, o.weight ?? HUD_WEIGHT);
-  hudText(ctx, text, x + (w - tw) / 2, y + (h - px * 1.16) / 2, o);
-}
-
-// ------------------------------------------------------------- plates -----
-/** A plate is a thin translucent slab, not a box: no bevel, no opaque fill, one lighter top edge. */
-const PLATE_ALPHA = 0.6;
-const PLATE_RADIUS = 4;
-const PLATE_INK = '6,8,16';
-const PLATE_TOP = 'rgba(255,255,255,0.16)';
-
-function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
-  const rr = Math.min(r, w / 2, h / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + rr, y);
-  ctx.arcTo(x + w, y, x + w, y + h, rr);
-  ctx.arcTo(x + w, y + h, x, y + h, rr);
-  ctx.arcTo(x, y + h, x, y, rr);
-  ctx.arcTo(x, y, x + w, y, rr);
-  ctx.closePath();
-}
-
-interface PlateOptions {
-  /** 0.55-0.65 by the contract; a tooltip sits a little denser so it reads over a lit sprite. */
-  alpha?: number;
-  /** A 1-px border, drawn instead of the default top-edge highlight when given (focus, ENRAGED). */
-  border?: string;
-  radius?: number;
-}
-
-function plate(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, o: PlateOptions = {}): void {
-  const px = Math.round(x) + 0.5;
-  const py = Math.round(y) + 0.5;
-  const pw = Math.round(w) - 1;
-  const ph = Math.round(h) - 1;
-  const r = o.radius ?? PLATE_RADIUS;
-  ctx.save();
-  roundRectPath(ctx, px, py, pw, ph, r);
-  ctx.fillStyle = `rgba(${PLATE_INK},${o.alpha ?? PLATE_ALPHA})`;
-  ctx.fill();
-  ctx.lineWidth = 1;
-  if (o.border) {
-    ctx.strokeStyle = o.border;
-    ctx.stroke();
-  } else {
-    // The 1-px lighter top edge: a lit lip, not a frame.
-    ctx.beginPath();
-    ctx.moveTo(px + r, py);
-    ctx.lineTo(px + pw - r, py);
-    ctx.strokeStyle = PLATE_TOP;
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
-// -------------------------------------------------------------- gauges ----
-/** HP: a thin bar with a dark bed, no keyline. `h` is the contract's 4 px in a panel, 12 on the stage. */
-function drawBar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, frac: number, fill: string): void {
-  const x0 = Math.round(x);
-  const y0 = Math.round(y);
-  ctx.fillStyle = 'rgba(4,5,12,0.72)';
-  ctx.fillRect(x0, y0, w, h);
-  ctx.fillStyle = fill;
-  ctx.fillRect(x0, y0, Math.max(0, Math.round(w * clamp01(frac))), h);
-}
-
-// ------------------------------------------------------------ statuses ----
-/** Status icons stay what they were: a small element-coloured glyph, now lettered in the HUD face. */
-function drawStatusChip(ctx: CanvasRenderingContext2D, x: number, y: number, label: string, color: string): void {
-  const s = STATUS_ICON;
-  ctx.save();
-  roundRectPath(ctx, Math.round(x) + 0.5, Math.round(y) + 0.5, s - 1, s - 1, 3);
-  ctx.fillStyle = 'rgba(6,8,16,0.72)';
-  ctx.fill();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  ctx.restore();
-  hudTextCentered(ctx, label, x, y, s, s, { px: HUD_SMALL, color });
-}
+// ============================================ battle-only draw helpers ==
+// The shared HUD language (hudText, plate, drawBar, the chips) now lives in
+// screens/hud.ts, so the title, the cards and the end screens speak it too.
+// What is left here is what only a battle draws: the status rows built out of
+// those chips.
 
 /** Above an actor's head on the stage: ≤ STATUS_ABOVE_MAX icons, then 3 + "+N". */
 function drawHeadStatusRow(ctx: CanvasRenderingContext2D, cx: number, y: number, a: Actor): void {
