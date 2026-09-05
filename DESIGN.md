@@ -1179,7 +1179,11 @@ targets — because a phone has no keys. `TAP_MIN = 96` logical px (≈ 48 CSS
 px at a phone's 0.5×), `TAP_GAP = 12`; the registry expands any smaller hit
 rect around its centre, clamped to the canvas, and a region's drawn rect
 always beats a neighbour's expanded hit rect. Sprite bodies and panels
-register the same target id.
+register the same target id. Where a panel is dropped, its **index and group move onto the sprite**: the
+battle's enemies register `enemy-i` on their own hurtboxes with the index and
+group the enemy panel column used to carry, so keyboard parity — arrows across
+the pack, A to commit, the disabled flag while a target prompt is open — is
+unchanged by the panel's removal.
 
 `index.html` drops the arcade bezel on small screens; `touch-action: none`,
 `viewport-fit=cover`, `100dvh` sizing, the web-app metas, fullscreen and
@@ -1198,7 +1202,19 @@ score, the log, skill labels, substats, blurbs, menus — renders in the
 `HUD_LARGE = 24`), light weight, letter-spaced, with a 1-px dark drop
 shadow; panels are thin translucent plates, not boxes; the turn ribbon
 shows actor portraits (the recipe's head, baked once) in element-tinted
-frames. `TEXT_BODY 2` remains the bitmap fallback where a screen has no HUD
+frames. Status, relic-slot and element marks are **pictograms, not letters**: small
+vector paths authored in a 24×24 unit box (`STATUS_ICON_NAME`,
+`SLOT_ICON_NAME`, `ELEMENT_ICON_NAME` in `screens/hud.ts`), each `Path2D`
+built once and cached, each drawn with a dark keyline so one mark reads over a
+lit floor and over a plate alike — colour carries the family (debuff rose,
+buff leaf, ward tide, or the element's own), shape carries the effect. The
+whole game draws from **one accent palette pulled onto the grade**: `ACCENT`
+`#ffa64a` (the crypt key light's own amber — titles, rings, prompts, the
+ribbon's caret), `ACCENT_COOL` `#4fc4de` (Tide's orb — RARE, wards, ATB) and
+`ACCENT_HP` `#7fd45c` (Gale's green — every HP bar). Pure yellow, pure cyan
+and pure green are retired. Two buttons exist: the PRIMARY action is a lit
+borderless plate with a soft key-coloured glow, the SECONDARY is plain text
+with a focus underline; the 1-px-bordered rounded rectangle is retired. `TEXT_BODY 2` remains the bitmap fallback where a screen has no HUD
 font yet, and the character limits below are measured in whichever font
 the screen uses. Limits at those scales: battle log line ≤ `LOG_LINE_MAX = 72` chars,
 character names ≤ 16, skill names ≤ 14, relic set names ≤ 8, enemy names ≤
@@ -1208,29 +1224,34 @@ by `textWidth` inside the drawn card's width − 2 × `CARD_PAD` (`CARD_W =
 relic titles ≤ 11. The safe inset is 24 on every side (`setSafeInset({left:
 24, top: 24, right: 24, bottom: 24})` at boot; the engine's `SAFE_MARGIN` is
 untouched); on a phone (CSS scale < 0.75)
-`SAFE_BOTTOM_PHONE = 40` and the skill buttons draw at `SKILL_H_PHONE = 80`
-(hit rects still reach the bottom edge) — nothing else moves. Hit rects may
-bleed into the margin, drawn panels may not.
+`SAFE_BOTTOM_PHONE = 40` and the command rows draw at `SKILL_H_PHONE = 56`,
+stacked up from `SKILL_BOTTOM_PHONE = 680` (a hit-rect twin covers the strip
+from the last row's foot to the canvas bottom edge) — nothing else moves. Hit
+rects may bleed into the margin, drawn panels may not.
 
-The battle screen is staged on a **diagonal**: heroes face right on a
-back→front diagonal at left-centre, enemies mirrored; names live in the side
-panels, only gauges and a short status row sit on the actor plane.
+The battle screen is staged on a **diagonal**, `octopath-4`'s way round: the
+party faces LEFT on a back→front diagonal at right-centre with its own panel
+column beside it, the enemies own the left third and have **no panel column at
+all** — a focused or targeted enemy carries its name, HP and statuses on a
+small plate floated above it, and every enemy is a tap/keyboard target through
+its own sprite hit rect. The ground carries actors, shadows and a 3-px HP
+hairline; nothing else.
 
 | Region | Geometry |
 |---|---|
-| turn ribbon | y 24–88: `QUEUE_LEN = 8` chips of `QUEUE_CHIP = 48` at `QUEUE_Y = 32` from `QUEUE_X = 24` at `QUEUE_GAP = 4` (display-only; an `INTENT_BADGE = 24` at (chip.x + 24, chip.y + 24) on enemy chips, the STUN icon when stunned), the current actor's name at `TEXT_LABEL` from (`NAME_X = 452`, 40), `ENRAGE_CHIP = (848, 40, 112, 32)` with ENRAGED at `TEXT_BODY`, ACT/LAP and SCORE lines right-aligned at `RIBBON_RIGHT = 1160` (y 32 / 57); PAUSE draws 64×64 at (1192, 24) with an explicit hit rect (1176, 0, 96, 96) |
-| hero panels | x 24–304, three of `PANEL 280×104` at y 96/212/328; `PANEL_PAD = 7`, rows NAME 22 · HP 22 · ATB 6 · STATUS 28 (up to six 28-px icons + a 32×28 element chip; past six, five icons and a "+N" chip), gaps 4; tap = target while a target prompt is open, else inspect |
-| stage | x 312–968 (the panels are the bounds): heroes at (408, 380) · (464, 448) · (520, 516) feet, `DIAG_DX 56 / DIAG_DY 68`; enemies mirrored about x 640; a boss at (816, 516); HP 96×12 and ATB 96×6 under the feet on the outer side; ≤ `STATUS_ABOVE_MAX = 4` icons above the head (then 3 + "+N"); pops at head + 64 |
-| enemy panels | x 976–1256, mirror of the hero panels; **tap = target**, the canonical enemy target |
-| log | `LOG = (24, 558, 1232, 32)`, text at (32, 563), one line; the target prompt is this line |
-| skill bar | three `SKILL 400×96` buttons at (`SKILL_X = 28 / 440 / 852`, 600) drawn inside registered hit rects `SKILL_HIT = (SKILL_X[i], 600, 400, 120)` (the PAUSE pattern): row 1 the label at `TEXT_LABEL`, row 2 five cooldown pips left and a key hint right (desktop) |
-| cards | `CARD_W = 384` × 440 at `CARD_Y = 88`, x 40/448/856, or four of `CARD_W_FOUR = 284` × 440 at x 48/348/648/948 under HASTE; the room-to-room card is the middle slot with `CONTINUE = (448, 552, 384, 96)`; the who-wears-it row is its own grid: `WEAR_BTN 280×96` at `WEAR_X = 40/344/648/952`, `WEAR_Y = 552` (the fourth is decline), each candidate's current piece and compare line in the three card slots |
+| turn ribbon | y 24–`RIBBON_BOTTOM = 104`: `QUEUE_LEN = 8` chips of `QUEUE_CHIP = 48` laid left to right from `QUEUE_X = 24` at `QUEUE_GAP = 4`, display-only. The actor ON TURN is drawn at `QUEUE_CURRENT_SCALE = 1.4` (r 33.6, centred at y `QUEUE_Y + r − 6`) with an `ACCENT` ring at 2 px and an `ACCENT` caret under it; every other chip is r 21 centred at `QUEUE_Y + 24` with its own element ring at 1 px. Where the forecast rolls into the next round — the first actor that comes round twice — the run breaks by `QUEUE_ROLLOVER_GAP = 22` for a chevron pair and a `NEXT TURN` caption. An `INTENT_BADGE = 24` sits at (chip.cx + r − `INTENT_BADGE` + 2, chip.cy + r − `INTENT_BADGE` + 2) on a stunned enemy's chip, carrying the STUN pictogram. The current actor's name at `HUD_LARGE` from (`NAME_X = 452`, 40), `ENRAGE_CHIP = (848, 40, 112, 32)` with ENRAGED, ACT/LAP and SCORE right-aligned at `RIBBON_RIGHT = 1160` (y 32 / 57); PAUSE draws 64×64 at (1192, 24) with an explicit hit rect (1176, 0, 96, 96), registered FIRST on every screen so a card underneath keeps its own pixels |
+| hero panels | x 976–1256 (the party's own side), three of `PANEL 280×104` at y 96/212/328; `PANEL_PAD = 7`, rows NAME 22 · HP 22 · ATB 6 · STATUS 28, gaps 4. A panel is a **plate**: a top-down ink gradient `PANEL_TOP_ALPHA = 0.35` → 0 (0.46 for the actor on turn), no border unless focused or on turn; the NAME row closes with a 20-px `ELEMENT_GLYPH` pictogram, never a saturated chip; HP is the number right-aligned with a 4-px rule **the width of that number** over a trough tinted to the actor's element; ATB is the 2-px line and the ONLY attack bar drawn on a hero. The STATUS shelf is **not drawn when empty** and `PANEL_H` becomes the drawn ceiling, not the drawn height — the registered rect stays 280×104. Up to six 28-px status pictograms; past six, five and a "+N". Tap = target while a target prompt is open, else inspect |
+| stage | x 24–1160 (one panel column instead of two walls): the party at (700, 380) · (790, 448) · (880, 516) feet facing left, `DIAG_DX 90 / DIAG_DY 68`; enemies on the left at (230, 380) · (330, 448) · (430, 516), a pack of two FANNED at (206, 400) · (452, 504) rather than stacked, a lone boss centred on its side at (322, 490). **No gauges on the ground**: an actor carries a 3-px HP hairline (`HP_HAIRLINE_H`) tucked into its contact shadow, `HP_HAIRLINE_SPAN = 0.62` of the foot span and never wider, shown only while HP is short or for `HP_HAIRLINE_HOLD = 1.5 s` after a change; ATB is drawn in the hero panels and in the ribbon's order only. ≤ `STATUS_ABOVE_MAX = 4` status pictograms above the head (the REAL silhouette top from `actorHitRect`, not a fixed 0.88 × `ACTOR_W`; then 3 + "+N"); pops at head + 64, rising at most `POP_RISE_MAX = 26` and clamped out of the ribbon, the safe inset and the panel column — except a plate-bearing enemy's own pop, which `popYFor` pushes above its plate instead. Enemies are targeted through sprite cells whose x-span `spriteCellX` splits at the midpoint between neighbouring feet, a Voronoi cut leaving no strip of the stage ambiguous between two packmates |
+| enemy plate | No column. The focused, hovered or targeted enemy carries a plate above its head — name, HP with its rule, element glyph and status pictograms — `ENEMY_PLATE_MIN_W = 132`, `ENEMY_PLATE_PAD = 10`, floated `ENEMY_PLATE_LIFT = 18` above the sprite's REAL silhouette top (`headY`, off `actorHitRect`, not a fixed 0.88 × `ACTOR_W`), clamped to `RIBBON_BOTTOM + 6`, with a pointer tail and NO hairline stem — the plate sits close enough to the body that there is no distance for a leader line to cross. A hit pop on that actor is what clears the plate instead, pushed to `POP_PLATE_CLEAR = 8` above it plus a crit glyph's height. **The enemy's own sprite hit rect is the canonical target** (`enemy-i`, registered with the index and group the panel used to carry, grown to `TAP_MIN` by the registry), so arrows still walk the pack and A still commits |
+| log | One line at `LOG_TEXT = (376, 552)`, truncated at `LOG_MAX_W = 784`, over a SHORT local wash (`LOG_WASH_H = 34`, `LOG_WASH_BLEED = 28`) that fades out at both ends — no full-width plate and no rule cutting the frame across all 1280 px. The target prompt is this line, in the accent amber |
+| command list | three compact rows at `SKILL_X = 24`, `SKILL_W = 320`, `SKILL_H = 40` (`SKILL_H_PHONE = 56`), stacked upward from `SKILL_BOTTOM = 672` (`SKILL_BOTTOM_PHONE = 680`) with `SKILL_ROW_GAP = 8` — bottom-left, not a full-width slab. Name left in the HUD face, cooldown pips right (only as many pips as the skill's own cooldown, filled by what is left) and the desktop key hint at the far right. Each row registers `skillHitRect(i, phone)` — the drawn rect grown by half the row gap on each side, so the three rows TILE with no gutter — not the drawn rect grown by the registry: pre-grown 96-px rects at a 48-px pitch overlap by half, and the registry resolves a tap against the LAST registered rect containing it, so every tap on row 1 landed on row 2 and was swallowed whenever row 2 was on cooldown. `skillTailRect(phone)` registers one extra TWIN of row 2 covering the strip from its foot to the canvas bottom, which is what makes the list "reach the bottom edge" on a phone |
+| cards | `CARD_W = 384` × 440 at `CARD_Y = 88`, x 40/448/856 — 440 is the **hit** height; the drawn plate is measured from the rows it actually holds and centred in that band (a relic card was 45 % empty below the set line, the room card 62 %). The who-wears-it column carries the candidate's portrait chip AND the candidate themselves idling at `ACTOR_SCALE`, clipped to the column, in place of the word EMPTY, or four of `CARD_W_FOUR = 284` × 440 at x 48/348/648/948 under HASTE; the room-to-room card is the middle slot with `CONTINUE = (448, 552, 384, 96)`; the who-wears-it row is its own grid: `WEAR_BTN 280×96` at `WEAR_X = 40/344/648/952`, `WEAR_Y = 552` (the fourth is decline), each candidate's current piece and compare line in the three card slots |
 | doors | DESCEND and ANOTHER LAP, 520×200 at `DOOR_X = 96 / 664`, `DOOR_Y = 320` |
-| inspect | `INSPECT = (24, 24, 1232, 648)` via `drawPanel`: name at `TEXT_LABEL` (48, 40); six rows at `INSPECT_ROW_Y = 96 + 72 × i` — 32-px slot icon, title ≤ 11 at `TEXT_LABEL`, four substats ≤ 10 chars at `TEXT_BODY`; set bonuses in `SET_BAND = (48, 536, 968, 112)` at `SET_LINE_Y = 540 / 576 / 612`, one `TEXT_BODY` line per distinct active set (stacked pairs as `FATAL ×3 +45 % ATK`); `BACK = (1040, 552, 192, 96)`, also bound to B |
-| pause | dimScene, PAUSED at scale 4 at y 120, three `PAUSE_BTN 400×96` at x 440, y 216 / 336 / 456 (resume · ARCADE · quit), group `pause`, index 0–2 |
+| inspect | `INSPECT = (24, 24, 1232, 648)` via `drawPanel`: name at `TEXT_LABEL` (48, 40); six rows at `INSPECT_ROW_Y = 96 + 72 × i` — a 32-px slot **pictogram** (`SLOT_ICON_NAME`, amber when the slot is filled and dim when it is empty; the `Wp/Bt/Ar/Nk/Ch/Tm` letters are gone), title ≤ 11 at `TEXT_LABEL`, four substats ≤ 10 chars at `TEXT_BODY`; set bonuses in `SET_BAND = (48, 536, 968, 112)` at `SET_LINE_Y = 540 / 576 / 612`, one `TEXT_BODY` line per distinct active set (stacked pairs as `FATAL ×3 +45 % ATK`); and the overlay is `dimScene(0.62)` with the panel over it at plate alpha **0.92**, drawn with the battle HUD (panels, ribbon, log, command list, and the stage plane's own hairlines and head pictograms) suppressed beneath it, so no panel, number or log line ghosts through; `BACK` is the secondary button (text plus a focus underline), also bound to B |
+| pause | The battle HUD is **suppressed** — including the stage plane's HP hairlines and head pictograms, which are HUD drawn among the actors — and then `dimScene(0.66)`, so PAUSED is never drawn in front of a live panel; PAUSED at `PAUSED_PX` at y 120, three `PAUSE_BTN 400×96` at x 440, y 216 / 336 / 456 (resume · ARCADE · quit), group `pause`, index 0–2. RESUME is the primary button (lit borderless plate, key-coloured glow); **every other button is bordered**, so none of them can dissolve into the dimmed stage |
 | map | `MAP_NODE = 96` at `MAP_X = 88 + 208 × stage`, `MAP_Y = 168 + 144 × row`; the act and score band y 24–120 |
 | party | three member columns in the card slots, each column one region with six `PARTY_ROW = 64` slot rows from y 128 as its `index`; `PARTY_SWAP = (40, 552, 280, 96)`, `PARTY_LEADER = (344, 552, 280, 96)` (acts on the focused column; `disabled` outside the draft, a SUMMON, a REST and the ALTAR) and `PARTY_BACK = (952, 552, 280, 96)`, group `party`, index 0 / 1 / 2, BACK also bound to B |
-| end screens | GAME OVER's RETRY and VICTORY's CONTINUE reuse `CONTINUE`; the act-6 VICTORY shows the doors row; score and act at `TEXT_LABEL` centred at y 120; the title's START, the Home-Screen hint and the rotate prompt are screen-level |
+| end screens | The surviving party idles in the frame at (896, 424) · (986, 492) · (1076, 560), drawn inside the scene pass so the biome's key light and rim reach them, with a cached warm pool laid back over `dimScene(0.5)` so they still read as lit under the terminal overlay. GAME OVER's RETRY and VICTORY's CONTINUE reuse `CONTINUE` as the **primary** button (lit borderless plate in the verdict's colour); the act-6 VICTORY shows the doors row; score and act at `TEXT_LABEL` centred at y 120; the title's START, the Home-Screen hint and the rotate prompt are screen-level |
 | draft | `DRAFT_CARD = 284 × 136` in the four-card columns 48 / 348 / 648 / 948 at `DRAFT_Y = 88 / 240 / 392` (twelve slots), name at `TEXT_BODY`; the pick is confirmed by `CONTINUE` |
 | skip | `SKIP = CONTINUE` registered under every card row (SKIP / WALK PAST / DECLINE), group `cards`, index = card count, also bound to B; FORGE's three modes and walk-past use the WEAR grid after the relic is picked on the party columns |
 
@@ -1373,12 +1394,18 @@ fix** (`npm run sim -- --runs 5000`), act N = act-N boss killed on lap 1:
 | | win | act 1 | act 2 | act 3 | act 4 | act 5 | act 6 |
 |---|---|---|---|---|---|---|---|
 | target | — | ≥ 80 % (≈ 90–93 intent) | ≈ 57 % | ≈ 41 % | ≈ 29 % | ≈ 21 % | ≈ 15 % |
-| `balanced`, seed 1 (5000) | 15.0 % | 91.3 % | 56.4 % | 40.8 % | 30.8 % | 23.2 % | 15.0 % |
-| `balanced`, seed 2 (2000) | 13.9 % | 91.3 % | 56.1 % | 38.8 % | 28.5 % | 20.8 % | 13.9 % |
+| `balanced`, seed 1 (5000) | 14.8 % | 91.1 % | 56.2 % | 40.2 % | 30.1 % | 22.3 % | 14.8 % |
+| `balanced`, seed 2 (2000) | 14.3 % | 91.0 % | 56.4 % | 40.7 % | 30.3 % | 22.9 % | 14.3 % |
+
+Re-measured 2026-09-05 after the run seam's two contract fixes (the leader
+seat re-offered after a SUMMON, a REST and the ALTAR; declining the
+full-party SUMMON's EPIC no longer mends), which moved every policy's rng
+stream except `random`/`control`/`pairs` — the `balanced` ladder by 0.2–0.9
+points harder than the retune's own table.
 
 Every act on both seeds now lands within 2.3 points of target, act 1
 included — it sits inside the ≈ 90–93 % intent on both seeds, not just
-above its ≥ 80 % floor. The act1→act2 survival ratio is 56.4/91.3 = 0.618
+above its ≥ 80 % floor. The act1→act2 survival ratio is 56.2/91.1 = 0.617
 (seed 1), still short of the contract's smooth 0.72 slope, but 0.72 is not
 reachable at the same time as both stated bands: act1 ≈ 90–93 % and act2
 ≈ 55–58 % together cap the ratio near 55/91–58/90 ≈ 0.61–0.64 by
@@ -1394,15 +1421,15 @@ first step, landing where the two stated bands actually intersect.
 | Guard | Target | Result |
 |---|---|---|
 | random win | < 3 % | 0.0 % |
-| stall, every policy | ≤ 0.5 % | 0.0–0.1 % (seed 1, 5000 runs: `balanced`/`glass`/`lapper` 0.1 %, everyone else 0.0 %; which policy shows the rare nonzero tick moves from run to run — `control` read 0.1 % in an earlier pass, `balanced`/`glass`/`lapper` do here — treat 0.0 % anywhere as "not observed this sample," not "cannot happen") |
-| lap-2 clear, `lapper` | ≈ 8 % | 8.2 % of 769 runs (seed 1, 5000); 11.5 %/8.4 %/10.3 % at seeds 2/3/4242 (2000 each) — noisier around its target than the other guards, expected for a rare-tail metric over a few hundred lap-takers |
-| `--spd` gate | Δ ≥ 20 pts | Δ 33.9 pts (act3 +10 57.1 % / −10 23.3 %) |
-| `balanced` REST heal | 25–60 % | 50.8 % |
-| `balanced` ELITE win | 75–90 % | 82.5 % (seed 1, 5000); 81.9 %/81.2 %/83.1 % at seeds 2/3/4242 (2000 each) — comfortably mid-band and consistent across seeds, unlike the rejected `ELITE_MULT.hp = 6.1` build's 74–76 % (seed-thin against the 75 % floor) |
-| swap ≥ 1, some policy's wins | ≥ 5 % | **seven** policies, not six: `random` (small-sample, n in the single digits), `balanced` 78.7 %, `speed` 77.9 %, `glass` 77.3 %, `tank` 74.4 %, `control` 79.8 %, `pairs` 73.9 % (`mono` ≈ 0 % does not qualify; `lapper` has no wins) |
-| every character leads, some policy | ≥ 5 % | EMBER 26.4 (control) · GALE 65.5 (speed) · TIDE 75.7 (mono) · BASALT 34.6 (control) · SABLE 47.0 (tank) · LUMEN 9.0 (`balanced`) |
-| every 4-piece set, some policy | ≥ 5 % | VIOLENT 6.2 (speed) · DESPAIR 6.8 (control) clear the floor this pass; VAMPIRE 1.7 · WILL 3.8 · NEMESIS 1.7 · REVENGE 1.6 · BULWARK 2.1 · DESTROY 2.9 do not — see below, still not fixable with numbers, and *which* clear 5 % keeps changing seed to seed (an earlier, numerically close pass had BULWARK and DESTROY passing instead) |
-| every pact, \|Δ\| | ≤ 5 pts | HASTE −2.6 · FURY −2.7 · VEIL −3.8 · BLIND +3.8 · SCHISM +1.3 · DEARTH −0.7 |
+| stall, every policy | ≤ 0.5 % | 0.0–0.1 % (seed 1, 5000 runs: `random`/`glass`/`control`/`lapper` 0.1 %, everyone else 0.0 %; which policy shows the rare nonzero tick moves from run to run — `control` read 0.1 % in an earlier pass, `balanced`/`glass`/`lapper` do here — treat 0.0 % anywhere as "not observed this sample," not "cannot happen") |
+| lap-2 clear, `lapper` | ≈ 8 % | 10.2 % of 719 runs (seed 1, 5000); 8.0 % of 274 at seed 2 (2000) — noisier around its target than the other guards, expected for a rare-tail metric over a few hundred lap-takers |
+| `--spd` gate | Δ ≥ 20 pts | Δ 35.7 pts (act3 +10 58.7 % / −10 23.0 %) |
+| `balanced` REST heal | 25–60 % | 49.1 % (seed 1); 51.3 % (seed 2) |
+| `balanced` ELITE win | 75–90 % | 82.3 % (seed 1, 5000); 82.4 % at seed 2 (2000) — comfortably mid-band and consistent across seeds, unlike the rejected `ELITE_MULT.hp = 6.1` build's 74–76 % (seed-thin against the 75 % floor) |
+| swap ≥ 1, some policy's wins | ≥ 5 % | **seven** policies, not six: `random` (small-sample, n in the single digits), `balanced` 78.2 %, `speed` 79.8 %, `glass` 79.3 %, `tank` 75.9 %, `control` 79.7 %, `pairs` 74.2 % (`mono` ≈ 0 % does not qualify; `lapper` has no wins) |
+| every character leads, some policy | ≥ 5 % | EMBER 24.1 (control) · GALE 66.4 (speed) · TIDE 76.4 (mono) · BASALT 36.9 (control) · SABLE 47.3 (tank) · LUMEN 7.7 (`balanced`) |
+| every 4-piece set, some policy | ≥ 5 % | VIOLENT 5.5 (speed) · DESPAIR 6.2 (control) clear the floor this pass; VAMPIRE 2.4 · WILL 4.5 · NEMESIS 3.1 · REVENGE 1.4 · BULWARK 2.0 · DESTROY 2.8 do not — see below, still not fixable with numbers, and *which* clear 5 % keeps changing seed to seed (an earlier, numerically close pass had BULWARK and DESTROY passing instead) |
+| every pact, \|Δ\| | ≤ 5 pts | HASTE −3.9 · FURY −3.6 · VEIL −4.2 · BLIND +4.2 · SCHISM −1.2 · DEARTH −0.4 |
 | SABLE/LUMEN vs any triangle char, `balanced` wins | < 1.5× | **triggered** — see below |
 | Vault + 3 kindled relics, act-1 clear | ≤ 97 % | **triggered** — see below |
 | ≥ 2 mains per open slot, pooled wins | ≥ 2 | 4–5 distinct mains on every one of BOOTS/NECKLACE/TOME |
@@ -1580,9 +1607,9 @@ corrected from the previous pass, which mis-measured both:**
   relics), or accept TIDE's rarity in `balanced`-family play as intended
   and drop this guard's premise.
 - **Vault + three kindled relics, act-1 clear ≤ 97 %** — triggered, and
-  worse post-retune (99.4–99.5 % → 100.0 % at 5000 runs; `balanced`'s
-  overall win rate under the same scenario jumps from its normal 15.1 % to
-  65.1 %). `RunConfig.vault`/`vaultSlots` **is** the harness seam for this
+  worse post-retune (99.4–99.5 % → 99.9 % at 5000 runs; `balanced`'s
+  overall win rate under the same scenario jumps from its normal 14.8 % to
+  63.4 %). `RunConfig.vault`/`vaultSlots` **is** the harness seam for this
   — the gap was only ever a missing CLI flag, not a missing mechanism —
   so `sim/run.mjs` now has `--vault N` (0–3): three already-kindled EPIC/
   +6/sigil relics, one per fixed-main slot (WEAPON/ARMOR/CHALICE), a

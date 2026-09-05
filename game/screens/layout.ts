@@ -55,9 +55,11 @@ export const SAFE_BOTTOM_PHONE = 40;
  * so the band genuinely reaches y 104 — the old number stopped being true the
  * moment the current chip grew, and a declared band that lies is worse than a
  * taller one. Nothing else lives above y 96 on this side of the frame: the hero
- * panels are at x 976 and the ribbon ends by x 450.
+ * panels are at x 976 and the ribbon ends by x 450. (No RIBBON_TOP export: the
+ * band's top is the literal 24 every draw call already uses — same number as
+ * SAFE_INSET.top below, but no line in this screen has ever needed it back
+ * as a named constant, so there was nothing for an export to serve.)
  */
-export const RIBBON_TOP = 24;
 export const RIBBON_BOTTOM = 104;
 /** Scale on the chip of the actor whose turn it is, and the gap the chevron divider sits in. */
 export const QUEUE_CURRENT_SCALE = 1.4;

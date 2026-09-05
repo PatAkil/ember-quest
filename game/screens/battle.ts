@@ -1198,7 +1198,19 @@ export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
     drawIcon(ctx, ELEMENT_ICON_NAME[a.def.element], x + w - ENEMY_PLATE_PAD - ELEMENT_GLYPH, y + ENEMY_PLATE_PAD - 1,
       ELEMENT_GLYPH, ELEMENT_COLOR[a.def.element], 0.95);
     const hy = y + ENEMY_PLATE_PAD + ENEMY_PLATE_NAME_H;
-    hudText(ctx, hp, ix, hy, { px: HUD_SMALL, color: PICO8[6] });
+    // The shared plate gradient fades to nothing toward the foot, so on an
+    // enemy standing in a bright key-light pool this row's own local
+    // background can wash out enough that PICO8[6] fails the 4.5:1 floor here
+    // even though the NAME row above it (denser ink) still clears it. Reinforce
+    // just this row's ink locally — never the shared gradientPlate/vGrad every
+    // other plate and screen also draws with — and move the number onto the
+    // brighter actor-role white instead of the scenery grey.
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = `rgba(${INK},1)`;
+    ctx.fillRect(x, hy - 2, w, ENEMY_PLATE_HP_H + 4);
+    ctx.restore();
+    hudText(ctx, hp, ix, hy, { px: HUD_SMALL, color: PICO8[7] });
     drawHpRule(ctx, ix, hy + 17, Math.max(hpW, 48), hpShown / a.maxHp, a.def.element);
     if (statuses > 0) {
       let sx = ix;
