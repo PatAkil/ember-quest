@@ -302,9 +302,10 @@ const RIM_PUSH_Y = 0.22;
 /**
  * The lit prop. Two pieces, and neither of them is a disc over the torso:
  *
- *  - a TIGHT halo at the prop itself (radius `GLOW_HALO` + `GLOW_HALO_GAIN`
- *    x glow, as a fraction of the actor's width — about 20 px on a 128-px
- *    hero), so the flame or orb sits in its own bloom;
+ *  - NOTHING over the sprite. This pass runs after the actors are drawn, so
+ *    any additive disc at the prop lands on the carrier's garment; the prop's
+ *    own bright pixels pass renderPost's self-multiply threshold and the bloom
+ *    puts the halo back into the air around them, under nothing;
  *  - a WIDE, FLAT pool centred on the actor's FEET, which is the light the
  *    prop throws on the ground and into the contact shadow. It is squashed to
  *    `GLOW_POOL_SQUASH` of its width, so it reaches barely a boot-height above
@@ -317,8 +318,8 @@ const RIM_PUSH_Y = 0.22;
 const GLOW_AT_DX = 0.32;
 const GLOW_AT_DY = 0.14;
 const GLOW_HALO = 0.09;
-const GLOW_HALO_GAIN = 0.07;
-const GLOW_HALO_ALPHA = 0.34;
+/** Hard ceiling on the bloom seed's radius, in logical px — it must stay inside the prop. */
+const GLOW_BLOOM_MAX = 10;
 const GLOW_POOL = 0.5;
 const GLOW_POOL_GAIN = 0.34;
 const GLOW_POOL_ALPHA = 0.2;
@@ -1046,15 +1047,22 @@ export function createLight(opts: CreateLightOptions): Light {
             const ph = pr * GLOW_POOL_SQUASH;
             ctx.globalAlpha = GLOW_POOL_ALPHA * glow;
             ctx.drawImage(glowS, gx - pr, a.y + a.h - ph, pr * 2, ph * 2);
-            // The prop's own halo: small enough that its falloff is spent
-            // before it reaches the chest.
-            const hr = a.w * (GLOW_HALO + glow * GLOW_HALO_GAIN);
-            ctx.globalAlpha = GLOW_HALO_ALPHA * glow;
-            ctx.drawImage(glowS, gx - hr, gy - hr, hr * 2, hr * 2);
+            // NO disc over the sprite. This pass runs AFTER the actors are
+            // drawn, so anything additive laid at the prop lands on the
+            // carrier's own garment pixels — and a prop is not always held
+            // clear of the body: TIDE's orb sits at chest height, so even a
+            // 16-px halo put the rig's lift on TIDE at +20 L against +9 on the
+            // others and ate the plane the artist had authored under it. The
+            // visible glow is the prop's OWN bright pixels coming back through
+            // renderPost's bloom threshold, which spreads them into the air
+            // around the prop without touching the pixels underneath.
             if (glowN < 16) {
               glowX[glowN] = gx;
               glowY[glowN] = gy;
-              glowR[glowN] = hr;
+              // Kept INSIDE the prop: the blob only has to guarantee that a
+              // small flame reaches the threshold, and a radius wider than the
+              // prop blooms the garment behind it back out again.
+              glowR[glowN] = Math.min(a.w * GLOW_HALO, GLOW_BLOOM_MAX);
               glowA[glowN] = glow;
               glowN++;
             }
