@@ -106,60 +106,60 @@ export const VFX_RECIPES: Record<SkillId, VfxRecipeConfig> = {
   // --- EMBER · FIRE --------------------------------------------------------
   CINDER: { kind: 'projectile', color: FIRE, color2: FIRE_HOT },
   FLARE: { kind: 'fireBurst', color: FIRE, color2: FIRE_HOT, size: 68 },
-  INFERNO: { kind: 'fireBurst', color: FIRE, color2: FIRE_HOT, size: 92, duration: 0.72 },
-  INFERNO_BRAND: { kind: 'fireBurst', color: FIRE, color2: FIRE_HOT, size: 92, duration: 0.72 },
+  INFERNO: { kind: 'fireBurst', color: FIRE, color2: FIRE_HOT, size: 92, duration: 0.96 },
+  INFERNO_BRAND: { kind: 'fireBurst', color: FIRE, color2: FIRE_HOT, size: 92, duration: 0.96 },
   // --- GALE · WIND -----------------------------------------------------------
   GUST: { kind: 'windBlade', color: WIND, color2: WIND_PALE },
   SQUALL: { kind: 'windBlade', color: WIND, color2: WIND_PALE, size: 64 },
-  TAILWIND: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 60, duration: 0.8 },
+  TAILWIND: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 60, duration: 0.85 },
   GUST_RIP: { kind: 'windBlade', color: WIND, color2: WIND_PALE },
   // --- TIDE · WATER ------------------------------------------------------------
   RIPPLE: { kind: 'waterWave', color: WATER, color2: WATER_FOAM },
   TIDEPOOL: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE },
-  UNDERTOW: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 74, duration: 0.85 },
-  UNDERTOW_WARD: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 74, duration: 0.85 },
+  UNDERTOW: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 74, duration: 0.91 },
+  UNDERTOW_WARD: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 74, duration: 0.91 },
   // --- BASALT · FIRE (DEF wall) ------------------------------------------------
   BASH: { kind: 'slash', color: PHYSICAL, color2: FIRE },
-  BULWARK: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, duration: 0.7 },
+  BULWARK: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, duration: 0.82 },
   QUAKE: { kind: 'shockwave', color: RUST, color2: FIRE, size: 78 },
-  BULWARK_RAMPART: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, size: 76, duration: 0.7 },
+  BULWARK_RAMPART: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, size: 76, duration: 0.82 },
   // --- SABLE · DARK --------------------------------------------------------
   HEX: { kind: 'darkPulse', color: DARK, color2: DARK_GLOW },
   MIRE: { kind: 'darkPulse', color: DARK, color2: DARK_GLOW, size: 74 },
-  ECLIPSE: { kind: 'stunStar', color: DARK_GLOW, color2: DARK, duration: 0.75 },
+  ECLIPSE: { kind: 'stunStar', color: DARK_GLOW, color2: DARK, duration: 0.86 },
   HEX_LINGER: { kind: 'darkPulse', color: DARK, color2: DARK_GLOW },
   // --- LUMEN · LIGHT -----------------------------------------------------------
   LANCE: { kind: 'projectile', color: LIGHT, color2: LIGHT_WHITE },
-  RADIANCE: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 64, duration: 0.8 },
-  JUDGEMENT: { kind: 'lightBeam', color: LIGHT, color2: LIGHT_WHITE, size: 86, duration: 0.78 },
-  JUDGEMENT_REFUND: { kind: 'lightBeam', color: LIGHT, color2: LIGHT_WHITE, size: 86, duration: 0.78 },
+  RADIANCE: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 64, duration: 0.85 },
+  JUDGEMENT: { kind: 'lightBeam', color: LIGHT, color2: LIGHT_WHITE, size: 86, duration: 0.92 },
+  JUDGEMENT_REFUND: { kind: 'lightBeam', color: LIGHT, color2: LIGHT_WHITE, size: 86, duration: 0.92 },
 
   // --- EMBER CRYPT -------------------------------------------------------------
   SCORCH: { kind: 'projectile', color: FIRE, color2: FIRE_HOT },
   KINDLE: { kind: 'burnFlicker', color: FIRE, color2: FIRE_HOT },
   BITE: { kind: 'slash', color: PHYSICAL, color2: FIRE },
-  REND: { kind: 'slash', color: PHYSICAL, color2: FIRE, duration: 0.55 },
+  REND: { kind: 'slash', color: PHYSICAL, color2: FIRE, duration: 0.94 },
   CUDGEL: { kind: 'slash', color: PHYSICAL, color2: FIRE },
-  RALLY: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 60, duration: 0.8 },
+  RALLY: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 60, duration: 0.85 },
   MEND: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE },
   WAIL: { kind: 'windBlade', color: GHOST, color2: WIND_PALE },
   CHOKE: { kind: 'stunStar', color: GHOST, color2: WIND_PALE },
   SHIELD_BASH: { kind: 'slash', color: PHYSICAL, color2: FIRE },
-  BRACE: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, duration: 0.7 },
+  BRACE: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, duration: 0.82 },
   IMMOLATE: { kind: 'fireBurst', color: FIRE, color2: FIRE_HOT, size: 84 },
   REAP: { kind: 'slash', color: DARK, color2: DARK_GLOW },
   DREAD_WAIL: { kind: 'darkPulse', color: DARK, color2: DARK_GLOW, size: 84 },
-  SHROUD: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, size: 76, duration: 0.8 },
-  DOOM: { kind: 'darkPulse', color: DARK, color2: DARK_GLOW, size: 76, duration: 0.72 },
+  SHROUD: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, size: 76, duration: 0.93 },
+  DOOM: { kind: 'darkPulse', color: DARK, color2: DARK_GLOW, size: 76, duration: 0.94 },
 
   // --- FROST MARSH ---------------------------------------------------------------
   TONGUE_LASH: { kind: 'slash', color: WATER, color2: WATER_FOAM },
   BOG_SPIT: { kind: 'projectile', color: WATER, color2: RUST },
   CHILL: { kind: 'frostShards', color: FROST, color2: WATER },
-  DEEP_FREEZE: { kind: 'stunStar', color: FROST, color2: WATER, duration: 0.75 },
+  DEEP_FREEZE: { kind: 'stunStar', color: FROST, color2: WATER, duration: 0.86 },
   CANE: { kind: 'slash', color: WATER, color2: WATER_FOAM },
   SALVE: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE },
-  BRINE_WARD: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, size: 76, duration: 0.7 },
+  BRINE_WARD: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, size: 76, duration: 0.82 },
   PINCH: { kind: 'slash', color: WATER, color2: PHYSICAL },
   CRUSH: { kind: 'shockwave', color: WATER, color2: PHYSICAL, size: 72 },
   FLICKER: { kind: 'projectile', color: FIRE, color2: FIRE_HOT },
@@ -168,9 +168,9 @@ export const VFX_RECIPES: Record<SkillId, VfxRecipeConfig> = {
   DRAG_UNDER: { kind: 'waterWave', color: WATER, color2: DARK },
   DELUGE: { kind: 'waterWave', color: WATER, color2: WATER_FOAM, size: 86 },
   HALO_LASH: { kind: 'lightBeam', color: LIGHT, color2: LIGHT_WHITE },
-  SMITE: { kind: 'lightBeam', color: LIGHT, color2: LIGHT_WHITE, size: 90, duration: 0.78 },
+  SMITE: { kind: 'lightBeam', color: LIGHT, color2: LIGHT_WHITE, size: 90, duration: 0.92 },
   PALE_FLOOD: { kind: 'waterWave', color: LIGHT_WHITE, color2: WATER, size: 86 },
-  SANCTIFY: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 70, duration: 0.8 },
+  SANCTIFY: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 70, duration: 0.85 },
 
   // --- SKY RUINS -------------------------------------------------------------
   TALON: { kind: 'slash', color: PHYSICAL, color2: WIND },
@@ -178,35 +178,35 @@ export const VFX_RECIPES: Record<SkillId, VfxRecipeConfig> = {
   ZEPHYR: { kind: 'windBlade', color: WIND, color2: WIND_PALE },
   DAZZLE_GUST: { kind: 'windBlade', color: WIND, color2: WIND_PALE },
   STONE_FIST: { kind: 'slash', color: PHYSICAL, color2: WIND },
-  WARD_STONE: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, duration: 0.7 },
+  WARD_STONE: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, duration: 0.82 },
   MEND_ECHO: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE },
   RAINSPIT: { kind: 'projectile', color: WATER, color2: WATER_FOAM },
   DOWNPOUR: { kind: 'waterWave', color: WATER, color2: WATER_FOAM },
   DRAKE_CLAW: { kind: 'slash', color: PHYSICAL, color2: WIND },
-  TEMPEST_WING: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 60, duration: 0.8 },
+  TEMPEST_WING: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 60, duration: 0.85 },
   GALE_BREATH: { kind: 'windBlade', color: WIND, color2: WIND_PALE, size: 80 },
   SKYRENT: { kind: 'slash', color: PHYSICAL, color2: DARK },
   STORMCALL: { kind: 'darkPulse', color: DARK, color2: DARK_GLOW, size: 84 },
-  KINGLY_GUARD: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, duration: 0.7 },
-  RUIN_JUDGEMENT: { kind: 'darkPulse', color: DARK, color2: DARK_GLOW, size: 76, duration: 0.72 },
+  KINGLY_GUARD: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, duration: 0.82 },
+  RUIN_JUDGEMENT: { kind: 'darkPulse', color: DARK, color2: DARK_GLOW, size: 76, duration: 0.94 },
 
   // --- ASHEN FORGE -------------------------------------------------------------
   SLAG_FIST: { kind: 'slash', color: PHYSICAL, color2: FIRE },
   MOLTEN_SLAM: { kind: 'burnFlicker', color: FIRE, color2: FIRE_HOT },
   SNARL_BITE: { kind: 'slash', color: PHYSICAL, color2: FIRE },
-  BRANDING_BITE: { kind: 'slash', color: PHYSICAL, color2: FIRE, duration: 0.55 },
+  BRANDING_BITE: { kind: 'slash', color: PHYSICAL, color2: FIRE, duration: 0.94 },
   TONGS_STRIKE: { kind: 'slash', color: PHYSICAL, color2: FIRE },
-  TEMPER: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 60, duration: 0.8 },
+  TEMPER: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 60, duration: 0.85 },
   EMBER_SALVE: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE },
   HISS: { kind: 'projectile', color: WATER, color2: WATER_FOAM },
   SCALD: { kind: 'burnFlicker', color: WATER, color2: WATER_FOAM },
   GREATHAMMER: { kind: 'shockwave', color: RUST, color2: FIRE },
-  FORGE_WARD: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, duration: 0.7 },
+  FORGE_WARD: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, duration: 0.82 },
   WHITE_HEAT: { kind: 'fireBurst', color: FIRE, color2: FIRE_HOT, size: 84 },
   SEARLIGHT: { kind: 'lightBeam', color: LIGHT, color2: LIGHT_WHITE },
-  SAINTS_WRATH: { kind: 'lightBeam', color: LIGHT, color2: LIGHT_WHITE, size: 90, duration: 0.78 },
+  SAINTS_WRATH: { kind: 'lightBeam', color: LIGHT, color2: LIGHT_WHITE, size: 90, duration: 0.92 },
   CRUCIBLE_FLARE: { kind: 'fireBurst', color: LIGHT_WHITE, color2: FIRE, size: 86 },
-  SACRED_EMBER: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, size: 76, duration: 0.8 },
+  SACRED_EMBER: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, size: 76, duration: 0.93 },
 
   // --- SUNKEN VAULT -------------------------------------------------------------
   RUSTED_PIKE: { kind: 'slash', color: RUST, color2: WATER },
@@ -214,7 +214,7 @@ export const VFX_RECIPES: Record<SkillId, VfxRecipeConfig> = {
   STING: { kind: 'projectile', color: WATER, color2: WATER_FOAM },
   NUMBING_STING: { kind: 'waterWave', color: WATER, color2: WATER_FOAM },
   CURRENT_LASH: { kind: 'waterWave', color: WATER, color2: WATER_FOAM },
-  TIDAL_BLESSING: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 60, duration: 0.8 },
+  TIDAL_BLESSING: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 60, duration: 0.85 },
   DEEP_MEND: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE },
   CURRENT_JOLT: { kind: 'windBlade', color: WIND, color2: WIND_PALE },
   RIPTIDE_GUST: { kind: 'windBlade', color: WIND, color2: WIND_PALE },
@@ -223,8 +223,8 @@ export const VFX_RECIPES: Record<SkillId, VfxRecipeConfig> = {
   TSUNAMI: { kind: 'waterWave', color: WATER, color2: WATER_FOAM, size: 86 },
   ABYSSAL_CLAW: { kind: 'slash', color: PHYSICAL, color2: DARK },
   DROWNING_CHORUS: { kind: 'stunStar', color: DARK, color2: DARK_GLOW, size: 80 },
-  CRUSHING_DEPTHS: { kind: 'darkPulse', color: DARK, color2: DARK_GLOW, size: 80, duration: 0.72 },
-  THRONE_OF_RUIN: { kind: 'darkPulse', color: DARK, color2: DARK_GLOW, size: 90, duration: 0.78 },
+  CRUSHING_DEPTHS: { kind: 'darkPulse', color: DARK, color2: DARK_GLOW, size: 80, duration: 0.94 },
+  THRONE_OF_RUIN: { kind: 'darkPulse', color: DARK, color2: DARK_GLOW, size: 90, duration: 1.01 },
 
   // --- STORM SPIRE -------------------------------------------------------------
   THUNDER_STRIKE: { kind: 'windBlade', color: WIND, color2: WIND_PALE },
@@ -232,17 +232,17 @@ export const VFX_RECIPES: Record<SkillId, VfxRecipeConfig> = {
   WIND_PALM: { kind: 'slash', color: PHYSICAL, color2: WIND },
   HUNDRED_GUSTS: { kind: 'windBlade', color: WIND, color2: WIND_PALE, size: 64 },
   STAFF_JAB: { kind: 'slash', color: PHYSICAL, color2: WIND },
-  STAND_FAST: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, duration: 0.7 },
+  STAND_FAST: { kind: 'shieldDome', color: WARD, color2: WARD_WHITE, duration: 0.82 },
   UPDRAFT_MEND: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE },
   EMBER_LICK: { kind: 'projectile', color: FIRE, color2: FIRE_HOT },
   CINDER_BURST: { kind: 'burnFlicker', color: FIRE, color2: FIRE_HOT },
   GRANITE_FIST: { kind: 'shockwave', color: PHYSICAL, color2: WIND },
-  THUNDERCLAP: { kind: 'stunStar', color: WIND, color2: WIND_PALE, duration: 0.75 },
+  THUNDERCLAP: { kind: 'stunStar', color: WIND, color2: WIND_PALE, duration: 0.86 },
   CHAIN_LIGHTNING: { kind: 'shockwave', color: WIND, color2: LIGHT_WHITE, size: 78 },
   RADIANT_LANCE: { kind: 'lightBeam', color: LIGHT, color2: LIGHT_WHITE },
-  JUDGEMENT_BOLT: { kind: 'lightBeam', color: LIGHT, color2: LIGHT_WHITE, size: 88, duration: 0.78 },
+  JUDGEMENT_BOLT: { kind: 'lightBeam', color: LIGHT, color2: LIGHT_WHITE, size: 88, duration: 0.92 },
   TEMPEST_CHOIR: { kind: 'windBlade', color: LIGHT_WHITE, color2: WIND, size: 82 },
-  AEGIS_OF_LIGHT: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 70, duration: 0.8 },
+  AEGIS_OF_LIGHT: { kind: 'healShimmer', color: HEAL, color2: HEAL_WHITE, size: 70, duration: 0.85 },
 };
 
 // --- Status glows -----------------------------------------------------------
@@ -1032,13 +1032,13 @@ export interface VfxBounds {
  * and far smaller than the pillar.
  */
 const BOUNDS: Record<VfxKind, readonly [number, number, number, number]> = {
-  slash: [-2.55, -1.88, 1.9, 2.75],
-  fireBurst: [-1.85, -1.75, 1.95, 1.12],
+  slash: [-2.7, -1.98, 1.98, 3.05],
+  fireBurst: [-1.95, -2.08, 2.25, 1.36],
   windBlade: [-1.7, -1.45, 2.0, 1.28], // mirrored below when the effect faces left
   waterWave: [-2.02, -1.6, 1.95, 1.1],
   lightBeam: [-1.7, -4.08, 1.68, 0.93],
   darkPulse: [-1.83, -1.79, 2.06, 1.79],
-  healShimmer: [-1.12, -1.38, 1.1, 1.12],
+  healShimmer: [-1.12, -1.55, 1.1, 1.12],
   shieldDome: [-0.8, -0.7, 0.8, 0.4],
   stunStar: [-1.7, -1.14, 1.68, 1.18],
   burnFlicker: [-1.71, -1.95, 1.68, 1.21],
@@ -1709,12 +1709,12 @@ function buildWindBlade(v: VfxInstance): void {
   const glow = spriteFor(v.color, 'streak');
   const leaf = mixHex(v.color, '#1D2B53', 0.2);
   // Three crescents, each drawn along its arc and shearing outward as it dies.
-  // Eighteen motes an arc (was 13) off a ring 1.25-1.8x wider, and real streaks
+  // Sixteen motes an arc (was 13) off a ring 1.25-1.8x wider, and real streaks
   // laid ALONG the arc so a crescent is a blade edge, not beads.
   for (let k = 0; k < 3; k++) {
     const R = s * (0.62 + k * 0.3);
-    for (let i = 0; i < 18; i++) {
-      const u = i / 17;
+    for (let i = 0; i < 16; i++) {
+      const u = i / 15;
       const a = base + (u - 0.5) * 2.1;
       const p = emit();
       p.x = Math.cos(a) * R;
@@ -1734,7 +1734,7 @@ function buildWindBlade(v: VfxInstance): void {
     }
   }
   // Leaf flecks: solid chips tumbling in the gust, the only opaque thing here.
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 10; i++) {
     const a = base + rr(-1.1, 1.1);
     const R = s * rr(0.35, 0.95);
     const p = emit();
@@ -1784,10 +1784,10 @@ function buildWaterWave(v: VfxInstance): void {
   const foam = spriteFor(v.color2, 'hot');
   const spin = rnd() < 0.5 ? 1 : -1;
   // The long sheet — the wave itself. A streak is drawn 2*r*stretch long and
-  // 2*r thick, so these run 58-149 px long and 2-4 px thick at s = 62: three
-  // to five times the 56-px actor sprite, which is the proportion the
-  // reference frame has and which two earlier passes here only claimed. Thin
-  // rather than short, because a rotated blit's cost is its area and the
+  // 2*r thick, so at s = 62 these run 59.0-154.8 px long and 1.7-3.0 px thick:
+  // one to nearly three times the 56-px actor sprite, which is the proportion
+  // the reference frame has and which two earlier passes here only claimed.
+  // Thin rather than short, because a rotated blit's cost is its area and the
   // LENGTH is the part that reads.
   for (let i = 0; i < 18; i++) {
     const u = i / 18;
@@ -2539,9 +2539,11 @@ function buildProjectile(v: VfxInstance): void {
   }
   // The impact: a spray of stretched streaks thrown radially off the hit, so
   // arrival reads as a burst of shards rather than a slightly larger soft ball.
-  // 32 shards (was 20) off a 1.4x throw, and their life already runs to the very
-  // end of the duration, which is the tail.
-  for (let i = 0; i < 32; i++) {
+  // 26 shards (was 20) off a 1.4x throw, and their life already runs to the very
+  // end of the duration, which is the tail. Contact is at t 32 %, so these are
+  // exactly what is on screen at mid-life — the one place this family ran over
+  // budget on a slow run.
+  for (let i = 0; i < 26; i++) {
     const a = rr(0, TAU);
     const sp = s * rr(5, 14);
     const p = emit();
