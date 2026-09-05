@@ -283,6 +283,13 @@ interface SkillDef {
 }
 ```
 
+A `scale: 'SPD'` skill's `mult` lives on a different numeric scale than an
+ATK- or DEF-scaling one's: SPD never grows through `ACT_MULT` the way ATK and
+DEF do, so a SPD-scaling multiplier has to run several times larger to hit
+for a comparable amount at the same act (GALE_MONK's Wind Palm / Hundred
+Gusts, the game's only user so far, at ×6.0 / 2 × ×3.6 against the usual
+0.6–1.4 band).
+
 Every "% ATB" in a skill, set or sigil is a fraction of `ATB_TURN`. A skill
 resolves its hits (below), then per target in slot order: `cleanse` (the
 skill's, then MENDING's one) → `heal` → `applies` for a skill with `hits = 0`
@@ -488,6 +495,67 @@ Packs: `fights` [TOAD, WISP] · [WISP, FEN FIRE] · [CRAB, TOAD] · [TOAD, HAG,
 FEN FIRE] · [WISP, HAG, CRAB]; `elites` [KNIGHT] · [KNIGHT, WISP]; the boss
 alone. Under the highest-index AI the Saint's rhythm is Flood → Smite →
 Lash: the break, then the telegraphed hit.
+
+**SKY RUINS** (act 3, WIND, foil WATER, boss DARK):
+
+| Enemy | El. | Kind / AI | Skills (cd) |
+|---|---|---|---|
+| RUIN RAPTOR | WIND | normal FOCUS | Talon ×1.1 / Gale Dive ×0.7, −20 % ATB (3) |
+| WIND SPRITE | WIND | normal SPREAD | Zephyr ×0.9 / Dazzle Gust ×0.7 + GLANCE 0.75 (3) |
+| RUIN SENTINEL | WIND | normal support | Stone Fist DEF ×0.9 / Ward Stone ALL_ALLIES SHIELD 0.18 (4) / Mend Echo LOWEST_HP_ALLY heal 0.18 (3) |
+| DROWNED CLOUD | WATER | normal SPREAD, CRIT 22 | Rainspit ×0.9 / Downpour ×0.7 + SLOW 0.75 (3) |
+| STORM DRAKE | WIND | elite FOCUS | Drake Claw ×1.2 / Tempest Wing SELF SPD_UP + ATK_UP (4) / Gale Breath ALL_ENEMIES ×0.7 + SLOW 0.50 (5) |
+| SKYFALLEN KING | DARK | boss FOCUS | Skyrent ×1.2 / Stormcall ALL_ENEMIES ×0.8 + SLOW 0.50 (3) / Kingly Guard SELF DEF_UP + COUNTER (4) / A5: Ruin Judgement ×2.0 + ATK_BREAK 0.75 (4) |
+
+Packs: `fights` [RAPTOR, SPRITE] · [RAPTOR, CLOUD] · [SPRITE, CLOUD] · [RAPTOR,
+SENTINEL, SPRITE] · [CLOUD, SENTINEL, RAPTOR]; `elites` [DRAKE, RAPTOR] ·
+[DRAKE, SPRITE]; the boss alone.
+
+**ASHEN FORGE** (act 4, FIRE, foil WATER, boss LIGHT):
+
+| Enemy | El. | Kind / AI | Skills (cd) |
+|---|---|---|---|
+| FORGE GOLEM | FIRE | normal SPREAD | Slag Fist ×1.0 / Molten Slam ×0.7 + BURN 0.75 (3) |
+| CINDER WOLF | FIRE | normal FOCUS | Snarl Bite ×1.1 / Branding Bite ×0.7 + BRAND 0.75 (3) |
+| SMITH PRIEST | FIRE | normal support | Tongs Strike ×0.8 / Temper ALL_ALLIES ATK_UP (4) / Ember Salve LOWEST_HP_ALLY heal 0.20 (3) |
+| STEAM WRAITH | WATER | normal SPREAD, ACC 10 | Hiss ×0.9 / Scald ×0.7 + BURN 0.75 (3) |
+| FURNACE KNIGHT | FIRE | elite FOCUS | Greathammer DEF ×1.3 / Forge Ward SELF DEF_UP + COUNTER (4) / White Heat ALL_ENEMIES ×0.7 + BURN 0.50 (5) |
+| FORGE SAINT | LIGHT | boss FOCUS | Searlight ×1.2 / Saints Wrath ×1.8 (4) / Crucible Flare ALL_ENEMIES ×0.8 + BURN 0.50 (3) / A5: Sacred Ember SELF INVINCIBLE 1 (5) |
+
+Packs: `fights` [GOLEM, WOLF] · [GOLEM, WRAITH] · [WOLF, WRAITH] · [GOLEM,
+PRIEST, WOLF] · [WRAITH, PRIEST, GOLEM]; `elites` [KNIGHT, GOLEM] · [KNIGHT,
+WOLF]; the boss alone.
+
+**SUNKEN VAULT** (act 5, WATER, foil WIND, boss DARK):
+
+| Enemy | El. | Kind / AI | Skills (cd) |
+|---|---|---|---|
+| DROWNED SENTINEL | WATER | normal FOCUS | Rusted Pike ×1.1 / Undertow Grasp ×0.7 + SLOW 0.75 (3) |
+| VAULT JELLY | WATER | normal SPREAD, resist 15 / 5 | Sting ×0.9 / Numbing Sting ×0.7 + HEAL_BLOCK 0.75 (3) |
+| TIDE ORACLE | WATER | normal support | Current Lash ×0.8 / Tidal Blessing ALL_ALLIES SPD_UP (4) / Deep Mend LOWEST_HP_ALLY heal 0.20 (3) |
+| WIND EEL | WIND | normal SPREAD, CRIT 20 | Current Jolt ×0.9 / Riptide Gust ×0.7, −15 % ATB (3) |
+| LEVIATHAN SPAWN | WATER | elite FOCUS | Maw Bite DEF ×1.3 / Crushing Coils ×1.0 + DEF_BREAK 0.75 (3) / Tsunami ALL_ENEMIES ×0.7 + SLOW 0.50 (5) |
+| SUNKEN KING | DARK | boss FOCUS | Abyssal Claw ×1.2 / Drown Chorus ALL_ENEMIES ×0.8 + SILENCE 0.50 (3) / Abyss Crush ×1.8 (4) / A5: Throne of Ruin ×2.0 + DEF_BREAK 0.75 (5) |
+
+Packs: `fights` [SENTINEL, JELLY] · [SENTINEL, EEL] · [JELLY, EEL] · [SENTINEL,
+ORACLE, JELLY] · [EEL, ORACLE, SENTINEL]; `elites` [LEVIATHAN, SENTINEL] ·
+[LEVIATHAN, JELLY]; the boss alone.
+
+**STORM SPIRE** (act 6, WIND, foil FIRE, boss LIGHT):
+
+| Enemy | El. | Kind / AI | Skills (cd) |
+|---|---|---|---|
+| LIGHTNING HAWK | WIND | normal FOCUS | Thunder Strike ×1.1 / Divebomb ×0.7, −20 % ATB (3) |
+| GALE MONK | WIND | normal SPREAD | Wind Palm SPD ×6.0 / Hundred Gusts SPD 2 × 3.6 + GLANCE 0.75 (3) |
+| SPIRE WARDEN | WIND | normal support | Staff Jab ×0.8 / Stand Fast ALL_ALLIES DEF_UP + COUNTER (4) / Updraft Mend LOWEST_HP_ALLY heal 0.20 (3) |
+| EMBER ELEMENTAL | FIRE | normal SPREAD, CRIT 24 | Ember Lick ×0.9 / Cinder Burst ×0.7 + BURN 0.75 (3) |
+| THUNDER COLOSSUS | WIND | elite FOCUS | Granite Fist DEF ×1.3 / Thunderclap DEF ×0.8 + STUN 0.75 (4) / Chain Bolt ALL_ENEMIES ×0.7 + ATK_BREAK 0.50 (5) |
+| SPIRE SERAPH | LIGHT | boss FOCUS | Radiant Lance ×1.2 / Judgement Bolt ×1.8 (4) / Tempest Choir ALL_ENEMIES ×0.8 + SLOW 0.50 (3) / A5: Aegis of Light SELF heal 0.10 + cleanse all + DEF_UP (5) |
+
+Packs: `fights` [HAWK, MONK] · [HAWK, ELEMENTAL] · [MONK, ELEMENTAL] · [HAWK,
+WARDEN, MONK] · [ELEMENTAL, WARDEN, HAWK]; `elites` [COLOSSUS, HAWK] ·
+[COLOSSUS, MONK]; the boss alone. Wind Palm and Hundred Gusts are the game's
+first SPD-scaling skills — the monk hits as hard as it moves.
 
 ### Between battles
 

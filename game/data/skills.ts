@@ -128,6 +128,138 @@ export const SKILLS: Record<SkillId, SkillDef> = {
     applies: [{ status: 'DEF_BREAK', chance: CHANCE_SECONDARY, turns: T.DEF_BREAK }], verb: 'floods over' },
   SANCTIFY: { id: 'SANCTIFY', name: 'Sanctify', cooldown: 5, mult: 0, hits: 0, scale: 'ATK', kind: 'MAGIC', target: 'SELF', heal: 0.1, cleanse: 99,
     applies: [{ status: 'DEF_UP', chance: 1, turns: T.DEF_UP }], verb: 'sanctifies' },
+
+  // --- SKY RUINS ----------------------------------------------------------------
+  // Open-sky raiders: the raptor and the drake strip ATB like GALE's own kit; the
+  // sprite blinds (GLANCE). The sentinel's kit actually OPENS on its heal —
+  // chooseSkillIndex picks the highest legal index, and Mend Echo sits at
+  // index 2 — then falls back to warding the pack with SHIELD once that heal
+  // is on cooldown; the drowned cloud (WATER foil) slows with rain. The fallen
+  // sky-king braces behind COUNTER, then judges with a will-breaking finisher.
+  TALON: { id: 'TALON', name: 'Talon', cooldown: 0, mult: 1.1, hits: 1, scale: 'ATK', kind: 'PHYSICAL', target: 'ENEMY', verb: 'rakes' },
+  GALE_DIVE: { id: 'GALE_DIVE', name: 'Gale Dive', cooldown: 3, mult: 0.7, hits: 1, scale: 'ATK', kind: 'PHYSICAL', target: 'ENEMY', atbBoost: -0.2, verb: 'dives at' },
+  ZEPHYR: { id: 'ZEPHYR', name: 'Zephyr', cooldown: 0, mult: 0.9, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY', verb: 'flits at' },
+  DAZZLE_GUST: { id: 'DAZZLE_GUST', name: 'Dazzle Gust', cooldown: 3, mult: 0.7, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY',
+    applies: [{ status: 'GLANCE', chance: CHANCE_PRIMARY, turns: T.GLANCE }], verb: 'dazzles' },
+  // DEF-scaling, not ATK — acts 3 and 5 otherwise had zero scale variety (16/16 ATK).
+  STONE_FIST: { id: 'STONE_FIST', name: 'Stone Fist', cooldown: 0, mult: 0.9, hits: 1, scale: 'DEF', kind: 'PHYSICAL', target: 'ENEMY', verb: 'strikes' },
+  WARD_STONE: { id: 'WARD_STONE', name: 'Ward Stone', cooldown: 4, mult: 0, hits: 0, scale: 'ATK', kind: 'PHYSICAL', target: 'ALL_ALLIES',
+    applies: [{ status: 'SHIELD', chance: 1, turns: T.SHIELD, magnitude: 0.18 }], verb: 'wards' },
+  MEND_ECHO: { id: 'MEND_ECHO', name: 'Mend Echo', cooldown: 3, mult: 0, hits: 0, scale: 'ATK', kind: 'MAGIC', target: 'LOWEST_HP_ALLY', heal: 0.18, verb: 'echoes over' },
+  RAINSPIT: { id: 'RAINSPIT', name: 'Rainspit', cooldown: 0, mult: 0.9, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY', verb: 'spits rain at' },
+  DOWNPOUR: { id: 'DOWNPOUR', name: 'Downpour', cooldown: 3, mult: 0.7, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY',
+    applies: [{ status: 'SLOW', chance: CHANCE_PRIMARY, turns: T.SLOW }], verb: 'floods' },
+  DRAKE_CLAW: { id: 'DRAKE_CLAW', name: 'Drake Claw', cooldown: 0, mult: 1.2, hits: 1, scale: 'ATK', kind: 'PHYSICAL', target: 'ENEMY', verb: 'claws' },
+  TEMPEST_WING: { id: 'TEMPEST_WING', name: 'Tempest Wing', cooldown: 4, mult: 0, hits: 0, scale: 'ATK', kind: 'PHYSICAL', target: 'SELF',
+    applies: [{ status: 'SPD_UP', chance: 1, turns: T.SPD_UP }, { status: 'ATK_UP', chance: 1, turns: T.ATK_UP }], verb: 'surges' },
+  GALE_BREATH: { id: 'GALE_BREATH', name: 'Gale Breath', cooldown: 5, mult: 0.7, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ALL_ENEMIES',
+    applies: [{ status: 'SLOW', chance: CHANCE_SECONDARY, turns: T.SLOW }], verb: 'breathes over' },
+  SKYRENT: { id: 'SKYRENT', name: 'Skyrent', cooldown: 0, mult: 1.2, hits: 1, scale: 'ATK', kind: 'PHYSICAL', target: 'ENEMY', verb: 'rends' },
+  STORMCALL: { id: 'STORMCALL', name: 'Stormcall', cooldown: 3, mult: 0.8, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ALL_ENEMIES',
+    applies: [{ status: 'SLOW', chance: CHANCE_SECONDARY, turns: T.SLOW }], verb: 'storms over' },
+  KINGLY_GUARD: { id: 'KINGLY_GUARD', name: 'Kingly Guard', cooldown: 4, mult: 0, hits: 0, scale: 'ATK', kind: 'PHYSICAL', target: 'SELF',
+    applies: [{ status: 'DEF_UP', chance: 1, turns: T.DEF_UP }, { status: 'COUNTER', chance: 1, turns: T.COUNTER }], verb: 'stands fast' },
+  RUIN_JUDGEMENT: { id: 'RUIN_JUDGEMENT', name: 'Ruin Judgement', cooldown: 4, mult: 2.0, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY',
+    applies: [{ status: 'ATK_BREAK', chance: CHANCE_PRIMARY, turns: T.ATK_BREAK }], verb: 'shatters' },
+
+  // --- ASHEN FORGE ----------------------------------------------------------------
+  // Industrial FIRE: the golem's slam and the wolf's bite both carry heat (BURN,
+  // then a literal BRAND); the priest tempers the pack's ATK instead of its SPD;
+  // the steam wraith (WATER foil) scalds despite its element. The knight girds
+  // behind DEF_UP + COUNTER; the Saint smites, floods with fire, then shields
+  // itself in an unkillable flame at A5 (INVINCIBLE).
+  SLAG_FIST: { id: 'SLAG_FIST', name: 'Slag Fist', cooldown: 0, mult: 1.0, hits: 1, scale: 'ATK', kind: 'PHYSICAL', target: 'ENEMY', verb: 'pounds' },
+  MOLTEN_SLAM: { id: 'MOLTEN_SLAM', name: 'Molten Slam', cooldown: 3, mult: 0.7, hits: 1, scale: 'ATK', kind: 'PHYSICAL', target: 'ENEMY',
+    applies: [{ status: 'BURN', chance: CHANCE_PRIMARY, turns: T.BURN }], verb: 'slams' },
+  SNARL_BITE: { id: 'SNARL_BITE', name: 'Snarl Bite', cooldown: 0, mult: 1.1, hits: 1, scale: 'ATK', kind: 'PHYSICAL', target: 'ENEMY', verb: 'gnaws' },
+  BRANDING_BITE: { id: 'BRANDING_BITE', name: 'Branding Bite', cooldown: 3, mult: 0.7, hits: 1, scale: 'ATK', kind: 'PHYSICAL', target: 'ENEMY',
+    applies: [{ status: 'BRAND', chance: CHANCE_PRIMARY, turns: T.BRAND }], verb: 'brands' },
+  TONGS_STRIKE: { id: 'TONGS_STRIKE', name: 'Tongs Strike', cooldown: 0, mult: 0.8, hits: 1, scale: 'ATK', kind: 'PHYSICAL', target: 'ENEMY', verb: 'strikes' },
+  TEMPER: { id: 'TEMPER', name: 'Temper', cooldown: 4, mult: 0, hits: 0, scale: 'ATK', kind: 'PHYSICAL', target: 'ALL_ALLIES',
+    applies: [{ status: 'ATK_UP', chance: 1, turns: T.ATK_UP }], verb: 'tempers' },
+  EMBER_SALVE: { id: 'EMBER_SALVE', name: 'Ember Salve', cooldown: 3, mult: 0, hits: 0, scale: 'ATK', kind: 'MAGIC', target: 'LOWEST_HP_ALLY', heal: 0.2, verb: 'salves' },
+  HISS: { id: 'HISS', name: 'Hiss', cooldown: 0, mult: 0.9, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY', verb: 'hisses at' },
+  SCALD: { id: 'SCALD', name: 'Scald', cooldown: 3, mult: 0.7, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY',
+    applies: [{ status: 'BURN', chance: CHANCE_PRIMARY, turns: T.BURN }], verb: 'scalds' },
+  GREATHAMMER: { id: 'GREATHAMMER', name: 'Greathammer', cooldown: 0, mult: 1.3, hits: 1, scale: 'DEF', kind: 'PHYSICAL', target: 'ENEMY', verb: 'hammers' },
+  FORGE_WARD: { id: 'FORGE_WARD', name: 'Forge Ward', cooldown: 4, mult: 0, hits: 0, scale: 'DEF', kind: 'PHYSICAL', target: 'SELF',
+    applies: [{ status: 'DEF_UP', chance: 1, turns: T.DEF_UP }, { status: 'COUNTER', chance: 1, turns: T.COUNTER }], verb: 'girds' },
+  WHITE_HEAT: { id: 'WHITE_HEAT', name: 'White Heat', cooldown: 5, mult: 0.7, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ALL_ENEMIES',
+    applies: [{ status: 'BURN', chance: CHANCE_SECONDARY, turns: T.BURN }], verb: 'sears' },
+  SEARLIGHT: { id: 'SEARLIGHT', name: 'Searlight', cooldown: 0, mult: 1.2, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY', verb: 'scours' },
+  SAINTS_WRATH: { id: 'SAINTS_WRATH', name: 'Saints Wrath', cooldown: 4, mult: 1.8, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY', verb: 'smites' },
+  CRUCIBLE_FLARE: { id: 'CRUCIBLE_FLARE', name: 'Crucible Flare', cooldown: 3, mult: 0.8, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ALL_ENEMIES',
+    applies: [{ status: 'BURN', chance: CHANCE_SECONDARY, turns: T.BURN }], verb: 'crackles over' },
+  SACRED_EMBER: { id: 'SACRED_EMBER', name: 'Sacred Ember', cooldown: 5, mult: 0, hits: 0, scale: 'ATK', kind: 'MAGIC', target: 'SELF',
+    applies: [{ status: 'INVINCIBLE', chance: 1, turns: T.INVINCIBLE }], verb: 'ignites a ward' },
+
+  // --- SUNKEN VAULT ----------------------------------------------------------------
+  // The drowned guard drags at the ankles (SLOW); the jelly's sting numbs healing
+  // (HEAL_BLOCK). The oracle's heal is actually its opener, not the SPD
+  // blessing — Deep Mend sits at index 2, and chooseSkillIndex always tries the
+  // highest legal index first. The wind eel (WIND foil) strips ATB like the
+  // surface's own GALE. The Sunken King silences the whole party with the
+  // depths themselves before a will-breaking finish.
+  RUSTED_PIKE: { id: 'RUSTED_PIKE', name: 'Rusted Pike', cooldown: 0, mult: 1.1, hits: 1, scale: 'ATK', kind: 'PHYSICAL', target: 'ENEMY', verb: 'skewers' },
+  UNDERTOW_GRASP: { id: 'UNDERTOW_GRASP', name: 'Undertow Grasp', cooldown: 3, mult: 0.7, hits: 1, scale: 'ATK', kind: 'PHYSICAL', target: 'ENEMY',
+    applies: [{ status: 'SLOW', chance: CHANCE_PRIMARY, turns: T.SLOW }], verb: 'drags' },
+  STING: { id: 'STING', name: 'Sting', cooldown: 0, mult: 0.9, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY', verb: 'stings' },
+  NUMBING_STING: { id: 'NUMBING_STING', name: 'Numbing Sting', cooldown: 3, mult: 0.7, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY',
+    applies: [{ status: 'HEAL_BLOCK', chance: CHANCE_PRIMARY, turns: T.HEAL_BLOCK }], verb: 'numbs' },
+  CURRENT_LASH: { id: 'CURRENT_LASH', name: 'Current Lash', cooldown: 0, mult: 0.8, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY', verb: 'lashes' },
+  TIDAL_BLESSING: { id: 'TIDAL_BLESSING', name: 'Tidal Blessing', cooldown: 4, mult: 0, hits: 0, scale: 'ATK', kind: 'MAGIC', target: 'ALL_ALLIES',
+    applies: [{ status: 'SPD_UP', chance: 1, turns: T.SPD_UP }], verb: 'blesses' },
+  DEEP_MEND: { id: 'DEEP_MEND', name: 'Deep Mend', cooldown: 3, mult: 0, hits: 0, scale: 'ATK', kind: 'MAGIC', target: 'LOWEST_HP_ALLY', heal: 0.2, verb: 'mends' },
+  CURRENT_JOLT: { id: 'CURRENT_JOLT', name: 'Current Jolt', cooldown: 0, mult: 0.9, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY', verb: 'jolts' },
+  RIPTIDE_GUST: { id: 'RIPTIDE_GUST', name: 'Riptide Gust', cooldown: 3, mult: 0.7, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY', atbBoost: -0.15, verb: 'rips through' },
+  // DEF-scaling, matching the elite's own armoured bulk (mirrors GREATHAMMER/SHIELD_BASH).
+  MAW_BITE: { id: 'MAW_BITE', name: 'Maw Bite', cooldown: 0, mult: 1.3, hits: 1, scale: 'DEF', kind: 'PHYSICAL', target: 'ENEMY', verb: 'bites' },
+  CRUSHING_COILS: { id: 'CRUSHING_COILS', name: 'Crushing Coils', cooldown: 3, mult: 1.0, hits: 1, scale: 'ATK', kind: 'PHYSICAL', target: 'ENEMY',
+    applies: [{ status: 'DEF_BREAK', chance: CHANCE_PRIMARY, turns: T.DEF_BREAK }], verb: 'crushes' },
+  TSUNAMI: { id: 'TSUNAMI', name: 'Tsunami', cooldown: 5, mult: 0.7, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ALL_ENEMIES',
+    applies: [{ status: 'SLOW', chance: CHANCE_SECONDARY, turns: T.SLOW }], verb: 'engulfs' },
+  ABYSSAL_CLAW: { id: 'ABYSSAL_CLAW', name: 'Abyssal Claw', cooldown: 0, mult: 1.2, hits: 1, scale: 'ATK', kind: 'PHYSICAL', target: 'ENEMY', verb: 'claws' },
+  DROWNING_CHORUS: { id: 'DROWNING_CHORUS', name: 'Drown Chorus', cooldown: 3, mult: 0.8, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ALL_ENEMIES',
+    applies: [{ status: 'SILENCE', chance: CHANCE_SECONDARY, turns: T.SILENCE }], verb: 'drowns out' },
+  CRUSHING_DEPTHS: { id: 'CRUSHING_DEPTHS', name: 'Abyss Crush', cooldown: 4, mult: 1.8, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY', verb: 'crushes' },
+  THRONE_OF_RUIN: { id: 'THRONE_OF_RUIN', name: 'Throne of Ruin', cooldown: 5, mult: 2.0, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY',
+    applies: [{ status: 'DEF_BREAK', chance: CHANCE_PRIMARY, turns: T.DEF_BREAK }], verb: 'shatters' },
+
+  // --- STORM SPIRE ----------------------------------------------------------------
+  // The hawk strips ATB like every other WIND kit; the monk's palm and its
+  // hundred-gust follow-up scale SPD instead of ATK — a SPD-scaling multiplier
+  // lives on its OWN numeric scale (see DESIGN.md -> Skills), several times
+  // an ATK-scaling one's, because SPD never grows through ACT_MULT the way
+  // ATK and DEF do. The warden's heal fires first here too (Updraft Mend sits
+  // at index 2, and chooseSkillIndex always tries the highest legal index
+  // first), then wards the whole pack with DEF_UP + COUNTER once that heal is
+  // on cooldown. The ember elemental (FIRE foil) burns despite the tower's
+  // cold air; the colossus is a rare STUN outside a hero nuke — FROST_WISP's
+  // Deep Freeze got there first. The Seraph closes on the Sanctify pattern —
+  // heal, cleanse, DEF_UP — at A5.
+  THUNDER_STRIKE: { id: 'THUNDER_STRIKE', name: 'Thunder Strike', cooldown: 0, mult: 1.1, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY', verb: 'strikes' },
+  DIVEBOMB: { id: 'DIVEBOMB', name: 'Divebomb', cooldown: 3, mult: 0.7, hits: 1, scale: 'ATK', kind: 'PHYSICAL', target: 'ENEMY', atbBoost: -0.2, verb: 'dive-bombs' },
+  WIND_PALM: { id: 'WIND_PALM', name: 'Wind Palm', cooldown: 0, mult: 6.0, hits: 1, scale: 'SPD', kind: 'PHYSICAL', target: 'ENEMY', verb: 'palms' },
+  HUNDRED_GUSTS: { id: 'HUNDRED_GUSTS', name: 'Hundred Gusts', cooldown: 3, mult: 3.6, hits: 2, scale: 'SPD', kind: 'PHYSICAL', target: 'ENEMY',
+    applies: [{ status: 'GLANCE', chance: CHANCE_PRIMARY, turns: T.GLANCE }], verb: 'flurries' },
+  STAFF_JAB: { id: 'STAFF_JAB', name: 'Staff Jab', cooldown: 0, mult: 0.8, hits: 1, scale: 'ATK', kind: 'PHYSICAL', target: 'ENEMY', verb: 'jabs' },
+  STAND_FAST: { id: 'STAND_FAST', name: 'Stand Fast', cooldown: 4, mult: 0, hits: 0, scale: 'ATK', kind: 'PHYSICAL', target: 'ALL_ALLIES',
+    applies: [{ status: 'DEF_UP', chance: 1, turns: T.DEF_UP }, { status: 'COUNTER', chance: 1, turns: T.COUNTER }], verb: 'stands fast' },
+  UPDRAFT_MEND: { id: 'UPDRAFT_MEND', name: 'Updraft Mend', cooldown: 3, mult: 0, hits: 0, scale: 'ATK', kind: 'MAGIC', target: 'LOWEST_HP_ALLY', heal: 0.2, verb: 'mends' },
+  EMBER_LICK: { id: 'EMBER_LICK', name: 'Ember Lick', cooldown: 0, mult: 0.9, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY', verb: 'licks' },
+  CINDER_BURST: { id: 'CINDER_BURST', name: 'Cinder Burst', cooldown: 3, mult: 0.7, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY',
+    applies: [{ status: 'BURN', chance: CHANCE_PRIMARY, turns: T.BURN }], verb: 'bursts' },
+  GRANITE_FIST: { id: 'GRANITE_FIST', name: 'Granite Fist', cooldown: 0, mult: 1.3, hits: 1, scale: 'DEF', kind: 'PHYSICAL', target: 'ENEMY', verb: 'pounds' },
+  THUNDERCLAP: { id: 'THUNDERCLAP', name: 'Thunderclap', cooldown: 4, mult: 0.8, hits: 1, scale: 'DEF', kind: 'MAGIC', target: 'ENEMY',
+    applies: [{ status: 'STUN', chance: CHANCE_PRIMARY, turns: T.STUN }], verb: 'stuns' },
+  CHAIN_LIGHTNING: { id: 'CHAIN_LIGHTNING', name: 'Chain Bolt', cooldown: 5, mult: 0.7, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ALL_ENEMIES',
+    applies: [{ status: 'ATK_BREAK', chance: CHANCE_SECONDARY, turns: T.ATK_BREAK }], verb: 'arcs through' },
+  RADIANT_LANCE: { id: 'RADIANT_LANCE', name: 'Radiant Lance', cooldown: 0, mult: 1.2, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY', verb: 'lances' },
+  JUDGEMENT_BOLT: { id: 'JUDGEMENT_BOLT', name: 'Judgement Bolt', cooldown: 4, mult: 1.8, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY', verb: 'strikes down' },
+  TEMPEST_CHOIR: { id: 'TEMPEST_CHOIR', name: 'Tempest Choir', cooldown: 3, mult: 0.8, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ALL_ENEMIES',
+    applies: [{ status: 'SLOW', chance: CHANCE_SECONDARY, turns: T.SLOW }], verb: 'sings over' },
+  AEGIS_OF_LIGHT: { id: 'AEGIS_OF_LIGHT', name: 'Aegis of Light', cooldown: 5, mult: 0, hits: 0, scale: 'ATK', kind: 'MAGIC', target: 'SELF', heal: 0.1, cleanse: 99,
+    applies: [{ status: 'DEF_UP', chance: 1, turns: T.DEF_UP }], verb: 'shines with grace' },
 };
 
 /** Every SkillId, in table order — the harness and validateData walk this. */

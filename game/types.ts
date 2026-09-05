@@ -131,7 +131,21 @@ export type SkillId =
   | 'SHIELD_BASH' | 'BRACE' | 'IMMOLATE' | 'REAP' | 'DREAD_WAIL' | 'SHROUD' | 'DOOM'
   // --- the FROST MARSH ------------------------------------------------------
   | 'TONGUE_LASH' | 'BOG_SPIT' | 'CHILL' | 'DEEP_FREEZE' | 'CANE' | 'SALVE' | 'BRINE_WARD' | 'PINCH' | 'CRUSH' | 'FLICKER' | 'IGNITE'
-  | 'RUSTED_BLADE' | 'DRAG_UNDER' | 'DELUGE' | 'HALO_LASH' | 'SMITE' | 'PALE_FLOOD' | 'SANCTIFY';
+  | 'RUSTED_BLADE' | 'DRAG_UNDER' | 'DELUGE' | 'HALO_LASH' | 'SMITE' | 'PALE_FLOOD' | 'SANCTIFY'
+  // --- the SKY RUINS ---------------------------------------------------------
+  | 'TALON' | 'GALE_DIVE' | 'ZEPHYR' | 'DAZZLE_GUST' | 'STONE_FIST' | 'WARD_STONE' | 'MEND_ECHO' | 'RAINSPIT' | 'DOWNPOUR'
+  | 'DRAKE_CLAW' | 'TEMPEST_WING' | 'GALE_BREATH' | 'SKYRENT' | 'STORMCALL' | 'KINGLY_GUARD' | 'RUIN_JUDGEMENT'
+  // --- the ASHEN FORGE ---------------------------------------------------------
+  | 'SLAG_FIST' | 'MOLTEN_SLAM' | 'SNARL_BITE' | 'BRANDING_BITE' | 'TONGS_STRIKE' | 'TEMPER' | 'EMBER_SALVE' | 'HISS' | 'SCALD'
+  | 'GREATHAMMER' | 'FORGE_WARD' | 'WHITE_HEAT' | 'SEARLIGHT' | 'SAINTS_WRATH' | 'CRUCIBLE_FLARE' | 'SACRED_EMBER'
+  // --- the SUNKEN VAULT ---------------------------------------------------------
+  | 'RUSTED_PIKE' | 'UNDERTOW_GRASP' | 'STING' | 'NUMBING_STING' | 'CURRENT_LASH' | 'TIDAL_BLESSING' | 'DEEP_MEND'
+  | 'CURRENT_JOLT' | 'RIPTIDE_GUST' | 'MAW_BITE' | 'CRUSHING_COILS' | 'TSUNAMI'
+  | 'ABYSSAL_CLAW' | 'DROWNING_CHORUS' | 'CRUSHING_DEPTHS' | 'THRONE_OF_RUIN'
+  // --- the STORM SPIRE ---------------------------------------------------------
+  | 'THUNDER_STRIKE' | 'DIVEBOMB' | 'WIND_PALM' | 'HUNDRED_GUSTS' | 'STAFF_JAB' | 'STAND_FAST' | 'UPDRAFT_MEND'
+  | 'EMBER_LICK' | 'CINDER_BURST' | 'GRANITE_FIST' | 'THUNDERCLAP' | 'CHAIN_LIGHTNING'
+  | 'RADIANT_LANCE' | 'JUDGEMENT_BOLT' | 'TEMPEST_CHOIR' | 'AEGIS_OF_LIGHT';
 
 export interface SkillDef {
   id: SkillId;
