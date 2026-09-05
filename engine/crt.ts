@@ -17,9 +17,13 @@
 //      hard corduroy stripes.
 //   4. Vignette + flicker — a rounder, softer, slightly-blue edge falloff.
 //
-// Layers 1 and 2 are tunable per game via CrtOptions (`halation`, `lift`) and
-// skipped entirely at 0 / ''. No getImageData, no ctx.filter; the gradient and
-// the halation offscreen are built once and cached — zero per-frame allocation.
+// Every layer is tunable per game via CrtOptions and skipped entirely at 0 /
+// '' — `halation`, `lift`, `scanlineAlpha`, `flicker`, `vignetteAlpha`. With
+// ALL five off (the HD tiers, which carry their own bloom and vignette in the
+// grading pass) render() returns before it touches the context at all, so the
+// filter can stay wired into the frame and cost nothing until the arcade
+// toggle turns it on. No getImageData, no ctx.filter; the gradient and the
+// halation offscreen are built once and cached — zero per-frame allocation.
 
 export interface Crt {
   /** Overlay the CRT effect on the current frame. dt drives the flicker. */
@@ -27,9 +31,9 @@ export interface Crt {
 }
 
 export interface CrtOptions {
-  /** Depth of the scanline modulation (default 0.12). 0 disables. */
+  /** Depth of the scanline modulation (default 0.09). 0 disables. */
   scanlineAlpha?: number;
-  /** Strength of the edge vignette (default 0.35). */
+  /** Strength of the edge vignette (default 0.35). 0 disables the layer. */
   vignetteAlpha?: number;
   /** Peak extra flicker alpha (default 0.03). 0 disables. */
   flicker?: number;
@@ -58,6 +62,10 @@ export function createCrt(opts: CrtOptions = {}): Crt {
   const flickerPeak = opts.flicker ?? 0.03;
   const halationAlpha = opts.halation ?? HALATION_ALPHA;
   const lift = opts.lift ?? PHOSPHOR_LIFT;
+  // Nothing to draw: decided once, so the per-frame cost of an "off" filter is
+  // one boolean test.
+  const inert =
+    halationAlpha <= 0 && lift === '' && scanlineAlpha <= 0 && flickerPeak <= 0 && vignetteAlpha <= 0;
 
   // Scanlines multiply toward this grey rather than toward black: a bright row
   // loses a proportion of its value, a dark row barely moves, and hue is kept.
@@ -111,6 +119,9 @@ export function createCrt(opts: CrtOptions = {}): Crt {
 
   return {
     render(ctx, width, height, dt) {
+      // All five layers off: leave before reading or writing anything on the
+      // context — not even ctx.canvas — so an idle filter is provably free.
+      if (inert) return;
       clock += dt;
       const canvas = ctx.canvas;
 
@@ -166,18 +177,22 @@ export function createCrt(opts: CrtOptions = {}): Crt {
       //    so crt.render leaves fillStyle (and the rest of the context state)
       //    exactly as the caller left it — the last layer must not be the one
       //    that quietly hands the next frame's first draw a grey gradient.
-      ctx.save();
-      // Vignette: darken toward the edges.
-      ctx.fillStyle = vignette(ctx, width, height);
-      ctx.fillRect(0, 0, width, height);
-
-      // Flicker: a faint time-varying wash.
-      if (flickerPeak > 0) {
-        const a = flickerPeak * (0.5 + 0.5 * Math.sin(clock * 40));
-        ctx.fillStyle = `rgba(255,255,255,${a})`;
-        ctx.fillRect(0, 0, width, height);
+      //    Skipped whole when both are off: no save/restore for nothing.
+      if (vignetteAlpha > 0 || flickerPeak > 0) {
+        ctx.save();
+        // Vignette: darken toward the edges.
+        if (vignetteAlpha > 0) {
+          ctx.fillStyle = vignette(ctx, width, height);
+          ctx.fillRect(0, 0, width, height);
+        }
+        // Flicker: a faint time-varying wash.
+        if (flickerPeak > 0) {
+          const a = flickerPeak * (0.5 + 0.5 * Math.sin(clock * 40));
+          ctx.fillStyle = `rgba(255,255,255,${a})`;
+          ctx.fillRect(0, 0, width, height);
+        }
+        ctx.restore();
       }
-      ctx.restore();
     },
   };
 }

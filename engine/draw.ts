@@ -15,9 +15,12 @@
 // makes an elemental variant free.
 //
 // createPixelCanvas() owns the <canvas>: it sizes the backing store to
-// logical*scale, disables smoothing, and bakes a scale transform so ALL drawing
-// happens in logical (pre-scale) pixel units. juice.ts layers extra transforms
-// with save/restore on top of this base.
+// logical*scale, sets the context's smoothing (off by default — the retro
+// frame; the HD frame turns it on and hard-pixels only its actor plane), and
+// bakes a scale transform so ALL drawing happens in logical (pre-scale) pixel
+// units. juice.ts layers extra transforms with save/restore on top of this
+// base. pickBackingScale() is the contract's rule for that `scale` on the HD
+// frame: ×1 everywhere, ×2 only on a dense desktop, never ×1.5.
 
 export interface PixelCanvas {
   readonly canvas: HTMLCanvasElement;
@@ -41,6 +44,15 @@ export interface CreatePixelCanvasOptions {
    * loudly so the smoke gate catches it, never silently mount elsewhere.
    */
   parent?: HTMLElement | null;
+  /**
+   * Initial `imageSmoothingEnabled` of the context (default false — every
+   * drawImage lands on hard pixels, the retro frame). An HD screen passes
+   * true: light, particles, blurred planes and UI scale smooth, and the actor
+   * plane toggles smoothing OFF around its own drawImage calls only (drawBaked
+   * and drawText already do). Part of the context state save()/restore() keep,
+   * so a layer that flips it inside a save block leaves it as it found it.
+   */
+  smoothing?: boolean;
 }
 
 export function createPixelCanvas(opts: CreatePixelCanvasOptions): PixelCanvas {
@@ -56,7 +68,7 @@ export function createPixelCanvas(opts: CreatePixelCanvasOptions): PixelCanvas {
   canvas.height = height * scale;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('2D canvas context unavailable');
-  ctx.imageSmoothingEnabled = false;
+  ctx.imageSmoothingEnabled = opts.smoothing ?? false;
   // Bake the scale so every draw call works in logical pixels.
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
   (opts.parent ?? document.body).appendChild(canvas);
@@ -72,6 +84,18 @@ export function createPixelCanvas(opts: CreatePixelCanvasOptions): PixelCanvas {
       ctx.fillRect(0, 0, width, height);
     },
   };
+}
+
+/**
+ * The backing-store scale for the HD frame, from the CSS width the shell fits
+ * the canvas to and the device pixel ratio: 2 only when the display is dense
+ * (dpr >= 1.5) AND the frame is shown at its full 1280 CSS px or wider, else 1.
+ * A phone (dense but narrow) and a plain desktop both get ×1; a Retina desktop
+ * showing the full frame gets ×2. Never ×1.5 — that would put one art pixel on
+ * 4.5 device pixels. Pure: the only DOM touch is the default parameter.
+ */
+export function pickBackingScale(cssWidth: number, dpr = window.devicePixelRatio): 1 | 2 {
+  return dpr >= 1.5 && cssWidth >= 1280 ? 2 : 1;
 }
 
 // --- Sprites ----------------------------------------------------------------

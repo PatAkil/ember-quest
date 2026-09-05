@@ -353,15 +353,31 @@ export function pointerHints(input: Input): string[] {
 //   if (regions.activated() === 'attack') attack();
 //   input.endFrame();
 //
-// Ordering is the one rule: begin/add/end run BEFORE input.endFrame() in the
-// same update tick, because end() reads that tick's edges (A pressed, direction
-// pressed, pointer pressed/released). Register in update() from the same layout
-// numbers render() draws with — region(id) hands the rect back for the focus
-// ring, so the layout lives in one place.
+// Ordering is the one rule: register in update() — begin/add/end run BEFORE
+// input.endFrame() in the same tick, because end() reads that tick's edges (A
+// pressed, direction pressed, pointer pressed/released). render() only READS:
+// region() for the focus ring, hitRect() for a debug overlay, focused(),
+// pressing() and hovered() for the button states — from the same layout
+// numbers update() registered with, so the layout lives in one place. A render
+// without an update in between (a paused loop, a repaint after a resize)
+// reuses the last pool: every query answers for the last completed frame,
+// never for an empty one.
+//
+// Two rects per region. The DRAWN rect is what add() was given — the pixels of
+// the button — and the HIT rect is the drawn rect grown on each axis, about
+// its centre, to at least TAP_MIN, then shifted back inside the canvas (never
+// shrunk, unless the canvas itself is smaller than TAP_MIN). A near miss on a
+// small target still lands. Hit testing runs in two passes, both in painter's
+// order (the last registered wins on overlap): the drawn rects first, and only
+// when no drawn rect contains the point, the hit rects. So a region's drawn
+// rect ALWAYS beats a neighbour's expanded hit rect — expansion can never
+// steal a tap from a button the finger is visibly on. hovered(), pressing()
+// and the tap all use the same test.
 //
 // Keyboard parity — the contract's hard rule, "every tap target has a keyboard
 // route" — is automatic: any registered region can be reached with the arrows
-// and activated with A. Focus moves by GEOMETRY, then wraps, deterministically:
+// and activated with A. Focus moves by the GEOMETRY of the drawn rects, then
+// wraps, deterministically:
 //   1. Spatial — from the focused centre, the candidate (any group) whose
 //      centre lies within ±50° of the pressed direction, minimising
 //      distance + 2 × off-axis offset. Ties: lower index, then earlier
@@ -373,10 +389,27 @@ export function pointerHints(input: Input): string[] {
 //   3. Flat — the focused region already sits on that far edge (a single row
 //      pressed up/down, a single column pressed left/right): up/down cycle by
 //      `index` within the group, wrapping; left/right do nothing.
+// Twins — a sprite body and its panel registered under ONE id — are a single
+// target: a move never lands on a twin of the focused id (focus would change
+// hands and nothing on screen would), and twins are invisible to the wrap's
+// edge as well. The focused id's geometry is its FIRST registered twin (so is
+// region()'s rect): register the panel first when the ring belongs on it.
 // A pointer press moves focus too, so a mixed session never shows two cursors.
 
-/** Every tap target is at least this big in both dimensions (logical px). */
-export const TAP_MIN = 48;
+/**
+ * Every tap target is at least this big in both dimensions, in logical px —
+ * the contract's floor of 44 CSS px at a phone's ≈ 0.5× CSS scale. A smaller
+ * drawn rect still works (its HIT rect is grown to this) but warns once in
+ * dev: a button that needs its margin to be hit is a bug report, not a crash.
+ */
+export const TAP_MIN = 96;
+/**
+ * Recommended clear gap between neighbouring drawn rects, logical px — the
+ * room a thumb needs to land on the intended one of two adjacent targets.
+ * Documentation only: layouts keep it, the registry does not enforce it
+ * (overlapping hit rects resolve by the drawn-first rule above).
+ */
+export const TAP_GAP = 12;
 
 export interface HitRegionOptions {
   /** Keyboard order within the group: breaks spatial ties and drives the up/down cycle on a flat row. */
@@ -387,14 +420,18 @@ export interface HitRegionOptions {
   disabled?: boolean;
 }
 
+/** A rect in logical px. */
+type Rect = { x: number; y: number; w: number; h: number };
+
 export interface HitRegions {
   /** Start a frame's registration: forgets last frame's regions and activation. */
   begin(): void;
   /**
-   * Register a tappable rect in logical px. Allocation-free once warm (records
-   * are pooled); hoist a constant `opts` object if the call site is hot. Ids
-   * are unique per frame — a duplicate is the same target twice. Warns once
-   * per id when smaller than TAP_MIN in either dimension.
+   * Register a tappable rect (the DRAWN rect) in logical px. Allocation-free
+   * once warm (records are pooled); hoist a constant `opts` object if the call
+   * site is hot. A repeated id is the same target twice (twins: a sprite body
+   * and its panel). Warns once per id, in dev only, when smaller than TAP_MIN
+   * in either dimension — the hit rect is grown to TAP_MIN regardless.
    */
   add(id: string, x: number, y: number, w: number, h: number, opts?: HitRegionOptions): void;
   /** Finish registration and resolve this frame's focus, hover, press and activation. */
@@ -414,18 +451,23 @@ export interface HitRegions {
   /** Region the pointer is currently pressing (down inside it) — draw it depressed. */
   pressing(): string | null;
   /**
-   * Rect of a region registered this frame, for the focus ring. Returns the
-   * pooled record itself: valid until the next begin(), never mutate it.
+   * DRAWN rect of a region registered this frame (its first twin), for the
+   * focus ring. Returns the pooled record itself: valid until the next
+   * begin(), never mutate it.
    */
-  region(id: string): Readonly<{ x: number; y: number; w: number; h: number }> | null;
+  region(id: string): Readonly<Rect> | null;
+  /**
+   * HIT rect of a region registered this frame (its first twin): the drawn
+   * rect grown to TAP_MIN and kept inside the canvas — what a tap actually
+   * tests against, for a debug overlay. Pooled like region(): read, don't keep.
+   */
+  hitRect(id: string): Readonly<Rect> | null;
 }
 
-interface Region {
+interface Region extends Rect {
   id: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
+  /** The expanded hit rect. Owned by the pooled record — allocated once, rewritten by add(). */
+  hit: Rect;
   cx: number;
   cy: number;
   index: number;
@@ -437,7 +479,30 @@ const NO_INDEX = Number.MAX_SAFE_INTEGER; // sorts after every explicit index
 const CONE_COS = Math.cos((50 * Math.PI) / 180); // ±50° = the 100° search cone
 const FLAT_EPS = 1; // centres within 1 px share a row/column
 
-export function createHitRegions(input: Input): HitRegions {
+/**
+ * True in a Vite dev build, and wherever import.meta.env does not exist at all
+ * (Node, the esbuild bundle a headless check runs) — so only a production
+ * bundle, where Vite defines DEV as false, is silent. Read through a cast:
+ * this tsconfig carries no vite/client types, and the read must never throw
+ * where import.meta has no env.
+ */
+function isDevBuild(): boolean {
+  try {
+    return (import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV ?? true;
+  } catch {
+    return true;
+  }
+}
+const DEV = isDevBuild();
+
+/**
+ * Create the registry for one canvas. `width`/`height` are the LOGICAL canvas
+ * size the hit rects are kept inside (default 1280×720, the v3 frame); pass
+ * the numbers the canvas was created with.
+ */
+export function createHitRegions(input: Input, opts: { width?: number; height?: number } = {}): HitRegions {
+  const width = opts.width ?? 1280;
+  const height = opts.height ?? 720;
   const pool: Region[] = [];
   let count = 0;
   let focusId: string | null = null;
@@ -446,18 +511,27 @@ export function createHitRegions(input: Input): HitRegions {
   let activatedId: string | null = null;
   const warned = new Set<string>();
 
+  // The first registered twin: the id's geometry for navigation and the ring.
   const find = (id: string | null): Region | null => {
     if (id === null) return null;
     for (let i = 0; i < count; i++) if (pool[i].id === id) return pool[i];
     return null;
   };
 
-  // Painter's order on overlap: what was registered (drawn) last is on top.
+  // Shift a span of `size` at `pos` back inside [0, limit]. Only a span wider
+  // than the canvas itself shrinks — it fills the canvas.
+  const fit = (pos: number, size: number, limit: number): number =>
+    size >= limit ? 0 : Math.min(Math.max(pos, 0), limit - size);
+
+  const contains = (r: Rect, x: number, y: number): boolean =>
+    x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
+
+  // Two passes, each in painter's order (registered last = drawn on top): the
+  // drawn rects, then — only if none holds the point — the expanded hit rects.
+  // A drawn rect therefore always beats a neighbour's expansion.
   const hit = (x: number, y: number): Region | null => {
-    for (let i = count - 1; i >= 0; i--) {
-      const r = pool[i];
-      if (x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) return r;
-    }
+    for (let i = count - 1; i >= 0; i--) if (contains(pool[i], x, y)) return pool[i];
+    for (let i = count - 1; i >= 0; i--) if (contains(pool[i].hit, x, y)) return pool[i];
     return null;
   };
 
@@ -478,7 +552,7 @@ export function createHitRegions(input: Input): HitRegions {
     let bestScore = Infinity;
     for (let i = 0; i < count; i++) {
       const r = pool[i];
-      if (r === from) continue;
+      if (r.id === from.id) continue; // itself and its twins
       const vx = r.cx - from.cx;
       const vy = r.cy - from.cy;
       const dist = Math.hypot(vx, vy);
@@ -501,7 +575,7 @@ export function createHitRegions(input: Input): HitRegions {
     let wrapTo: Region | null = null;
     for (let i = 0; i < count; i++) {
       const r = pool[i];
-      if (r === from || !inScope(from, r) || r.index === NO_INDEX) continue;
+      if (r.id === from.id || !inScope(from, r) || r.index === NO_INDEX) continue;
       if (forward) {
         if (r.index > from.index && (next === null || r.index < next.index)) next = r;
         if (wrapTo === null || r.index < wrapTo.index) wrapTo = r;
@@ -517,10 +591,12 @@ export function createHitRegions(input: Input): HitRegions {
     const vertical = dy !== 0; // a diagonal press wraps on the vertical axis
     const forward = (vertical ? dy : dx) > 0;
     // The far edge: the smallest centre for down/right, the largest for up/left.
+    // The focused region counts (it may BE the edge — the flat case below);
+    // its twins do not, or a twin alone on the edge would leave nowhere to go.
     let edge = forward ? Infinity : -Infinity;
     for (let i = 0; i < count; i++) {
       const r = pool[i];
-      if (!inScope(from, r)) continue;
+      if (!inScope(from, r) || (r !== from && r.id === from.id)) continue;
       const c = vertical ? r.cy : r.cx;
       if (forward ? c < edge : c > edge) edge = c;
     }
@@ -530,7 +606,7 @@ export function createHitRegions(input: Input): HitRegions {
     let bestOff = Infinity;
     for (let i = 0; i < count; i++) {
       const r = pool[i];
-      if (r === from || !inScope(from, r)) continue;
+      if (r.id === from.id || !inScope(from, r)) continue;
       if (Math.abs((vertical ? r.cy : r.cx) - edge) > FLAT_EPS) continue;
       const off = Math.abs(vertical ? r.cx - from.cx : r.cy - from.cy);
       if (off < bestOff || (off === bestOff && best !== null && r.index < best.index)) {
@@ -549,7 +625,7 @@ export function createHitRegions(input: Input): HitRegions {
     add(id, x, y, w, h, opts) {
       let r = pool[count];
       if (!r) {
-        r = { id, x: 0, y: 0, w: 0, h: 0, cx: 0, cy: 0, index: NO_INDEX, group: '', disabled: false };
+        r = { id, x: 0, y: 0, w: 0, h: 0, hit: { x: 0, y: 0, w: 0, h: 0 }, cx: 0, cy: 0, index: NO_INDEX, group: '', disabled: false };
         pool.push(r);
       }
       r.id = id;
@@ -562,12 +638,34 @@ export function createHitRegions(input: Input): HitRegions {
       r.index = opts?.index ?? NO_INDEX;
       r.group = opts?.group ?? '';
       r.disabled = opts?.disabled ?? false;
+      // The hit rect: an axis under TAP_MIN is grown about its centre and
+      // shifted back inside the canvas. An axis already at TAP_MIN keeps its
+      // drawn extent untouched, even past the edge — the off-canvas part is
+      // simply unreachable, and shifting it would open a near-miss zone on the
+      // far side that the button does not visibly occupy.
+      const hit = r.hit;
+      if (w < TAP_MIN) {
+        hit.w = Math.min(TAP_MIN, width);
+        hit.x = fit(r.cx - TAP_MIN / 2, TAP_MIN, width);
+      } else {
+        hit.x = x;
+        hit.w = w;
+      }
+      if (h < TAP_MIN) {
+        hit.h = Math.min(TAP_MIN, height);
+        hit.y = fit(r.cy - TAP_MIN / 2, TAP_MIN, height);
+      } else {
+        hit.y = y;
+        hit.h = h;
+      }
       count++;
-      // Feasibility rule, "every tap target ≥ TAP_MIN": a warning, never a
+      // Feasibility rule, "every tap target ≥ TAP_MIN": a dev warning, never a
       // throw — an undersized button is a bug report, not a crash.
-      if ((w < TAP_MIN || h < TAP_MIN) && !warned.has(id)) {
+      if (DEV && (w < TAP_MIN || h < TAP_MIN) && !warned.has(id)) {
         warned.add(id);
-        console.warn(`[hit-regions] "${id}" is ${w}×${h}; tap targets must be ≥ ${TAP_MIN}×${TAP_MIN} logical px`);
+        console.warn(
+          `[hit-regions] "${id}" is ${w}×${h}; tap targets should be ≥ ${TAP_MIN}×${TAP_MIN} logical px (hit rect grown to ${hit.w}×${hit.h})`,
+        );
       }
     },
     end() {
@@ -622,6 +720,10 @@ export function createHitRegions(input: Input): HitRegions {
     },
     region(id) {
       return find(id);
+    },
+    hitRect(id) {
+      const r = find(id);
+      return r ? r.hit : null;
     },
   };
 }

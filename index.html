@@ -6,6 +6,12 @@
       name="viewport"
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
     />
+    <!-- Installed to a Home Screen, the game opens without browser chrome —
+         the one route to fullscreen on iPhone, which has no requestFullscreen.
+         The translucent status bar lets the frame run under the notch. -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Ember Quest</title>
     <style>
       /* One markup, three states:
@@ -111,16 +117,36 @@
       // Fullscreen on the first tap, small screens only. Capture phase so the
       // gesture is still fresh; once, so a desktop click never asks. iOS Safari
       // has no requestFullscreen — that is expected and swallowed, never fatal.
+      // Once fullscreen is granted (the only state the lock is allowed in on
+      // Android), lock to landscape; where fullscreen does not exist at all the
+      // lock is tried anyway — it mostly rejects, but an installed web app may
+      // honour it. Every rejection is swallowed: the #rotate overlay is the
+      // fallback, and the game runs in the page as it is.
       (function () {
+        function lockLandscape() {
+          try {
+            var o = window.screen && window.screen.orientation;
+            if (!o || typeof o.lock !== 'function') return;
+            var p = o.lock('landscape');
+            if (p && typeof p.catch === 'function') p.catch(function () {});
+          } catch (e) {
+            /* no orientation lock here — the rotate prompt covers it */
+          }
+        }
         document.addEventListener(
           'pointerdown',
           function () {
             try {
               if (!window.matchMedia('(max-width: 900px)').matches) return;
               var el = document.documentElement;
-              if (typeof el.requestFullscreen !== 'function') return;
+              if (typeof el.requestFullscreen !== 'function') {
+                lockLandscape();
+                return;
+              }
               var pending = el.requestFullscreen({ navigationUI: 'hide' });
-              if (pending && typeof pending.catch === 'function') pending.catch(function () {});
+              if (pending && typeof pending.then === 'function') {
+                pending.then(lockLandscape).catch(function () {});
+              }
             } catch (e) {
               /* no fullscreen here — the game runs in the page as it is */
             }
