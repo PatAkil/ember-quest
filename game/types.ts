@@ -49,7 +49,7 @@ export const ATB_START_MAX = 0.15;
 /** Actor turns per battle (VIOLENT extras count) before the battle is a stall — a loss reported as such. */
 export const TURN_CAP = 500;
 /** From this actor turn every enemy turn begins with ATK_UP — heal-stalling a last enemy is not a strategy. */
-export const ENRAGE_TURN = 40;
+export const ENRAGE_TURN = 100;
 /** v2's 0.9–1.1 damage roll is retired: crit-per-hit is the variance, and no rng is drawn for it. */
 export const DAMAGE_JITTER = 0;
 /** Landing floor: p = clamp(chance + (acc − res) / 100, STATUS_MIN_CHANCE, 1). */
@@ -261,7 +261,7 @@ export interface Relic {
 }
 
 export const MAIN_PER_LEVEL = 0.15;
-export const LEGENDARY_MAIN_MULT = 1.2;
+export const LEGENDARY_MAIN_MULT = 1.5;
 /** Signature mains (bold in the slot table) roll with this weight against 1 for the rest. */
 export const MAIN_WEIGHT_SIGNATURE = 2;
 export const RELIC_LEVEL_CAP = 6;
@@ -273,7 +273,7 @@ export const SUBSTAT_MAX = 4;
 /** Every run rolls two of the eight 4-piece and two of the eight 2-piece sets, plus the sets of the Vault relics worn. */
 export const SET_POOL = { four: 2, two: 2 } as const;
 /** compare(): score = Σ COMPARE_WEIGHTS[S] × Δ_S, Δ relative for the flats, /100 for the points. */
-export const COMPARE_WEIGHTS: Record<Stat, number> = { HP: 1, ATK: 1, DEF: 0.6, SPD: 1.5, CRIT: 0.5, CDMG: 0.4, ACC: 0.3, RES: 0.3 };
+export const COMPARE_WEIGHTS: Record<Stat, number> = { HP: 1, ATK: 1, DEF: 0.25, SPD: 1.5, CRIT: 0.5, CDMG: 0.4, ACC: 0.3, RES: 0.3 };
 
 /** Closed union, one kind per set row. 2-piece bonuses apply floor(n / 2) times, 4-piece once; wearer-only except SHIELD_START. */
 export type SetBonus =
@@ -296,10 +296,10 @@ export interface SetDef {
   bonus: SetBonus;
 }
 
-export const VIOLENT_CHANCE = 0.3;
+export const VIOLENT_CHANCE = 0.4;
 export const DESPAIR_CHANCE = 0.25;
 export const VAMPIRE_FRACTION = 0.5;
-export const WILL_TURNS = 2;
+export const WILL_TURNS = 3;
 export const WILL_RES = 20;
 export const NEMESIS_ATB = 0.15;
 export const REVENGE_CHANCE = 0.35;
@@ -407,7 +407,7 @@ export type Modifier =
   | { kind: 'EPIC_DROP_LEVEL'; levels: number }
   | { kind: 'PARTY_RES'; pts: number }
   | { kind: 'PARTY_ACC'; pts: number }
-  | { kind: 'LEADER_HALVED' }
+  | { kind: 'LEADER_OFF' }
   | { kind: 'LEADER_SELF' }
   | { kind: 'FEWER_CARDS'; count: number }
   | { kind: 'FORGE_LEVELS'; levels: number };
@@ -511,8 +511,9 @@ export interface RunResult {
   deathKind: '' | 'WIPE' | 'STALL';
   party: string[];
   leader: string;
-  awakened: string | null;
+  awakened: string[];
   setsWorn: SetId[][];
+  mainsWorn: (RelicStat | null)[][];
   relicLevels: number[][];
   banked: Relic[];
   rooms: RoomType[];

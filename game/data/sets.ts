@@ -11,7 +11,7 @@ import {
 export const SETS: Record<SetId, SetDef> = {
   FATAL: { id: 'FATAL', name: 'FATAL', pieces: 2, bonus: { kind: 'STAT_PCT', stat: 'ATK', pct: 15 } },
   ENERGY: { id: 'ENERGY', name: 'ENERGY', pieces: 2, bonus: { kind: 'STAT_PCT', stat: 'HP', pct: 15 } },
-  GUARD: { id: 'GUARD', name: 'GUARD', pieces: 2, bonus: { kind: 'STAT_PCT', stat: 'DEF', pct: 15 } },
+  GUARD: { id: 'GUARD', name: 'GUARD', pieces: 2, bonus: { kind: 'STAT_PCT', stat: 'DEF', pct: 30 } },
   SWIFT: { id: 'SWIFT', name: 'SWIFT', pieces: 2, bonus: { kind: 'STAT_PCT', stat: 'SPD', pct: 20 } },
   BLADE: { id: 'BLADE', name: 'BLADE', pieces: 2, bonus: { kind: 'STAT_PTS', stat: 'CRIT', pts: 12 } },
   RAGE: { id: 'RAGE', name: 'RAGE', pieces: 2, bonus: { kind: 'STAT_PTS', stat: 'CDMG', pts: 40 } },

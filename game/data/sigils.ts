@@ -15,7 +15,7 @@ export const SIGILS: Record<SigilId, SigilDef> = {
     kindled: { blurb: 'SLOW strips 25%, STUN all', effect: { kind: 'TRIP', slowStrip: 0.25, stunStrip: 1 } } },
   BASTION: { id: 'BASTION', slot: 'ARMOR', blurb: 'Shields on you are 50% larger', effect: { kind: 'BASTION', bonus: 0.5 },
     kindled: { blurb: 'Bigger shields that cleanse', effect: { kind: 'BASTION', bonus: 0.5, cleanse: 1 } } },
-  THORNS: { id: 'THORNS', slot: 'ARMOR', blurb: 'COUNTER while DEF_UP is active', effect: { kind: 'THORNS' },
+  THORNS: { id: 'THORNS', slot: 'ARMOR', blurb: 'COUNTER under DEF_UP or shield', effect: { kind: 'THORNS' },
     kindled: { blurb: 'Counters also DEF_BREAK', effect: { kind: 'THORNS', applyBreak: 0.75 } } },
   SPARK: { id: 'SPARK', slot: 'NECKLACE', blurb: 'Crit: longest cooldown -1', effect: { kind: 'SPARK' },
     kindled: { blurb: 'Crit: every cooldown -1', effect: { kind: 'SPARK', all: true } } },

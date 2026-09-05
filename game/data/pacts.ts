@@ -13,8 +13,8 @@ export const PACTS: Record<PactId, Pact> = {
     curse: { kind: 'BOSS_INVINCIBLE_START', turns: 1 }, boon: { kind: 'EPIC_DROP_LEVEL', levels: 1 } },
   BLIND: { id: 'BLIND', name: 'Blind Pact', blurb: 'Party RES -20; party ACC +25',
     curse: { kind: 'PARTY_RES', pts: -20 }, boon: { kind: 'PARTY_ACC', pts: 25 } },
-  SCHISM: { id: 'SCHISM', name: 'Pact of Schism', blurb: 'Leader halved; own bonus each',
-    curse: { kind: 'LEADER_HALVED' }, boon: { kind: 'LEADER_SELF' } },
+  SCHISM: { id: 'SCHISM', name: 'Pact of Schism', blurb: 'No leader skill; own at half',
+    curse: { kind: 'LEADER_OFF' }, boon: { kind: 'LEADER_SELF' } },
   DEARTH: { id: 'DEARTH', name: 'Pact of Dearth', blurb: 'One fewer card; FORGE gives +4',
     curse: { kind: 'FEWER_CARDS', count: 1 }, boon: { kind: 'FORGE_LEVELS', levels: 4 } },
 };

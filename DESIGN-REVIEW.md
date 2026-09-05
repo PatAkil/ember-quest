@@ -160,3 +160,265 @@ WILL's duration (D11 1 or 2) — 2, so it covers the wearer's first action.
 Length: the rewrite grew the document from 470 to ≈ 1000 lines against a
 ~700-line guideline. Every added line answers a BLOCKING or GAP finding;
 round 2 was asked to name cuts.
+
+## Round 2 — the rewritten contract (≈ 1000 lines)
+
+The rewrite fixed the direction-level holes and opened detail-level ones: the
+new sections referenced fields the types did not carry, the map's one-node
+landmark stage could not obey the link rule, the party was two at the act-1
+boss, several sigils and pacts were dead or free, and the numbers that were
+now in the document had not yet been checked against each other. Round 2
+found 17 BLOCKING, 43 GAP and 31 NUMBERS findings; all were applied in a
+second integrated rewrite.
+
+### Consistency
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| C1 | BLOCKING | `Actor` carried no worn sets, sigils or original max HP | `sets`, `sigils`, `baseMaxHp` added; enemies wear no sets except A10's WILL |
+| C2 | BLOCKING | `Pact`/`Modifier` undefined, pacts had no ids, "IMMUNE" is not a status | Types written; ids HASTE…DEARTH; the curse is INVINCIBLE |
+| C3 | BLOCKING | Kindled sigils are a second behaviour the union promise forbade; OPENER meaningless at cooldown 0 | Kinds carry optional kindled fields; OPENER "starts no cooldown" |
+| C4 | BLOCKING | Kits needed `cleanse`, a bonus-vs-status multiplier and a per-application target | `cleanse?`, `bonusVs?`, `StatusApply.target?` |
+| C5 | NUMBERS | The party is two at the act-1 boss | A SUMMON follows the draft; act 1's landmark is the second (with U1/B1) |
+| C6 | NUMBERS | `BANK_WIN + n` banked 3 on a plain win | `BANK_WIN + L − 1`, laps 1-based |
+| C7 | NUMBERS | GRUDGE's 1-turn ATK_UP covered no action | 2 turns |
+| C8 | NUMBERS | "Four cards"/"four offers" had no layout or roster | Four-card row 284 wide; SCHISM's boon re-priced |
+| C9 | NUMBERS | A one-node stage could not obey the 1–2 span rule | Links to every node of the next stage, from every node of the previous |
+| C10 | NUMBERS | 30-char blurbs overflow a card line | `BLURB_WRAP = 22`, two lines |
+| C11 | NUMBERS | Derivation omitted the BOOTS SPD main, WILL's RES, pact sources; two RES authorities | Sources added; `pts.RES` overrides the act formula |
+| C12 | NUMBERS | "types.ts owns every constant" contradicted the data rows | Rules constants not claimed by a data row; presentation constants in their module |
+| C13 | NUMBERS | A9 was a no-op | Bosses start at `atb = ATB_TURN` |
+| C14 | GAP | `CLEAR_GROWTH` had no application rule | hp/atk per FIGHT/ELITE clear, reset per act, boss carries the count |
+| C15 | GAP | BURN's cap needed the applier at tick time | `Status.dmg` fixed at application |
+| C16 | GAP | SPD_UP had no source; "boss phases" undefined | Tailwind and Rally; INVINCIBLE only via a boss SELF skill or pact |
+| C17 | GAP | A8 broke three-slot packs | Only packs of width < 3 grow |
+| C18 | GAP | `vaultSlots` had no persisted input | `RunResult.actsCleared` persisted |
+| C19 | GAP | `RunResult`/`Probe` fields and `worn` untyped | Typed; `worn` member-major |
+| C20 | GAP | Set/sigil battle hooks, policies and `simulateRun` unowned | Phase 2 hooks, phase 6 `simulateRun` + policies |
+| C21 | GAP | `Slot`, `Rarity`, `RoomType`, `LootSource`, `AscensionRow`, `BOSS_HP` undeclared | Added |
+| C22 | GAP | Sigil ATB strips vs the debuff-class rule | RENDER debuff-class; TRIP rides on the landed status |
+| — | NOISE (15) | Wording: "read, then decrement"; heals order; "leader = slot 1"; "authored" vs derived; card floors; etc. | Fixed in passing where the sentence was rewritten anyway; the rest discarded |
+
+### Determinism
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| D1 | BLOCKING | One substat pool or per-slot pools | One pool of eleven keys; exclude the rolled main and existing subs |
+| D2 | BLOCKING | Act-6 landmark REST vs no-REST→REST; guarantee order | The five-step `buildMap` order; landmark and guarantee REST exempt |
+| D3 | BLOCKING | What a counter resolves | Skill 1 fully, per hero hit, once, no cooldown write, no OPENER, no chain |
+| D4 | BLOCKING | BURN's applier ATK at tick or application | Fixed at application, `max` on refresh |
+| D5 | GAP | `advance()` ties | Every actor with `Δ_i === Δ` lands exactly on ATB_TURN |
+| D7 | GAP | An enemy with every skill on cooldown | `validateData`: enemy `skills[0]` at cooldown 0 |
+| D8 | GAP | `statEff` rounding; SPD scaling under SLOW; BRAND on BURN | Unrounded; SPD reads `spdEff`; BURN ignores BRAND |
+| D9 | GAP | What `dealt` feeds | Pre-absorb incl. overkill; NEMESIS/GRUDGE need HP loss |
+| D10 | GAP | Heal side of HEAL_BLOCK; KO order; map heals; self in ally specs | Recipient-side; KO set then living heal; capped adds; caster included |
+| D12 | NUMBERS | GRUDGE 1 turn; pact IMMUNITY expiry; RAGE unit | 2 turns; "until its first turn starts"; +40 pts |
+| D13 | GAP | IMMUNITY edges; "one debuff"; sigil strips | Blocks applications incl. refreshes; lowest index; strips per C22 |
+| D14 | GAP | Roll events by source; set pool composition | Source-blind thresholds; drop-level formula; pool = 2 + 2 + Vault sets |
+| D15 | GAP | Links around the size-1 stage | With C9 |
+| D16 | GAP | Rooms with nothing to offer; packs vs party | SHRINE → FORGE; SUMMON always rolls; width ≤ members + 1 |
+| D17 | GAP | HP on equip; recruits; pity; cards | Proportional HP; full HP recruits; pity per run; `max(1, …)` |
+| D18 | GAP | Vault bookkeeping | Bank/drop defaults; `actsCleared`; unlock formula |
+| D19 | GAP | `intent` and enemy derivation | Step-7 pick on a ticked copy; the derivation formula |
+| D20 | GAP | A9; INVINCIBLE source | With C13/C16 |
+| D21 | GAP | Sigil parameters | ECHO/SPARK/SURGE/GRUDGE/BASTION defined |
+| D6, D11 | NOISE | Confirmations; "act, then decrement" wording | Wording fixed |
+
+### Balance arithmetic
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| B1 | BLOCKING | Two heroes at the act-1 boss (62 % with GALE) | The post-draft SUMMON; ELITE never rolls while the party is short |
+| B2 | BLOCKING | No enemy `resist` default (a ±40 % lever) | NORMAL 10 · ELITE 15 · BOSS 20; the expected-gear reference party stated |
+| B3 | NUMBERS | TIDE out-heals acts 2–5 (model 100/100/100/100/99/77) | Tidepool 0.18, Undertow 0.10 |
+| B4 | NUMBERS | `TURN_CAP` 200 stalls lap-2 A10 bosses | 500 |
+| B5 | NUMBERS | No 4-set beat 2+2+2; SWIFT×3 was the baseline | SWIFT 20 %, VIOLENT 0.30, NEMESIS 0.15, REVENGE 0.35 |
+| B6 | NUMBERS | DESTROY never touched current HP | Strips current HP too |
+| B7 | NUMBERS | VAMPIRE healed 18 % of incoming | 0.50 |
+| B8 | BLOCKING | OPENER a no-op | "Starts no cooldown" |
+| B9 | NUMBERS | SPARK per hit doubled AoE kits; BLOODLUST and TRIP dead | Once per skill; +10/+15; 25 % |
+| B10 | GAP | LOCKDOWN doubled STUN | STUN excluded |
+| B11 | NUMBERS | 2-turn self-buffs covered one action | ATK_UP/DEF_UP/CRIT_UP 3 turns |
+| B12 | NUMBERS | SHROUD free, SCHISM never taken, DEARTH zeroed FIGHT cards | +1; halved; min 1 |
+| B13 | GAP | Tailwind turn-neutral | +40 % |
+| B14 | NOISE (14) | Confirmations (BURN cap, DESPAIR, DEF_BREAK, Inferno/Judgement in band, relic supply, score width); BOOTS base 12 | BOOTS SPD base 12 adopted; the rest confirmed |
+
+### Simulability
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| S1 | BLOCKING | `balanced` defined by a screen's compare line | `compare()` with `COMPARE_WEIGHTS` in `sim/relics.ts` |
+| S2 | BLOCKING | `buildMap` could not link a one-node stage; conversions non-deterministic | With C9/D2 |
+| S3 | BLOCKING | `act` options and enemy ALLY targeting unenumerated | Skill-then-target order; enemy ALLY = LOWEST_HP_ALLY |
+| S4 | GAP | Run-start order and `leader()` timing | `vaultEquip`, `draft`, pool, ascension, `summon`, `leader`, `buildMap` |
+| S5 | GAP | Post-battle order | Score, KO return, clear heal, counter, drop, card |
+| S6 | GAP | `summon` semantics | Offers, the EPIC through `relic`, swap rules |
+| S7 | GAP | Pack draw, elites, A8, A9, the IMMUNE pact | With D16/C13/C2 |
+| S8 | GAP | rng-consumption sentences | Drop roll always drawn; landing drawn at p = 1; per-hit order; REVENGE once |
+| S9 | GAP | `random` for non-index methods | Uniform over the legal answers, per method |
+| S10 | GAP | `worn`, `bank`, laps, `route` | Defined |
+| S11 | GAP | Measurement definitions | `balanced.act`, `spdDelta`, Probe fields |
+| S12 | GAP | `simulateBattle`, the fixture | `BattleResult`, `BATTLE_FIXTURES` |
+| S13 | GAP | `validateData` vs the new content | List extended |
+| S14 | GAP | Stall bookkeeping | `deathKind 'STALL'`, banks `BANK_DEATH`, harness exits non-zero above 0.5 % |
+| S15 | NUMBERS | Table text exceeds 30 chars | Tables state effects; blurbs authored in phase 3 |
+| S16 | NOISE | Queue chips | `forecast(battle, 8)` named as presentation |
+
+### Feasibility
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| F1 | BLOCKING | `SAFE_MARGIN_PHONE` 40 overflowed the width | `SAFE_BOTTOM_PHONE = 40`, `SKILL_H_PHONE = 80` |
+| F2 | BLOCKING | Engine `TAP_MIN` 48 + warn vs contract 96 + expansion | Engine follow-up (phase 1); "drawn rect beats an expanded neighbour" |
+| F3–F8 | NUMBERS | Bottom sum, PAUSE overlap, panel rows, two-row skill buttons, blurb width, card/door positions | All stated |
+| F9 | NUMBERS | ARCADE ≈ 12 FSE; HD tiers still paid the CRT vignette | ARCADE = LOW's planes + CRT ≈ 9; HD tiers never call `crt.render` |
+| F10 | NUMBERS | Backing-scale wording | ×1 everywhere, ×2 only on a dense desktop, chosen once |
+| F11 | GAP | Part bitmaps as 1000 canvases | One atlas per element |
+| F12 | GAP | Twin-id navigation; registration timing | Engine follow-up; the timing sentence |
+| F13 | GAP | Orientation lock, iOS metas, the Home-Screen hint | Phase 1 / phase 4 |
+| F14 | GAP | Queue, pops, log unbounded | `QUEUE_LEN 8`, `POP_MAX 16`, `LOG_KEEP 32` |
+
+### Fun and scope
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| U1 | BLOCKING | Two heroes at the act-1 boss; pacts a 1.5-act system | The post-draft SUMMON; landmarks re-ordered (SHRINE in act 2, SUMMON in act 5) |
+| U2 | GAP | The leader was only a number | FOCUS aims at the leader |
+| U3 | GAP | Three kits still "fire whatever is up"; stat awakenings | Inferno ×1.0 ×2 with a BURN bonus; SABLE and LUMEN awaken into plays |
+| U4 | NUMBERS | Heal-stalling beat every healing rule | `ENRAGE_TURN = 40` |
+| U5 | GAP | Orphan statuses; an unnamed act 1 | The six EMBER CRYPT enemies; sources listed |
+| U6 | NUMBERS | FORGE's reroll was dominated | Recast |
+| U7 | NUMBERS | Three pacts always- or never-take | Re-priced (with B12) |
+| U8 | NUMBERS | The lap door is not a relic bet; *n* undefined | Lap 1-based; "DESCEND is the greedy door by design" |
+| U9 | GAP | The swap under-specified | HP fraction, relics, seat, un-awakened |
+| U10 | NUMBERS | "≈ 95 %" oversold; no 2+2+2 lever | Wording; a 2-piece cap of two applications as phase 8's lever |
+| U11 | GAP | Phase holes: PAUSE, ARCADE toggle, backdrop, kindled variants, `simulateRun`, music | Phase rows extended; no music at launch |
+| U12 | NOISE | Open-question hygiene | Question 6 cut; relic movement and enemy sets stated as rules |
+
+Conflicts settled in round 2: KO'd heroes get `KO_RETURN` and no clear heal
+(D10 over S5); sigil strips are debuff-class except TRIP (C22 over D13);
+the Vault-vs-ascension link stayed an open question (U8 asked to contract
+it; the casual-A0 cost is the owner's call); `TURN_CAP` 500 (B4); the lap
+door is honestly a score bet, not a relic bet (U8), and the death-on-lap
+question was dropped as moot.
+
+Length: after the round-2 rewrite the document stands at ≈ 1010 lines
+against the ~700-line guideline. Every reviewer's cut list was applied
+where the sentence carried no rule; what remains is rules and tables that
+round 1 and 2 found missing. The guideline is consciously exceeded.
+
+## Round 3 — 2026-09-05
+
+Six lanes on the round-2 document (1010 lines). Verdicts: consistency
+BLOCKING 6 / GAP 4, determinism 8 / 9, balance 0 / 2, simulability 2 / 7,
+feasibility 1 / 6, fun & scope 3 / 6 — not converged. Everything below was
+applied in one pass; round 4 reviews the result.
+
+### Consistency
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| C1 | BLOCKING | Enemy `pts.RES`: override or baseline | The comment: replaces the 15, the act/kind/A terms still add |
+| C2 | BLOCKING | Two awakenings had no `SkillDef` field | `extendDebuffs?`, `refundOnKill?`; Undertow's cleanse is a number |
+| C3 | BLOCKING | FURY absent from the scale formula | `× (FURY ? 1.15 : 1)` inside the round |
+| C4 | BLOCKING | `vaultEquip` ran before the starter existed | Run-start order draft → vaultEquip → pool → ascension → summon → leader → buildMap |
+| C5 | BLOCKING | `PactId`, `EnemyId`, `KIND_MULT`, the `BOSS_HP` replacement undeclared | Declared in Types; the `KIND_MULT` table and the BOSS hp replacement under Scale |
+| C6 | BLOCKING | `RunResult.awakened` could not hold a lapped run | `awakened: string[]` |
+| C7 | NUMBERS | Fourteen enemy-table cells rounded from rounded intermediates | Recomputed from the formula; the header names the base |
+| C8 | NUMBERS | Four-card row 16 px off-centre | x 48/348/648/948 |
+| C9 | NUMBERS | Hero-panel rows did not sum to 104 | `PANEL_PAD = 7`, gaps 4 |
+| C10 | NUMBERS | `BLURB_WRAP = 22` wider than a four-wide card | Wrap by `textWidth` inside `CARD_W − 2 × CARD_PAD`, ≤ 3 lines (with F1) |
+| C11 | NUMBERS | "three after five rooms" | "three by the third room" |
+| C12 | GAP | REST guarantee with no FIGHT in stage 5 | Stage 4 first, then 5 / 2 / 1, else stage 4's node 0 (with D13, U4) |
+| C13 | GAP | FORGE / sharpen with nothing eligible | Eligibility per mode; `forge` may return `null`; an empty FORGE is skipped |
+| C14 | GAP | `DROP_LEVEL[act]` out of bounds, silent on laps | `[lap > 1 ? 5 : act − 1]` |
+| C15 | GAP | A SUMMON's second card under HASTE | Every SUMMON card is EPIC, levelled as a FIGHT card |
+| cuts | NOISE | Five sentences duplicating `validateData` or a later paragraph | "Laps reuse" folded into Scale; the SUMMON row shortened; three kept at their point of use |
+
+### Determinism
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| D1 | BLOCKING | Link spans had no start rule | `straight` / `lo` / `width` / `hi` formula, then coverage (with S5) |
+| D2 | BLOCKING | RENDER's base and multiplicity | Every "% ATB" is a fraction of `ATB_TURN`; RENDER once per crit hit through the landing formula |
+| D3 | BLOCKING | Cleanse-versus-heal order; what a heal is | Per-target order cleanse → heal → applies → extendDebuffs → atbBoost → MENDING; MENDING only on `heal > 0` |
+| D4 | BLOCKING | HP rescale only "at equip" | On every `derive` that changes maxHp, with the 0 / 1 guards |
+| D5 | BLOCKING | SCHISM's arithmetic | Curse = no leader skill; boon = own at half, unrounded (with B5, U6) |
+| D6 | BLOCKING | Per-act tables on laps | `LOOT_WEIGHTS` and `DROP_LEVEL` read row 6; everything else reads the lap's act |
+| D7 | BLOCKING | Turn-counter boundaries | `actorTurns` increments at entry; ENRAGE `≥` at entry; side-empty precedes the `TURN_CAP` check |
+| D8 | BLOCKING | Set pool with a Vault set already drawn | Draw four, then union the worn Vault sets; the pool is the distinct ids |
+| D9 | GAP | A card's slot never rolled | The slot is the relic's first draw (with S1) |
+| D10 | GAP | DESTROY's strip | The rounded formula; bypasses SHIELD, never lethal |
+| D11 | GAP | FURY and A10's WILL missing from enemy derivation | The FURY term; `WILL_RES` for an A10 boss |
+| D12 | GAP | Step 9 after the last enemy died | Fires only while both sides have a living actor |
+| D13 | GAP | REST guarantee fallback | With C12 |
+| D14 | GAP | What FORGE and REST offer | With C13 |
+| D15 | GAP | Invalid structured answers | Per-method fallbacks in the policy paragraph |
+| D16 | GAP | A8's added NORMAL | Uniform over the biome's NORMAL ids, appended last, skipped at the cap |
+| D17 | GAP | Awakening effects in `SkillDef` | With C2 |
+| cuts | NOISE | Four restating sentences | "Statuses never enter derive" and "Vault relics keep their level" cut; two kept |
+
+### Balance arithmetic
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| B1 | NUMBERS | `ENRAGE_TURN` 40 fired inside every act-5/6 boss and elite fight | 100 (U9 proposed 90; 1.5 × the reference act-6 boss fight); the harness prints enrages per boss |
+| B2 | NUMBERS | VIOLENT 0.30 and WILL lost to 2+2 in their own lane | `VIOLENT_CHANCE` 0.40; `WILL_TURNS` 3 |
+| B3 | NUMBERS | A LEGENDARY clamped at +4 never beat an EPIC | `LEGENDARY_MAIN_MULT` 1.5 |
+| B4 | NUMBERS | DEF priced at 4 × its worth | `COMPARE_WEIGHTS.DEF` 0.25; GUARD +30 % DEF; `DEF_K` 600 named as phase 8's lever |
+| B5 | NUMBERS | SCHISM had no curse | Curse = the leader's skill removed |
+| B6 | GAP | THORNS was dead on every launch party | Triggers on DEF_UP **or** a SHIELD — the one round-3 change to a rule rather than a number, kept because a null sigil cannot ship |
+| B7 | NUMBERS | FURY and the `BOSS_HP` replacement missing from Scale | With C3 / C5 |
+| G1 | GAP | `DROP_LEVEL` on laps | With C14 |
+| G2 | GAP | The fixture's base stats were unstated | The six authored bases written beside the range |
+
+### Simulability
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| S1 | BLOCKING | A relic's slot was never rolled; the per-card draw order unstated | `rollRelic` draws (1) slot … (8) sigil; forced rarities draw nothing; `Relic.id` is a counter |
+| S2 | BLOCKING | No integer-draw convention | `pick(n, rng) = floor(rng() × n)` and the derived rules; `game/sim/rng.ts` in phase 2 |
+| S3 | GAP | Hit × target nesting; RENDER's roll; DESPAIR under IMMUNITY | Hit-major loop; per-hit order crit → applies → DESPAIR chance → landing → RENDER |
+| S4 | GAP | `vaultEquip` before the starter | With C4 |
+| S5 | GAP | Span start position | With D1 |
+| S6 | GAP | `RunResult` / `Probe` fields the harness prints were undefined | The definitions paragraph |
+| S7 | GAP | No field behind the "two mains per open slot" check | `mainsWorn` |
+| S8 | GAP | `--battles` fixture: whose `act`, what scaling | Each selected policy's `act`; enemies at act 1, lap 1, A0, no clears, no pacts; party rebuilt per battle |
+| S9 | GAP | Enemy scale and loot rows on laps | With C3 / D6 |
+| cuts | NOISE | Scorer pinning, `intent` on a copy, the 2+2+2 lane, v2 harness fields, declining a SUMMON | `intent` never touches the rng; a `pairs` policy; declining a SUMMON mends nothing; the scorer stays prose |
+
+### Feasibility
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| F1 | BLOCKING | `BLURB_WRAP` overflowed the four-card row | Wrap by `textWidth`, `CARD_PAD 16`, `BLURB_LINES_MAX 3` |
+| F2 | GAP | Inspect overlay and BACK had no geometry | `INSPECT`, `INSPECT_ROW_Y`, `BACK`; panel tap = target while a prompt is open, else inspect |
+| F3 | GAP | PAUSE overlay targets | Three `PAUSE_BTN 400×96` at x 440, y 216 / 336 / 456 |
+| F4 | GAP | Ribbon x-layout, ENRAGED marker, intent badge | `QUEUE_X / QUEUE_CHIP / QUEUE_GAP`, `NAME_X`, `ENRAGE_CHIP`, `INTENT_BADGE`, `RIBBON_RIGHT` |
+| F5 | GAP | Room-to-room card | The middle card slot plus `CONTINUE` |
+| F6 | GAP | Who-wears-it row x-layout | `WEAR_BTN / WEAR_X / WEAR_Y` |
+| F7 | GAP | Map and party screens had no geometry | `MAP_NODE / MAP_X / MAP_Y`; party columns in the card slots |
+| cuts | NOISE | `TEXT_SMALL`, `BOSS_PART` vs `ACTOR_W`, four-card centring, HIGH's tint, `QUEUE_LEN` | `TEXT_SMALL` cut, `BOSS_W 288`, the row centred; HIGH's tint and `QUEUE_LEN` unchanged (ENRAGED fits at `TEXT_BODY`) |
+
+### Fun and scope
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| U1 | BLOCKING | `validateData` armed three phases before their tables existed | A rule arms with the phase that lands its table |
+| U2 | BLOCKING | Phase 5 put two heroes at the boss again | The slice run gains a SUMMON node; awakenings as data with an `awakened` fixture flag |
+| U3 | BLOCKING | Acts 3–6 had no author; phase 6 was half the game | 6a run structure (after 5), 6b biomes and ascension (parallel with 5) |
+| U4 | GAP | REST was a state read, not a choice | Sharpen = every uncapped relic one member wears; the guarantee moves to stage 4 |
+| U5 | GAP | The swap arrived un-awakened | The newcomer inherits the awakening |
+| U6 | GAP | VEIL and SCHISM were still free | VEIL: INVINCIBLE again on the first turn below 50 %; SCHISM: curse = no leader skill |
+| U7 | GAP | The free seat collapsed the leader trade-off | The seat changes only at the draft, a SUMMON, a REST or the ALTAR |
+| U8 | GAP | Lap cards were junk | With C14 |
+| U9 | GAP | Every boss enraged by tuning | With B1 (100, not 90) |
+| cuts | NOISE | Five history / flavour sentences | Two cut (the New Game+ line, the Vault-trivialises-act-1 line); three kept as intent |
+
+Conflicts settled in round 3: `ENRAGE_TURN` 100 (B1) over 90 (U9); the
+REST guarantee prefers stage 4 (U4) with C12/D13's fallback chain behind
+it; SCHISM's curse removes the leader skill (B5, U6) rather than D5's
+"own in full plus half the leader's"; the blurb limit is a `textWidth`
+wrap (F1) rather than a character count (C10); THORNS gained a second
+trigger (B6) — the only place this round changed a rule, logged as such.
+Length after round 3: 1092 lines.
