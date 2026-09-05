@@ -1008,10 +1008,13 @@ frame, and the frame itself scales smooth.
 The reference is Octopath Traveler: everything around the sprites. Five
 passes: (1) **diorama planes** — background, midground, actor plane,
 foreground, each parallaxing at its own rate; (2) **depth of field** —
-background and foreground blurred, the actor plane razor sharp; (3) **chunky
-actors** — parts authored at `ACTOR_PART = 64` px (`BOSS_PART = 96`), drawn
-at `ACTOR_SCALE = 3` with smoothing off, ≤ `ACTOR_W = 192` wide (a boss ≤
-`BOSS_W = 288`), the only plane with hard pixel edges; (4) **light at native resolution** — a per-biome
+background and foreground blurred, the actor plane razor sharp; (3) **pixel
+actors** — parts authored at `ACTOR_PART = 64` px (`BOSS_PART = 96`), a hero
+52–60 cells tall, drawn at `ACTOR_SCALE = 2` with smoothing off, ≤ `ACTOR_W
+= 128` wide (a boss ≤ `BOSS_W = 192`), the only plane with hard pixel edges —
+at ×2 a hero stands ≈ 13–17 % of the frame's height with a 2-px cell, the
+density of Octopath's sprites on a 720-px frame (×3 read as chunky and was
+retired on 2026-09-05); (4) **light at native resolution** — a per-biome
 key light as radial gradients, rim light along actor silhouettes, embers,
 dust and fog as smooth alpha particles, composited with `'lighter'`; (5)
 **colour grading** — a cached `'multiply'` shadow tint that carries the
@@ -1093,9 +1096,19 @@ Home Screen" hint where they do not (iPhone, phase 4), a rotate prompt.
 
 ### UI constraints
 
-**Nothing renders below scale 2**: `TEXT_POP 3` (crits 4) · `TEXT_LABEL 3` (skill
-labels, the current actor, door and card titles) · `TEXT_BODY 2` (everything
-else). Limits at those scales: battle log line ≤ `LOG_LINE_MAX = 72` chars,
+**Two kinds of text.** Bitmap `FONT_HD` for what belongs to the world and
+the arcade — damage pops (`TEXT_POP 3`, crits 4), the title logo, card
+titles and door labels (`TEXT_LABEL 3`) — never below scale 2. Everything
+the player reads as UI — panel names and numbers, the ribbon's name and
+score, the log, skill labels, substats, blurbs, menus — renders in the
+**HUD font**: a vector system stack (`HUD_FONT = '"Segoe UI", Roboto,
+"Helvetica Neue", Arial, sans-serif'`) at `HUD_PX = 18` (`HUD_SMALL = 15`,
+`HUD_LARGE = 24`), light weight, letter-spaced, with a 1-px dark drop
+shadow; panels are thin translucent plates, not boxes; the turn ribbon
+shows actor portraits (the recipe's head, baked once) in element-tinted
+frames. `TEXT_BODY 2` remains the bitmap fallback where a screen has no HUD
+font yet, and the character limits below are measured in whichever font
+the screen uses. Limits at those scales: battle log line ≤ `LOG_LINE_MAX = 72` chars,
 character names ≤ 16, skill names ≤ 14, relic set names ≤ 8, enemy names ≤
 16, biome names ≤ 12, pact names ≤ 16, sigil and pact blurbs ≤ 30 wrapped
 by `textWidth` inside the drawn card's width − 2 × `CARD_PAD` (`CARD_W =
