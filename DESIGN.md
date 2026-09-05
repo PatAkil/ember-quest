@@ -416,7 +416,8 @@ EnemyId[][]`, `boss`); on entry a room draws uniformly among packs of width ≤
 
 **Scale.** `KIND_MULT = { NORMAL: { hp 1, atk 1, def 1, spd 0, res 0 },
 ELITE: { hp 2.5, atk 1.35, def 1.25, spd 5, res 10 }, BOSS: { hp —, atk 1.7,
-def 1.6, spd 10, res 20 } }` (the layout's `ELITE_MULT` / `BOSS_MULT`). `hp =
+def 1.6, spd 10, res 20 } }` (the layout's `ELITE_MULT` / `BOSS_MULT`; in code the `res` column is
+`ENEMY_RES_KIND` beside `KIND_MULT`). `hp =
 round(base.hp × ACT_MULT.hp × KIND_MULT.hp × (1 + 0.10 A) × LAP_MULT.hp^(lap−1)
 × (1 + CLEAR_GROWTH × clearsThisAct))` — for a BOSS `base.hp × ACT_MULT.hp ×
 KIND_MULT.hp` is replaced by `BOSS_HP[act − 1]`; `atk` the same with its own
@@ -1147,8 +1148,11 @@ the v2 rules. Paper numbers last moved in the round-3 review (2026-09-05):
 day): `NEMESIS_ATB` 0.15 → 0.40, HASTE's curse ×1.2 → ×1.1. The owner's
 element model (same day) softens the wrong-element penalty from ≈ 70 % to
 ≈ 78 % of neutral expected damage at CRIT 42 / CDMG 57 — intended; `GLANCE_MULT`
-and `GLANCE_CHANCE` are the levers if phase 8 wants the old severity back. This section gets
-rewritten at phase 8 and dated.
+and `GLANCE_CHANCE` are the levers if phase 8 wants the old severity back. Phase 2's `--battles` fixtures (2026-09-05): the bare slice party beats
+every act-1 pack at A0 under both `random` and `balanced` play, ending at
+62–94 % HP, the boss in 40–45 actor turns; act 1's ≥ 80 % target is a
+full-run number and is measured at 6a. This section gets rewritten at phase
+8 and dated.
 
 ## Open questions
 
