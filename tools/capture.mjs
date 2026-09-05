@@ -67,6 +67,7 @@ if (modes.has('sheets')) {
   const only = opts.actor;
   if (!only) {
     const metrics = await sheet(page, 'lineup-x2', 'sheet=lineup&mode=color&zoom=2');
+    const humanoids = new Set(await page.evaluate(() => window.__lineup.humanoids));
     await sheet(page, 'lineup-x2-grey', 'sheet=lineup&mode=grey&zoom=2');
     await sheet(page, 'lineup-x2-sil', 'sheet=lineup&mode=sil&zoom=2');
     await sheet(page, 'lineup-heroes-x4', `sheet=lineup&mode=color&zoom=4&cols=3&group=${HEROES.join(',')}`);
@@ -76,11 +77,11 @@ if (modes.has('sheets')) {
     await sheet(page, 'lineup-enemies-x4-grey', `sheet=lineup&mode=grey&zoom=4&cols=5&group=${[...CRYPT, ...MARSH].join(',')}`);
     writeFileSync(`${OUT}/metrics.json`, JSON.stringify(metrics, null, 2));
     const md = [
-      '| actor | px | w×h | frame % | L* min/p2/p98/max | <L35 % | interior <L35 % | >L75 % | top / bottom L* (Δ) | bands 0-15/15-35/35-55/55-75/75+ | contrast mean / min | <3:1 % | colours |',
-      '|---|---|---|---|---|---|---|---|---|---|---|---|---|',
-      ...metrics.map((m) => `| ${m.id} | ${m.pixels} | ${m.w}×${m.h} | ${m.framePct} | ${m.lMin}/${m.lP2}/${m.lP98}/${m.lMax} | ${m.pctBelow35} | ${m.pctBelow35Interior} | ${m.pctAbove75} | ${m.topL} / ${m.bottomL} (${m.litDelta}) | ${m.bands.join(' / ')} | ${m.contrastMean} / ${m.contrastMin} | ${m.pctBelow3} | ${m.colours} |`),
+      '| actor | px | w×h | frame % | L* min/p2/p98/max | <L35 % | interior <L35 % | >L75 % | top / bottom L* (Δ) | bands 0-15/15-35/35-55/55-75/75+ | contrast mean / min | <3:1 % | colours | mirror IoU % | nearest silhouette (IoU %) |',
+      '|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|',
+      ...metrics.map((m) => `| ${m.id} | ${m.pixels} | ${m.w}×${m.h} | ${m.framePct} | ${m.lMin}/${m.lP2}/${m.lP98}/${m.lMax} | ${m.pctBelow35} | ${m.pctBelow35Interior} | ${m.pctAbove75} | ${m.topL} / ${m.bottomL} (${m.litDelta}) | ${m.bands.join(' / ')} | ${m.contrastMean} / ${m.contrastMin} | ${m.pctBelow3} | ${m.colours} | ${m.mirrorIoU} | ${m.nearest} (${m.nearestIoU}) |`),
       '',
-      'Ship criteria (ART-REVIEW.md), measured in CIE L*: span 15-85 with >= 20 % below L 35 (>= 20 % of INTERIOR pixels too — a keyline is not an anchor) and >= 8 % above L 75; the top quarter >= 8 L* lighter than the bottom (lit from above); mean contrast >= 3:1 with <= 45 % of body pixels below 3:1.',
+      'Ship criteria (ART-REVIEW.md), measured in CIE L*: span 15-85 with >= 20 % below L 35 (>= 20 % of INTERIOR pixels too — a keyline is not an anchor) and >= 8 % above L 75; the top quarter >= 8 L* lighter than the bottom (lit from above); mean contrast >= 3:1 with <= 45 % of body pixels below 3:1; a humanoid with a stance has a mirror IoU under 85 %; no two silhouettes overlap above 78 % (feet-aligned, centred).',
       '',
       ...metrics.map((m) => {
         const fails = [];
@@ -92,6 +93,8 @@ if (modes.has('sheets')) {
         if (m.litDelta < 8) fails.push(`top-bottom ΔL* ${m.litDelta} < 8 (flat or bottom-lit)`);
         if (m.contrastMean < 3) fails.push(`mean contrast ${m.contrastMean} < 3`);
         if (m.pctBelow3 > 45) fails.push(`${m.pctBelow3} % below 3:1 > 45`);
+        if (humanoids.has(m.id) && m.mirrorIoU > 85) fails.push(`mirror IoU ${m.mirrorIoU} % > 85 (no stance)`);
+        if (m.nearestIoU > 78) fails.push(`silhouette ${m.nearestIoU} % of ${m.nearest} > 78`);
         return `- ${m.id}: ${fails.length ? fails.join('; ') : 'PASS'}`;
       }),
     ].join('\n');
@@ -157,17 +160,26 @@ async function battle(page, prefix, touch) {
     await wait(page, 800);
   }
   await frame(page, `${prefix}battle-2`);
-  // Pause overlay and the inspect overlay.
-  await tap(page, 1224, 48, touch); // pause icon
-  await wait(page, 300);
-  await frame(page, `${prefix}battle-paused`);
-  await tap(page, 640, 264, touch); // RESUME
-  await wait(page, 300);
-  await tap(page, 164, 148, touch); // hero panel 0 -> inspect (outside target mode)
-  await wait(page, 300);
-  await frame(page, `${prefix}battle-inspect`);
-  await tap(page, 1136, 600, touch); // BACK
-  await wait(page, 200);
+  // Pause overlay and the inspect overlay — only while the battle is still on
+  // (a dev build exposes window.__eq; without it the taps are best effort).
+  const inBattle = await page.evaluate(() => {
+    const eq = window.__eq;
+    return !eq || (eq.run() && eq.run().phase === 'BATTLE');
+  }).catch(() => true);
+  if (inBattle) {
+    await tap(page, 1224, 48, touch); // pause icon
+    await wait(page, 300);
+    await frame(page, `${prefix}battle-paused`);
+    await tap(page, 640, 264, touch); // RESUME
+    await wait(page, 300);
+    await tap(page, 164, 148, touch); // hero panel 0 -> inspect (outside target mode)
+    await wait(page, 300);
+    await frame(page, `${prefix}battle-inspect`);
+    await tap(page, 1136, 600, touch); // BACK
+    await wait(page, 200);
+  } else {
+    console.log('battle ended before the pause/inspect frames; run `play` for the later screens');
+  }
 }
 
 if (modes.has('battle')) {

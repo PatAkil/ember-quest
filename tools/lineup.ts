@@ -80,6 +80,53 @@ export interface ActorMetrics {
   pctBelow3: number;
   /** Distinct colours in the frame. */
   colours: number;
+  /** IoU of the idle silhouette with its own horizontal mirror (%) — a humanoid with a stance sits under 85. */
+  mirrorIoU: number;
+  /** The other actor whose idle silhouette overlaps this one most (feet-aligned, centred), and that IoU (%) — criterion 4 wants every pair under ~78. */
+  nearest: string;
+  nearestIoU: number;
+}
+
+const HUMANOIDS = new Set(['EMBER', 'GALE', 'TIDE', 'BASALT', 'SABLE', 'LUMEN', 'CRYPT_WARDEN', 'PYRE_KNIGHT', 'DROWNED_KNIGHT', 'MARSH_HAG', 'HOLLOW_KING', 'PALE_SAINT']);
+interface Mask {
+  w: number;
+  h: number;
+  bits: Uint8Array;
+}
+const masks = new Map<string, Mask>();
+
+/** IoU of two silhouettes, feet-aligned and horizontally centred. */
+function maskIoU(a: Mask, b: Mask): number {
+  const W = Math.max(a.w, b.w);
+  const H = Math.max(a.h, b.h);
+  const ax = Math.floor((W - a.w) / 2);
+  const ay = H - a.h;
+  const bx = Math.floor((W - b.w) / 2);
+  const by = H - b.h;
+  let inter = 0;
+  let uni = 0;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const ia = x >= ax && x < ax + a.w && y >= ay ? a.bits[(y - ay) * a.w + (x - ax)] : 0;
+      const ib = x >= bx && x < bx + b.w && y >= by ? b.bits[(y - by) * b.w + (x - bx)] : 0;
+      if (ia && ib) inter++;
+      if (ia || ib) uni++;
+    }
+  }
+  return uni ? Math.round((1000 * inter) / uni) / 10 : 0;
+}
+function mirrorIoU(m: Mask): number {
+  let inter = 0;
+  let uni = 0;
+  for (let y = 0; y < m.h; y++) {
+    for (let x = 0; x < m.w; x++) {
+      const a = m.bits[y * m.w + x];
+      const b = m.bits[y * m.w + (m.w - 1 - x)];
+      if (a && b) inter++;
+      if (a || b) uni++;
+    }
+  }
+  return uni ? Math.round((1000 * inter) / uni) / 10 : 0;
 }
 
 function lin(c: number): number {
@@ -184,6 +231,11 @@ function measure(recipe: ActorRecipe): ActorMetrics {
   }
   const topL = topN ? topSum / topN : 0;
   const bottomL = botN ? botSum / botN : 0;
+  const mw = x1 >= x0 ? x1 - x0 + 1 : 0;
+  const bits = new Uint8Array(Math.max(0, mw * h));
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) bits[(y - y0) * mw + (x - x0)] = data[(y * W + x) * 4 + 3] !== 0 ? 1 : 0;
+  const mask: Mask = { w: mw, h, bits };
+  masks.set(recipe.id, mask);
   ls.sort((a, b) => a - b);
   const pct = (k: number): number => Math.round((100 * k) / n * 10) / 10;
   return {
@@ -207,7 +259,28 @@ function measure(recipe: ActorRecipe): ActorMetrics {
     contrastMin: Math.round((cMin === Infinity ? 0 : cMin) * 100) / 100,
     pctBelow3: pct(below3),
     colours: colours.size,
+    mirrorIoU: mirrorIoU(mask),
+    nearest: '',
+    nearestIoU: 0,
   };
+}
+
+/** Fills `nearest`/`nearestIoU` across a measured set — every pair, feet-aligned. */
+function fillNearest(metrics: ActorMetrics[]): void {
+  for (const m of metrics) {
+    const a = masks.get(m.id);
+    if (!a) continue;
+    for (const o of metrics) {
+      if (o.id === m.id) continue;
+      const b = masks.get(o.id);
+      if (!b) continue;
+      const v = maskIoU(a, b);
+      if (v > m.nearestIoU) {
+        m.nearestIoU = v;
+        m.nearest = o.id;
+      }
+    }
+  }
 }
 
 // --- Drawing -----------------------------------------------------------------------
@@ -330,27 +403,29 @@ function render(): ActorMetrics[] {
     seen.add(c.recipe.id);
     metrics.push(measure(c.recipe));
   }
+  fillNearest(metrics);
   return metrics;
 }
 
 function table(metrics: ActorMetrics[]): string {
-  const head = 'actor            px   w  h  frame%  L* min/p2/p98/max  <L35%  int<35%  >L75%  top/bot dL  bands 0-15/15-35/35-55/55-75/75+   contrast mean/min  <3:1%  colours';
+  const head = 'actor            px   w  h  frame%  L* min/p2/p98/max  <L35%  int<35%  >L75%  top/bot dL  bands 0-15/15-35/35-55/55-75/75+   contrast mean/min  <3:1%  colours  mirror%  nearest (IoU%)';
   const rows = metrics.map((m) => {
     const id = m.id.padEnd(15);
     const l = `${String(m.lMin).padStart(3)}/${String(m.lP2).padStart(3)}/${String(m.lP98).padStart(3)}/${String(m.lMax).padStart(3)}`;
     const bands = m.bands.map((b) => String(b).padStart(5)).join(' ');
     const lit = `${String(m.topL).padStart(3)}/${String(m.bottomL).padStart(3)} ${String(m.litDelta).padStart(3)}`;
-    return `${id} ${String(m.pixels).padStart(5)} ${String(m.w).padStart(3)} ${String(m.h).padStart(2)}  ${String(m.framePct).padStart(5)}  ${l}    ${String(m.pctBelow35).padStart(5)}  ${String(m.pctBelow35Interior).padStart(7)}  ${String(m.pctAbove75).padStart(5)}  ${lit}  ${bands}   ${String(m.contrastMean).padStart(5)}/${String(m.contrastMin).padStart(5)}  ${String(m.pctBelow3).padStart(5)}  ${m.colours}`;
+    return `${id} ${String(m.pixels).padStart(5)} ${String(m.w).padStart(3)} ${String(m.h).padStart(2)}  ${String(m.framePct).padStart(5)}  ${l}    ${String(m.pctBelow35).padStart(5)}  ${String(m.pctBelow35Interior).padStart(7)}  ${String(m.pctAbove75).padStart(5)}  ${lit}  ${bands}   ${String(m.contrastMean).padStart(5)}/${String(m.contrastMin).padStart(5)}  ${String(m.pctBelow3).padStart(5)}  ${String(m.colours).padStart(7)}  ${String(m.mirrorIoU).padStart(7)}  ${m.nearest} (${m.nearestIoU})`;
   });
   return [head, ...rows].join('\n');
 }
 
 const metrics = render();
 out.textContent = `sheet=${sheet} mode=${mode} zoom=${zoom} bg=${bg}\n${table(metrics)}`;
-(window as unknown as { __lineup: { ready: boolean; sheet: string; mode: string; zoom: number; metrics: ActorMetrics[] } }).__lineup = {
+(window as unknown as { __lineup: { ready: boolean; sheet: string; mode: string; zoom: number; metrics: ActorMetrics[]; humanoids: string[] } }).__lineup = {
   ready: true,
   sheet,
   mode,
   zoom,
   metrics,
+  humanoids: [...HUMANOIDS],
 };
