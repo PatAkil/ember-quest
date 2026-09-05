@@ -38,7 +38,7 @@ import {
   drawSecondaryButton, formatSetBonus, gradientPlate, hudText, hudTextCentered, plate,
   portraitFor, roundRectPath,
 } from './hud';
-import type { PactId, Party, PartyMember, Rarity, Relic, Slot } from '../types';
+import type { PactId, Party, PartyMember, Rarity, Relic, RoomType, Slot } from '../types';
 import { SLOTS } from '../types';
 import { SETS } from '../data/sets';
 import { ACTOR_RECIPES } from '../art/actors';
@@ -113,6 +113,23 @@ export interface ScreenView {
   pactsTaken?: readonly PactId[];
   vault?: readonly Relic[];
   vaultSlots?: number;
+  /** Where the party is standing (RunSnapshot): −1/−1 before an act's first room. */
+  stage?: number;
+  nodeIdx?: number;
+  /** FIGHT/ELITE clears this act, and every room visited so far — both monotonic within a run. */
+  clears?: number;
+  rooms?: readonly RoomType[];
+}
+
+/**
+ * The run's POSITION as a string, for a screen's "is this a new decision?" key.
+ * A payload alone cannot answer that: two SUMMONs can offer the same three
+ * characters and two walked-past FORGEs can see the same worn set, and a key
+ * built from the payload alone let the second one open pre-picked with the
+ * first one's answer still on screen. Position is what makes a decision new.
+ */
+export function viewKey(view: ScreenView): string {
+  return `${view.act ?? 0}/${view.lap ?? 0}/${view.stage ?? -1}/${view.nodeIdx ?? -1}/${view.clears ?? 0}/${view.rooms?.length ?? 0}`;
 }
 
 /** The DeriveCtx every screen builds the same way — the leader's skill and the run's pacts. */

@@ -41,7 +41,7 @@ import { LAP_MULT } from '../data/enemies';
 import { isKindled, mainLine, partyWorn, relicTitle } from '../sim/relics';
 import {
   ColumnOptions, RARITY_COLOR, ScreenView, addPartyColumns, addPauseIcon, deriveCtxFor, drawBanner,
-  drawPartyColumns, drawPauseIcon, parseColumnId,
+  drawPartyColumns, drawPauseIcon, parseColumnId, viewKey,
 } from './party';
 import { draftSlotRect } from './draft';
 
@@ -220,9 +220,12 @@ export function createVaultScreen(deps: VaultScreenDeps): VaultScreen {
   function sync(props: VaultProps): void {
     if (props === lastProps) return;
     lastProps = props;
-    const key = props.kind === 'EQUIP' ? `E:${props.vault.map((r) => r.id).join(',')}:${props.slots}`
-      : props.kind === 'DOORS' ? `D:${props.banked}`
-        : `B:${props.worn.map((r) => r.id).join(',')}:${props.n}`;
+    // Position first, as on every other screen: a lap brings the doors round
+    // again with the same `banked`, and that is a new decision.
+    const where = props.view ? viewKey(props.view) : '-';
+    const key = props.kind === 'EQUIP' ? `E@${where}:${props.vault.map((r) => r.id).join(',')}:${props.slots}`
+      : props.kind === 'DOORS' ? `D@${where}:${props.banked}`
+        : `B@${where}:${props.worn.map((r) => r.id).join(',')}:${props.n}`;
     if (key === lastKey) return;
     lastKey = key;
     chosen = [];

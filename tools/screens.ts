@@ -171,7 +171,10 @@ const P_MIXED = makeParty(['EMBER', 'GALE', 'TIDE'], 0, [4, 2, 0], [1, 0.45, 0],
 const P_SOLO: Party = { members: [P_FRESH.members[0]], leader: 0 };
 
 function viewOf(party: Party, o: Partial<ScreenView> = {}): ScreenView {
-  return { party, act: 1, lap: 1, ascension: 0, score: 0, pactsTaken: [], vault: [], vaultSlots: 0, ...o };
+  return {
+    party, act: 1, lap: 1, ascension: 0, score: 0, pactsTaken: [], vault: [], vaultSlots: 0,
+    stage: 0, nodeIdx: 0, clears: 0, rooms: [], ...o,
+  };
 }
 
 /** A map fixture: the generated act, where the party stands, and what the seam offered. */
@@ -202,11 +205,11 @@ const VAULT_12: Relic[] = Array.from({ length: 12 }, (_, i) => relicFor(3 + (i %
 /** Every fixture this page knows, per screen — the `list` line in the metrics block. */
 const FIXTURES: Record<string, string[]> = {
   draft: ['six', 'three'],
-  summon: ['three', 'full'],
+  summon: ['three', 'three-late', 'full'],
   map: ['act1', 'act1-entry', 'act3', 'boss'],
   party: ['empty', 'full', 'leader', 'awakened'],
   shrine: ['veil', 'stacked'],
-  forge: ['mid', 'capped'],
+  forge: ['mid', 'mid-late', 'capped'],
   altar: ['two'],
   rest: ['sharpen'],
   'vault-equip': ['twelve', 'empty'],
@@ -229,8 +232,8 @@ const vaultScreen = createVaultScreen({ ...deps, onAnswer });
 
 type Tick = { update(dt: number): void; render(t: number): void; dev(): unknown };
 
-function buildTick(): Tick {
-  const fx = FIXTURE || (FIXTURES[SCREEN]?.[0] ?? '');
+function buildTick(fixture?: string): Tick {
+  const fx = fixture ?? FIXTURE ?? '';
   switch (SCREEN) {
     case 'party': {
       const party = fx === 'full' ? P_FULL : fx === 'empty' ? P_FRESH : P_MIXED;
@@ -253,9 +256,15 @@ function buildTick(): Tick {
     }
     case 'summon': {
       const full = fx === 'full';
+      const late = fx === 'three-late';
       const party = full ? P_FULL : P_SOLO;
+      // `three` and `three-late` are the SAME three offers at two different
+      // nodes: the pair a screen must not confuse for one decision.
       const props = {
-        kind: 'SUMMON' as const, view: viewOf(party, { act: full ? 5 : 1, score: full ? 4100 : 0 }),
+        kind: 'SUMMON' as const,
+        view: viewOf(party, late
+          ? { act: 5, lap: 1, score: 3300, stage: 3, nodeIdx: 1, clears: 4, rooms: new Array(19).fill('FIGHT') }
+          : { act: full ? 5 : 1, score: full ? 4100 : 0, stage: full ? 3 : 0, nodeIdx: 0 }),
         offers: SUMMON_OFFERS_3, full, epic: full ? relicFor(5, 'BOSS') : null,
       };
       view = props.view;
@@ -276,9 +285,15 @@ function buildTick(): Tick {
     }
     case 'forge': {
       const party = fx === 'capped' ? P_MIXED : P_FULL;
+      const late = fx === 'mid-late';
       const worn = partyWorn(party);
+      // `mid` and `mid-late` are the same worn set at two different forges.
       const props = {
-        kind: 'FORGE' as const, view: viewOf(party, { act: 4, score: 3010 }), worn,
+        kind: 'FORGE' as const,
+        view: viewOf(party, late
+          ? { act: 4, score: 3400, stage: 3, nodeIdx: 2, clears: 3, rooms: new Array(15).fill('FIGHT') }
+          : { act: 4, score: 3010, stage: 1, nodeIdx: 0, clears: 1, rooms: new Array(13).fill('FIGHT') }),
+        worn,
         options: forgeOptions(worn, []), pool: POOL, levels: forgeLevels([]),
         rebrand: worn.map((r) => rebrandSets(r, POOL)),
       };
@@ -341,7 +356,7 @@ function buildTick(): Tick {
   }
 }
 
-const tick = buildTick();
+let tick = buildTick(FIXTURE || (FIXTURES[SCREEN]?.[0] ?? ''));
 
 // --------------------------------------------------------------- driving --
 function frame(dt: number): void {
@@ -409,6 +424,13 @@ out.textContent = [
   press,
   answers: () => answers,
   dev: () => tick.dev(),
+  /**
+   * Hand the LIVE screen a different fixture — the same screen instance, a new
+   * payload. This is how "a second decision at a second node must not inherit
+   * the first one's answer" is provable at all: the screens are created once
+   * per page, exactly as main.ts creates them once per run.
+   */
+  use: (fixture: string) => { tick = buildTick(fixture); frame(1 / 60); return tick.dev(); },
 };
 (window as unknown as { __lineup: unknown }).__lineup = {
   ready: true, screen: SCREEN, fixture: FIXTURE, phone: PHONE, regions: dump.length,

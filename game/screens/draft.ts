@@ -35,7 +35,7 @@ import { ACTOR_RECIPES } from '../art/actors';
 import { derive, mainLine, relicTitle } from '../sim/relics';
 import {
   ColumnOptions, RARITY_COLOR, ScreenView, addPartyColumns, addPauseIcon, deriveCtxFor, drawBanner,
-  drawPartyColumns, drawPauseIcon, parseColumnId,
+  drawPartyColumns, drawPauseIcon, parseColumnId, viewKey,
 } from './party';
 
 const C_TEXT = PICO8[7];
@@ -64,7 +64,11 @@ export function draftDetailRect(count: number): { x: number; y: number; w: numbe
 }
 /** The height the detail's three columns actually occupy — the block is centred in a tall strip. */
 // promote to layout.ts
-export const DETAIL_BLOCK_H = 116;
+export const DETAIL_BLOCK_H = 120;
+/** One skill = one 40-px block: the name, then its cd/target line with air under the name. */
+// promote to layout.ts
+export const DETAIL_ROW = 40;
+export const DETAIL_SUB_DY = 22;
 /** The three columns inside that strip: who · what they do · what they bring. */
 // promote to layout.ts
 export const DETAIL_COL = [DRAFT_DETAIL_X + 20, DRAFT_DETAIL_X + 380, DRAFT_DETAIL_X + 800] as const;
@@ -184,9 +188,13 @@ export function createDraftScreen(deps: DraftScreenDeps): DraftScreen {
     // update() and render() see the same object in a tick: build the key once.
     if (props === lastProps) return;
     lastProps = props;
-    const key = props.kind === 'DRAFT' ? `D:${props.roster.join(',')}`
-      : props.kind === 'SUMMON' ? `S:${props.offers.map((o) => o.def.id).join(',')}:${props.full}`
-        : `R:${props.relic.id}:${props.sets.join(',')}`;
+    // The run's POSITION leads the key: act 1's SUMMON and act 5's can offer the
+    // same three characters, and without it the second opened pre-picked on the
+    // first one's answer with CONTINUE already live.
+    const where = viewKey(props.view);
+    const key = props.kind === 'DRAFT' ? `D@${where}:${props.roster.join(',')}`
+      : props.kind === 'SUMMON' ? `S@${where}:${props.offers.map((o) => o.def.id).join(',')}:${props.full}`
+        : `R@${where}:${props.relic.id}:${props.sets.join(',')}`;
     if (key === lastKey) return;
     lastKey = key;
     chosen = props.kind === 'DRAFT' ? 0 : null;
@@ -373,8 +381,8 @@ export function createDraftScreen(deps: DraftScreenDeps): DraftScreen {
     const option = options[k];
     if (!option) return;
     const def = option.def;
-    hudText(ctx, def.name.slice(0, NAME_MAX_CHARACTER), DETAIL_COL[0], top + 14, { px: HUD_LARGE, color: C_TEXT });
-    hudText(ctx, `${def.element} . ${ROLE[def.id] ?? ''}`, DETAIL_COL[0], top + 46, { px: HUD_SMALL, color: ELEMENT_COLOR[def.element] });
+    hudText(ctx, def.name.slice(0, NAME_MAX_CHARACTER), DETAIL_COL[0], top, { px: HUD_LARGE, color: C_TEXT });
+    hudText(ctx, `${def.element} . ${ROLE[def.id] ?? ''}`, DETAIL_COL[0], top + 32, { px: HUD_SMALL, color: ELEMENT_COLOR[def.element] });
     // At the DRAFT there is no leader yet, so the base stats are read with no
     // leader skill on them — showing Ember's own +20 % ATK on Ember's card
     // would price a bonus the player has not been given.
@@ -382,24 +390,29 @@ export function createDraftScreen(deps: DraftScreenDeps): DraftScreen {
       ? { leader: null, pacts: props.view.pactsTaken ?? [] }
       : deriveCtxFor(props.view);
     const stats = derive({ def, relics: {}, awakened: false }, dctx);
-    hudText(ctx, `HP ${stats.HP}   ATK ${stats.ATK}   DEF ${stats.DEF}   SPD ${stats.SPD}`, DETAIL_COL[0], top + 72, { px: HUD_SMALL, color: C_MUTED });
+    hudText(ctx, `HP ${stats.HP}   ATK ${stats.ATK}   DEF ${stats.DEF}   SPD ${stats.SPD}`, DETAIL_COL[0], top + 58, { px: HUD_SMALL, color: C_MUTED });
     if (option.favored && option.dominant) {
-      hudText(ctx, `favoured against ${option.dominant}`, DETAIL_COL[0], top + 96, { px: HUD_SMALL, color: ACCENT_HP });
+      hudText(ctx, `favoured against ${option.dominant}`, DETAIL_COL[0], top + 84, { px: HUD_SMALL, color: ACCENT_HP });
     }
 
+    // One skill, one 40-px block: the name, then its cd/target line with real
+    // air under it. At the old 34-px pitch the next name landed a hair under
+    // the previous line and the column read as one grey paragraph.
     def.skills.forEach((id, i) => {
       const s = SKILLS[id];
       if (!s) return;
-      const y = top + 14 + i * 34;
+      const y = top + i * DETAIL_ROW;
       hudText(ctx, s.name.slice(0, NAME_MAX_SKILL), DETAIL_COL[1], y, { color: C_TEXT });
       const target = s.target.replace('ALL_', 'all ').replace('LOWEST_HP_ALLY', 'weakest ally').toLowerCase();
-      hudText(ctx, `cd ${s.cooldown} . ${target}`, DETAIL_COL[1], y + 20, { px: HUD_SMALL, color: C_MUTED });
+      hudText(ctx, `cd ${s.cooldown} . ${target}`, DETAIL_COL[1], y + DETAIL_SUB_DY, { px: HUD_SMALL, color: C_MUTED });
     });
 
-    hudText(ctx, 'LEADER SKILL', DETAIL_COL[2], top + 14, { px: HUD_SMALL, color: C_MUTED });
-    hudText(ctx, leaderLine(def.leader), DETAIL_COL[2], top + 34, { color: ACCENT });
-    hudText(ctx, 'AWAKENING', DETAIL_COL[2], top + 66, { px: HUD_SMALL, color: C_MUTED });
-    hudText(ctx, awakeningLine(def), DETAIL_COL[2], top + 86, { px: HUD_SMALL, color: C_GOLD });
+    // The same rhythm on the right, one block per fact, the pair spanning the
+    // skills column's own height.
+    hudText(ctx, 'LEADER SKILL', DETAIL_COL[2], top, { px: HUD_SMALL, color: C_MUTED });
+    hudText(ctx, leaderLine(def.leader), DETAIL_COL[2], top + DETAIL_SUB_DY, { color: ACCENT });
+    hudText(ctx, 'AWAKENING', DETAIL_COL[2], top + 60, { px: HUD_SMALL, color: C_MUTED });
+    hudText(ctx, awakeningLine(def), DETAIL_COL[2], top + 60 + DETAIL_SUB_DY, { px: HUD_SMALL, color: C_GOLD });
   }
 
   function render(_time: number, props: DraftProps): void {

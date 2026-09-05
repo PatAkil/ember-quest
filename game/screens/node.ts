@@ -41,7 +41,7 @@ import type { ForgeMode, ForgeOption } from '../sim/relics';
 import { derive, isCapped, mainLine, rebrandSets, relicTitle, substatLine } from '../sim/relics';
 import {
   ColumnOptions, RARITY_COLOR, ScreenView, addPartyColumns, addPauseIcon, deriveCtxFor, drawBanner,
-  drawPartyColumns, drawPauseIcon, parseColumnId,
+  drawPartyColumns, drawPauseIcon, parseColumnId, viewKey,
 } from './party';
 import { createDraftScreen } from './draft';
 import type { DraftScreen } from './draft';
@@ -197,9 +197,12 @@ export function createNodeScreen(deps: NodeScreenDeps): NodeScreen {
     // key is built once per frame rather than twice.
     if (props === lastProps) return;
     lastProps = props;
-    const key = props.kind === 'SHRINE' ? `S:${props.pact.id}`
-      : props.kind === 'FORGE' ? `F:${props.worn.map((r) => r.id).join(',')}`
-        : `${props.kind}:${props.candidates.join(',')}`;
+    // Position first: two walked-past FORGEs with the same worn set are two
+    // different rooms, and the second must not inherit the first one's step.
+    const where = viewKey(props.view);
+    const key = props.kind === 'SHRINE' ? `S@${where}:${props.pact.id}`
+      : props.kind === 'FORGE' ? `F@${where}:${props.worn.map((r) => r.id).join(',')}`
+        : `${props.kind}@${where}:${props.candidates.join(',')}`;
     if (key === lastKey) return;
     lastKey = key;
     step = 'MAIN';
