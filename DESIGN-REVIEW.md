@@ -537,6 +537,8 @@ and all were applied.
 | C1 | BLOCKING | `EnemyId` declared in the Types block but not in `types.ts`; `SigilDef.blurb`'s comment named an undefined `BLURB_WRAP` | `EnemyId` added and used by `Biome` and `EnemyDef`; the comment rewritten |
 | C2 | BLOCKING | BOOTS SPD called a "fixed" main in the derivation, an open slot in the table | "and a BOOTS SPD main when rolled" |
 | C3 | GAP | The counter procedure was hero-side only; Brace puts COUNTER on an enemy | With D5 |
+| C4 | BLOCKING | "declining mends `SKIP_MEND`" named `LOOT_COUNT`'s five sources, SUMMON included, while Building a party says a declined SUMMON mends nothing | The exception named where the rule is stated |
+| — | — | Second pass checked clean: every CAPS constant against `types.ts`, all 54 scale cells, the ladder, bank, clamps, every weights row, the 11 ascension rows, the 12 modifiers, 10 set kinds, 12 sigils, every region rectangle against both insets | — |
 
 ### Determinism
 
@@ -592,3 +594,16 @@ Conflicts settled in round 5: the leader seat's region sits in the WEAR
 grid's second column (F1) and `PARTY_BACK` moves to index 2; HASTE's curse
 is ×1.1 by balance (B2) while the pact target (U5 of round 4) remains the
 check on it. Length after round 5: 1156 lines.
+
+## Outcome
+
+Five rounds, 2026-09-04 → 2026-09-05. Findings triaged: round 1 ≈ 95,
+round 2 ≈ 99, round 3 ≈ 58, round 4 ≈ 44, round 5 ≈ 21 — every BLOCKING,
+NUMBERS and GAP item applied, NOISE discarded and listed. The loop did not
+reach the formal bar (a full round with zero BLOCKING and zero GAP): round 5
+still produced eleven one-rule findings, all in text that rounds 3–4 had
+added, and the balance lane alone declared CONVERGED. The document is at
+1156 lines against the ~700 guideline; the excess is the rules and tables
+the first two rounds found missing, and the review judged each necessary.
+Four questions remain open for the owner (see *Open questions* in
+DESIGN.md); each has a default in the contract so the build never waits.

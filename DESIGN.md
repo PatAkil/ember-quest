@@ -728,7 +728,7 @@ this REST becomes FIGHT; other room types are untouched. Expected clears
 | BOSS | one per act; three cards, the first an EPIC levelled as a BOSS card, pick one |
 
 Every relic card screen may be declined: declining mends the party
-`SKIP_MEND = 0.15`. Cards per source `LOOT_COUNT = { FIGHT 1, ELITE 3, LOOT
+`SKIP_MEND = 0.15` (a SUMMON excepted, above). Cards per source `LOOT_COUNT = { FIGHT 1, ELITE 3, LOOT
 2, BOSS 3, SUMMON 1 }`, then `max(1, count + boons − curses)` for FIGHT,
 ELITE, LOOT and BOSS (a SUMMON always shows one EPIC); rarity rolls from
 `LOOT_WEIGHTS` (COMMON / RARE / EPIC / LEGENDARY, one row per act): FIGHT
