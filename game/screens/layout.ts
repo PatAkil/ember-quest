@@ -222,6 +222,28 @@ export const DRAFT_Y = [88, 240, 392] as const;
 /** SKIP / WALK PAST / DECLINE all reuse CONTINUE's rect, registered under every card row. */
 export const SKIP = CONTINUE;
 
+// ================================================================ HUD font ==
+// DESIGN.md -> "UI constraints", "Two kinds of text": bitmap FONT_HD belongs to
+// the world (damage pops, the logo, card titles, door labels); everything the
+// player reads as UI renders in a vector system stack, light weight,
+// letter-spaced, with a 1-px dark drop shadow. These are the numbers that
+// paragraph names — a screen builds its `ctx.font` from them and never hard-codes
+// a size.
+
+/** The vector stack. No webfont: it must be there on the first frame. */
+export const HUD_FONT = '"Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+/** Body UI: panel names, the log line, skill labels. Nothing renders below HUD_SMALL. */
+export const HUD_PX = 18;
+/** Numbers, hints, secondary lines (ACT/LAP, SCORE, cooldown keys). */
+export const HUD_SMALL = 15;
+/** The one large UI line per screen — in battle, the current actor's name. */
+export const HUD_LARGE = 24;
+/** Tracking in px, applied through `ctx.letterSpacing` (manual fallback where unsupported). */
+export const HUD_LETTER_SPACING = 1;
+
+/** The ribbon's baked actor portrait: the recipe's head in a `PORTRAIT`-square cache. */
+export const PORTRAIT = 40;
+
 // ================================================================ helpers ==
 /** A phone: the canvas's CSS width is under 0.75x its logical width. */
 export function isPhone(pc: PixelCanvas): boolean {

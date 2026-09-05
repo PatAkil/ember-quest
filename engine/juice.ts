@@ -43,6 +43,14 @@ export interface Juice {
   hitStop(duration: number): void;
   /** True while a hit-stop is active — skip world simulation when set. */
   readonly frozen: boolean;
+  /**
+   * The shake translate currently applied to the context, in LOGICAL px —
+   * read-only, whole pixels, `{x: 0, y: 0}` when no shake is running. Set by
+   * `preRender` and valid until the next one, so a parallax layer drawn inside
+   * the pair can lag the camera by its own depth. Never allocates: the same
+   * frozen record is returned every call.
+   */
+  offset(): { readonly x: number; readonly y: number };
   update(dt: number): void;
   preRender(ctx: CanvasRenderingContext2D): void;
   postRender(ctx: CanvasRenderingContext2D, width: number, height: number): void;
@@ -86,6 +94,10 @@ export function createJuice(): Juice {
 
   let freezeTime = 0;
 
+  // The live shake translate, refreshed by preRender. One record, reused: the
+  // getter runs once or twice per frame in the render path.
+  const shakeOffset = { x: 0, y: 0 };
+
   return {
     shake(intensity, duration) {
       // Don't let a small shake stomp a bigger ongoing one.
@@ -116,8 +128,13 @@ export function createJuice(): Juice {
       if (shakeTime > 0) shakeTime = Math.max(0, shakeTime - dt);
       if (flashTime > 0) flashTime = Math.max(0, flashTime - dt);
     },
+    offset() {
+      return shakeOffset;
+    },
     preRender(ctx) {
       ctx.save();
+      shakeOffset.x = 0;
+      shakeOffset.y = 0;
       if (shakeTime > 0 && shakeDur > 0) {
         const falloff = shakeTime / shakeDur;
         const mag = shakeAmp * falloff;
@@ -125,10 +142,9 @@ export function createJuice(): Juice {
         // frame, so dither fields crawl and 1-px sprite keylines smear into two
         // half-lit rows for the length of the shake. Integer offsets keep every
         // pixel a pixel; at these amplitudes the shake reads the same.
-        ctx.translate(
-          Math.round((Math.random() * 2 - 1) * mag),
-          Math.round((Math.random() * 2 - 1) * mag),
-        );
+        shakeOffset.x = Math.round((Math.random() * 2 - 1) * mag);
+        shakeOffset.y = Math.round((Math.random() * 2 - 1) * mag);
+        ctx.translate(shakeOffset.x, shakeOffset.y);
       }
     },
     postRender(ctx, width, height) {
