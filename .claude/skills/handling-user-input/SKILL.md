@@ -5,104 +5,61 @@ description: Use when anything touches controls — declaring or relabeling acti
 
 # Handling user input
 
-Every Retrovibe game uses `engine/input.ts` for all keyboard input. Import only from the barrel: `import { createInput, controlHints, BUTTON_KEY } from '../engine';`. The reference implementation is this game's `game/main.ts` and `game/sprites.ts` (the template patterns are already followed there) — copy its patterns. After any input edit: `npm run check` (repo root).
+Every screen uses `engine/input.ts` for keyboard AND pointer, native and in parallel, always both, plus `createHitRegions` for anything tappable. Import only from the barrel: `import { createInput, createHitRegions, controlHints, pointerHints, BUTTON_KEY, TAP_MIN } from '../engine';`. The contract is DESIGN.md's *Presentation > Input* and *UI constraints* sections; `game/screens/*.ts` become its reference implementations once phase 4 lands. After any input edit: `npm run check` (repo root).
 
 ## Movement — arrows + WASD, one vector
 
-`input.dir` returns `{ x, y }` with each axis in `-1 | 0 | 1`. Arrows and WASD are both bound; opposing keys cancel to 0. Never add your own key listeners for movement — read `dir` every update tick:
-
-```ts
-ship.x += input.dir.x * SHIP_SPEED * dt;
-ship.y += input.dir.y * SHIP_SPEED * dt;
-```
+`input.dir` returns `{ x, y }`, each axis in `-1 | 0 | 1`; opposing keys cancel to 0. `input.dirPressed()` is the edge — the direction that went down THIS frame, cleared by `endFrame()` — and it is what drives keyboard focus through hit regions (below), not free movement: this game has none.
 
 ## The buttons — A / B / PAUSE
 
-Actions are two action buttons plus a dedicated pause button, each bound to fixed physical key **aliases**. The binding lives in the engine's `BUTTON_KEY` export (`Readonly<Record<ButtonName, { codes: string[]; hint: string }>>`):
+Two action buttons plus a dedicated pause, each bound to fixed key aliases in `BUTTON_KEY`:
 
-| Button (`ButtonName`) | Keys (`codes`) | Hint shown | Conventional role |
+| Button | Keys | Hint | Role here |
 |---|---|---|---|
-| `'A'` (primary) | `Space`, `KeyZ` | `SPACE` | jump / fire / confirm / start |
-| `'B'` (secondary) | `KeyX`, `KeyC` | `X` | alt-fire / dash / cancel |
-| `'PAUSE'` | `KeyP`, `Escape` | `P` | pause toggle — dedicated, **never remap to gameplay** |
+| `'A'` | `Space`, `KeyZ` | `SPACE` | confirm / activate the focused region |
+| `'B'` | `KeyX`, `KeyC` | `X` | cancel / BACK |
+| `'PAUSE'` | `KeyP`, `Escape` | `P` | pause toggle — dedicated, never remapped |
 
-Games never rebind keys. They choose *which buttons mean what* via action declarations. Shift is deliberately not a key: five rapid presses opens the OS Sticky Keys dialog on Windows (unpreventable from the browser), stealing focus → blur → auto-pause on exactly the tap pattern a dash key invites.
-
-**Multi-key edge semantics (normative):** a logical button is **down while ≥1 of its alias keys is down**. `pressed()` fires on the 0→≥1 transition; `released()` fires only on the ≥1→0 transition (last alias key up); `held()` checks all alias codes. This is load-bearing for variable jump height wired to `released('A')`: holding Space and tapping Z neither cuts the jump nor re-triggers `pressed`.
-
-## Actions are DECLARED IN CODE — the single source of truth
-
-`createInput(actions: ActionDecl[], opts?: InputOptions)` takes the game's action declarations. Each `ActionDecl` is `{ button: ButtonName; label: string }` — the label is a short human word (**one word, two max**, e.g. `'jump'`, `'fire'`, `'drop bomb'`).
-
-This declaration is the **only** place a button's meaning is written down:
-
-- Title-screen hints render **from** it via `controlHints(input)` — which returns lines like `['SPACE JUMP', 'X FIRE']` (key hint + uppercased label). Movement is implicit (arrows/WASD) and not included; render a movement line separately if desired, as the reference game does.
-- **Never hand-write the title-screen control hints anywhere else.** A hand-written hint is a second source of truth that drifts. (Other screens may show contextual button text — e.g. the reference game-over screen's `` `${BUTTON_KEY.A.hint} RESTART` `` — but the key name must come from the same physical binding `BUTTON_KEY` documents, and the title screen always renders from the declarations.)
-- When an edit changes what a button does, change the `label` in the **same declaration** in the same edit. There is no separate file to keep in sync — a wrong or missing label is visible the moment the game is played.
-
-Complete setup (the pattern this game already follows):
-
-```ts
-import { createInput, controlHints, createAudio } from '../engine';
-
-const audio = createAudio();
-// Actions are DECLARED here with their labels — the title screen renders hints
-// from these declarations (controlHints), so labels can never drift.
-const input = createInput(
-  [
-    { button: 'A', label: 'start' },
-    { button: 'PAUSE', label: 'pause' },
-  ],
-  { onFirstKey: () => audio.unlock() },
-);
-```
-
-And the title-screen render, also from `main.ts`:
-
-```ts
-// Control hints rendered FROM the action declarations — never hand-written.
-controlHints(input).forEach((hint, i) => {
-  drawTextCentered(pc.ctx, hint, W, 100 + i * 10, { color: PICO8[7] });
-});
-drawTextCentered(pc.ctx, 'ARROWS/WASD MOVE', W, 100 + controlHints(input).length * 10, {
-  color: PICO8[5],
-});
-```
+A button is **down while ≥1 alias is down**; `pressed()`/`released()` fire only on the whole button's 0→≥1 / ≥1→0 transition (aliasing Space and tapping Z mid-hold triggers neither). Games declare which buttons mean what via `ActionDecl[]` (`{ button, label }`); `controlHints(input)` renders the keyboard phrasing from that declaration and `pointerHints(input)` the touch phrasing (`'TAP <LABEL>'`) — a screen never hand-writes either (see *Pointer-type-aware hints* below). Battle additionally binds `Digit1`/`Digit2`/`Digit3` straight to the three skill buttons — the `SKILL_HIT` row's desktop key hint — a shortcut layered on top of, never a replacement for, the arrow+A hit-region route, since digits aren't in the engine's owned key set and so the screen binds them itself.
 
 ## Edge vs held semantics
 
-The `Input` interface exposes three queries per button:
+Three queries per button: `pressed()` — down this frame (one-shot: confirm, pause toggle); `held()` — down right now (continuous: charging, holding a guard); `released()` — up this frame. These are button-level: switching aliases mid-hold fires neither edge. **`endFrame()` runs exactly once per update tick, after every input read** — it clears `pressed`/`released` and the pointer's own `pressed`/`released`. Skipping it makes `pressed()` stick true forever; calling it early makes edges invisible. Key repeat is filtered — one `pressed()` per physical press.
 
-- `pressed(button)` — went down **this frame**. Use for one-shot actions: start, pause toggle, fire-per-press, menu confirm.
-- `held(button)` — currently down. Use for continuous actions: charging, thrusting, variable jump height.
-- `released(button)` — went up **this frame**. Use for release-triggered actions (e.g. cutting a jump short).
+## Pointer-type-aware hints
 
-Because buttons have alias keys, these are **button-level** edges: switching from one alias to another mid-hold (Space held, Z tapped) produces no `pressed` and no `released` — only the whole button going down or fully up does.
+Branch on `input.pointer.type`, not `input.pointer.active` — a desktop mouse merely crossing the canvas sets `active` too, but `type === 'touch'` only ever fires from a real touch. Show `controlHints(input)` for keyboard, `pointerHints(input)` once `type === 'touch'`. Every action needs both a keyboard route and an on-screen tap target in the same change — PAUSE, BACK and inspect included — because a phone has no keys.
 
-**`endFrame()` must be called exactly once per update tick, after all input reads** — it clears the `pressed`/`released` edges. The reference game calls it as the last line of `update(dt)`:
+## Hit regions — every tap target gets a keyboard route
+
+`createHitRegions(input, { width, height })` is immediate-mode, like drawing: **register in `update()`, before `input.endFrame()`** — `begin()` / `add(id, x, y, w, h, { index, group, disabled })` / `end()` — because `end()` reads that tick's edges (`dirPressed`, `A` pressed, pointer pressed/released). `render()` only *reads*: `region(id)` (the drawn rect, for a focus ring), `hitRect(id)` (the expanded rect, for a debug overlay), `focused()`, `hovered()`, `pressing()`.
 
 ```ts
 function update(dt: number): void {
-  // ... read input.dir, input.pressed(...), etc. ...
-  input.endFrame();
+  regions.begin();
+  regions.add('skill1', SKILL_HIT_X, SKILL_HIT_Y, 400, 120, { index: 0, group: 'skills' });
+  regions.end();                                  // resolves THIS tick's tap/focus/activation
+  if (regions.activated() === 'skill1') castSkill(0);
+  input.endFrame();                               // always last
 }
 ```
 
-Forgetting `endFrame()` makes every `pressed()` stick true forever; calling it before reading input makes edges invisible. Key repeat is filtered (`e.repeat` is ignored), so holding a key produces exactly one `pressed()`.
+- **Expansion.** Any axis under `TAP_MIN = 96` logical px is grown about its centre to `TAP_MIN` and clamped inside the canvas; `TAP_GAP = 12` is the recommended (unenforced) clearance between neighbors. A dev build warns once per undersized id. PAUSE is the pattern even though it is a dedicated key: the ribbon draws it 64×64 at (1192, 24) but still registers an **explicit hit rect** `(1176, 0, 96, 96)`.
+- **Drawn-first, two-pass hit test.** A point is tested against every DRAWN rect first, painter's order (last registered wins on overlap); only when none contains it does the registry fall back to the expanded HIT rects, same order. A region's drawn pixels therefore always beat a neighbor's expanded hit rect.
+- **Tap commits on release in its own origin.** `activated()` fires on a real tap — pointer pressed AND released inside the *same* region, a drag-off cancels the press — OR on `A` while that region is focused; pointer wins when both land in one frame.
+- **Cancel and blur clear, without completing a tap.** `pointercancel` and window `blur` drop `pointer.down` but fire no `released` edge (blur clears held keys the same way, with no `released`) — so a touch the OS took mid-gesture, or a tab-away mid-hold, can never read back as a finished tap or a stuck key.
+- **Twin ids.** Registering one id twice (a sprite body and its side panel) makes them one target: a keyboard move never lands on a twin of the already-focused id, twins are invisible to the wrap-to-far-edge search, and the id's geometry (for the focus ring and `region()`) is its *first* registered twin — register the panel first when the ring belongs on it.
+- **Keyboard focus moves spatially**: from the focused centre, `dirPressed()` picks the nearest candidate within a ±50° cone (distance + 2× perpendicular offset); failing that it wraps to the far edge of the focused region's `group`; failing that it cycles by `index` on a flat row/column.
 
-## Stuck keys on blur — automatic
+## Audio unlock on first input
 
-The engine clears all held keys on `window` blur, so alt-tabbing mid-hold never leaves a key stuck down. Nothing to do in game code — do not add your own blur handling.
+`onFirstInput` (alias `onFirstKey`) fires once, on the first keydown **OR** the first pointerdown — wire it to `audio.unlock()`. `audio.play(...)` before unlock is a silent no-op; never create an `AudioContext` or call `unlock()` outside a user gesture.
 
-## Audio unlock on first keypress
+## The safe inset — mutable, per screen
 
-Browsers block audio until a user gesture. The engine handles this by design: pass `onFirstKey` in `InputOptions` and wire it to `audio.unlock()` (see the `createInput` example above — that is the reference game's exact pattern). The engine fires it once, on the very first keydown; `audio.play(...)` before unlock is a silent no-op. Never create an `AudioContext` yourself and never call `unlock()` outside a user gesture.
+HUD and hit-rect placement clamp against `getSafeInset()`, not a fixed constant: call `setSafeInset({ left, top, right, bottom })` once at boot (engine default 8 each). Every v3 screen sets **24 on every side**, and on a phone (CSS scale < 0.75) `SAFE_BOTTOM_PHONE = 40` on the bottom — the skill bar grows to `SKILL_H_PHONE = 80` there, its hit rects still reaching the bottom edge — nothing else moves. Hit rects may bleed into the margin; drawn panels may not.
 
-## Cleanup
+## Cleanup and cross-references
 
-`input.dispose()` removes all listeners. Single-game pages (the normal case) never need it; it exists for teardown in embedding scenarios.
-
-## Cross-references
-
-- **improving-game-quality** owns the quality checklist (it verifies hints are present and truthful; label ownership stays here).
-- **messaging-game-over** and **adding-easter-egg** defer to this skill for anything label- or binding-related.
+`input.dispose()` removes every listener (keyboard, pointer, blur) — teardown only; single-game pages never need it. **improving-game-quality** owns the quality checklist (hints present and truthful); label and binding ownership stays here.

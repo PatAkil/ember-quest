@@ -11,11 +11,28 @@ the game can grow on its own. Live at **https://patakil.github.io/ember-quest/**
 ember-quest/
 ├── DESIGN.md                 # the systems contract — read FIRST for any mechanics work
 ├── game/
-│   ├── types.ts              # shared types + tuning constants (caps, SP gains, drop rates)
-│   ├── data.ts               # ITEMS, SPELLS, ENEMIES, BIOMES, ACT_MULT — headless
-│   ├── sim.ts                # pure rules + balance policies — headless
-│   ├── sprites.ts            # hero/enemy/icon sprites
-│   └── main.ts               # screens, input, juice, rendering (the style card is atop)
+│   ├── types.ts                     # shared types + every rules constant not owned by a data/ row
+│   ├── data/                        # (headless — no engine, no DOM)
+│   │   ├── skills.ts                  # SKILLS — every character and enemy skill
+│   │   ├── characters.ts              # CHARACTERS — roster, awakenings, leader skills
+│   │   ├── enemies.ts                 # ENEMIES, BIOMES, BOSS_HP, ACT_MULT, ELITE_MULT, BOSS_MULT, LAP_MULT
+│   │   ├── relics.ts                  # RELIC_MAIN_BASE, MAIN_BY_SLOT, MAIN_WEIGHTS, SUBSTAT_RANGES, LOOT_WEIGHTS, DROP_LEVEL
+│   │   ├── sets.ts                    # SETS — 2-piece and 4-piece bonuses
+│   │   ├── sigils.ts                  # SIGILS — effects on EPIC/LEGENDARY relics
+│   │   ├── pacts.ts                   # PACTS — SHRINE curse/boon pairs
+│   │   ├── ascension.ts               # ASCENSION — the A0–A10 ladder
+│   │   └── index.ts                   # re-exports + validateData()
+│   ├── sim/                         # (headless — bundled by sim/run.mjs)
+│   │   ├── rng.ts                     # pick, uniformInt, weighted, chance (phase 2)
+│   │   ├── battle.ts                  # ATB, the turn, damage, statuses, enemy AI, simulateBattle (phase 2)
+│   │   ├── relics.ts                  # rolling, forging, set detection, derive, compare (phase 3)
+│   │   └── run.ts                     # map, rooms, loot, laps, the Vault, simulateRun (phase 6a)
+│   ├── art/
+│   │   ├── parts.ts                   # layered sprite part library + anchors (phase 4)
+│   │   ├── actors.ts                  # character/enemy recipes, animation rigs (phase 4)
+│   │   └── vfx.ts                     # procedural effects by SkillId/status (phase 4)
+│   ├── screens/*.ts                 # one file per screen; screens/vault.ts owns localStorage (phase 4; vault.ts phase 6a)
+│   └── main.ts                      # boot, loop, scene routing, input dispatch
 ├── engine/                   # this game's OWN copy of the Retrovibe engine — editable
 ├── sim/run.mjs               # balance simulator runner (npm run sim)
 ├── smoke.mjs                 # headless boot gate (npm run smoke)
@@ -39,8 +56,9 @@ ember-quest/
   config). Message = what changed for the player. `git add -A` is fine here: the
   repo is the game.
 - **Push = release.** Only through **releasing-the-game**, only after the gates.
-- **Headless boundary**: `game/data.ts` and `game/sim.ts` never import the engine
-  or the DOM. Rules live in `sim.ts`; `main.ts` presents them. Break this and the
+- **Headless boundary**: `game/data/*` and `game/sim/*` never import the engine,
+  the DOM, `localStorage` or `Math.random` (rng is injected). Rules live in
+  `game/sim/*`; `main.ts` and `game/screens/*` present them. Break this and the
   simulator stops bundling.
 - **DESIGN.md moves with the code.** A rules change edits the contract in the same
   milestone; a balance pass updates the *Balance state* table and its date.

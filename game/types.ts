@@ -50,8 +50,8 @@ export const ATB_START_MAX = 0.15;
 export const TURN_CAP = 500;
 /** From this actor turn every enemy turn begins with ATK_UP — heal-stalling a last enemy is not a strategy. */
 export const ENRAGE_TURN = 100;
-/** v2's 0.9–1.1 damage roll is retired: crit-per-hit is the variance, and no rng is drawn for it. */
-export const DAMAGE_JITTER = 0;
+/** Turns of ATK_UP an ENRAGED enemy turn applies before step 5 (refreshed by max). */
+export const ENRAGE_TURNS = 2;
 /** Landing floor: p = clamp(chance + (acc − res) / 100, STATUS_MIN_CHANCE, 1). */
 export const STATUS_MIN_CHANCE = 0.15;
 /** A skill's primary debuff rolls at 0.75, a secondary or AoE debuff at 0.50; buffs, heals and self-effects never roll. */
@@ -105,6 +105,8 @@ export interface Status {
   pool?: number;
   /** BURN: damage per tick, fixed at application. */
   dmg?: number;
+  /** The applier's slot, set at application; a refresh keeps the applier whose dmg won the max (tie: the older). */
+  by?: number;
 }
 
 export type SkillId =
@@ -117,7 +119,10 @@ export type SkillId =
   | 'LANCE' | 'RADIANCE' | 'JUDGEMENT' | 'JUDGEMENT_REFUND'
   // --- the EMBER CRYPT ------------------------------------------------------
   | 'SCORCH' | 'KINDLE' | 'BITE' | 'REND' | 'CUDGEL' | 'RALLY' | 'MEND' | 'WAIL' | 'CHOKE'
-  | 'SHIELD_BASH' | 'BRACE' | 'IMMOLATE' | 'REAP' | 'DREAD_WAIL' | 'SHROUD' | 'DOOM';
+  | 'SHIELD_BASH' | 'BRACE' | 'IMMOLATE' | 'REAP' | 'DREAD_WAIL' | 'SHROUD' | 'DOOM'
+  // --- the FROST MARSH ------------------------------------------------------
+  | 'TONGUE_LASH' | 'BOG_SPIT' | 'CHILL' | 'DEEP_FREEZE' | 'CANE' | 'SALVE' | 'BRINE_WARD' | 'PINCH' | 'CRUSH' | 'FLICKER' | 'IGNITE'
+  | 'RUSTED_BLADE' | 'DRAG_UNDER' | 'DELUGE' | 'HALO_LASH' | 'SMITE' | 'PALE_FLOOD' | 'SANCTIFY';
 
 export interface SkillDef {
   id: SkillId;
@@ -184,7 +189,7 @@ export type EnemyKind = 'NORMAL' | 'ELITE' | 'BOSS';
 export type EnemyAi = 'SPREAD' | 'FOCUS';
 
 export interface EnemyDef {
-  id: string;
+  id: EnemyId;
   /** <= 16 chars. */
   name: string;
   kind: EnemyKind;
@@ -221,10 +226,10 @@ export interface Biome {
   dominant: Element;
   foil: Element;
   /** Packs as data: 1–3 wide, every width-3 pack carries one `support`, at least one pack of width <= 2. */
-  fights: string[][];
+  fights: EnemyId[][];
   /** Elite packs; from act 3 each row includes one NORMAL. */
-  elites: string[][];
-  boss: string;
+  elites: EnemyId[][];
+  boss: EnemyId;
 }
 
 // ---------------------------------------------------------------- relics ---
@@ -301,11 +306,11 @@ export const DESPAIR_CHANCE = 0.25;
 export const VAMPIRE_FRACTION = 0.5;
 export const WILL_TURNS = 3;
 export const WILL_RES = 20;
-export const NEMESIS_ATB = 0.15;
+export const NEMESIS_ATB = 0.4;
 export const REVENGE_CHANCE = 0.35;
 export const BULWARK_SHIELD = 0.2;
 export const BULWARK_TURNS = 3;
-export const DESTROY_DEALT = 0.3;
+export const DESTROY_DEALT = 0.4;
 export const DESTROY_FRACTION = 0.04;
 export const DESTROY_FLOOR = 0.4;
 /** A counter is the counterer's skill 1 at this multiplier on the attacker — not a turn. */
@@ -329,7 +334,7 @@ export type SigilEffect =
 export interface SigilDef {
   id: SigilId;
   slot: Slot;
-  /** <= 30 chars, wrapped at BLURB_WRAP on a card. */
+  /** <= 30 chars; a card wraps it by textWidth inside CARD_W − 2 × CARD_PAD, ≤ BLURB_LINES_MAX lines. */
   blurb: string;
   effect: SigilEffect;
   /** EPIC only; `blurb` must differ from the base blurb. */
@@ -344,6 +349,14 @@ export const FIGHT_DROP_CHANCE = 0.5;
 export const PITY_AFTER = 2;
 /** Declining every card mends the party this fraction of max HP. */
 export const SKIP_MEND = 0.15;
+/** balanced.rest heals when any living member is below this fraction, else sharpens. */
+export const REST_HEAL_AT = 0.5;
+/** REST sharpen: +1 on up to this many uncapped relics one member wears, slot order (phase 8's lever). */
+export const SHARPEN_RELICS = 6;
+/** balanced.route enters an ELITE only while every member is at or above this fraction. */
+export const ELITE_ENTER_AT = 0.6;
+/** Phase 8's swap lever: when true a SUMMON newcomer arrives at full HP instead of the outgoing hp / maxHp fraction. */
+export const SWAP_FRESH = false;
 
 // ------------------------------------------------------------------- run ---
 export type RoomType = 'FIGHT' | 'ELITE' | 'REST' | 'LOOT' | 'SHRINE' | 'FORGE' | 'SUMMON' | 'ALTAR' | 'BOSS';
@@ -396,6 +409,8 @@ export interface AscensionRow {
   bossWill: boolean;
 }
 
+/** Enemy definition ids are plain strings (the closed roster lives in data/enemies.ts). */
+export type EnemyId = string;
 export type PactId = 'HASTE' | 'FURY' | 'VEIL' | 'BLIND' | 'SCHISM' | 'DEARTH';
 /** Closed union, one kind per pact cell; pacts stack across the run. */
 export type Modifier =
@@ -479,6 +494,8 @@ export interface Probe {
   won: boolean;
   actorTurns: number;
   heroTurns: number;
+  /** True after at least one ENRAGED enemy turn. */
+  enraged: boolean;
   partySpd: number;
   bossSpd: number;
   outSped: boolean;
@@ -494,6 +511,7 @@ export interface Probe {
 export interface BattleResult {
   won: boolean;
   stall: boolean;
+  enraged: boolean;
   actorTurns: number;
   probe: Probe;
   party: Party;
@@ -518,5 +536,13 @@ export interface RunResult {
   banked: Relic[];
   rooms: RoomType[];
   turnsPerBattle: number[];
+  /** Battles with at least one ENRAGED turn. */
+  enrages: number;
+  /** Every SHRINE offer in room order with its answer; a decliner of P has a row { P, false }. */
+  shrines: { pact: PactId; taken: boolean }[];
+  /** SUMMON swaps taken. */
+  swaps: number;
+  /** The answer at each REST. */
+  rests: ('HEAL' | 'SHARPEN')[];
   probes: Probe[];
 }

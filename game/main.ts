@@ -30,7 +30,9 @@ const mount = document.getElementById('screen');
 const pc = createPixelCanvas({
   width: W,
   height: H,
-  scale: pickBackingScale(mount?.getBoundingClientRect().width ?? W),
+  // The canvas is not in the DOM yet, so measure the CSS width it will get
+  // (index.html: min(100vw, 100vh × 16/9)) rather than the empty mount.
+  scale: pickBackingScale(Math.min(window.innerWidth, (window.innerHeight * 16) / 9)),
   parent: mount,
   smoothing: true,
 });

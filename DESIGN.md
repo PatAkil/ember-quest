@@ -67,10 +67,8 @@ obeys the slot table; `SUBSTAT_RANGES` has one row per `RelicStat`; every
 each with one bonus; exactly two sigils per slot, each `kindled.blurb ≠
 blurb`; `PACTS` has ≥ 6 distinct ids; `DROP_LEVEL` has six rows, `ACT_MULT`
 six entries, `ASCENSION` eleven; every `StatusKind` appears in a skill, set,
-sigil, awakening or pact. A rule arms with the phase that lands its table
-(roster and status-source rules: phase 5; `PACTS` and `ASCENSION`: phase 6a;
-biomes 3–6: phase 6b) and the
-harness refuses only on armed rules.
+sigil, awakening or pact. The rules check the tables that exist (a biome not yet authored has no
+packs to check) and the harness refuses on any failure.
 
 ### Types
 
@@ -91,7 +89,7 @@ type SkillId = /* closed union of every skill */; type SetId = /* sixteen */; ty
 type PactId = 'HASTE' | 'FURY' | 'VEIL' | 'BLIND' | 'SCHISM' | 'DEARTH';   type EnemyId = string;
 interface StatusApply { status: StatusKind; chance: number; turns: number; magnitude?: number; target?: TargetSpec }
                        // magnitude: SHIELD, fraction of caster max HP; target overrides the skill's for this application
-interface Status { kind: StatusKind; turns: number; pool?: number; dmg?: number }   // pool: SHIELD HP left; dmg: BURN per tick
+interface Status { kind: StatusKind; turns: number; pool?: number; dmg?: number; by?: number }   // pool: SHIELD HP left; dmg: BURN per tick; by: applier's slot
 interface LeaderSkill { stat: Stat; amount: number; element?: Element; elementAmount?: number }
 interface Actor { side: 'HERO' | 'ENEMY'; slot: 0 | 1 | 2; def: CharacterDef | EnemyDef; stats: Stats; hp: number;
                   maxHp: number; baseMaxHp: number; atb: number; cooldowns: number[]; statuses: Status[]; alive: boolean;
@@ -125,9 +123,8 @@ closed: the sim interprets every kind, `main.ts` only renders them.
 
 Baselines for every character: CRIT 15, CDMG 50, ACC 0, RES 15. HP, ATK, DEF
 and SPD are what distinguish one character from another; enemies use the same
-baselines unless their definition says otherwise. **MAG, MDEF and DODGE are
-gone.** The physical-versus-magic build axis moves to elements; `DamageKind`
-survives as a tag on every skill that an enemy's `resist` can blunt.
+baselines unless their definition says otherwise. `DamageKind` is a tag on
+every skill that an enemy's `resist` can blunt.
 
 ### Derivation
 
@@ -135,7 +132,7 @@ Every percentage source is added once and applied to base plus flat; every
 point source is added once. Nothing compounds.
 
 ```
-flat(S)  = fixed relic mains (WEAPON ATK, ARMOR HP, CHALICE DEF, BOOTS SPD) + flat substats + awakening flat
+flat(S)  = flat relic mains (WEAPON ATK, ARMOR HP, CHALICE DEF, and a BOOTS SPD main when rolled) + flat substats + awakening flat
 pct(S)   = % mains + % substats + FATAL/ENERGY/GUARD/SWIFT + leader amount + pact %          (HP ATK DEF SPD)
 total(S) = max(1, round((base(S) + flat(S)) × (1 + pct(S) / 100)))
 pts(S)   = baseline + point mains + point substats + BLADE/RAGE/FOCUS/ENDURE/WILL + awakening pts + leader + pact pts, min 0
@@ -198,7 +195,7 @@ ATB_TURN = 1000        ATB_START_MAX = 0.15
 advance():  Δ_i = (ATB_TURN − atb_i) / spdEff_i for every living i;  Δ = min Δ_i  (0 if any atb_i ≥ ATB_TURN)
             every actor with Δ_i === Δ is set to exactly ATB_TURN; the rest add spdEff_i × Δ
 ready():    living actors with atb ≥ ATB_TURN, ordered atb desc → spdEff desc → heroes before enemies → slot asc
-            takeTurn(ready()[0]); recompute after EVERY turn — a strip, a stun, a boost or a death changes it
+            takeTurn(ready()[0]); recompute after every turn (step 10)
 ```
 
 `spdEff` is SPD with SPD_UP/SLOW applied, read at each `advance`. `atb` is
@@ -211,8 +208,8 @@ presentation only, recomputed at turn boundaries.
 **Battle start**, in order: cooldowns 0, no statuses; every living actor,
 heroes 0–2 then enemies 0–2, rolls `atb = rng() × ATB_START_MAX × ATB_TURN`
 (always one draw each); WILL wearers receive IMMUNITY for `WILL_TURNS = 3`
-(it ticks at the wearer's turn start, so 2 covers every enemy action before
-the wearer's first turn *and* that turn); each BULWARK wearer grants every
+(it ticks at the wearer's turn start, so 3 covers every enemy action before
+the wearer's third turn); each BULWARK wearer grants every
 living party member a SHIELD of `round(recipient.maxHp × BULWARK_SHIELD)` for
 `BULWARK_TURNS = 3` (two wearers → max, not sum); pacts and ascension
 openers (INVINCIBLE, A9's `atb = ATB_TURN`) apply.
@@ -236,17 +233,20 @@ takeTurn(a, extra = false):
 
 Tick at turn start, before the action: STUN(1) skips exactly one turn, BURN(n)
 burns n times, a status applied on a foreign turn first ticks at the target's
-next step 5, a self-buff of n covers n − 1 own actions (the stat buffs are
-authored at 3: two actions). Dead
+next step 5, a self-buff of n covers n − 1 own actions (ATK_UP, DEF_UP and CRIT_UP
+are authored at 3: two actions; SPD_UP at 2, since it acts on the bar, not
+the action). Dead
 actors have no `atb`, are never targeted, never counter, take no ticks.
 `TURN_CAP = 500` actor turns per battle (extras count): reaching it is a loss
 reported as a stall (`deathKind 'STALL'`, `deathBy` = the pack's first enemy,
 banks `BANK_DEATH`); the harness prints stalls per battle and exits non-zero
-above 0.5 %. `actorTurns` increments at `takeTurn` entry (extras, stunned
-and BURN-death turns included); an enemy turn with `actorTurns ≥
-ENRAGE_TURN = 100` at entry is ENRAGED — ATK_UP (2) applied before step 5 —
-and the ribbon says so; the harness prints enrages per boss beside stalls.
-Heal-stalling a last enemy for free cooldowns is not a strategy.
+above 0.5 %. `actorTurns += 1` is the first statement of `takeTurn` (extras, stunned
+and BURN-death turns included); an enemy turn is ENRAGED iff the incremented
+value is ≥ `ENRAGE_TURN = 100` (the battle's 100th actor turn is the first
+that can be): ATK_UP `ENRAGE_TURNS = 2` is
+applied before step 5 (refreshed by max, so it never lapses) and the ribbon
+says so; `BattleResult.enraged` is true after one such turn and the harness
+prints the enrage rate beside stalls.
 
 ### Skills
 
@@ -269,7 +269,7 @@ interface SkillDef {
   atbBoost?: number;       // fraction of ATB_TURN granted to each target (or stripped, if negative)
   cleanse?: number;        // debuffs removed per target, lowest index in `statuses` first
   bonusVs?: { status: StatusKind; mult: number };   // extra multiplier when the target carries the status
-  extendDebuffs?: number;  // turns added to every debuff already on each target
+  extendDebuffs?: number;  // turns added to every debuff on each target when it runs (this cast's included)
   refundOnKill?: boolean;  // a kill by this skill's own hit refunds its cooldown
   verb: string;            // battle log: HERO <verb> ENEMY FOR n!
 }
@@ -278,12 +278,17 @@ interface SkillDef {
 Every "% ATB" in a skill, set or sigil is a fraction of `ATB_TURN`. A skill
 resolves its hits (below), then per target in slot order: `cleanse` (the
 skill's, then MENDING's one) → `heal` → `applies` for a skill with `hits = 0`
-→ `extendDebuffs` → `atbBoost` → MENDING's ATB; then once per skill:
-`leech` / VAMPIRE, SURGE, SPARK, the step-8 cooldown write (`cd = 0` instead
-when `refundOnKill` and a target died to this cast). MENDING fires on every
-target of a skill with `heal > 0`, HP gained or not, never on leech, VAMPIRE
-or map heals. DEF-, HP- and SPD-scaling skills are what make a tank or a
-speedster a damage dealer rather than a passenger. `chance` conventions: a primary debuff `CHANCE_PRIMARY = 0.75`, a
+→ `extendDebuffs` (adds n to every debuff on the target at that moment,
+this cast's and DESPAIR's included; an extension, so IMMUNITY never blocks
+it and LOCKDOWN and TRIP never fire on it) → `atbBoost` → MENDING's ATB. A
+target a hit leaves at `hp ≤ 0` has `hp = 0`, is dead at once and takes no
+further part in the cast (no later hits, `applies`, DESPAIR, RENDER, DESTROY
+or per-target phase). Then once per skill: `leech`, then VAMPIRE — two heals,
+each `round(Σdealt × f)` capped at missing HP after the previous — SURGE,
+SPARK, the step-8 cooldown write (`cd = 0` instead when `refundOnKill` and a
+target died to this cast). MENDING fires on every target of a skill with
+`heal > 0`, HP gained or not, never on leech, VAMPIRE or map heals. `chance`
+conventions: a primary debuff `CHANCE_PRIMARY = 0.75`, a
 secondary or AoE debuff `CHANCE_SECONDARY = 0.50`; buffs, heals and
 self-effects never roll. An awakened skill is a new `SkillId` the awakening
 `upgrades` to (`extendDebuffs` for SABLE, `refundOnKill` for LUMEN).
@@ -302,8 +307,10 @@ suffers longer under a debuff. Magnitudes are constants, never stacked: one
 instance per kind per actor, a re-application sets `turns = max(remaining,
 new)` and, for SHIELD/BURN, `pool`/`dmg = max`. A buff and its break coexist
 and both apply (ATK_UP + ATK_BREAK = ×1.0). IMMUNITY blocks every debuff
-*application*, refreshes included, drawing no rng; extensions of a present
-debuff (LOCKDOWN, RENDER) pass.
+*application*, refreshes included, drawing no rng; LOCKDOWN raises the
+application's duration before that max (`turns = max(remaining, apply.turns
++ extra)`) and is blocked with it; the only extensions that pass IMMUNITY
+are `extendDebuffs` and RENDER's kindled +1.
 
 | Debuff | Effect | Turns | | Buff | Effect | Turns |
 |---|---|---|---|---|---|---|
@@ -333,11 +340,10 @@ p = clamp(apply.chance + (attacker.acc − defender.res) / 100, STATUS_MIN_CHANC
 ```
 
 Applications on allies or self skip the check; a chance of 1.0 is still
-resistible (RES 50 vs ACC 0 → 0.5); the roll is drawn whenever not blocked,
-even at p = 1.0. Hits are the outer loop, snapshotted targets in slot order
+resistible (RES 50 vs ACC 0 → 0.5). Hits are the outer loop, snapshotted targets in slot order
 the inner: hit 1 on every living target, then hit 2. Per hit and target:
-crit → `applies` in order → the DESPAIR chance roll (always drawn) → its
-landing roll (skipped under IMMUNITY) → RENDER on a crit: one landing roll at
+crit → `applies` in order → the DESPAIR chance roll (drawn whatever SHIELD
+or INVINCIBLE did to the hit) → its landing roll (skipped under IMMUNITY) → RENDER on a crit: one landing roll at
 chance 1.0 for a strip of `ATB_TURN × 0.10`, immediately, the kindled
 extension riding on a landed strip.
 
@@ -357,7 +363,8 @@ dealt  = target.has(INVINCIBLE) ? 0 : max(1, round(dealt))
 absorb = min(dealt, target.shieldPool); shield −= absorb; hp −= dealt − absorb           // SHIELD removed at 0
 ```
 
-`DAMAGE_JITTER = 0`. `dealt` (rounded,
+`critPts(a, t) = CRIT + (a.has(CRIT_UP) ? 30 : 0) + perDebuff × debuffs on
+t` (BLOODLUST). `dealt` (rounded,
 pre-absorb, overkill included) is what the log shows and what `leech`,
 VAMPIRE and DESTROY read; NEMESIS and GRUDGE need `dealt − absorb > 0`.
 Derived stats, shields, heals and per-hit damage are integers via `round`;
@@ -395,9 +402,7 @@ visible target; the target is not telegraphed.
 
 **Packs.** Each biome authors packs as data (`fights: EnemyId[][]`, `elites:
 EnemyId[][]`, `boss`); on entry a room draws uniformly among packs of width ≤
-`members + 1`. Every width-3 pack carries one `support`; from act 3 an
-`elites` row includes one normal. Bosses fight alone and carry one
-`ALL_ENEMIES` skill.
+`members + 1`; the pack shape rules are `validateData`'s.
 
 **Scale.** `KIND_MULT = { NORMAL: { hp 1, atk 1, def 1, spd 0, res 0 },
 ELITE: { hp 2.5, atk 1.35, def 1.25, spd 5, res 10 }, BOSS: { hp —, atk 1.7,
@@ -407,7 +412,7 @@ round(base.hp × ACT_MULT.hp × KIND_MULT.hp × (1 + 0.10 A) × LAP_MULT.hp^(lap
 KIND_MULT.hp` is replaced by `BOSS_HP[act − 1]`; `atk` the same with its own
 columns and `× (FURY ? 1.15 : 1)` inside the round; `def` the same without
 the A, CLEAR and FURY terms; `spd = round((base + 3(act−1) + KIND_MULT.spd +
-5(lap−1)) × (A ≥ 7 ? 1.08 : 1) × (HASTE ? 1.2 : 1))`; `RES = (pts.RES ?? 15)
+5(lap−1)) × (A ≥ 7 ? 1.08 : 1) × (HASTE ? 1.1 : 1))`; `RES = (pts.RES ?? 15)
 + 3(act−1) + KIND_MULT.res + 5 × max(0, A − 1)`, plus `WILL_RES` for an A10
 boss. `CLEAR_GROWTH = 0.03` counts FIGHT and ELITE clears, resets per act,
 and the boss carries the act's final count. On laps `ACT_MULT`, the biome,
@@ -429,8 +434,8 @@ hp 1.5, atk 1.5, def 1.2 }`. The reference party for every paper estimate in
 this document is the expected-gear `balanced` party: at act 6 a mid hero of
 HP 4650 · ATK 394 · DEF 284 · SPD 167 · CRIT 42 · CDMG 57 · ACC 38, which
 kills an act-1 normal in ≈ 5 actions and dies in ≈ 12 hits, kills an act-6
-normal in ≈ 7, and takes ≈ 46 actions on the act-6 boss (37 with an ATK
-leader and DEF_BREAK).
+normal in ≈ 7, and takes ≈ 46 actions on the act-6 boss (27 with an ATK
+leader and DEF_BREAK up), at a kit-average skill multiplier of 1.4 per action.
 
 **Biomes.** Each has a dominant element (two thirds of its pool) and a foil;
 bosses alternate DARK and LIGHT. Names ≤ 12.
@@ -508,9 +513,7 @@ bonus that changes. Screens render `line`, never compute it.
 | CHALICE | 5 | flat DEF — fixed |
 | TOME | 6 | **RES** \| **ACC** \| ATK % \| HP % \| DEF % |
 
-A build that wants speed *and* crit *and* accuracy has to spend three
-specific slots on them, and the odd slots are never negotiable. The bold main
-is the default, not the answer: the % main is right for the character whose
+The bold main is the default, not the answer: the % main is right for the character whose
 kit scales off it, and phase 8 verifies that on each open slot at least two
 mains appear in winning policy lines.
 
@@ -519,8 +522,7 @@ mains appear in winning policy lines.
 36 · BOOTS SPD 12 · ATK % / HP % / DEF % 16 · CRIT 12 · CDMG 22 · ACC / RES
 16. Rarity never changes the base — it buys substats and a sigil — except
 that LEGENDARY mains are multiplied by `LEGENDARY_MAIN_MULT = 1.5`, so a
-LEGENDARY at its +4 cap (×2.40) out-mains a kindled EPIC at +6 (×1.90) by
-about a kindle's worth — the price of never kindling.
+LEGENDARY at its +4 cap (×2.40) out-mains a kindled EPIC at +6 (×1.90).
 
 ### Substats
 
@@ -568,17 +570,17 @@ extras.
 
 | Slot | Kind | Sigil | Kindled (+6) |
 |---|---|---|---|
-| WEAPON | `OPENER { atb? }` | the first skill you cast each battle does not start its cooldown | …and grants +30 % ATB |
+| WEAPON | `OPENER { atb? }` | your first non-counter cast of each battle writes `cd = 0`, whatever its cooldown, and is then spent | …and that cast grants you `atb` (30 %) of ATB_TURN |
 | WEAPON | `RENDER { strip; extend? }` | crits strip 10 % of the target's ATB (debuff-class, as a negative `atbBoost`) | …and extend one debuff on it by 1 turn |
 | BOOTS | `SURGE { self; allies? }` | on a kill by your own hit (counters count, BURN does not), +50 % ATB | …+25 % to the other allies too |
-| BOOTS | `TRIP { slowStrip; stunStrip? }` | a SLOW you land also strips 25 % ATB (rides on the landed status, no roll) | …a STUN you land strips 100 % |
+| BOOTS | `TRIP { slowStrip; stunStrip? }` | every SLOW you land through the landing formula (refreshes included) also strips 25 % ATB — `atb = max(0, atb − ATB_TURN × strip)`, no roll | …every STUN you land, DESPAIR's included, strips 100 % |
 | ARMOR | `BASTION { bonus; cleanse? }` | shields on you are 50 % larger (`round(base × 1.5)`) | …and cleanse one debuff when applied |
-| ARMOR | `THORNS { applyBreak? }` | COUNTER while DEF_UP or a SHIELD is on you | …counters apply DEF_BREAK (0.75) |
+| ARMOR | `THORNS { applyBreak? }` | COUNTER while DEF_UP or a SHIELD is on you | …the counter's skill 1 gains `{ DEF_BREAK, 0.75, 2 }` appended to its `applies` (per hit, before DESPAIR) |
 | NECKLACE | `SPARK { all? }` | a skill that crits shortens your highest remaining cooldown by 1, once per skill (tie: lowest index; read before step 8) | …every cooldown, once per skill |
 | NECKLACE | `BLOODLUST { perDebuff }` | +10 pts CRIT per debuff on the target | …+15 |
 | CHALICE | `MENDING { atb? }` | your heals also cleanse one debuff | …and grant 10 % ATB to each healed target |
-| CHALICE | `GRUDGE { threshold; turns; shield? }` | a hit that leaves you below 50 % HP grants ATK_UP 2 | …and a SHIELD of 15 % |
-| TOME | `LOCKDOWN { extra; ignoreRes? }` | debuffs you land last +1 turn (STUN excluded) | …and ignore RES (IMMUNITY still blocks) |
+| CHALICE | `GRUDGE { threshold; turns; shield? }` | an enemy hit with `dealt − absorb > 0` that takes you from `hp ≥ T` to `hp < T`, `T = round(threshold × maxHp)` (0.5), grants ATK_UP `turns` (2) right after the NEMESIS check, refreshed by max | …and a SHIELD of `round(maxHp × shield)` (0.15; BASTION applies) |
+| TOME | `LOCKDOWN { extra; ignoreRes? }` | debuffs you land last `extra` (1) turn longer (STUN excluded; added before the refresh max) | …and ignore RES (IMMUNITY still blocks) |
 | TOME | `ECHO { skills }` | skill 3 cooldown −1 (`max(1, cd − 1)`) | …skills 2 and 3 |
 
 "One debuff" (cleanse or extend) is the lowest index in `statuses`.
@@ -600,27 +602,31 @@ the table.
 | FATAL | +15 % ATK | | VIOLENT | `VIOLENT_CHANCE = 0.40` of an extra turn, never chaining |
 | ENERGY | +15 % HP | | DESPAIR | `DESPAIR_CHANCE = 0.25` per hit (shielded or INVINCIBLE included) to STUN (1), then the landing roll at chance 1.0 |
 | GUARD | +30 % DEF | | VAMPIRE | heal `VAMPIRE_FRACTION = 0.50` of damage dealt, once per skill |
-| SWIFT | +20 % SPD | | WILL | IMMUNITY for `WILL_TURNS = 3` at battle start, and +20 RES |
-| BLADE | +12 pts CRIT | | NEMESIS | `NEMESIS_ATB = 0.15` of ATB_TURN per hit with `dealt − absorb > 0` (not BURN) |
+| SWIFT | +20 % SPD | | WILL | IMMUNITY for `WILL_TURNS = 3` at battle start, and +`WILL_RES = 20` RES |
+| BLADE | +12 pts CRIT | | NEMESIS | the wearer gains `NEMESIS_ATB = 0.40` of ATB_TURN per enemy hit it takes with `dealt − absorb > 0` (not BURN), immediately after the hit |
 | RAGE | +40 pts CDMG | | REVENGE | `REVENGE_CHANCE = 0.35` to counterattack |
 | FOCUS | +20 ACC | | BULWARK | party SHIELD of `BULWARK_SHIELD = 0.20` max HP at battle start, 3 turns |
-| ENDURE | +20 RES | | DESTROY | after absorb, `strip = round(min(DESTROY_DEALT = 0.30 × dealt, DESTROY_FRACTION = 0.04 × maxHp))`; `maxHp' = max(round(DESTROY_FLOOR = 0.40 × baseMaxHp), maxHp − strip)`; `hp = max(1, hp − (maxHp − maxHp'))`, bypassing SHIELD, never lethal |
+| ENDURE | +20 RES | | DESTROY | after absorb, `strip = round(min(DESTROY_DEALT = 0.40 × dealt, DESTROY_FRACTION = 0.04 × maxHp))`; `maxHp' = max(round(DESTROY_FLOOR = 0.40 × baseMaxHp), maxHp − strip)`; `hp = max(1, hp − (maxHp − maxHp'))`, bypassing SHIELD, never lethal |
 
 A 2-piece bonus applies `floor(n / 2)` times (three FATAL pairs = +45 % ATK);
 a 4-piece applies once; bonuses are wearer-only except BULWARK; enemies wear
 no sets (A10's WILL excepted). A **counter** (REVENGE, or COUNTER status at
-100 %): after an enemy skill's hits and boosts resolve, each hero it hit
-rolls once in slot order (no draw under COUNTER), if both are alive and the
-counterer is not stunned — a shielded or INVINCIBLE hit still counts; the
-counter resolves skill 1 fully (hits, `applies`, DESPAIR, `atbBoost`, leech,
-VAMPIRE, NEMESIS, SURGE, SPARK, RENDER, TRIP) at `COUNTER_MULT = 0.75` on the
+100 %) runs after ANY actor's step-8 write and before its step 9: per living
+opposing actor the cast hit, in slot order — no draw if that actor or the
+attacker is dead or the counterer is stunned; certain under COUNTER (an
+enemy's Brace included) or THORNS' condition, else a REVENGE wearer rolls
+`rng() < REVENGE_CHANCE` (heroes only: enemies wear no sets) — each counter
+resolving fully before the next check; a shielded or INVINCIBLE hit still
+counts. The counter resolves skill 1 fully (hits, `applies`, DESPAIR, `atbBoost`, leech,
+VAMPIRE, SURGE, SPARK, RENDER, TRIP) at `COUNTER_MULT = 0.75` on the
 attacker, single-target whatever skill 1's spec says, without the step-8
 cooldown write, without consuming OPENER, and never triggering a further
 counter; BURN and DESTROY never trigger one. A counter is not a turn: no
 carry, no ticks, no VIOLENT roll. `SetBonus` is a closed union with one kind
 per row. Four-piece bonuses must beat three two-piece bonuses by a clear
-margin: phase 8 measures with 2+2+2 as the baseline and, if 2+2+2 wins,
-caps a 2-piece bonus at two applications.
+margin — the set's best policy clears act 6 at ≥ 1.10 × `pairs` on
+identical seeds; if any 4-piece falls short of 1.10 ×, phase 8 caps a
+2-piece bonus at one application.
 
 ## Characters
 
@@ -661,7 +667,9 @@ offers only un-awakened members and is a FORGE when none remain.
 at the leader, so choosing the leader trades the team-wide bonus against who
 absorbs focus. The seat is chosen at the draft and may change at a SUMMON, a
 REST or the ALTAR — never freely before an ELITE — and relics move freely;
-the sim calls `leader()` at exactly those points. A leader who falls
+the sim calls `leader()` at exactly those points, after the room's own
+answer (`summon`, `rest`, `altar`) and its effects have applied, so a
+swapped-in newcomer is eligible. A leader who falls
 mid-battle keeps the bonus alive for that battle.
 
 ### Building a party
@@ -702,25 +710,27 @@ min(straight, b − 1))`, `width = (b ≥ 2 and rng() < SPAN_TWO_CHANCE = 0.85)
 unreached j ascending joins the nearest span (tie: lowest i); a one-node
 stage (landmark, BOSS) is linked from every node before it and to every node
 after it with no draw, and the act entry links to every stage-1 node; (5) adjacency, RESTs in stage
-order: a REST successor becomes FIGHT unless it is the landmark or the
-guarantee REST, in which case the predecessor becomes FIGHT. Expected clears
+order: every directly linked successor that is itself a REST becomes FIGHT,
+unless that successor is the landmark or the guarantee REST, in which case
+this REST becomes FIGHT; other room types are untouched. Expected clears
 ≈ 3.5 per act, ≈ 21 per full lap; a run that dies in act 4 sees about twelve.
 
 | Room | What it offers |
 |---|---|
 | FIGHT | a pack; a relic card on `FIGHT_DROP_CHANCE = 0.5` (the roll is drawn even when pity forces it), forced after `PITY_AFTER = 2` dropless FIGHTs; the dry counter resets on a FIGHT card only |
 | ELITE | an elite pack, three relic cards, pick one |
-| REST | full party heal, **or** sharpen — +1 level on every uncapped relic one member wears |
+| REST | full party heal, **or** sharpen — +1 level on up to `SHARPEN_RELICS = 6` uncapped relics one member wears, slot order |
 | LOOT | two relic cards, no fight |
 | SHRINE | one pact drawn uniformly among untaken ones: accept its curse to gain its boon, both for the rest of the run, or walk past; a FORGE when none remain |
-| FORGE | one relic: +2 levels (uncapped relics only), **or** recast one substat into a different pool stat with its `rolls` re-rolled, **or** rebrand it to another pool set (worn sets allowed) keeping its rolls — any worn relic for the last two; walking past is legal; a FORGE (or a SHRINE / ALTAR that became one) with nothing to offer is skipped |
+| FORGE | one relic: +2 levels (uncapped relics only), **or** recast one substat — its key becomes one `pick` over `SUBSTAT_POOL` minus the main and every current substat key, then `rolls` values are drawn afresh in the new range (A4 top −1) and summed, `rolls` unchanged — **or** rebrand it to another pool set (worn sets allowed) keeping its rolls — any worn relic for the last two; walking past is legal; a FORGE (or a SHRINE / ALTAR that became one) with nothing to offer is skipped |
 | SUMMON | rolled regardless of party size; recruit one of three, or an EPIC / swap when full |
 | ALTAR | awaken one party member |
 | BOSS | one per act; three cards, the first an EPIC levelled as a BOSS card, pick one |
 
 Every relic card screen may be declined: declining mends the party
 `SKIP_MEND = 0.15`. Cards per source `LOOT_COUNT = { FIGHT 1, ELITE 3, LOOT
-2, BOSS 3, SUMMON 1 }`, then `max(1, count + boons − curses)`; rarity rolls from
+2, BOSS 3, SUMMON 1 }`, then `max(1, count + boons − curses)` for FIGHT,
+ELITE, LOOT and BOSS (a SUMMON always shows one EPIC); rarity rolls from
 `LOOT_WEIGHTS` (COMMON / RARE / EPIC / LEGENDARY, one row per act): FIGHT
 70/25/5/0 · 60/30/9/1 · 50/35/13/2 · 40/40/17/3 · 30/42/23/5 · 20/42/30/8;
 ELITE and LOOT 35/45/17/3 · 28/44/23/5 · 21/42/29/8 · 15/40/35/10 ·
@@ -733,9 +743,9 @@ pacts stack across the run):
 
 | Id | Curse (rest of run) | Boon (rest of run) |
 |---|---|---|
-| HASTE | enemies +20 % SPD | +1 card on every relic screen |
+| HASTE | enemies +10 % SPD | +1 card on every relic screen |
 | FURY | enemies +15 % ATK | party ATK +15 % |
-| VEIL | bosses INVINCIBLE 1 at battle start (until their first turn starts) and again on their first turn below 50 % HP | every EPIC drops +1 |
+| VEIL | bosses INVINCIBLE 1 at battle start and, once per battle, between steps 5 and 6 of the first boss turn entered with `hp < round(0.5 × maxHp)` (a BURN crossing at step 2 counts, a stunned turn counts) | every EPIC drops +1 |
 | BLIND | party RES −20 | party ACC +25 |
 | SCHISM | no leader skill (FOCUS still aims at the leader) | each member's own leader skill applies to that member only, at half, unrounded |
 | DEARTH | one fewer card on every relic screen (min 1) | FORGE gives +4 |
@@ -778,7 +788,7 @@ level adds its row to every row above it.
 | 5 | bosses gain their fourth skill |
 | 6 | REST weight halved |
 | 7 | enemy SPD +8 % |
-| 8 | elite packs of width < 3 gain one NORMAL, uniform over the biome's NORMAL ids, appended last, skipped when the party-size cap forbids |
+| 8 | elite packs of width < 3 gain one NORMAL — one `pick` after the pack pick over the biome's distinct NORMAL ids in first-appearance order across its `fights` then `elites` rows — appended last, skipped when the party-size cap forbids |
 | 9 | bosses start at `atb = ATB_TURN` and act first |
 | 10 | bosses get WILL |
 
@@ -787,8 +797,7 @@ level adds its row to every row above it.
 Permadeath keeps its teeth. What survives a run is a **trickle you choose**,
 not an inventory.
 
-- DESCEND banks `BANK_WIN = 2` relics (more after laps); any death banks
-  `BANK_DEATH = 1`. Banked relics keep level, sigil and kindling.
+- Banked relics (the Laps rule says how many) keep level, sigil and kindling.
 - At the next run's start you may equip up to `vaultSlots =
   min(VAULT_EQUIP_MAX = 3, actsCleared)` relics from the Vault onto your
   starter, one per slot (`actsCleared` = bosses killed last run, laps
@@ -811,15 +820,31 @@ clear" = act-N boss killed on lap 1, as a fraction of all runs on the
 per act after act 1). **Lap 2 clear ≈ 8 %** of runs that took ANOTHER LAP, on
 `lapper`. A random-draft, random-pick, random-target policy must win < 3 %.
 
-Speed matters more than raw power: `RunConfig.spdDelta` (the harness's
-`--spd`) adds a flat delta to every hero's base SPD before `derive`; the
-harness runs `balanced` at +10 and −10 on identical seeds and the fast party
-must clear act 3 at least 20 points more often. If it does not, the SPD base
-range, the SPD substat range or SWIFT's 20 % is wrong.
+Speed matters more than raw power: `RunConfig.spdDelta` adds a flat delta to
+every hero's base SPD before `derive` (the `--battles` fixtures included).
+`--spd n` sets it for every selected policy and prints `spd +n` per row; a
+bare `--spd` runs `balanced` at +10 then −10 on the same seed and prints
+`spd gate: act3 +10 xx % / −10 yy % Δ zz pts (≥ 20)`, exiting non-zero below
+20: the fast party must clear act 3 at least 20 points more often. If it
+does not, the SPD base range, the SPD substat range or SWIFT's 20 % is
+wrong.
 
 Every 4-piece set must appear in at least one winning policy line: ≥ 5 % of
 some policy's wins end with it complete (`setsWorn`). A set no policy ever
-wants is a set that needs rewriting, not renumbering.
+wants is a set that needs rewriting, not renumbering. Every character leads
+in ≥ 5 % of some policy's wins (`leader`); a pact whose takers (runs with it
+`taken` in `shrines`) clear act 6 more than 5 points apart from its
+decliners (offered it, not taken) is re-priced — the harness prints one
+`pact · takers % · decliners % · Δ` row per id; `balanced` answers HEAL in
+25–60 % of its RESTs — outside that band, phase 8 moves `REST_HEAL_AT` (0.50
+→ 0.60 raises it); `balanced` wins 75–90 % of the ELITEs it enters (`rooms`
+in visit order; a lost run whose last room is ELITE lost it) — below 75 %
+phase 8 lowers `KIND_MULT.ELITE.hp`, above 90 % raises it; `swaps ≥ 1` in
+≥ 5 % of some policy's wins — below that phase 8 sets `SWAP_FRESH = true`
+(default false: the newcomer arrives at full HP instead of the `hp / maxHp`
+fraction, the one thing the EPIC cannot give). `leader.amount` and the
+curse/boon numbers are phase 8's levers; a seat or pact no policy ever takes
+is rewritten, not renumbered.
 
 **Every choice is a Policy method.** `main.ts` never calls one; the harness
 always does. Each method receives the enumerated options and `rng` and
@@ -827,10 +852,14 @@ returns an index (or `null` where declining is legal); an out-of-range answer
 is clamped to option 0. `POLICIES.random` answers uniformly over the legal
 answers (`relic`: every (card, onto) pair plus `null`; `summon`: every
 recruit, every (swap, out) pair and `null`; `forge`: every (relic, mode) pair
-then a uniform substat or pool set; `rest`: HEAL plus one sharpen per
+then a uniform substat, or a pool set other than the relic's own
+(`pick(pool.length − 1)`); `rest`: HEAL plus one sharpen per
 member wearing an uncapped relic; `shrine` and `lap`: 50/50; `bank`: `n` uniform relics of `worn`,
-the overflow rule below; `vaultEquip`: a uniform
-0..slots distinct-slot relics) — the definition of the < 3 % floor.
+the overflow rule below; `vaultEquip`: `c = pick(slots + 1)`, always drawn,
+then c picks over the Vault relics whose slot is still free, Vault order,
+stopping without a draw when none is left; `forge`'s recast substat is
+`pick(subs.length)` after its (relic, mode) pick) — the definition of the < 3 %
+floor.
 
 ```ts
 interface Policy {
@@ -857,7 +886,8 @@ rng)` runs `draft`, `vaultEquip`, the set pool, the ascension row, the
 opening `summon`, `leader`, then `buildMap(1, …)`. Invalid structured
 answers: `bank` truncates `take` to `min(n, worn.length)` and on overflow
 drops the lowest-level Vault relics (tie oldest) until it fits;
-`vaultEquip` keeps the valid prefix; `altar` falls to the lowest un-awakened
+`vaultEquip` keeps the prefix before the first invalid entry (out of
+range, repeated, its slot already taken, or beyond `slots`); `altar` falls to the lowest un-awakened
 index; `relic`, `summon`, `forge` and `rest` with any illegal field decline
 (`null`, no change, `HEAL`). The sim's Vault defaults: bank the *n*
 highest-level worn relics (tie rarity, member, slot).
@@ -865,39 +895,67 @@ highest-level worn relics (tie rarity, member, slot).
 Policy roster: **random** · **balanced** (`relic` takes the highest
 `compare.score` when positive; `act` maximises expected `dealt` with crit at
 its probability, preferring a heal that reaches the lowest ally when any
-ally is below 40 %, ties lowest index; DESCEND) · **speed** (SPD boots,
+ally is below 40 %, ties lowest index; `rest`: HEAL when any living member is
+below `REST_HEAL_AT = 0.50`, else sharpen the member with the most uncapped
+relics, tie lowest index; `shrine`: 50/50; `route`: REST when any member is
+below `REST_HEAL_AT`, else the first present of ELITE (only while every
+member is ≥ `ELITE_ENTER_AT = 0.60`), LOOT, SHRINE, FORGE, SUMMON, FIGHT,
+ELITE, REST, tie lowest index — the other seven policies inherit `route`;
+`summon`: recruit the first offer whose element beats the coming act's
+dominant (the next act's from stage 3 on), else offer 0, and when full swap
+out a member whose element that dominant beats for such an offer, else the
+EPIC; DESCEND) · **speed** (SPD boots,
 SWIFT/VIOLENT, GALE leader, strips first) · **glass** (ATK %/CRIT/CDMG
 mains, FATAL/RAGE/BLADE/DESTROY, lowest-HP target) · **tank** (HP/DEF mains,
 GUARD/ENERGY, BULWARK/WILL/REVENGE) · **control** (ACC tome, FOCUS/DESPAIR,
 opens with breaks) · **mono** (one element, elemental leader) · **lapper**
-(`balanced` that takes the lap).
+(`balanced` that takes the lap) · **pairs** (the 2+2+2 baseline, below).
 
 ```ts
 interface RunResult { won; actReached; lap; ascension; clears; actsCleared; deathBy: string; deathKind: '' | 'WIPE' | 'STALL';
                       party: string[]; leader: string; awakened: string[]; setsWorn: SetId[][]; mainsWorn: (RelicStat | null)[][];
-                      relicLevels: number[][]; banked: Relic[]; rooms: RoomType[]; turnsPerBattle: number[]; enrages: number; probes: Probe[] }
-interface Probe { act; lap; won; actorTurns; heroTurns; partySpd; bossSpd; outSped: boolean; bossHp; dmgDealt; ttk;
+                      relicLevels: number[][]; banked: Relic[]; rooms: RoomType[]; turnsPerBattle: number[]; enrages: number;
+                      shrines: { pact: PactId; taken: boolean }[]; swaps: number; rests: ('HEAL' | 'SHARPEN')[]; probes: Probe[] }
+interface Probe { act; lap; won; actorTurns; heroTurns; enraged: boolean; partySpd; bossSpd; outSped: boolean; bossHp; dmgDealt; ttk;
                   hitsTaken; hitFrac; stunsLanded; debuffsResisted }   // one per boss
 ```
 
 `won` = the run ended at DESCEND; `actReached` = the 1-based act of the
-final lap; `deathBy` on a WIPE = the enemy whose hit or BURN downed the last
-living hero; `awakened` = member ids in ALTAR order; `setsWorn[m]` = member
+final lap; `clears` = FIGHT and ELITE wins over the whole run (bosses are
+`actsCleared`); `deathBy` on a WIPE = the enemy whose hit downed the last
+living hero, or on a BURN death the actor at `status.by` (the applier's
+slot, set at application; a refresh keeps the applier whose `dmg` won the
+max, tie the older); `awakened` = member ids in ALTAR order; `relicLevels[m]`
+= per slot, −1 when empty; `turnsPerBattle[i]` = `actorTurns` of the i-th
+battle in room order; `enrages` = battles with an ENRAGED turn; `shrines` =
+every SHRINE offer in room order with its answer (a decliner of pact P is a
+run with a row `{ P, false }`); `swaps` = SUMMON swaps taken; `rests` = the answer
+at each REST; `setsWorn[m]` = member
 m's active set ids at run end, a 2-piece repeated per pair; `mainsWorn` =
 per member, slot order; `partySpd` = mean derived SPD of members alive at
 boss entry, `outSped = partySpd > bossSpd`, `actorTurns` counts every
-`takeTurn`, `ttk` = hero turns until the boss died or the battle ended,
+`takeTurn`, `heroTurns` the hero ones (extras included), `bossHp` = the
+boss's maxHp at entry, `dmgDealt` = Σ hero `dealt` on the boss, `ttk` = hero
+turns until the boss died or the battle ended,
 `hitsTaken` = enemy hits that reduced hero HP or shield, `hitFrac` = hero HP
 lost ÷ Σ maxHp, `stunsLanded` = STUNs heroes landed on the boss,
 `debuffsResisted` = hero applications on the boss that failed the landing
 roll. Phase 2 ships `simulateBattle(party, enemies, policy: Pick<Policy,
-'act'>, rng): BattleResult = { won; stall; actorTurns; probe; party }` and
-the harness's `--battles` mode: each selected policy's `act` (default every
-policy) over `BATTLE_FIXTURES` — EMBER, GALE, TIDE at base stats, no relics,
-full HP, leader EMBER, rebuilt fresh per battle, against every act-1 pack
-scaled at act 1, lap 1, A0, `clearsThisAct = 0`, no pacts — 2000 battles
-each, printing win rate, mean turns, stall and enrage rates. The 2+2+2
-baseline is a `pairs` policy (three 2-sets, else `balanced`).
+'act'>, rng): BattleResult = { won; stall; enraged; actorTurns; probe;
+party }`, `spawnPack(ids, act, lap, ascension, clears, pacts)` and
+`BATTLE_FIXTURES` from `sim/battle.ts` (the harness targets that file until
+6a moves the entry), and the harness's `--battles` mode: per selected policy
+(default: every policy with a distinct `act`), per act-1 pack — `fights`
+rows, then `elites`, then `[boss]` — reseed `mulberry32(seed)` and run 2000
+battles of EMBER, GALE, TIDE at base stats, no relics, full HP, leader
+EMBER, rebuilt fresh per battle, against the pack scaled at act 1, lap 1,
+A0, `clearsThisAct = 0`, no pacts, printing one row `policy · pack · win %
+· turns (mean actorTurns) · stall % · enrage %` (`--json` mirrors it). The
+2+2+2 baseline is the `pairs` policy: `balanced` except that `relic` only
+takes cards that leave every 4-piece set below four on the wearer,
+preferring the highest positive `compare.score` among pool 2-piece sets
+whose wearer count becomes even, else the highest eligible; its `forge`
+never REBRANDs into a 4-piece.
 
 ## Presentation
 
@@ -936,7 +994,7 @@ affords 8–12 per frame at 60 Hz.
 | HIGH | planes 3 + actors + key light + particles + bloom (¼ res) + grading 2 + UI | ≈ 8.5 (+1 in a flash) | desktop default |
 | MED | as HIGH, no highlight tint, bloom at ⅛ res, fewer fog puffs | ≈ 6.1 | phone default |
 | LOW | BG (key light baked in) + actors + particles + vignette + UI | ≈ 3.1 | auto after 60 consecutive frames > 20 ms; never rises |
-| ARCADE | LOW's planes + the full CRT (halation, lift, scanlines, vignette) | ≈ 9 | the toggle |
+| ARCADE | LOW's planes + the full CRT (halation, lift, scanlines, vignette); on a device that fell to LOW, scanlines + vignette only (`halation: 0`, `lift: ''`, `flicker: 0`, ≈ 5.6); a phone starts ARCADE with those options | ≈ 9.6 | the toggle |
 
 Bloom and CRT halation are the same effect: exactly one is on, and the HD
 tiers never call `crt.render`. Blurred planes are pre-rendered **once per
@@ -957,10 +1015,11 @@ each an ASCII part from a shared library with **anchor points**, so a weapon
 stays in a hand across an animation. Animation is per-layer transform
 keyframes stepped at `POSE_FPS = 12`, rotation in 90° steps; element tint is
 a palette swap per layer at bake time; rim light is applied to the composed
-silhouette. Parts bake lazily per (part, element) into one atlas per element
-(1024×1024), never one canvas per part; a pose is composed at part
-resolution, rim light included, only when its keyframe changes; the frame
-draws one `drawImage` per actor at ×3. Text goes through a glyph atlas the
+silhouette. Parts bake lazily, once per (part, element) — an atlas per element is the
+recommended shape; the rule is the budget: no per-cell `fillRect` at frame
+time and one `drawImage` per actor per frame; a pose is composed at part
+resolution, rim light included, only when its keyframe changes, and drawn
+at ×3. Text goes through a glyph atlas the
 same way. `fillRect` per cell exists only at bake time.
 
 ### Procedural VFX
@@ -999,15 +1058,16 @@ Home Screen" hint where they do not (iPhone, phase 4), a rotate prompt.
 
 ### UI constraints
 
-Logical screen 1280×720, font 7×11 (`FONT_HD`, mixed case). **Nothing
-renders below scale 2**: `TEXT_POP 3` (crits 4) · `TEXT_LABEL 3` (skill
+**Nothing renders below scale 2**: `TEXT_POP 3` (crits 4) · `TEXT_LABEL 3` (skill
 labels, the current actor, door and card titles) · `TEXT_BODY 2` (everything
 else). Limits at those scales: battle log line ≤ `LOG_LINE_MAX = 72` chars,
 character names ≤ 16, skill names ≤ 14, relic set names ≤ 8, enemy names ≤
 16, biome names ≤ 12, pact names ≤ 16, sigil and pact blurbs ≤ 30 wrapped
-by `textWidth` inside `CARD_W − 2 × CARD_PAD` (`CARD_PAD = 16`, ≤
-`BLURB_LINES_MAX = 3` lines), relic titles ≤ 11.
-`SAFE_MARGIN = 24` on every side; on a phone (CSS scale < 0.75)
+by `textWidth` inside the drawn card's width − 2 × `CARD_PAD` (`CARD_W =
+384`, `CARD_W_FOUR = 284`, `CARD_PAD = 16`, ≤ `BLURB_LINES_MAX = 3` lines),
+relic titles ≤ 11. The safe inset is 24 on every side (`setSafeInset({left:
+24, top: 24, right: 24, bottom: 24})` at boot; the engine's `SAFE_MARGIN` is
+untouched); on a phone (CSS scale < 0.75)
 `SAFE_BOTTOM_PHONE = 40` and the skill buttons draw at `SKILL_H_PHONE = 80`
 (hit rects still reach the bottom edge) — nothing else moves. Hit rects may
 bleed into the margin, drawn panels may not.
@@ -1018,18 +1078,21 @@ panels, only gauges and a short status row sit on the actor plane.
 
 | Region | Geometry |
 |---|---|
-| turn ribbon | y 24–88: `QUEUE_LEN = 8` chips of `QUEUE_CHIP = 48` from `QUEUE_X = 24` at `QUEUE_GAP = 4` (display-only; an `INTENT_BADGE = 24` at (chip.x + 24, chip.y + 24) on enemy chips, the STUN icon when stunned), the current actor's name at `TEXT_LABEL` from `NAME_X = 452`, `ENRAGE_CHIP = (848, 40, 112, 32)` with ENRAGED at `TEXT_BODY`, ACT/LAP and SCORE lines right-aligned at `RIBBON_RIGHT = 1160` (y 32 / 57); PAUSE draws 64×64 at (1192, 24) with an explicit hit rect (1176, 0, 96, 96) |
+| turn ribbon | y 24–88: `QUEUE_LEN = 8` chips of `QUEUE_CHIP = 48` at `QUEUE_Y = 32` from `QUEUE_X = 24` at `QUEUE_GAP = 4` (display-only; an `INTENT_BADGE = 24` at (chip.x + 24, chip.y + 24) on enemy chips, the STUN icon when stunned), the current actor's name at `TEXT_LABEL` from (`NAME_X = 452`, 40), `ENRAGE_CHIP = (848, 40, 112, 32)` with ENRAGED at `TEXT_BODY`, ACT/LAP and SCORE lines right-aligned at `RIBBON_RIGHT = 1160` (y 32 / 57); PAUSE draws 64×64 at (1192, 24) with an explicit hit rect (1176, 0, 96, 96) |
 | hero panels | x 24–304, three of `PANEL 280×104` at y 96/212/328; `PANEL_PAD = 7`, rows NAME 22 · HP 22 · ATB 6 · STATUS 28 (six 28-px icons + a 32×28 element chip), gaps 4; tap = target while a target prompt is open, else inspect |
-| stage | x 320–960: heroes at (408, 380) · (464, 448) · (520, 516) feet, `DIAG_DX 56 / DIAG_DY 68`; enemies mirrored about x 640; a boss at (816, 516); HP 96×12 and ATB 96×6 under the feet on the outer side; ≤ `STATUS_ABOVE_MAX = 4` icons above the head (then 3 + "+N"); pops at head + 64 |
+| stage | x 312–968 (the panels are the bounds): heroes at (408, 380) · (464, 448) · (520, 516) feet, `DIAG_DX 56 / DIAG_DY 68`; enemies mirrored about x 640; a boss at (816, 516); HP 96×12 and ATB 96×6 under the feet on the outer side; ≤ `STATUS_ABOVE_MAX = 4` icons above the head (then 3 + "+N"); pops at head + 64 |
 | enemy panels | x 976–1256, mirror of the hero panels; **tap = target**, the canonical enemy target |
-| log | y 558–590, one line |
-| skill bar | three `SKILL 400×96` buttons at y 600 drawn inside registered hit rects `SKILL_HIT 400×120` (the PAUSE pattern): row 1 the label at `TEXT_LABEL`, row 2 five cooldown pips left and a key hint right (desktop) |
-| cards | `CARD 384×440` at `CARD_Y = 88`, x 40/448/856, or four of `284×440` at x 48/348/648/948 under HASTE; the room-to-room card is the middle slot with `CONTINUE = (448, 552, 384, 96)`; the who-wears-it row: `WEAR_BTN 280×96` at `WEAR_X = 40/344/648/952`, `WEAR_Y = 552` (the fourth is decline), each candidate's current piece and compare line in the three card slots |
+| log | `LOG = (24, 558, 1232, 32)`, text at (32, 563), one line; the target prompt is this line |
+| skill bar | three `SKILL 400×96` buttons at (`SKILL_X = 28 / 440 / 852`, 600) drawn inside registered hit rects `SKILL_HIT = (SKILL_X[i], 600, 400, 120)` (the PAUSE pattern): row 1 the label at `TEXT_LABEL`, row 2 five cooldown pips left and a key hint right (desktop) |
+| cards | `CARD_W = 384` × 440 at `CARD_Y = 88`, x 40/448/856, or four of `CARD_W_FOUR = 284` × 440 at x 48/348/648/948 under HASTE; the room-to-room card is the middle slot with `CONTINUE = (448, 552, 384, 96)`; the who-wears-it row is its own grid: `WEAR_BTN 280×96` at `WEAR_X = 40/344/648/952`, `WEAR_Y = 552` (the fourth is decline), each candidate's current piece and compare line in the three card slots |
 | doors | DESCEND and ANOTHER LAP, 520×200 at `DOOR_X = 96 / 664`, `DOOR_Y = 320` |
-| inspect | `INSPECT = (24, 24, 1232, 648)` via `drawPanel`: name at `TEXT_LABEL` (48, 40); six rows at `INSPECT_ROW_Y = 96 + 72 × i` — 32-px slot icon, title ≤ 11 at `TEXT_LABEL`, four substats ≤ 10 chars at `TEXT_BODY`; set bonuses at y 544–600; `BACK = (1040, 552, 192, 96)`, also bound to B |
+| inspect | `INSPECT = (24, 24, 1232, 648)` via `drawPanel`: name at `TEXT_LABEL` (48, 40); six rows at `INSPECT_ROW_Y = 96 + 72 × i` — 32-px slot icon, title ≤ 11 at `TEXT_LABEL`, four substats ≤ 10 chars at `TEXT_BODY`; set bonuses in `SET_BAND = (48, 536, 968, 112)` at `SET_LINE_Y = 540 / 576 / 612`, one `TEXT_BODY` line per distinct active set (stacked pairs as `FATAL ×3 +45 % ATK`); `BACK = (1040, 552, 192, 96)`, also bound to B |
 | pause | dimScene, PAUSED at scale 4 at y 120, three `PAUSE_BTN 400×96` at x 440, y 216 / 336 / 456 (resume · ARCADE · quit), group `pause`, index 0–2 |
 | map | `MAP_NODE = 96` at `MAP_X = 88 + 208 × stage`, `MAP_Y = 168 + 144 × row`; the act and score band y 24–120 |
-| party | three member columns in the card slots, six 56-px slot rows from y 136; SWAP · BACK in the 552–648 row at `WEAR_X` |
+| party | three member columns in the card slots, each column one region with six `PARTY_ROW = 64` slot rows from y 128 as its `index`; `PARTY_SWAP = (40, 552, 280, 96)`, `PARTY_LEADER = (344, 552, 280, 96)` (acts on the focused column; `disabled` outside the draft, a SUMMON, a REST and the ALTAR) and `PARTY_BACK = (952, 552, 280, 96)`, group `party`, index 0 / 1 / 2, BACK also bound to B |
+| end screens | GAME OVER's RETRY and VICTORY's CONTINUE reuse `CONTINUE`; the act-6 VICTORY shows the doors row; score and act at `TEXT_LABEL` centred at y 120; the title's START, the Home-Screen hint and the rotate prompt are screen-level |
+| draft | `DRAFT_CARD = 284 × 136` in the four-card columns 48 / 348 / 648 / 948 at `DRAFT_Y = 88 / 240 / 392` (twelve slots), name at `TEXT_BODY`; the pick is confirmed by `CONTINUE` |
+| skip | `SKIP = CONTINUE` registered under every card row (SKIP / WALK PAST / DECLINE), group `cards`, index = card count, also bound to B; FORGE's three modes and walk-past use the WEAR grid after the relic is picked on the party columns |
 
 ## Delivery phases
 
@@ -1042,19 +1105,19 @@ that names a moved file in the same milestone. v3 is built on a branch:
 |---|---|---|
 | 0 | **Contract** | this document |
 | 1 | **Engine upscale** | 1280×720 canvas fitted by CSS, `FONT_HD` with a glyph atlas, baked sprites, pointer input + hit regions with keyboard parity and `TAP_MIN` expansion, the mutable safe inset, CRT retuned, mobile shell with the web-app metas. Rewrites `ensuring-arcade-visuals` and `handling-user-input`. |
-| 2 | **Combat core** (headless) | types, stats, elements, ATB, the turn, cooldowns, statuses, ACC/RES, damage, 3v3 resolution, enemy AI and `intent`, the `SetBonus` and `SigilEffect` unions with their battle hooks fed from fixtures, `simulateBattle`; SKILLS, CHARACTERS for the slice three, ENEMIES and packs for acts 1–2 with elements. Simulator retargeted with `--battles`; `sim/rng.ts`. |
+| 2 | **Combat core** (headless) | types, stats, elements, ATB, the turn, cooldowns, statuses, ACC/RES, damage, 3v3 resolution, enemy AI and `intent`, the `SetBonus` and `SigilEffect` unions with their battle hooks fed from fixtures, `simulateBattle`; SKILLS, CHARACTERS for the slice three, ENEMIES and packs for acts 1–2 with elements, each biome to the 6b minimum. Simulator retargeted with `--battles`; `sim/rng.ts`. |
 | 3 | **Relics** (headless) | rolling, substats, drop levels, forging, sharpening, sets and the set pool, the twelve sigils with kindled variants and blurbs, `derive`, `compare`, loot tables, `validateData`. |
 | 4 | **Vertical slice** | layered actor pipeline with anchors (no rim light yet), one opaque LOW-tier backdrop per biome, ATB gauges, the turn ribbon with intents, status icons, skill VFX, the diagonal stage — **plus the minimum to play it**: EMBER, GALE and TIDE as a fixed party (leader EMBER), the EMBER CRYPT with its packs and boss, a linear five-room run (FIGHT · FIGHT · LOOT · FIGHT · BOSS) as room-to-room cards, the relic card and who-wears-it screens, title, PAUSE overlay (resume · ARCADE toggle · quit), GAME OVER and VICTORY, sfx, score and runtime messages, the iPhone Home-Screen hint. **The game is playable again here.** |
-| 5 | **Roster and meta** | the other three characters, the draft and the opening SUMMON, the leader choice, SUMMON drafting and swaps, the party screen; the slice run becomes FIGHT · FIGHT · SUMMON · LOOT · FIGHT · BOSS so the party is three by the boss; awakenings as data plus `derive` with an `awakened` flag on the `--battles` fixtures. |
-| 6a | **Run structure** | the branching map, SHRINE/FORGE/ALTAR/REST-sharpen, laps, the Vault with persistence, `simulateRun`, the nine policies, `RunResult` and `--spd`, on acts 1–2 (after 5). |
-| 6b | **Biomes** | ENEMIES and packs for acts 3–6 — per biome ≥ 4 normals (one support, ≥ 1 foil), one elite, one four-skill boss — and ascension (parallel with 5). |
+| 5 | **Roster and meta** | the other three characters, the draft and the opening SUMMON, the leader choice, SUMMON drafting and swaps, the party screen; the slice run becomes FIGHT · FIGHT · SUMMON · LOOT · FIGHT · SUMMON · BOSS so the party is three by the boss and the second SUMMON (act 5's landmark stand-in) can offer the swap; awakenings as data plus `derive` with an `awakened` flag on the `--battles` fixtures. |
+| 6a | **Run structure** | the branching map, SHRINE/FORGE/ALTAR/REST-sharpen, laps, the Vault with persistence, `simulateRun`, the nine policies, `RunResult` and `--spd`, and ascension (after 5 and 6b). |
+| 6b | **Biomes** | ENEMIES and packs for acts 3–6 — per biome ≥ 4 normals (one support, ≥ 1 foil), one elite, one four-skill boss (parallel with 5). |
 | 7a | **Diorama** | `engine/light.ts`: DoF planes, parallax, bloom, quality tiers. |
 | 7b | **Light** | per-biome key light, rim light, grading. |
 | 7c | **Spectacle** | boss intros, light shafts, screen distortion; a procedural chiptune loop if time allows — there is no music at launch. |
 | 8 | **Balance** | simulator retune against the targets above; the Balance state below rewritten and dated. |
 
-Phases 2 and 3 are independent and can run in parallel; 5 and 6b can run in
-parallel once 4 lands, 6a follows 5; 7a–7c each ship alone.
+Phases 2 and 3 are independent and can run in parallel; 5 and 6b run in
+parallel once 4 lands, 6a follows both; 7a–7c each ship alone.
 
 ## Balance state
 
@@ -1062,8 +1125,10 @@ Not yet measured — v3 has no numbers behind it. The v2 table is retired with
 the v2 rules. Paper numbers last moved in the round-3 review (2026-09-05):
 `ENRAGE_TURN` 40 → 100, `VIOLENT_CHANCE` 0.30 → 0.40, `WILL_TURNS` 2 → 3,
 `LEGENDARY_MAIN_MULT` 1.2 → 1.5, `COMPARE_WEIGHTS.DEF` 0.6 → 0.25, GUARD +15
-→ +30 % DEF, SCHISM's curse ×0.5 → ×0. This section gets rewritten at phase
-8 and dated.
+→ +30 % DEF, SCHISM's curse ×0.5 → ×0; round 4 (same day): `DESTROY_DEALT`
+0.30 → 0.40 and the 2+2+2 fallback cap at one application; round 5 (same
+day): `NEMESIS_ATB` 0.15 → 0.40, HASTE's curse ×1.2 → ×1.1. This section gets
+rewritten at phase 8 and dated.
 
 ## Open questions
 

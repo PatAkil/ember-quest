@@ -22,9 +22,32 @@ export const ENEMIES: Record<string, EnemyDef> = {
     base: { hp: 1250, atk: 300, def: 150, spd: 95 }, skills: ['SHIELD_BASH', 'BRACE', 'IMMOLATE'], ai: 'FOCUS' },
   HOLLOW_KING: { id: 'HOLLOW_KING', name: 'Hollow King', kind: 'BOSS', element: 'DARK',
     base: { hp: 1250, atk: 300, def: 150, spd: 95 }, skills: ['REAP', 'DREAD_WAIL', 'SHROUD', 'DOOM'], ai: 'FOCUS' },
+
+  // --- FROST MARSH (act 2) — WATER dominant, FIRE foil, LIGHT boss ---------------
+  // Bases stay at act-1 scale; ACT_MULT[1] makes them act 2. The marsh slows,
+  // freezes and cracks armour: the toad SLOWs, the wisp STUNs, the crab (a hard
+  // PHYSICAL shell, soft to MAGIC) DEF_BREAKs the leader, the hag shields and
+  // salves the pack, and the fen fire is the fragile FIRE foil that BURNs.
+  BOG_TOAD: { id: 'BOG_TOAD', name: 'Bog Toad', kind: 'NORMAL', element: 'WATER',
+    base: { hp: 1350, atk: 270, def: 160, spd: 92 }, skills: ['TONGUE_LASH', 'BOG_SPIT'], ai: 'SPREAD' },
+  FROST_WISP: { id: 'FROST_WISP', name: 'Frost Wisp', kind: 'NORMAL', element: 'WATER',
+    base: { hp: 1000, atk: 300, def: 120, spd: 104 }, skills: ['CHILL', 'DEEP_FREEZE'], ai: 'SPREAD' },
+  MARSH_HAG: { id: 'MARSH_HAG', name: 'Marsh Hag', kind: 'NORMAL', element: 'WATER',
+    base: { hp: 1450, atk: 230, def: 180, spd: 96 }, skills: ['CANE', 'SALVE', 'BRINE_WARD'], ai: 'SPREAD', support: true },
+  SILT_CRAB: { id: 'SILT_CRAB', name: 'Silt Crab', kind: 'NORMAL', element: 'WATER',
+    base: { hp: 1300, atk: 210, def: 230, spd: 88 }, resist: { PHYSICAL: 20, MAGIC: 5 }, skills: ['PINCH', 'CRUSH'], ai: 'FOCUS' },
+  FEN_FIRE: { id: 'FEN_FIRE', name: 'Fen Fire', kind: 'NORMAL', element: 'FIRE',
+    base: { hp: 950, atk: 340, def: 110, spd: 106 }, pts: { CRIT: 25 }, skills: ['FLICKER', 'IGNITE'], ai: 'SPREAD' },
+  // The elite Deluges (AoE DEF_BREAK), then Drags the leader Under (HEAL_BLOCK)
+  // and hacks; the boss Floods (AoE DEF_BREAK), Smites the broken leader, and
+  // at A5 Sanctifies — heal, cleanse everything, DEF_UP.
+  DROWNED_KNIGHT: { id: 'DROWNED_KNIGHT', name: 'Drowned Knight', kind: 'ELITE', element: 'WATER',
+    base: { hp: 1250, atk: 300, def: 150, spd: 95 }, skills: ['RUSTED_BLADE', 'DRAG_UNDER', 'DELUGE'], ai: 'FOCUS' },
+  PALE_SAINT: { id: 'PALE_SAINT', name: 'Pale Saint', kind: 'BOSS', element: 'LIGHT',
+    base: { hp: 1250, atk: 300, def: 150, spd: 95 }, skills: ['HALO_LASH', 'SMITE', 'PALE_FLOOD', 'SANCTIFY'], ai: 'FOCUS' },
 };
 
-/** Biomes in act order. Acts 2–6 are authored by phases 2 and 6; until then BIOMES holds act 1. */
+/** Biomes in act order. Acts 3–6 are authored by phase 6b; until then BIOMES holds acts 1–2. */
 export const BIOMES: Biome[] = [
   {
     name: 'EMBER CRYPT', dominant: 'FIRE', foil: 'WIND',
@@ -37,6 +60,18 @@ export const BIOMES: Biome[] = [
     ],
     elites: [['PYRE_KNIGHT'], ['PYRE_KNIGHT', 'CINDER_IMP']],
     boss: 'HOLLOW_KING',
+  },
+  {
+    name: 'FROST MARSH', dominant: 'WATER', foil: 'FIRE',
+    fights: [
+      ['BOG_TOAD', 'FROST_WISP'],
+      ['FROST_WISP', 'FEN_FIRE'],
+      ['SILT_CRAB', 'BOG_TOAD'],
+      ['BOG_TOAD', 'MARSH_HAG', 'FEN_FIRE'],
+      ['FROST_WISP', 'MARSH_HAG', 'SILT_CRAB'],
+    ],
+    elites: [['DROWNED_KNIGHT'], ['DROWNED_KNIGHT', 'FROST_WISP']],
+    boss: 'PALE_SAINT',
   },
 ];
 

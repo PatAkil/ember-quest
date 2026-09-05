@@ -95,6 +95,38 @@ export const SKILLS: Record<SkillId, SkillDef> = {
     applies: [{ status: 'INVINCIBLE', chance: 1, turns: T.INVINCIBLE }], verb: 'shrouds' },
   DOOM: { id: 'DOOM', name: 'Doom', cooldown: 4, mult: 2.0, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY',
     applies: [{ status: 'HEAL_BLOCK', chance: CHANCE_PRIMARY, turns: T.HEAL_BLOCK }], verb: 'dooms' },
+
+  // --- FROST MARSH ------------------------------------------------------------
+  // The marsh slows, freezes and cracks armour; its hag shields the pack; the
+  // elite breaks the party's DEF then blocks its heals; the boss floods (AoE
+  // DEF_BREAK) and follows with a telegraphed Smite, purging itself at A5.
+  TONGUE_LASH: { id: 'TONGUE_LASH', name: 'Tongue Lash', cooldown: 0, mult: 1.0, hits: 1, scale: 'ATK', kind: 'PHYSICAL', target: 'ENEMY', verb: 'whips' },
+  BOG_SPIT: { id: 'BOG_SPIT', name: 'Bog Spit', cooldown: 3, mult: 0.7, hits: 1, scale: 'ATK', kind: 'PHYSICAL', target: 'ENEMY',
+    applies: [{ status: 'SLOW', chance: CHANCE_PRIMARY, turns: T.SLOW }], verb: 'spits at' },
+  CHILL: { id: 'CHILL', name: 'Chill', cooldown: 0, mult: 0.9, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY', verb: 'chills' },
+  DEEP_FREEZE: { id: 'DEEP_FREEZE', name: 'Deep Freeze', cooldown: 4, mult: 0.8, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY',
+    applies: [{ status: 'STUN', chance: CHANCE_PRIMARY, turns: T.STUN }], verb: 'freezes' },
+  CANE: { id: 'CANE', name: 'Cane', cooldown: 0, mult: 0.8, hits: 1, scale: 'ATK', kind: 'PHYSICAL', target: 'ENEMY', verb: 'canes' },
+  SALVE: { id: 'SALVE', name: 'Salve', cooldown: 3, mult: 0, hits: 0, scale: 'ATK', kind: 'MAGIC', target: 'LOWEST_HP_ALLY', heal: 0.2, verb: 'salves' },
+  BRINE_WARD: { id: 'BRINE_WARD', name: 'Brine Ward', cooldown: 4, mult: 0, hits: 0, scale: 'ATK', kind: 'MAGIC', target: 'ALL_ALLIES',
+    applies: [{ status: 'SHIELD', chance: 1, turns: T.SHIELD, magnitude: 0.15 }], verb: 'wards' },
+  PINCH: { id: 'PINCH', name: 'Pinch', cooldown: 0, mult: 1.1, hits: 1, scale: 'DEF', kind: 'PHYSICAL', target: 'ENEMY', verb: 'pinches' },
+  CRUSH: { id: 'CRUSH', name: 'Crush', cooldown: 4, mult: 1.4, hits: 1, scale: 'DEF', kind: 'PHYSICAL', target: 'ENEMY',
+    applies: [{ status: 'DEF_BREAK', chance: CHANCE_PRIMARY, turns: T.DEF_BREAK }], verb: 'crushes' },
+  FLICKER: { id: 'FLICKER', name: 'Flicker', cooldown: 0, mult: 0.9, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY', verb: 'flickers at' },
+  IGNITE: { id: 'IGNITE', name: 'Ignite', cooldown: 3, mult: 0.8, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY',
+    applies: [{ status: 'BURN', chance: CHANCE_PRIMARY, turns: T.BURN }], verb: 'ignites' },
+  RUSTED_BLADE: { id: 'RUSTED_BLADE', name: 'Rusted Blade', cooldown: 0, mult: 1.2, hits: 1, scale: 'ATK', kind: 'PHYSICAL', target: 'ENEMY', verb: 'hacks' },
+  DRAG_UNDER: { id: 'DRAG_UNDER', name: 'Drag Under', cooldown: 3, mult: 1.0, hits: 1, scale: 'ATK', kind: 'PHYSICAL', target: 'ENEMY',
+    applies: [{ status: 'HEAL_BLOCK', chance: CHANCE_PRIMARY, turns: T.HEAL_BLOCK }], verb: 'drags under' },
+  DELUGE: { id: 'DELUGE', name: 'Deluge', cooldown: 5, mult: 0.7, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ALL_ENEMIES',
+    applies: [{ status: 'DEF_BREAK', chance: CHANCE_SECONDARY, turns: T.DEF_BREAK }], verb: 'deluges' },
+  HALO_LASH: { id: 'HALO_LASH', name: 'Halo Lash', cooldown: 0, mult: 1.2, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY', verb: 'scourges' },
+  SMITE: { id: 'SMITE', name: 'Smite', cooldown: 4, mult: 1.8, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ENEMY', verb: 'smites' },
+  PALE_FLOOD: { id: 'PALE_FLOOD', name: 'Pale Flood', cooldown: 3, mult: 0.8, hits: 1, scale: 'ATK', kind: 'MAGIC', target: 'ALL_ENEMIES',
+    applies: [{ status: 'DEF_BREAK', chance: CHANCE_SECONDARY, turns: T.DEF_BREAK }], verb: 'floods over' },
+  SANCTIFY: { id: 'SANCTIFY', name: 'Sanctify', cooldown: 5, mult: 0, hits: 0, scale: 'ATK', kind: 'MAGIC', target: 'SELF', heal: 0.1, cleanse: 99,
+    applies: [{ status: 'DEF_UP', chance: 1, turns: T.DEF_UP }], verb: 'sanctifies' },
 };
 
 /** Every SkillId, in table order — the harness and validateData walk this. */

@@ -5,8 +5,8 @@
 import type { Pact, PactId } from '../types';
 
 export const PACTS: Record<PactId, Pact> = {
-  HASTE: { id: 'HASTE', name: 'Pact of Haste', blurb: 'Enemies +20% SPD; +1 card',
-    curse: { kind: 'ENEMY_SPD_PCT', pct: 20 }, boon: { kind: 'EXTRA_CARDS', count: 1 } },
+  HASTE: { id: 'HASTE', name: 'Pact of Haste', blurb: 'Enemies +10% SPD; +1 card',
+    curse: { kind: 'ENEMY_SPD_PCT', pct: 10 }, boon: { kind: 'EXTRA_CARDS', count: 1 } },
   FURY: { id: 'FURY', name: 'Pact of Fury', blurb: 'Foes +15% ATK; party +15% ATK',
     curse: { kind: 'ENEMY_ATK_PCT', pct: 15 }, boon: { kind: 'PARTY_ATK_PCT', pct: 15 } },
   VEIL: { id: 'VEIL', name: 'Pact of the Veil', blurb: 'Bosses open immune; EPICs +1',
