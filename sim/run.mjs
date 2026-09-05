@@ -9,10 +9,11 @@
 //   node sim/run.mjs --runs 2000                       # full-run mode — not until phase 6a lands simulateRun
 //
 // DESIGN.md → Difficulty targets. The --battles mode runs each selected
-// policy's `act` over BATTLE_FIXTURES and prints, per policy × fixture, the
-// win rate, mean actor turns, stall and enrage rates and the party's mean HP
-// fraction at the end. It exits non-zero when any stall rate is above
-// STALL_MAX (0.5 %).
+// policy's `act` over BATTLE_FIXTURES (the act-1 packs: fights, elites, boss),
+// reseeding mulberry32(seed) per policy × pack, and prints one row per cell:
+// policy · pack · win % · turns (mean actorTurns) · stall % · enrage % · hp end
+// (mean over the party of ending HP ÷ starting HP — fixtures start at full
+// HP). It exits non-zero when any stall rate is above STALL_MAX (0.5 %).
 //
 // Refusal rules (DESIGN.md → Module layout), never weakened: the harness will
 // not run if the sim bundle mentions `window`, `document`, `localStorage` or
@@ -76,7 +77,6 @@ try {
   const rngMod = await bundle('../game/sim/rng.ts', 'rng.bundle.mjs');
   const { mulberry32 } = rngMod;
   if (typeof mulberry32 !== 'function') throw new Error('game/sim/rng.ts must export mulberry32(seed)');
-  const { ENRAGE_TURN } = data;
 
   const acts = sim.POLICY_ACTS;
   if (!acts) throw new Error('game/sim/battle.ts must export POLICY_ACTS');
@@ -92,29 +92,14 @@ try {
     return hit;
   });
 
-  /** A fresh party and pack for one battle: the fixture's own builder, else the module's. */
-  const make = (fixture, rng) => {
-    if (typeof fixture.make === 'function') return fixture.make(rng);
-    if (typeof sim.buildFixture === 'function') return sim.buildFixture(fixture, rng);
-    throw new Error('battle.ts must export buildFixture(fixture, rng) or give each fixture a make(rng)');
-  };
-  /** Mean hp / maxHp over the party at the end of a battle (0 for the fallen). */
-  const hpFraction = (result, built) => {
-    const members = result.party?.members ?? [];
-    if (!members.length) return 0;
+  /** A fresh party and pack for one battle: battle.ts's builder, which runs the fixture's own make(rng). */
+  const make = (fixture, rng) => (typeof sim.buildFixture === 'function' ? sim.buildFixture(fixture, rng) : fixture.make(rng));
+  /** Mean over the party of ending HP ÷ starting HP (full HP at build, so hp / maxHp; the fallen count 0). */
+  const hpFraction = (before, after) => {
+    if (!before.length) return 0;
     let sum = 0;
-    for (let i = 0; i < members.length; i++) {
-      const m = members[i];
-      const maxHp = m.maxHp ?? built.party?.members?.[i]?.maxHp ?? built.heroes?.[i]?.maxHp ?? m.def?.base?.hp ?? 0;
-      sum += maxHp > 0 ? Math.max(0, m.hp) / maxHp : 0;
-    }
-    return sum / members.length;
-  };
-  /** A battle where an enemy turn ran ENRAGED: the result's own field when it has one, else the turn count. */
-  const enraged = (result) => {
-    if (typeof result.enraged === 'boolean') return result.enraged;
-    if (typeof result.enrages === 'number') return result.enrages > 0;
-    return result.actorTurns >= ENRAGE_TURN;
+    for (let i = 0; i < before.length; i++) sum += before[i] > 0 ? Math.max(0, after[i]?.hp ?? 0) / before[i] : 0;
+    return sum / before.length;
   };
 
   const rows = [];
@@ -125,34 +110,35 @@ try {
       const s = { won: 0, turns: 0, stalls: 0, enrages: 0, hp: 0 };
       for (let i = 0; i < N; i++) {
         const built = make(fixture, rng);
+        const before = built.party.members.map((m) => m.hp);
         const r = sim.simulateBattle(built.party, built.enemies, policy, rng);
         if (r.won) s.won++;
         if (r.stall) s.stalls++;
-        if (enraged(r)) s.enrages++;
+        if (r.enraged) s.enrages++;
         s.turns += r.actorTurns;
-        s.hp += hpFraction(r, built);
+        s.hp += hpFraction(before, r.party.members);
       }
-      rows.push({ policy: name, fixture: fixture.name, battles: N, winRate: s.won / N, meanTurns: s.turns / N,
+      rows.push({ policy: name, pack: fixture.name, battles: N, winRate: s.won / N, meanTurns: s.turns / N,
         stallRate: s.stalls / N, enrageRate: s.enrages / N, meanHpFraction: s.hp / N });
     }
   }
 
   const pct = (x, digits = 1) => `${(100 * x).toFixed(digits).padStart(5)}%`;
   const wP = Math.max(6, ...rows.map((r) => r.policy.length));
-  const wF = Math.max(7, ...rows.map((r) => r.fixture.length));
+  const wF = Math.max(4, ...rows.map((r) => r.pack.length));
   if (JSON_OUT) {
     console.log(JSON.stringify({ mode: 'battles', seed: SEED, battles: N, rows }, null, 2));
   } else {
-    console.log(`battles ${N} per cell, seed ${SEED}, act = each policy's act over BATTLE_FIXTURES`);
-    console.log(`${'policy'.padEnd(wP)}  ${'fixture'.padEnd(wF)}    win   turns  stall  enrage  hp end`);
+    console.log(`battles ${N} per cell, seed ${SEED} (reseeded per cell), act = each policy's act over BATTLE_FIXTURES`);
+    console.log(`${'policy'.padEnd(wP)}  ${'pack'.padEnd(wF)}    win   turns  stall  enrage  hp end`);
     for (const r of rows) {
-      console.log(`${r.policy.padEnd(wP)}  ${r.fixture.padEnd(wF)} ${pct(r.winRate)} ${r.meanTurns.toFixed(1).padStart(7)} ${pct(r.stallRate)} ${pct(r.enrageRate)} ${pct(r.meanHpFraction, 0).padStart(7)}`);
+      console.log(`${r.policy.padEnd(wP)}  ${r.pack.padEnd(wF)} ${pct(r.winRate)} ${r.meanTurns.toFixed(1).padStart(7)} ${pct(r.stallRate)} ${pct(r.enrageRate)} ${pct(r.meanHpFraction, 0).padStart(7)}`);
     }
   }
   const stalled = rows.filter((r) => r.stallRate > STALL_MAX);
   if (stalled.length) {
     console.error(`STALL GATE: ${stalled.length} cell(s) above ${100 * STALL_MAX}% stalls: ` +
-      stalled.map((r) => `${r.policy} × ${r.fixture} ${pct(r.stallRate, 2).trim()}`).join(', '));
+      stalled.map((r) => `${r.policy} × ${r.pack} ${pct(r.stallRate, 2).trim()}`).join(', '));
     exitCode = 1;
   }
 } catch (e) {
