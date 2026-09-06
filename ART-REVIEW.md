@@ -1653,7 +1653,7 @@ What I verified about the reference before drawing (and where the brief needed c
 
 The owner chose B on 2026-09-06 from the study sheets and the in-scene composite (the
 kit's EMBER and the hand-drawn EMBER at the same seat of the lit crypt): the six heroes
-and the seven bosses drawn by hand as pixel grids at the kit's own cell, staged (the grid
+and the six bosses drawn by hand as pixel grids at the kit's own cell, staged (the grid
 branch, then EMBER's fourteen frames judged in a battle frame, then the heroes, then the
 bosses), the ordinary enemies on the kit under the engine's value-law fix. The defining
 prompt is `.claude/prompts/pixel-pipeline.md`. The kit's sprite loop stays paused; its

@@ -256,7 +256,7 @@ Each of these was found by a blind verifier or critic and left as is, with the r
 ## Next, in order
 
 1. **The sprite pipeline, option B — decided by the owner on 2026-09-06.** The six heroes
-   and the seven bosses redrawn by hand as pixel grids at the kit's own cell; the ordinary
+   and the six bosses redrawn by hand as pixel grids at the kit's own cell; the ordinary
    enemies stay on the kit with the palette fixed in the engine (item 2). The defining
    prompt is `.claude/prompts/pixel-pipeline.md`: stage 0 the grid branch in `drawActor`
    (a `PixelActor` registry, so hand-drawn and kit actors share the stage), stage 1 EMBER's
