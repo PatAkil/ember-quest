@@ -11,7 +11,9 @@
 //   sheet=poses    one actor (actor=ID), 5 poses x 3 frames
 //   mode=color | grey | sil   colour, greyscale (value read), flat silhouette
 //   zoom=N         screen pixels per cell (default ACTOR_SCALE = 2)
-//   group=all | heroes | enemies | ID,ID,...   which actors (lineup)
+//   group=all | heroes | enemies | ruins | forge | vault | spire | late | ID,ID,...
+//                  which actors (lineup); the four named packs are acts 3-6 and
+//                  `late` is all twenty-four of them
 //   cols=N         grid columns (lineup; default 7, or 4 at zoom >= 4)
 //   bg=RRGGBB      the ground colour (default the stage navy, 1d2b53)
 //
@@ -31,6 +33,17 @@ const actorParam = params.get('actor') ?? 'EMBER';
 const cols = Math.max(1, Number(params.get('cols') ?? (zoom >= 4 ? 4 : 7)));
 
 const HEROES = ['EMBER', 'GALE', 'TIDE', 'BASALT', 'SABLE', 'LUMEN'];
+/**
+ * The four acts 3-6 packs, in the order game/data/enemies.ts's BIOMES lists
+ * them, so a pack can be shot on its own the way `crypt` and `marsh` are:
+ * `?group=ruins&zoom=4`. `late` is all twenty-four — the plate to read the four
+ * packs against each other on.
+ */
+const RUINS = ['RUIN_RAPTOR', 'WIND_SPRITE', 'RUIN_SENTINEL', 'DROWNED_CLOUD', 'STORM_DRAKE', 'SKYFALLEN_KING'];
+const FORGE = ['FORGE_GOLEM', 'CINDER_WOLF', 'SMITH_PRIEST', 'STEAM_WRAITH', 'FURNACE_KNIGHT', 'FORGE_SAINT'];
+const VAULT = ['DROWNED_SENTINEL', 'VAULT_JELLY', 'TIDE_ORACLE', 'WIND_EEL', 'LEVIATHAN_SPAWN', 'SUNKEN_KING'];
+const SPIRE = ['LIGHTNING_HAWK', 'GALE_MONK', 'SPIRE_WARDEN', 'EMBER_ELEMENTAL', 'THUNDER_COLOSSUS', 'SPIRE_SERAPH'];
+const GROUPS: Record<string, readonly string[]> = { ruins: RUINS, forge: FORGE, vault: VAULT, spire: SPIRE, late: [...RUINS, ...FORGE, ...VAULT, ...SPIRE] };
 const POSES: readonly PoseName[] = ['idle', 'attack', 'hurt', 'cast', 'dead'];
 /** Every cell is sized for the boss canvas so one grid fits every recipe; `LABEL` rows sit under it. */
 const CELL_CELLS = 100;
@@ -42,6 +55,8 @@ function ids(): string[] {
   if (groupParam === 'all') return all;
   if (groupParam === 'heroes') return all.filter((id) => HEROES.includes(id));
   if (groupParam === 'enemies') return all.filter((id) => !HEROES.includes(id));
+  const named = GROUPS[groupParam];
+  if (named) return all.filter((id) => named.includes(id));
   return groupParam.split(',').map((s) => s.trim()).filter((id) => id in ACTOR_RECIPES);
 }
 
@@ -87,7 +102,17 @@ export interface ActorMetrics {
   nearestIoU: number;
 }
 
-const HUMANOIDS = new Set(['EMBER', 'GALE', 'TIDE', 'BASALT', 'SABLE', 'LUMEN', 'CRYPT_WARDEN', 'PYRE_KNIGHT', 'DROWNED_KNIGHT', 'MARSH_HAG', 'HOLLOW_KING', 'PALE_SAINT']);
+// The mirror-IoU criterion applies to figures with legs and a weapon side —
+// the acts 3-6 humanoids and bosses are in it for the same reason the act 1-2
+// ones are; the creatures (a raptor, a jelly, a coil) are not.
+const HUMANOIDS = new Set([
+  'EMBER', 'GALE', 'TIDE', 'BASALT', 'SABLE', 'LUMEN',
+  'CRYPT_WARDEN', 'PYRE_KNIGHT', 'DROWNED_KNIGHT', 'MARSH_HAG', 'HOLLOW_KING', 'PALE_SAINT',
+  'RUIN_SENTINEL', 'SKYFALLEN_KING',
+  'FORGE_GOLEM', 'SMITH_PRIEST', 'FURNACE_KNIGHT', 'FORGE_SAINT',
+  'DROWNED_SENTINEL', 'TIDE_ORACLE', 'SUNKEN_KING',
+  'GALE_MONK', 'SPIRE_WARDEN', 'THUNDER_COLOSSUS', 'SPIRE_SERAPH',
+]);
 interface Mask {
   w: number;
   h: number;
