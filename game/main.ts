@@ -60,18 +60,18 @@ import type { BiomeLook, Light, LightActor, LightTier } from '../engine';
 import type { Battle } from './sim/battle';
 import { forecast } from './sim/battle';
 import { ACTS, SLOTS, VAULT_EQUIP_MAX } from './types';
-import type { RunResult } from './types';
+import type { RunConfig, RunResult } from './types';
 import {
   CANVAS_W, CANVAS_H, PAUSE_BTN, PAUSE_BTN_X, PAUSE_BTN_Y, PAUSED_TEXT_Y, SAFE_INSET,
 } from './screens/layout';
 import { EDGE_LIT, FOCUS_RING, drawPrimaryButton, hudText, hudTextCentered, hudWidth, plate } from './screens/hud';
 import { createRunScreen, runConfig } from './screens/run';
-import type { RunScreen } from './screens/run';
+import type { HeroChoice, RunScreen } from './screens/run';
 import { createCardsScreen } from './screens/cards';
 import { createTitleScreen } from './screens/title';
 import { createEndScreen } from './screens/end';
 import { createBattleScreen } from './screens/battle';
-import { createDraftScreen } from './screens/draft';
+import { FACE_ID, createDraftScreen } from './screens/draft';
 import type { DraftAnswer, DraftProps } from './screens/draft';
 import { createMapScreen } from './screens/map';
 import type { MapProps } from './screens/map';
@@ -185,6 +185,22 @@ function renderScene(drawWorld?: () => void, actors?: readonly LightActor[]): vo
 let run: RunScreen | null = null;
 let activeBattle: Battle | null = null;
 let lastRunPhase: string | null = null;
+/**
+ * The hero turns of the battle now on screen, as the player played them. The
+ * battle screen resolves a turn from ITS activations — a `skill-N` row, then an
+ * `enemy-N`/`hero-N` target where the skill takes one — and those activations
+ * are resolved on this file's own region registry, so they can be read back
+ * here without the screen having to report anything. A turn is committed the
+ * frame the battle phase leaves the hero's half of it.
+ *
+ * This is the one thing a replay cannot re-derive: `battle.rng` IS the run's
+ * rng, so a battle answered by different choices consumes a different stream
+ * and every later room diverges. See screens/run.ts's `HeroChoice`.
+ */
+const heroChoices: HeroChoice[] = [];
+let turnActorId: string | null = null;
+let turnSkill = -1;
+let turnTarget = -1;
 let lastScore = 0;
 let clock = 0;
 
@@ -208,9 +224,12 @@ let heldEquip: number[] = [];
 let chosenAscension = 0;
 /** The party screen opened over the map (its PARTY button, or B) — not a pending, a look at the party. */
 let partyOpen = false;
+/** Which screen owned the last frame — the edge that decides where the keyboard lands (see focusOnOpen). */
+let lastScreenKey = '';
 
-/** The run's seed: a dev `?seed=` override (replay), else a fresh draw per run. */
+/** The run's seed and the config it was built with — a replay's other two inputs beside the decision log. */
 let runSeed = 0;
+let runCfg: RunConfig = runConfig();
 function nextSeed(): number {
   if (DEV) {
     const q = new URLSearchParams(window.location.search).get('seed');
@@ -240,11 +259,12 @@ function startRun(): void {
   preRun = null;
   partyOpen = false;
   runSeed = nextSeed();
-  run = createRunScreen(mulberry32(runSeed), runConfig({
+  runCfg = runConfig({
     ascension: chosenAscension,
     vault: [...vaultSave.vault],
     vaultSlots: vaultSave.vaultSlots,
-  }));
+  });
+  run = createRunScreen(mulberry32(runSeed), runCfg);
   activeBattle = null;
   lastRunPhase = null;
   lastScore = 0;
@@ -379,6 +399,20 @@ type ScreenKey =
   | 'NONE' | 'PRE_VAULT' | 'PARTY' | 'ROOM' | 'CARDS' | 'BATTLE'
   | 'DRAFT' | 'VAULT_EQUIP' | 'SUMMON' | 'LEADER' | 'ROUTE' | 'RELIC'
   | 'REST' | 'SHRINE' | 'FORGE' | 'ALTAR' | 'LAP' | 'BANK';
+
+/**
+ * The keyboard's landing spot when a screen opens. Only the SUMMON asks for
+ * one: it arrives directly behind the draft, which leaves the focus on its own
+ * CONTINUE (slot 0 is pre-picked there), and a SUMMON's CONTINUE is disabled
+ * until something is chosen — so the keyboard would land on a dead seat. Its
+ * first offer is the honest spot. screens/draft.ts gives each face its own id
+ * namespace (`FACE_ID`), so this names the SUMMON's first card rather than a
+ * literal that a rename could quietly break. `focus()` is validated at the next
+ * end(), so setting it here — before the screen registers — is in time.
+ */
+function focusOnOpen(key: ScreenKey): void {
+  if (key === 'SUMMON') regions.focus(`${FACE_ID.SUMMON}-0`);
+}
 
 function screenKey(): ScreenKey {
   if (preRun === 'VAULT') return 'PRE_VAULT';
@@ -552,6 +586,10 @@ function update(dt: number): void {
     if (!activeBattle) {
       const p = run.pending();
       activeBattle = run.beginBattle();
+      heroChoices.length = 0;
+      turnActorId = null;
+      turnSkill = -1;
+      turnTarget = -1;
       battleScreen.begin(activeBattle, {
         act: p && p.kind === 'BATTLE' ? p.act : run.view().act,
         lap: p && p.kind === 'BATTLE' ? p.lap : run.view().lap,
@@ -560,14 +598,33 @@ function update(dt: number): void {
       });
     }
     run.armTick();
+    // Whose turn is open, and how far into it we are, BEFORE the screen ticks.
+    const wasHeroTurn = battleScreen.phase === 'HERO_SKILL' || battleScreen.phase === 'HERO_TARGET';
+    if (battleScreen.phase === 'HERO_SKILL' && battleScreen.currentActorId) turnActorId = battleScreen.currentActorId;
     battleScreen.update(dt);
+    // ...and what the player pressed on it. `activated()` holds the id this
+    // tick resolved (the screen's own end() computed it), so reading it again
+    // here consumes nothing and sees exactly what the screen acted on.
+    const pressed = regions.activated();
+    if (pressed) {
+      if (pressed.startsWith('skill-')) turnSkill = Number(pressed.slice(6));
+      else if (pressed.startsWith('enemy-')) turnTarget = Number(pressed.slice(6));
+      else if (pressed.startsWith('hero-')) turnTarget = Number(pressed.slice(5));
+    }
+    const stillHeroTurn = battleScreen.phase === 'HERO_SKILL' || battleScreen.phase === 'HERO_TARGET';
+    if (wasHeroTurn && !stillHeroTurn && turnSkill >= 0) {
+      heroChoices.push({ actor: turnActorId ?? '', skill: turnSkill, target: turnTarget });
+      turnSkill = -1;
+      turnTarget = -1;
+      turnActorId = null;
+    }
     const result = battleScreen.result();
     if (result) {
       // A quit-to-forfeit (battleScreen's own `forfeit` tag) rides on the result
       // itself and run.ts reads it there: a won result comes back a loss, and
       // screens/run.ts remembers the RETREAT for the end screen's verdict line.
       // Who landed the killing blow is the seam's own `deathBy` now.
-      run.afterBattle(result);
+      run.afterBattle(result, heroChoices);
       activeBattle = null;
     }
     if (run.score !== lastScore) { lastScore = run.score; runtime.scoreChanged(lastScore); }
@@ -602,7 +659,12 @@ function update(dt: number): void {
         scenes.to(result.won ? 'WIN' : 'GAME_OVER');
       }
     }
-    if (!scenes.is('PLAYING')) return;
+    // The frame the run ends on still owes the registry a complete tick: the
+    // scene has moved to GAME_OVER/WIN and the end screen's own update() does
+    // not run until the next frame, so without this the pointer and dirPressed
+    // edges raised on this one would survive into it and fire a button nobody
+    // pressed there.
+    if (!scenes.is('PLAYING')) { idleTick(); return; }
     // The run's own VAULT_EQUIP: already answered on the pre-run face, so it is
     // handed the list that face returned instead of asking a second time.
     if (run.pending()?.kind === 'VAULT_EQUIP') {
@@ -619,9 +681,22 @@ function update(dt: number): void {
   // tap, a handler firing after the run already moved) is refused by the seam
   // instead of landing on the decision behind it.
   run?.armTick();
+  const key = screenKey();
+  if (key !== lastScreenKey) { lastScreenKey = key; focusOnOpen(key); }
   updateScreen(dt);
   if (pausePressed) scenes.to('PAUSED');
   if (run && run.score !== lastScore) { lastScore = run.score; runtime.scoreChanged(lastScore); }
+}
+
+/**
+ * A complete tick with no screen behind it: begin -> end -> endFrame, so a
+ * frame that registers nothing still CONSUMES this frame's edges instead of
+ * leaving them for whatever screen runs next.
+ */
+function idleTick(): void {
+  regions.begin();
+  regions.end();
+  input.endFrame();
 }
 
 /** The one screen update this tick. Each branch is a complete tick and ends the frame itself. */
@@ -661,9 +736,7 @@ function updateScreen(dt: number): void {
   // Nothing is standing (a torn frame between two answers, or the pre-run
   // title): still a complete tick, so this frame's edges are consumed like
   // every other.
-  regions.begin();
-  regions.end();
-  input.endFrame();
+  idleTick();
 }
 
 // --- Render ---------------------------------------------------------------------
@@ -835,9 +908,18 @@ if (DEV) {
     },
     /** The finished run, if it is finished. */
     result: () => run?.result() ?? null,
-    /** The seed this run was created with, and every answer given — a headless replay's two inputs. */
+    /**
+     * The three inputs a headless replay needs: the seed, the config the run was
+     * built with, and every answer given (a BATTLE answer carries the hero turns
+     * that produced it — `battle.rng` is the run's own rng, so nothing less
+     * reproduces the stream).
+     */
     seed: () => runSeed,
-    decisions: () => run?.decisions() ?? [],
+    config: () => ({
+      ascension: runCfg.ascension, vaultSlots: runCfg.vaultSlots,
+      roster: [...runCfg.roster], vault: runCfg.vault.length,
+    }),
+    decisions: () => run?.decisions?.() ?? [],
     /** What each phase-5 screen believes it is showing (its own view(props)) — null when it is not up. */
     map: () => { const p = mapProps(); return p ? mapScreen.view(p) : null; },
     party: () => { const p = partyProps(); return p ? partyScreen.view(p) : null; },

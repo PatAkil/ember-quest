@@ -15,15 +15,19 @@
 //                                          # what it proves is that every screen is reachable and answerable by
 //                                          # a player, not that the seam works. It writes playfull-*.png for
 //                                          # every distinct screen it passes (vault equip, draft, summon,
-//                                          # leader, map, each room card, battle, cards, wear, shrine/forge/
-//                                          # altar/rest, doors, bank, the end screen), a PLAYFULL OK line, and
+//                                          # leader, map, pause, party, each room card, battle, cards, wear,
+//                                          # shrine/forge/altar/rest, doors, bank, the end screen), a verdict
+//                                          # line — PLAYFULL OK only when `acts` acts were cleared (or the run
+//                                          # was won, or ko=1 asked for the death that ended it); PLAYFULL
+//                                          # ENDED with the act and room, and a non-zero exit, when the party
+//                                          # died instead; PLAYFULL STALLED on a budget overrun — and
 //                                          # playfull-decisions.json — the seed plus every answer given, which
 //                                          # is what replays a failure headlessly.
 //                                          # acts=1 stops at the act-1 clear; phone=1 runs the same loop on a
 //                                          # touch phone (844x390, dpr 3) -> phone-playfull-*.png; ko=1 drops
-//                                          # the last hero to hp 1 inside the first battle, so a KO — the dead
-//                                          # pose, exclusion from targeting, KO_RETURN on the win — is forced
-//                                          # rather than waited for. 16 minutes of budget per act.
+//                                          # the last hero to 1 hp inside the first battle and lets the next
+//                                          # enemy hit DEAL the KO, so a real DEATH plays: three frames go to
+//                                          # the shake, the wipe and the dead pose. 16 minutes of budget per act.
 //   node tools/capture.mjs play            # the phase-4 slice driver retired with the slice: `play` is an
 //                                          # alias for `playfull acts=1` (skip=… no longer applies).
 //   node tools/capture.mjs shot url=/tools/vfx.html?skill=CINDER name=vfx-CINDER [selector=#sheet] [phone=1]
@@ -215,6 +219,8 @@ function partyRowTap(m, row) {
 function partyColTap(m) {
   return [CARD_X[m] + 192, 56 + 228];
 }
+/** The map band's PARTY button, (936, 24, 216, 96) — the only non-routing target there besides PAUSE. */
+const MAP_PARTY_TAP = [1044, 72];
 /** The Vault's ascension stepper, one control on the foot row: ASC_DOWN (40, 552, 96, 96), ASC_UP (352, 552, 96, 96). */
 const ASC_DOWN_TAP = [88, 600];
 const ASC_UP_TAP = [400, 600];
@@ -306,7 +312,11 @@ function newDriver(o = {}) {
     log: [],
     shrineTaken: false,
     vaultPicked: false,
+    /** The two one-shot detours off the first map: PAUSE, then the party overlay. */
+    pausedOnce: false,
+    partyOnce: false,
     koForced: false,
+    koDead: false,
     skillTurn: 0,
     /**
      * The battle back-off, keyed to a TURN and not to an actor. The old version
@@ -379,7 +389,34 @@ async function stepBattle(page, d, s) {
     await wait(page, 260);
     return;
   }
+  // The enemy's half of the turn is where a forced KO lands, so the wait for it
+  // is where the death is watched for — at 30 ms, not at the poll's 160.
+  if (d.ko && d.koForced && !d.koDead) {
+    for (let k = 0; k < 6; k++) {
+      await wait(page, 30);
+      const down = await page.evaluate(() => {
+        const b = window.__eq.battleObj();
+        return !!b && b.heroes.some((h) => !h.alive);
+      }).catch(() => false);
+      if (down) { await deathFrames(page, d); return; }
+    }
+    return;
+  }
   await wait(page, 160);
+}
+
+/**
+ * The three frames of a death, from the moment the sim marks a hero down. The
+ * screen plays that turn's events on its own clock, so these are offsets into
+ * the playback: the DEATH beat's shake (battle.ts asks for juice.shake(22, 0.4)
+ * there), the flash over the shaken tableau, and the pose it settles into.
+ */
+async function deathFrames(page, d) {
+  d.koDead = true;
+  await once(page, d, 'playfull-ko-death-shake', 200);
+  await once(page, d, 'playfull-ko-death-wipe', 180);
+  await once(page, d, 'playfull-ko-dead-pose', 1000);
+  d.log.push('ko=1: the KO was dealt by the pack — shake, wipe and dead pose captured');
 }
 
 /**
@@ -456,6 +493,22 @@ async function stepOnce(page, d, s) {
     }
     case 'ROUTE': {
       await once(page, d, `playfull-map-act${s.view?.act ?? 1}`, 400);
+      // Two detours, once each, off the first map: PAUSE by its KEY (the
+      // overlay resumes by its button, so both routes are exercised) and the
+      // band's PARTY button. Without them neither screen is ever reached by a
+      // driver that only routes.
+      if (!d.pausedOnce) {
+        d.pausedOnce = true;
+        await page.keyboard.press('KeyP');
+        await wait(page, 400);
+        return phase;
+      }
+      if (!d.partyOnce) {
+        d.partyOnce = true;
+        await tapAt(page, MAP_PARTY_TAP, d.touch);
+        await wait(page, 400);
+        return phase;
+      }
       const idxs = p.offeredIdxs ?? [0];
       await tapAt(page, mapNodeTap(p.stage ?? 0, idxs[0] ?? 0), d.touch);
       await wait(page, 450);
@@ -472,16 +525,16 @@ async function stepOnce(page, d, s) {
       await once(page, d, boss ? 'playfull-battle-boss' : `playfull-battle-${p.source ?? 'FIGHT'}`, boss ? 1200 : 900);
       if (d.ko && !d.koForced && (s.tactics?.heroIds?.length ?? 0) > 1) {
         d.koForced = true;
-        // The LIVE Battle's own Actor, which is what the turn loop reads — the
-        // run view is a per-token clone now, so writing to it would change nothing.
+        // hp 1, never 0: the KO has to be DEALT, not assigned. The next enemy
+        // hit that lands takes the hero to zero through the sim, so a real
+        // DEATH event is pushed and the screen plays it — the shake, the wipe
+        // and the pose the actor settles into. (The run view is a per-token
+        // clone, so this writes to the LIVE Battle's own Actor.)
         await page.evaluate(() => {
           const b = window.__eq.battleObj();
           if (b && b.heroes.length) b.heroes[b.heroes.length - 1].hp = 1;
         });
-        d.log.push('ko=1: the last hero dropped to hp 1 inside the first battle');
-      }
-      if (d.ko && !d.shot.has('playfull-ko-dead-pose') && (s.tactics?.heroAlive ?? []).some((a) => !a)) {
-        await once(page, d, 'playfull-ko-dead-pose');
+        d.log.push('ko=1: the last hero left on 1 hp — the next enemy hit deals the KO');
       }
       await stepBattle(page, d, s);
       return phase;
@@ -714,15 +767,25 @@ async function playfull(page, prefix, touch, phone, acts) {
   }
   const tail = await eqRead(page);
   const dev = await page.evaluate(() => ({
-    seed: window.__eq.seed(), decisions: window.__eq.decisions(), result: window.__eq.result(),
+    seed: window.__eq.seed(), config: window.__eq.config ? window.__eq.config() : null,
+    decisions: window.__eq.decisions(), result: window.__eq.result(),
   })).catch(() => null);
+  const won = dev?.result?.won === true;
+  // Three outcomes, and only one of them is OK. `acts` acts cleared is the
+  // mode's job done; a won run (DESCEND) is that too. A DEATH is not — the
+  // driver was asked to clear an act and did not — so it says ENDED and exits
+  // non-zero, unless ko=1 asked for a death in the first place.
   const stalled = !ended && !cleared;
+  const died = ended && !won;
+  const verdict = stalled ? 'STALLED' : died && opts.ko !== '1' ? 'ENDED' : 'OK';
   const report = {
     mode: prefix ? 'phone' : 'desktop',
     acts,
     ko: opts.ko === '1',
+    verdict,
     seed: dev?.seed ?? null,
-    stopped: ended ? 'the run ended' : cleared ? `act ${acts} cleared` : 'the budget ran out',
+    config: dev?.config ?? null,
+    stopped: ended ? (won ? 'the run was won' : 'the party died') : cleared ? `act ${acts} cleared` : 'the budget ran out',
     scene: tail?.scene ?? null,
     phase: tail?.phase ?? null,
     act: tail?.view?.act ?? null,
@@ -746,6 +809,11 @@ async function playfull(page, prefix, touch, phone, acts) {
   if (stalled) {
     console.error(`PLAYFULL STALLED on ${report.phase} after ${acts * 16} minutes`);
     process.exitCode = 1;
+  } else if (verdict === 'ENDED') {
+    console.error(`PLAYFULL ENDED — the party died in act ${report.act} at room ${report.rooms.length} (${report.rooms[report.rooms.length - 1] ?? '?'}), ${acts} act(s) asked for`);
+    process.exitCode = 1;
+  } else if (died) {
+    console.log(`PLAYFULL OK — the party died in act ${report.act}, which is what ko=1 asked for`);
   } else {
     console.log('PLAYFULL OK');
   }

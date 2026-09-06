@@ -50,11 +50,28 @@ export interface RoomCard {
   blurb: string;
 }
 
+/**
+ * One hero turn as the player played it: whose turn, which skill slot, and the
+ * target slot (−1 where the skill takes none). This is what makes a replay
+ * REAL: `battle.rng` is the run's own rng, so a battle answered by anything but
+ * the same choices in the same order consumes a different stream and the run
+ * diverges at the first fight. A headless driver maps each of these back to an
+ * `actOptions(battle, actor)` index and hands it to `runTurn`.
+ */
+export interface HeroChoice {
+  actor: string;
+  skill: number;
+  target: number;
+}
+
 /** One answered decision, JSON-safe, for `__eq.decisions()` and a headless replay. */
 export interface RunDecision {
   kind: RunPendingKind;
   answer: unknown;
 }
+
+/** Dev only — Vite substitutes `false` in the Pages build, so the decision log folds away entirely. */
+const DEV = (import.meta as unknown as { env: { DEV: boolean } }).env.DEV;
 
 export interface RunState {
   phase: RunPhase;
@@ -80,8 +97,12 @@ export interface RunScreen {
   enterRoom(): void;
   /** FIGHT/ELITE/BOSS only: the seam's already-built Battle, for the battle screen's begin(). */
   beginBattle(): Battle;
-  /** The battle screen's finished result, answered into the seam (forfeit tag included). */
-  afterBattle(result: BattleResult): void;
+  /**
+   * The battle screen's finished result, answered into the seam (forfeit tag
+   * included), plus the hero turns that produced it — main.ts reads those off
+   * the battle screen's own activations, and they are what a replay needs.
+   */
+  afterBattle(result: BattleResult, choices?: readonly HeroChoice[]): void;
   /** The current RELIC offer. */
   cards(): Relic[];
   /** Equips cards()[cardIndex] onto party.members[memberIndex] — the seam does the equipping. */
@@ -110,8 +131,12 @@ export interface RunScreen {
   biome(): Biome;
   /** The node taken at each stage of the act so far, stage order — the path the map draws behind the party. */
   taken(): readonly number[];
-  /** Every answer given, in order — dev replay (`__eq.decisions()`). */
-  decisions(): readonly RunDecision[];
+  /**
+   * Every answer given, in order — the replay log. DEV ONLY: the recorder and
+   * this method are both behind `import.meta.env.DEV`, so the production bundle
+   * neither ships the log nor grows one.
+   */
+  decisions?(): readonly RunDecision[];
 }
 
 /** One shared empty offer, so "no cards" is a stable identity too (see `cards()`). */
@@ -143,14 +168,10 @@ export function roomCardFor(room: RoomType | null, biome: string, packIds: reado
 }
 
 /**
- * The name for GAME_OVER. The seam's own `deathBy` first — but it is usually
- * empty under an interactive battle, and that is not a bug in the seam:
- * `findDeathBy` scans `battle.events`, and screens/battle.ts DRAINS that log
- * into its playback queue inside the very call that fills it (runTurn ->
- * schedulePlayback), so nothing outside the screen ever sees a battle event.
- * The pack the party was fighting is the honest second answer, and the one
- * phase 4 gave; a wipe with neither (a stall, a BURN tick) gets a phrase rather
- * than an empty line.
+ * The name for GAME_OVER: the seam's own `deathBy`, which `Battle.kills` now
+ * keeps readable through an interactively-played battle. The pack behind it is
+ * a safety net for a death nobody landed — a stall, a BURN tick — so the line
+ * reads as a sentence rather than ending in nothing.
  */
 function killerName(deathBy: string, pack: readonly string[]): string {
   if (deathBy) return ENEMIES[deathBy]?.name ?? deathBy;
@@ -198,11 +219,21 @@ export function createRunScreen(rng: Rng, config: RunConfig = runConfig()): RunS
     return p && p.kind === 'RELIC' ? p : null;
   }
 
-  /** BATTLE answers carry a whole BattleResult and a live Battle; the log keeps a JSON-safe summary instead. */
+  /**
+   * A BATTLE answer carries a whole BattleResult and a live Battle, neither of
+   * which belongs in a log — but the hero turns DO: they are the only part of a
+   * battle a replay cannot re-derive, and without them the rng stream (which is
+   * the run's own) diverges at the first fight.
+   */
   function loggable(kind: RunPendingKind, a: unknown): unknown {
     if (kind !== 'BATTLE') return a;
-    const b = a as { result?: BattleResult; forfeit?: boolean } | null;
-    return { won: b?.result?.won === true, forfeit: b?.forfeit === true, turns: b?.result?.actorTurns ?? 0 };
+    const b = a as { result?: BattleResult; forfeit?: boolean; choices?: readonly HeroChoice[] } | null;
+    return {
+      won: b?.result?.won === true,
+      forfeit: b?.forfeit === true,
+      turns: b?.result?.actorTurns ?? 0,
+      choices: (b?.choices ?? []).map((c) => ({ actor: c.actor, skill: c.skill, target: c.target })),
+    };
   }
 
   /**
@@ -215,7 +246,7 @@ export function createRunScreen(rng: Rng, config: RunConfig = runConfig()): RunS
     const p = run.pending();
     if (!p) return false;
     const landed = run.decide(a, armedToken ?? run.token());
-    if (landed) decisions.push({ kind: p.kind, answer: loggable(p.kind, a) });
+    if (landed && DEV) decisions.push({ kind: p.kind, answer: loggable(p.kind, a) });
     return landed;
   }
 
@@ -230,13 +261,12 @@ export function createRunScreen(rng: Rng, config: RunConfig = runConfig()): RunS
     return 'SCREEN';
   }
 
-  return {
+  const api: RunScreen = {
     view: () => run.state(),
     pending: () => run.pending(),
     result: () => run.result(),
     armTick() { armedToken = run.token(); },
     answer,
-    decisions: () => decisions,
     /** The seam's own trail for this act, flattened to one node index per stage. */
     taken() {
       const out: number[] = [];
@@ -289,11 +319,13 @@ export function createRunScreen(rng: Rng, config: RunConfig = runConfig()): RunS
       return p.battle;
     },
 
-    afterBattle(result: BattleResult) {
+    afterBattle(result: BattleResult, choices?: readonly HeroChoice[]) {
       const forfeit = (result as unknown as { forfeit?: boolean }).forfeit === true;
       if (forfeit) forfeited = true;
       lastPack = battlePending()?.packIds ?? lastPack;
-      answer({ result, forfeit });
+      // `choices` rides the answer only as far as the log: run.ts reads `result`
+      // and `forfeit` and ignores everything else on it.
+      answer({ result, forfeit, choices });
     },
 
     cards(): Relic[] {
@@ -311,4 +343,11 @@ export function createRunScreen(rng: Rng, config: RunConfig = runConfig()): RunS
       answer(null);
     },
   };
+
+  // The replay log is a dev instrument, so it is INSTALLED under DEV rather
+  // than merely emptied: `import.meta.env.DEV` is `false` in the Pages build,
+  // so this assignment and the recorder above both fold away and the array they
+  // would have grown is dropped with them. Nothing dev-only ships.
+  if (DEV) api.decisions = () => decisions;
+  return api;
 }

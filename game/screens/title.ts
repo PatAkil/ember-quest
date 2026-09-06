@@ -1,7 +1,7 @@
 // Ember Quest v3 — screens/title.ts: the TITLE scene, standing in the EMBER
 // CRYPT. The reference is octopath-3 — a lit scene with the party small in
 // it — and octopath-4's restraint: the diorama does the talking, the words
-// stay out of its way. So the three slice heroes idle on the battle screen's
+// stay out of its way. So three heroes idle on the battle screen's
 // own diagonal (layout.ts's HERO_FEET, contact shadows under them, drawn
 // between the diorama and the light plane by main.ts's one scene pass), the
 // logo is the only bitmap text on the frame, and everything the player reads
@@ -39,7 +39,11 @@ const VAULT_Y = 468;
 /** Recipes that carry their own light — battle.ts's ACTOR_GLOW for the three the title stands up. */
 const TITLE_GLOW: Record<string, number> = { EMBER: 0.9, TIDE: 0.55 };
 
-/** The party as the title stands it: the slice roster on the battle screen's own diagonal. */
+/**
+ * The three the title stands up, on the battle screen's own diagonal. They are
+ * scenery, not a party any more — the run drafts its own — so this is a fixed
+ * cast chosen for the frame, and nothing downstream reads it.
+ */
 const CAST = SLICE_PARTY.map((id, i) => ({
   recipe: ACTOR_RECIPES[id],
   element: CHARACTERS[id].element,
