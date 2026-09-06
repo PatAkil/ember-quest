@@ -1104,22 +1104,31 @@ frame, and the frame itself scales smooth.
 The reference is Octopath Traveler: everything around the sprites. Five
 passes: (1) **diorama planes** — background, midground, actor plane,
 foreground, each parallaxing at its own rate; (2) **depth of field** —
-the FAR and MID planes blurred (6 px and 2.6 px) and the NEAR plane blurred
-hard (8 px); the actor plane and the FLOOR it stands on razor sharp
-(`BLUR_FLOOR = 0`), because the ground is at the actor plane's own depth and a
-1.25-px blur over it turned a 2-px stone into a 4-px smudge; (3) **pixel
+the FAR plane blurred (6 px) and the NEAR plane blurred hard (8 px), the two
+the camera is genuinely not focused on; the MID plane only **lightly**
+blurred (`BLUR_MID = 1.2`) because it is one step behind the actors, not a
+horizon away, and it is the plane the diorama's ARCHITECTURE stands on; the
+actor plane and the FLOOR it stands on razor sharp (`BLUR_FLOOR = 0`),
+because the ground is at the actor plane's own depth and a 1.25-px blur over
+it turned a 2-px stone into a 4-px smudge; (3) **pixel
 actors** — parts authored at `ACTOR_PART = 64` px (`BOSS_PART = 96`), a hero
 52–60 cells tall, drawn at `ACTOR_SCALE = 2` with smoothing off, ≤ `ACTOR_W
 = 128` wide (a boss ≤ `BOSS_W = 192`), the only plane with hard pixel edges —
 at ×2 a hero stands ≈ 13–17 % of the frame's height with a 2-px cell, the
 density of Octopath's sprites on a 720-px frame (×3 read as chunky and was
 retired on 2026-09-05); (4) **light at native resolution** — a per-biome key
-light as radial gradients, rim light along actor silhouettes, embers, dust and
+light as radial gradients — and every biome carries one **LIGHT WELL**, a lit
+opening high and centred in the FAR plane (a broken vault, a cloud break, a
+roof light, the water's surface), with the key light placed on it because the
+key is what that opening throws — rim light along actor silhouettes, embers, dust and
 fog as smooth alpha bands composited `'source-over'` and dust motes composited `'lighter'`. The atmosphere —
 the drifting fog bands and the dust motes — sits **behind the actor plane**,
 with the near plane and the light map; only the per-actor light (the
 multiplicative gain, the rim spill, a lit prop's floor pool) is drawn over the
-sprites. The actor plane's own light is a per-actor multiplicative
+sprites. The two **foot pools are derived from the stage anchors**, not typed:
+each is built around `layout.ts`'s `HERO_FEET` or `ENEMY_FEET` and clamped so
+the pair overlaps by no more than 60 px whatever the anchors say, so moving a
+rank moves the light under it. The actor plane's own light is a per-actor multiplicative
 `'color-dodge'` gain between `GAIN_FLOOR` and `GAIN_FLOOR + GAIN_LIFT`,
 clamped to a band around the median body's reach so no seat outshines the
 pack, and `LightActor.kind` marks an effect's box to draw its glow only, never

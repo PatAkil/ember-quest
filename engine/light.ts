@@ -354,7 +354,7 @@ const DEPTH_NEAR = 1.35;
 /**
  * Bake-time blur radius per plane, in logical px. The actor plane gets none —
  * and NEITHER DOES THE FLOOR any more. DESIGN.md's depth-of-field split still
- * holds for FAR and MID (6 and 2.6 px, the two planes the camera is not
+ * holds for FAR and MID (6 and 1.2 px, the two planes the camera is not
  * focused on), but the ground the actors stand on is at the actor plane's own
  * depth, and a 1.25-px blur over it turned a 2-px stone into a 4-px smudge:
  * the floor's whole p10->p90 range measured 4.4 L near and 11.8 mid against
