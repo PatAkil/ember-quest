@@ -1129,6 +1129,242 @@ The shroud is off `DUSK_CLOTH` (which is also EMBER's trousers and SABLE's cloak
 
 **Frames viewed**: `ov-B20.png` and `ov-A20.png` (the torso band painted back onto the seed-20 frame, before and after — the instrument proof, heroes mirrored); `A20-battle.png` (the 1× battle frame); `r14-four-x6.png` (the four together on the stage navy); `r14-wraith-lumen-x10.png` and `r14-crab-warden-x10.png`. All measurement scripts and captures are in the session scratchpad's `art-r14a/`.
 
+### Round 14 verdict: ONE MORE ROUND — 9/10
+
+Bounded re-check of art round 14 at HEAD **860e5d5**, on a detached worktree served on :5198.
+Nothing in the repo was written or committed; the worktree and the port are torn down.
+
+---
+
+## The instrument, before anything else — the stage anchors moved after the artist's tree
+
+`game/screens/layout.ts` at HEAD:
+
+```
+DIAG_DX 100   HERO_FEET   (532,380) (632,448) (732,516)
+PACK_DX  46   ENEMY_FEET  (290,380) (336,448) (382,516)
+              ENEMY_FEET_PAIR (352,404) (398,472)   BOSS_FEET (410,490)
+```
+
+At the round-13 tree (`59bef99` / `d294b75`) they were `DIAG_DX 90`, heroes at **700/790/880** and
+enemies at **230/330/430**. The move landed in **1df532b** ("UI round 4 … the enemy pack closed into
+one mass with the ranks 11.7 % of the width apart and the light pools following the anchors"), and
+`git merge-base --is-ancestor 1df532b d294b75` is **false** — 1df532b is *after* d294b75. Artist A's
+Gates line says its in-scene numbers were taken on "the artist's worktree of **d294b75** + the two
+files", i.e. on the old stage, one commit before the ranks and their derived foot pools moved. I
+rebuilt decision 4's rig, ran it once at the old anchors (Pearson r between bake L\* and sampled
+L\* = **−0.30 … +0.45**, seat medians of 19–36 — the masks were landing on floor), then at HEAD's
+anchors (**r = 0.95–0.99**), and painted the eroded band back onto the frames: `ov-s20.png` and
+`ov-s12.png` put magenta on every torso, heroes mirrored, to the pixel. Every number below is the
+HEAD rig. Each seat is read on whichever of nine sampled frames maximises r (the idle cycles three
+shapes), which is A's own stated method and reproduces its band figures closely.
+
+The practical effect: **A's band numbers survive the stage move (within 0.5), its whole-figure
+numbers do not** (CRYPT_WARDEN off by 3.2, DUST_WRAITH by 1.2–1.9). That matters, because the
+whole figure is what its DUST_WRAITH recommendation rests on.
+
+---
+
+## 1 — LUMEN: **PASS**, and better than claimed
+
+Claimed 52.4–53.9 on the seeds it drove (1, 2, 11, 20). On the coordinator's seed set LUMEN is drawn
+at **seed 1 (hero1)** and **seed 20 (hero2)**; it is not in the party on seeds 4, 12, 16 or the marsh
+frame (heroes there: EMBER/TIDE/BASALT, EMBER/GALE/BASALT, EMBER/TIDE, EMBER/BASALT/GALE).
+
+| seat | frac band 0.33–0.72 | < L 35 | rows 18–40 | whole | bar |
+|---|---|---|---|---|---|
+| s1 hero1 | **52.5** | 27.2 | 54.2 | 56.4 | ≤ 55 / ≥ 12 % |
+| s20 hero2 | **52.6** | 29.2 | 53.6 | 55.5 | ≤ 55 / ≥ 12 % |
+| s11 hero1 (extra) | **52.5** | 27.2 | 54.2 | 56.4 | |
+
+Measured 0.2–1.4 **below** A's claim on both bands. And the bar as the coordinator wrote it — *every*
+hero seat on the six named references — holds: across all 17 hero seats the frac band runs
+**35.6–53.4** (max BASALT, s20 hero1) and rows 18–40 **35.6–54.2** (max LUMEN, s1/s11 hero1), with
+< L 35 at 26.3–48 % on every hero. Sheet torso 49.9 as claimed. Nothing in the party is over 55.
+
+## 2 — CRYPT_WARDEN: **PASS** on both asks; one number in the report is wrong at HEAD
+
+- **Lit from above, unrounded: 51.97 − 43.44 = 8.53** — exact to the claim. Re-derived across all 43:
+  nothing in the cast is under 8, and the warden is the cast minimum (next SKYFALLEN_KING 10.2,
+  TIDE_ORACLE 10.31, CINDER_WOLF 10.44). `metrics.md` reads 52 / 43 (9).
+- **Ceiling kept**: band **35.2** (s20), **36.4** (s1, s16) against ≤ 50 — 14–15 L of margin.
+  Rows 18–40 **37.4–37.6**, exactly as claimed.
+- **Not as claimed**: the whole figure is **52.4–52.6** at HEAD, not 49.2–49.3. That is the old stage
+  in the report, not the sprite (its sheet value barely moved: sub-3:1 44.6 → 43.7). The rule is read
+  on the band, so this does not fail the item — but see the recommendation.
+
+## 3 — SILT_CRAB: numbers **exact**; the pincer **does not read**
+
+| | claimed | measured |
+|---|---|---|
+| interior edge density (≥ 72) | 75.1 | **75.1** |
+| idle change (≥ 17) | 24.8 | **24.8** |
+| settle (20–39) | 34.7 | **34.7** |
+| mirror IoU (< 85) | 66.2 | **66.2** |
+
+All four exact, and every non-dead bake is one 8-connected component. The interior work is real: at
+×10 the dactyl's lit top edge, the shadow under it, the gape line, the palm's lit upper plate, its
+lower edge and the plane-step turn are each separately visible.
+
+But **"the claw reads as a pincer" is false as a read.** A pincer is read from the silhouette, and in
+`mode=sil` at ×10 the major claw is **one solid wedge with a single 1×2-cell notch on its outer
+edge** — no V, no enclosed opening, no taper, no tip, no gap between the two fingers. The gape is an
+interior dark line that dies into the body rather than a notch cut through the outline. At ×6 the
+whole assembly reads as **two stacked horizontal shelves over a prow**, which is what the animal
+looked like before, only shaded. The claim is true as modelling and false as a shape.
+
+## 4 — DUST_WRAITH: numbers reproduce, the arithmetic is nine-tenths exact, the conclusion is not established
+
+**Measured at HEAD:**
+
+| | A claims | measured | bar |
+|---|---|---|---|
+| frac band, s3 / s11 (enemy1) | 53.1 | **53.0 / 53.0** | ≤ 50 |
+| frac band, s20 (enemy0) | 52.8 | **53.3** | ≤ 50 |
+| rows 18–40, s3/s11 · s20 | 51.0 · 51.2 | **50.9 · 52.0** | |
+| **whole figure**, s3/s11 · s20 | 49.1 · 48.5 | **51.0 · 49.7** | |
+| sheet band p50 | 50.1 | **50.1** | |
+| > L 75 · contrast · sub-3:1 | 9.5 · 3.24 · 39.9 | **9.5 · 3.24 · 39.9** | ≥ 8 · ≥ 3 · ≤ 45 |
+
+The band figures are honest (within 0.5). **"The whole figure is 48.5–49.1, under 50 at every seat"
+is FALSE at HEAD**: it is **49.7–51.0**, and over 50 at two of its three seats.
+
+**The arithmetic, audited against the bake** (`arith14.mjs`, off the zoom-1 cells):
+
+- 3:1 against `#1d2b53` = CIE L\* **49.30**; 3.2:1 = L\* **51.11**. Both exact as reported (the code
+  comment in `RampTune.min` says 49.15; the report's 49.30 is the right one).
+- 902 cells ✓ · eroded band **421** ✓ · band sub-3:1 **104** ✓ · outside-band sub-3:1 **256** ✓ ·
+  211 needed for the median ✓ · 211 + 256 = **467 = 51.8 %** ✓ · 45 % cap = **405** ✓ · over by
+  **62** ✓ · **45 cells** of budget in hand ✓. **Nine of ten numbers exact.**
+- The tenth is wrong: **"129 of which are the shared INK keyline."** The geometric keyline (the
+  non-eroded perimeter) is 194 cells of which **98** are sub-3:1; the INK tone (36,33,44) is 146
+  cells on the whole figure. The immovable outside-band share is **98**, not 129 — **158 of the 256
+  are movable.**
+- So the stated conclusion does not follow. 211 (band) + 98 (keyline) = **309 = 34.3 %**, well inside
+  the 405-cell cap: the configuration needs **62 of those 158** lifted over 3:1, and criterion 1's
+  floor (181 cells below L 35, against the **356** the figure carries) has 175 cells of slack, with
+  the plane blob at 23.68 % against a 2 % bar. **A legal configuration exists on paper. "Cannot both
+  hold" is not proved.**
+- **But the real obstacle is larger than the one A argued, and it is general.** DUST_WRAITH owns
+  **zero cells between L\* 38 and L\* 49.30** — its tones jump 36.27 → 49.82 — and cast-wide only
+  **5 of 53 074 cells (0.01 %)** sit in that 11.3-L window. A sheet band median is one of the bake's
+  own tones, so this actor's can be 50.1 or it can be 36.27 and **nothing in between**. Under the
+  ceiling is not a two-point tune; it is flipping more than half the torso band onto the dark anchor
+  steps, landing the sheet band near 36 and the scene band near 39, with mean contrast falling toward
+  the 3.0 bar and criterion 6 sitting at exactly 405 of 405.
+
+### Recommendation to the coordinator: **(c) — hold the band rule and record the miss**
+
+(a) does not work: at HEAD the wraith's **whole figure is 51.0 at both enemy1 seats**, so moving the
+ceiling to the whole figure only relocates the same miss, and it would silently pardon
+CRYPT_WARDEN's 52.4–52.6 whole reading that the band rule currently, correctly, passes at 35. (b) is
+relief the arithmetic does not require — the census shows the ≤ 50 band and the ≤ 45 % cap can both
+be satisfied (309 of 405 cells with 62 lifts available), so relaxing criterion 6 for one actor would
+give up the last authoring gauge still standing under decision 1 for a conflict that is not real.
+What *is* real is the 11.3-L hole between the dark steps and `legal()`'s floor, which no ramp tune
+can cross for any actor: hold decision 2, record DUST_WRAITH's 53.0–53.3 as an open miss, and put the
+hole itself — the `legal()` floor versus the value law, already named as decision 5 after round 11 —
+on the next session's list rather than asking artist A for a third pass at one shroud.
+
+## 5 — The CINDER_IMP note: **DENIED**, and understated
+
+Claimed: "CINDER_IMP reads 50.2–50.3 on the new band at enemy0/enemy2 on seeds 1, 16 and 20 — inside
+on rows 18–40." Measured at HEAD:
+
+| seat | frac band | rows 18–40 | whole |
+|---|---|---|---|
+| s1 enemy0 | **50.8** | **50.2** | 50.8 |
+| s16 enemy0 | **50.8** | **50.2** | 50.8 |
+| s20 enemy2 | **49.6** | 49.4 | 49.6 |
+| **s12 enemy0 (the two-enemy PAIR seat)** | **53.6** | **53.9** | **54.0** |
+
+It is 49.6–50.8 on the band, not 50.2–50.3; and it is **50.2 on rows 18–40 at two of the three**, so
+"inside on rows 18–40" is false there too. Worse, **seed 12 is in the coordinator's own named set**
+and A did not measure it: with only two enemies the pack draws at `ENEMY_FEET_PAIR` (352,404) —
+straight into the middle of the pair's foot pool, visible as a bright patch in `ov-s12.png` — and
+CINDER_IMP reads **53.6**, a **3.6** overshoot, larger than DUST_WRAITH's. On the six named
+references the absolute ceiling is now broken at **4 of 13 enemy seats: CINDER_IMP ×3 and
+DUST_WRAITH ×1.** DUST_WRAITH is no longer the only standard enemy over the line.
+
+## 6 — Regression sweep: **clean, and the byte-identity claim is exact**
+
+- `node tools/capture.mjs sheets` on this worktree: `tools/out/metrics.md` **43 PASS / 0 FAIL**, 43
+  table rows, zero FAIL strings. Every sheet figure A quotes reproduces: LUMEN 4.05 / 16 / 40.4 /
+  64−42 (22); CRYPT_WARDEN 3.33 / 43.7 / 9.6 / 52−43 (9); DUST_WRAITH 3.24 / 39.9 / 9.5;
+  SILT_CRAB 3.62 / 42.7 / 33.1 interior < L 35 / mirror 66.2.
+- **Byte identity — hashed, not trusted.** I md5'd all **645** pose bakes (43 actors × 5 poses × 3
+  frames) off `sheet=poses&mode=color&zoom=1` on this worktree, then killed :5198, put a second
+  detached worktree of **d294b75** on the same port and hashed it the same way. **54 of 645 moved,
+  and every one belongs to the four**: LUMEN 15 (all poses incl. dead), DUST_WRAITH 15, CRYPT_WARDEN
+  12 (dead unchanged), SILT_CRAB 12 (dead unchanged). **The other 39 actors are byte-identical.**
+  Exactly as claimed.
+- Criteria 7 and 8 and the rest of the rulers, re-derived from the bakes on the round-13
+  conventions: settles **20.4 (FROST_WISP) – 38.8 (WIND_SPRITE)**, all 43 in 20–39; idle change
+  **20.4 (FROST_WISP) – 55.8 (VAULT_JELLY)**, all ≥ 17; top-third **30.1–96.6**; crownDy **−1 to −3**
+  on all 43; dead height **25 (SABLE) – 56 (SUNKEN_KING)**; mirror max **80.2 (TIDE_ORACLE)** < 85;
+  nearest max **76.7 (TIDE)** < 78; **zero multi-component non-dead bakes across all 516**;
+  lit-from-above unrounded under 8 on **none**. Every one of these matches A's "keeps" list.
+
+## 7 — Look
+
+**The four at ×6 on the navy.** LUMEN is the round's clearest win as a picture: the robe is now a
+grey-blue with a visible mantle edge instead of a near-white slab, and the gold halo and hair are
+still the brightest things on her, which is where the eye should go. CRYPT_WARDEN's horned bucket
+reads: the horn tips carry a pale rim, the helm crown is plainly lighter than the greaves, and the
+eye slot survives the wrap band's new top row — the fix is legible, not just arithmetic.
+DUST_WRAITH is a hooded shroud with two green eyes, a tattered hem and one thin arm; the folds and
+the far-quarter plane read, and it is a competent figure — but on the navy it is still the palest,
+coldest thing among the four. SILT_CRAB reads as a low armoured wedge with six legs, a lit dome and
+one cyan eyespot; the major claw is described above.
+
+**The seed-20 crypt frame at 1× and ×2.** At 1× the frame holds together: the warm floor, the light
+well behind the ranks, six figures on three ground rows, nothing garish. At ×2 two things are plain.
+First, LUMEN's fix works in the frame, not only on the sheet — she no longer reads as the brightest
+mass on the party side; BASALT's grey armour and EMBER's torch carry that now, which is right.
+Second, **DUST_WRAITH is still a cut-out.** It is the palest figure in the picture and the only one
+in a cold lilac-grey against a warm tan floor; the 2.5 points came off the number without changing
+the read, and beside the warden — which sits *into* the crypt's light — it looks pasted on. That is
+the same sentence round 13 wrote, and it is still true.
+
+---
+
+## Does the sheet loop ship on its own criteria?
+
+Not yet, and the gap is narrow but real. The sheet itself is spotless and has been for two rounds:
+43 PASS / 0 FAIL on criteria 1–6, criteria 7 and 8 in band on all 43, one component on all 516
+non-dead bakes, mirror 80.2 and nearest 76.7 under their bars, crownDy and dead height clean, and
+the one criterion-1 miss the coordinator pinned last round (CRYPT_WARDEN's 7.68) is closed at 8.53
+with nothing else in the cast under 8. Three of round 14's four bounded items land, and the discipline
+is good — 54 of 645 bakes moved and every one belongs to the four actors named. What does not ship is
+**decision 2's absolute enemy ceiling, which is broken at 4 of 13 enemy seats on the coordinator's
+own named references** — CINDER_IMP at seeds 1, 12 and 16 (worst 53.6 at the two-enemy pair seat, an
+actor nobody was asked to touch and nobody measured) and DUST_WRAITH at seed 20. And the rule
+conflict has to be named honestly: it is **not** the conflict A wrote. Criterion 6 and the ≤ 50 band
+can both be satisfied on the cell census; what cannot be crossed is the **11.3-L hole between L\* 38
+and `legal()`'s 3:1 line, where the whole cast owns 0.01 % of its pixels**, so an enemy's torso median
+is either ≥ 49.3 (≈ 52–53 in scene, over the ceiling) or ≤ 38 (≈ 39 in scene). The ceiling is a
+value-law question for the engine, exactly as decision 5 after round 11 already said, and it should
+not be handed to a third artist round on one shroud.
+
+**What a round 15 of this kit would still be worth**, if the coordinator wants one: very little on
+the sprites, two things on the process. (1) **Re-measure the whole named set at HEAD once**, by
+someone, with the anchors read out of `layout.ts` rather than carried forward — two rounds running,
+an artist has reported in-scene numbers from a tree whose stage had already moved, and this round it
+hid a 3.6-point ceiling miss on an actor nobody was looking at. That is a half-hour of rig, not an
+art round. (2) **SILT_CRAB's claw is the one piece of authored work that did not land as a shape** —
+the gape needs to be a notch in the silhouette, not a dark line inside it, and that is a ten-cell
+edit to `crabDetail` with the edge-density and idle numbers already banked. Everything else on the
+list — ASH_HOUND's cow read, MARSH_HAG's 15.9 % blob, LIGHTNING_HAWK's 68.6 interior, the seraph's
+faceless drum — is taste the loop has already declined twice, and none of it is a criterion.
+
+### Coordinator decisions after round 14
+
+1. **Decision 2 holds and the misses are recorded, not pardoned** (the critic's option c). On the six named references the absolute enemy ceiling is broken at four of thirteen enemy seats at HEAD: DUST_WRAITH 53.0 / 53.0 / 53.3 (seeds 3, 11, 20) and CINDER_IMP 50.8 / 50.8 / 53.6 (seeds 1, 16, and the two-enemy pair seat on seed 12). Moving the ceiling to the whole figure would relocate the same miss and pardon CRYPT_WARDEN's 52.5 whole reading that the band rule correctly passes at 35; relaxing criterion 6 would give up the last authoring gauge for a conflict the cell census shows is not real.
+2. **The real obstacle is the palette hole, and it is the engine's, not an artist's.** `legal()` lifts every ramp step from 2 up to 3.2:1 against the navy (L* 51.1; 3:1 is 49.3), and the dark steps sit under L* 38, so the whole cast owns 0.01 % of its cells between L 38 and 49.3. A torso median is one of the bake's own tones, so an enemy reads ≥ 52 in scene or ≤ 39 and nothing between. The pixel study reached the reference's values by adding three tones in exactly that window. This is decision 5 after round 11 (the inverted value law) with its mechanism now named: the first engine task of the next session is `legal()`'s floor versus the value law — shadow steps at L 35–48 that the 3:1 rule counts against a lit ground, not the navy.
+3. **In-scene numbers are measured at HEAD, with the anchors read from `layout.ts`.** Two rounds running an artist reported seat readings from a tree whose stage had already moved (UI round 4 packed the ranks after d294b75); this round that hid a 3.6-point miss on an actor nobody was asked to touch. The instrument recorded after round 13 gains that clause; a report's in-scene table names the commit and the anchors it was measured on.
+4. **SILT_CRAB's gape becomes a notch in the silhouette**, not a dark line inside it — a ten-cell edit to `crabDetail` with the edge-density and idle numbers already banked. Queued for whichever artist next opens parts.ts; not a round.
+5. **The kit's sprite loop pauses here, at 9/10 without SHIP, after twelve artist rounds (3–14).** The sheet has been spotless for two rounds on criteria 1–8 and every ruler; what remains open is the ceiling at four seats (item 1), which item 2 says the kit cannot cross by tuning. The pixel study (98464a4) has meanwhile shown that the kit is the ceiling for the craft the owner is judging, at the same cell and the same colours. No round 15 of the kit is scheduled: the next art work is the owner's decision on the hand-drawn pipeline, which also resolves item 2 by construction.
+
 ## The full-frame critic (step 6 of the plan)
 
 ### Full-frame verdict, round 1: ONE MORE ROUND — sprites 8 · scene 6 · UI 5 · VFX 7 · composition 5
