@@ -105,6 +105,11 @@ escalate the writer one tier (Sonnet → Opus) for a fresh attempt. **Design fir
 mechanics changes go through `designing-mechanics` and a decision by the user
 before code moves; parallel writers are fine once the contract is written, split
 by module (data+sim vs sprites+main) so they do not collide.
+If ember-quest is not the session's PRIMARY repo, `game-writer` resolves to the
+primary repo's definition (retrovibe's is scoped to `workspace/<game>` and refuses these
+paths): run writers, verifiers and critics as `general-purpose` agents with an explicit
+model instead, and start the next session with ember-quest as the primary repo
+(STATUS.md, "Session mechanics learned the hard way").
 
 ## Engine API (this game's copy — authoritative surface is `engine/index.ts`)
 

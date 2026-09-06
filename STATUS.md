@@ -294,6 +294,25 @@ never share one; every writer gets a blind verifier; Opus for art, critics
 and scene work, Sonnet for mechanical work; nobody claims to have
 playtested — the owner is the playtester.
 
+The commit gate, exactly as this session ran it (a detached worktree of HEAD plus
+the files about to be committed, so the moving tree cannot leak into the check):
+
+```
+WT=/tmp/wt-gate; git worktree add --detach $WT HEAD && ln -s $PWD/node_modules $WT/node_modules
+for f in <files>; do mkdir -p $WT/$(dirname $f); cp $f $WT/$f; done
+(cd $WT && npx tsc --noEmit && npx vite build)                     # check + build
+(cd $WT && nohup npx vite --port 5199 --strictPort > /tmp/vite-gate.log 2>&1 &)   # poll the log for "Local:"
+(cd $WT && SMOKE_URL=http://localhost:5199/ node smoke.mjs)         # boot gate
+(cd $WT && CAPTURE_URL=http://localhost:5199 node tools/capture.mjs sheets)   # art commits: 43 PASS in tools/out/metrics.md
+(cd $WT && node sim/run.mjs && node sim/run.mjs --selfcheck)        # when rules or numbers moved
+lsof -ti:5199 | xargs -r kill; git worktree remove --force $WT; git worktree prune
+git add <files> && git commit -F msg -- <files>                      # pathspec-scoped, unsigned
+```
+
+Verifiers and critics isolate the same way (a worktree of HEAD on their own port,
+the writer's diff applied with `git diff -- <files> | git apply`), and every agent
+is told which ports belong to others — a killed port cost one verification round.
+
 Session mechanics learned the hard way: start the next session with
 **ember-quest as the primary repo**. This session's primary repo was
 retrovibe, so any `game-writer` agent loaded retrovibe's
