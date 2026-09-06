@@ -24,9 +24,9 @@ import {
   mapX, mapY, safeInsetFor,
 } from './layout';
 import {
-  ACCENT, ACCENT_COOL, ACCENT_HP, C_CREAM, C_DEBUFF, C_GOLD, C_MUTED, C_VIOLET, FOCUS_RING, FOCUS_RING_W,
-  drawFocusablePlate, drawHpRule, drawIcon, drawSecondaryButton, gradientPlate, hudText, hudTextCentered,
-  plate,
+  ACCENT, ACCENT_COOL, ACCENT_HP, C_CREAM, C_DEBUFF, C_GOLD, C_MUTED, C_VIOLET, PLATE_RADIUS,
+  drawFocusablePlate, drawHpRule, drawIcon, drawSecondaryButton, focusGlow, focusLift, gradientPlate,
+  hudText, hudTextCentered, plate,
 } from './hud';
 import type { IconName } from './hud';
 import type { RoomType } from '../types';
@@ -207,11 +207,23 @@ export function createMapScreen(deps: MapScreenDeps): MapScreen {
     const landmark = s === LANDMARK_STAGE;
     const focused = regions.focused() === nodeId(s, i);
 
+    // Focus is LIGHT here too. A node's own colour is often the very cream the
+    // old ring was made of (every FIGHT), so the ring had to be a second
+    // separated line 5 px outside the plate — a box round a box. The glow is
+    // drawn UNDER the plate in the node's own colour and the body is lifted, so
+    // the focused node is the brightest thing in its column instead of the
+    // outlined one.
+    if (focused) focusGlow(ctx, r.x, r.y, r.w, r.h, PLATE_RADIUS, offered || here ? color : C_MUTED);
     if (offered || here) {
-      drawFocusablePlate(ctx, r.x, r.y, r.w, r.h, false, here ? C_CREAM : color, focused ? 0.76 : 0.6);
+      drawFocusablePlate(ctx, r.x, r.y, r.w, r.h, false, here ? C_CREAM : color, focused ? 0.8 : 0.6);
     } else {
-      gradientPlate(ctx, r.x, r.y, r.w, r.h, { topAlpha: walked ? 0.4 : 0.26, border: landmark ? ACCENT : undefined });
+      gradientPlate(ctx, r.x, r.y, r.w, r.h, {
+        topAlpha: focused ? 0.6 : walked ? 0.4 : 0.26,
+        floorAlpha: focused ? 0.4 : 0,
+        border: landmark ? ACCENT : undefined,
+      });
     }
+    if (focused) focusLift(ctx, r.x, r.y, r.w, r.h, PLATE_RADIUS, offered || here ? color : C_MUTED);
     // The landmark's ACCENT ring sits INSIDE its plate and the focus ring
     // OUTSIDE it: a FIGHT node's own colour is the cream the focus ring is made
     // of, so on the map the ring cannot be a border on the plate — it has to be
@@ -224,14 +236,6 @@ export function createMapScreen(deps: MapScreenDeps): MapScreen {
       ctx.strokeRect(Math.round(r.x) + 3.5, Math.round(r.y) + 3.5, r.w - 7, r.h - 7);
       ctx.restore();
     }
-    if (focused) {
-      ctx.save();
-      ctx.strokeStyle = FOCUS_RING;
-      ctx.lineWidth = FOCUS_RING_W;
-      ctx.strokeRect(Math.round(r.x) - 5, Math.round(r.y) - 5, r.w + 10, r.h + 10);
-      ctx.restore();
-    }
-
     ctx.save();
     // 0.62, not 0.5: the rooms two stages ahead are what a route is planned
     // against, and at half alpha their pictograms stopped being readable.

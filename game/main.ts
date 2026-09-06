@@ -64,7 +64,7 @@ import type { RunConfig, RunResult } from './types';
 import {
   CANVAS_W, CANVAS_H, PAUSE_BTN, PAUSE_BTN_X, PAUSE_BTN_Y, PAUSED_TEXT_Y, SAFE_INSET,
 } from './screens/layout';
-import { EDGE_LIT, FOCUS_RING, drawPrimaryButton, hudText, hudTextCentered, hudWidth, plate } from './screens/hud';
+import { ACCENT, EDGE_LIT, PLATE_RADIUS, drawPrimaryButton, focusGlow, hudText, hudTextCentered, hudWidth, plate } from './screens/hud';
 import { createRunScreen, runConfig } from './screens/run';
 import type { HeroChoice, RunScreen } from './screens/run';
 import { createCardsScreen } from './screens/cards';
@@ -472,7 +472,7 @@ function nodeProps(): NodeProps | null {
   const p = run?.pending();
   if (!run || !p) return null;
   const view = run.view();
-  if (p.kind === 'SHRINE') return { kind: 'SHRINE', view, pact: p.pact, untakenCount: p.untakenCount };
+  if (p.kind === 'SHRINE') return { kind: 'SHRINE', view, pact: p.pact, untakenCount: p.untakenCount, biome: run.biome().name };
   if (p.kind === 'FORGE') {
     return {
       kind: 'FORGE', view, worn: p.worn, options: p.options, pool: p.pool, levels: p.levels, rebrand: p.rebrand,
@@ -562,8 +562,13 @@ function renderPauseOverlay(): void {
     }
     const ph = 56;
     const py = y + (PAUSE_BTN.h - ph) / 2;
+    // Focus is the glow, here as everywhere — the cream 2-px ring is gone. The
+    // border stays because THIS overlay is the contract's one place a line is
+    // still the honest answer: over a 0.66 dim with no lit world behind them a
+    // borderless plate dissolves. Same treatment as battle.ts's own overlay.
+    if (focused) focusGlow(ctx, PAUSE_BTN_X, py, PAUSE_BTN.w, ph, PLATE_RADIUS, ACCENT);
     plate(ctx, PAUSE_BTN_X, py, PAUSE_BTN.w, ph, {
-      border: focused ? FOCUS_RING : EDGE_LIT, borderWidth: focused ? 2 : 1, alpha: 0.62,
+      border: EDGE_LIT, borderWidth: 1, alpha: focused ? 0.78 : 0.62,
     });
     hudTextCentered(ctx, label, PAUSE_BTN_X, py, PAUSE_BTN.w, ph, { color: C_TEXT });
   });

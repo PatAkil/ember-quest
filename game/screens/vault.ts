@@ -28,7 +28,7 @@ import {
   RELIC_TITLE_MAX, TEXT_LABEL, WEAR_X, WEAR_Y, safeInsetFor,
 } from './layout';
 import {
-  ACCENT, ACCENT_COOL, C_GOLD, C_MUTED, drawFocusablePlate, drawIcon, drawPrimaryButton,
+  ACCENT, ACCENT_COOL, C_GOLD, C_MUTED, drawFocusablePlate, drawIcon, drawPrimaryButton, titleBand,
   gradientPlate, hudText, hudTextCentered, plate,
 } from './hud';
 import { SLOT_ICON_NAME } from './hud';
@@ -429,7 +429,7 @@ export function createVaultScreen(deps: VaultScreenDeps): VaultScreen {
     const focused = regions.focused() === id;
     const cy = rect.y + rect.h / 2;
     gradientPlate(ctx, rect.x, rect.y + 16, rect.w, rect.h - 32, {
-      topAlpha: focused ? 0.62 : 0.4, border: focused ? C_TEXT : undefined,
+      topAlpha: focused ? 0.66 : 0.46, floorAlpha: focused ? 0.5 : 0.34, focused,
     });
     ctx.save();
     if (!enabled) ctx.globalAlpha *= 0.35;
@@ -493,7 +493,7 @@ export function createVaultScreen(deps: VaultScreenDeps): VaultScreen {
     const ctx = pc.ctx;
     const inset = safeInsetFor(pc);
     const lap = props.view.lap ?? 1;
-    drawBanner(ctx, 'THE SIXTH BOSS IS DOWN', C_GOLD);
+    drawBanner(ctx, 'THE SIXTH BOSS IS DOWN', 'DOWN', C_GOLD);
 
     // The band between the banner and the doors carries the run being decided:
     // where it got to, what it scored, and what is actually on the table.
@@ -514,11 +514,14 @@ export function createVaultScreen(deps: VaultScreenDeps): VaultScreen {
     doors.forEach(([id, title, lines, color], i) => {
       const x = DOOR_X[i];
       const focused = regions.focused() === id;
-      drawFocusablePlate(ctx, x, DOOR_Y, DOOR_W, DOOR_H, focused, color, focused ? 0.72 : 0.55);
+      drawFocusablePlate(ctx, x, DOOR_Y, DOOR_W, DOOR_H, focused, color, focused ? 0.72 : 0.55, color);
+      // A door LABEL is bitmap by the contract, so it gets the same band a card
+      // title does rather than sitting bare over the two HUD lines under it.
+      titleBand(ctx, x, DOOR_Y, DOOR_W, 28 + TITLE_H + 10, color);
       const tw = textWidth(title, TEXT_LABEL, 1, FONT_HD);
-      drawText(ctx, title, Math.round(x + (DOOR_W - tw) / 2), DOOR_Y + 40, { ...hd, color, scale: TEXT_LABEL });
+      drawText(ctx, title, Math.round(x + (DOOR_W - tw) / 2), DOOR_Y + 28, { ...hd, color, scale: TEXT_LABEL });
       lines.forEach((ln, k) => {
-        hudTextCentered(ctx, ln, x, DOOR_Y + 56 + TITLE_H + k * 30, DOOR_W, HUD_PX, { color: k === 0 ? C_TEXT : C_MUTED });
+        hudTextCentered(ctx, ln, x, DOOR_Y + 60 + TITLE_H + k * 30, DOOR_W, HUD_PX, { color: k === 0 ? C_TEXT : C_MUTED });
       });
     });
     hudTextCentered(ctx, 'the ascension unlock is already yours — the doors only decide the relics', 0,
@@ -532,7 +535,7 @@ export function createVaultScreen(deps: VaultScreenDeps): VaultScreen {
     const over = props.vault.length + Math.min(chosen.length, props.n) - size;
 
     if (step === 'DROP') {
-      drawBanner(ctx, `THE VAULT IS FULL . DROP ${Math.max(0, over)}`, C_MUTED);
+      drawBanner(ctx, `THE VAULT IS FULL . DROP ${Math.max(0, over)}`);
       props.vault.forEach((relic, i) => drawChip(relic, i, props.vault.length, `vault-${i}`, drop.indexOf(i) >= 0 ? 'DROPPED' : 'OPEN'));
       const short = Math.max(0, over - drop.length);
       hudTextCentered(ctx, short > 0 ? `${drop.length} of ${Math.max(0, over)} chosen . ${short} will be trimmed for you`
@@ -546,7 +549,7 @@ export function createVaultScreen(deps: VaultScreenDeps): VaultScreen {
     }
 
     const o = bankColumns(props);
-    drawBanner(ctx, `BANK ${props.n} RELIC${props.n === 1 ? '' : 'S'}`, ACCENT);
+    drawBanner(ctx, `BANK ${props.n} RELIC${props.n === 1 ? '' : 'S'}`);
     drawPartyColumns(pc, regions, props.view.party, o);
     hudTextCentered(ctx, `${chosen.length} / ${props.n} chosen . the Vault holds ${props.vault.length} of ${size}`, 0, 516, CANVAS_W, HUD_PX, {
       color: chosen.length >= props.n ? ACCENT : C_DIM,

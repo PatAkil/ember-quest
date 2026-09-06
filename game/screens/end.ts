@@ -202,9 +202,13 @@ export function createEndScreen(deps: EndScreenDeps): EndScreen {
         px: HUD_SMALL, color: C_DIM,
       });
 
-      // The screen's one action: the lit primary plate, in the verdict's colour.
+      // The screen's one action, in the ONE gold every primary in the game
+      // wears. The verdict's own colour lives in the WORD above — VICTORY amber,
+      // GAME OVER in the debuff rose — not in the button's plate: a red slab and
+      // a gold slab doing the same job on two ends of one run was the last of
+      // the three-hue title system (UI item 3).
       drawPrimaryButton(ctx, CONTINUE.x, CONTINUE.y, CONTINUE.w, CONTINUE.h, won ? 'CONTINUE' : 'RETRY',
-        regions.focused() === 'end-continue', regions.pressing() === 'end-continue', accent);
+        regions.focused() === 'end-continue', regions.pressing() === 'end-continue');
     },
   };
 }

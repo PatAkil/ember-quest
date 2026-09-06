@@ -20,23 +20,24 @@ import type {
 } from '../../engine';
 import { drawText, textWidth, FONT_HD, dimScene, PICO8 } from '../../engine';
 import {
-  ACCENT, ACCENT_COOL, ACCENT_HP, C_DEBUFF, C_MUTED, ELEMENT_COLOR, ELEMENT_ICON_NAME, FOCUS_RING,
+  ACCENT, ACCENT_COOL, ACCENT_HP, C_DEBUFF, C_MUTED, ELEMENT_COLOR, ELEMENT_ICON_NAME, PLATE_RADIUS, focusGlow,
   HP_RULE_H, INK, INK_KEYLINE, INK_TROUGH, POP_CRIT, POP_ELEMENT, POP_GLANCE, POP_HEAL, POP_PHYSICAL,
   EDGE_LIT, EDGE_REST, EDGE_SOFT, PIP_EMPTY, SLOT_ICON_NAME, STATUS_ICON_NAME, clamp01, drawBar, drawHpRule, drawIcon, drawPrimaryButton,
   drawSecondaryButton, formatSetBonus, gradientPlate, hudText, hudTextCentered, hudWidth, plate,
-  portraitFor, textWash,
+  portraitFor, roundRectPath, textWash,
 } from './hud';
 
 import type { Battle, BattleEvent } from '../sim/battle';
 import { nextReady, runTurn, isOver, battleOutcome, forecast, actOptions, intent } from '../sim/battle';
-import type { ActOption, Actor, BattleResult, EnemyDef, SetId, SkillId, StatusKind } from '../types';
+import type { ActOption, Actor, BattleResult, EnemyDef, SetId, SkillId, Stat, StatusKind } from '../types';
 import { ATB_TURN, SLOTS } from '../types';
 import { SKILLS } from '../data/skills';
+import { MAIN_BY_SLOT } from '../data/relics';
 import { SETS } from '../data/sets';
 import { wornRelics, activeSets, relicTitle, mainLine, substatLine } from '../sim/relics';
 
 import { ACTOR_RECIPES, drawActor, actorHitRect, ACTOR_W, BOSS_W } from '../art/actors';
-import type { PoseName } from '../art/actors';
+import type { ActorDrawState, PoseName } from '../art/actors';
 import { spawnVfx, updateVfx, renderVfx, vfxBounds, vfxImpactDelay } from '../art/vfx';
 import type { VfxBounds, VfxInstance } from '../art/vfx';
 
@@ -101,6 +102,16 @@ export interface BattleScreen {
   readonly currentActorId: string | null;
   togglePause(): void;
 }
+
+/**
+ * The rows `spawnPop` tries, in order: its own, then one down, one up, two
+ * down, two up, three down. Down first because a pop belongs under the ribbon
+ * and over the actor; up is the escape when the frame's foot is close.
+ */
+const POP_ROW_TRY: readonly number[] = [0, 1, -1, 2, -2, 3];
+
+/** The eight numbers the INSPECT panel prints, in the order the contract lists them. */
+const INSPECT_STATS: readonly Stat[] = ['HP', 'ATK', 'DEF', 'SPD', 'CRIT', 'CDMG', 'ACC', 'RES'];
 
 /** Bars per second: a full (0..ATB_TURN) sweep takes 1/ATB_ANIM_RATE seconds. Presentation only — cannot
  * change an outcome, since it only drives how fast the ATB gauges chase the real, already-resolved atb. */
@@ -197,7 +208,7 @@ function headY(battle: Battle, actor: Actor): number {
 }
 
 // --------------------------------------------------------------- pops ------
-interface Pop { x: number; y: number; yMin: number; text: string; color: string; scale: number; age: number; dur: number; vy: number }
+interface Pop { x: number; y: number; yMin: number; w: number; h: number; text: string; color: string; scale: number; age: number; dur: number; vy: number }
 
 /** Linear approach — used for both HP and ATB gauges: a constant SPEED (not a constant time), so a full
  * bar and a tiny nudge both read as motion at the same visual rate. */
@@ -327,20 +338,38 @@ export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
    */
   function spawnPop(x: number, y: number, text: string, color: string, scale: number, dur = 0.85): void {
     if (pops.length >= POP_MAX) pops.shift();
-    // A turn can land a number, a status and a RESIST on one actor inside a few
-    // frames; without a stagger they print on top of each other ("BRAND" over
-    // "RESIST"). Step each new pop down past whatever is already there.
+    /**
+     * DE-COLLIDE ON THE REAL BOX, not on two magic numbers. A turn can land a
+     * number, a status and a RESIST on one actor inside a few frames, and a
+     * multi-hit skill lands three numbers on three neighbours whose x are 90 px
+     * apart. The old test — `|dx| < 60 && |dy| < 20` — was smaller than the
+     * glyphs on both axes: "214" is ~72 px wide at TEXT_POP and FONT_HD stands
+     * 33 px tall there, so "214" / "267" / "BRAND" all passed the test and
+     * printed inside 60 px of each other over one hero.
+     *
+     * The box is now measured: half-widths from `textWidth` (cached on the pop,
+     * so a frame measures each string once) and the glyph height for the row.
+     * Candidate rows are tried BELOW first, then ABOVE — a pop that has run out
+     * of room under the actor goes over its head rather than off the bottom of
+     * the frame.
+     */
+    const w = textWidth(text, scale, 1, FONT_HD);
+    const h = FONT_HD.glyphH * scale;
+    const row = h + 6;
+    const floor = CANVAS_H - 24 - h;
     let py = y;
-    for (let step = 0; step < 4; step++) {
+    for (let step = 0; step < POP_ROW_TRY.length; step++) {
+      const cy = y + POP_ROW_TRY[step] * row;
+      if (cy > floor || cy < RIBBON_BOTTOM + 10) continue;
       let clash = false;
       for (const q of pops) {
-        if (Math.abs(q.x - x) < 60 && Math.abs(q.y - py) < 20) { clash = true; break; }
+        if (Math.abs(q.x - x) < (q.w + w) / 2 + 10 && Math.abs(q.y - cy) < Math.max(q.h, h) + 2) { clash = true; break; }
       }
+      py = cy;
       if (!clash) break;
-      py += 22;
     }
     const yMin = Math.max(py - POP_RISE_MAX, RIBBON_BOTTOM + 10);
-    pops.push({ x, y: Math.max(py, yMin), yMin, text, color, scale, age: 0, dur, vy: -40 });
+    pops.push({ x, y: Math.max(py, yMin), yMin, w, h, text, color, scale, age: 0, dur, vy: -40 });
   }
 
   /**
@@ -949,7 +978,8 @@ export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
         + PANEL_ROW_ATB_H + (hasStatus ? PANEL_ROW_GAP + PANEL_ROW_STATUS_H : 0);
       gradientPlate(ctx, x, y, PANEL_W, drawnH, {
         topAlpha: isTurn ? 0.46 : 0.35,
-        border: focused ? FOCUS_RING : isTurn ? EDGE_REST : undefined,
+        focused,
+        border: !focused && isTurn ? EDGE_REST : undefined,
       });
       const ix = x + PANEL_PAD;
       let ry = y + PANEL_PAD;
@@ -1236,9 +1266,14 @@ export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
       const legal = pendingOptions.some((o) => o.skill === i);
       const r = skillRowRect(i, phone);
       const focused = regions.focused() === `skill-${i}`;
+      // Every row is a SEAT, focused or not: on a phone the gradient reached
+      // zero before the row's own text and two of three commands read as bare
+      // words on the floor. A floor under the wash gives each row a visible
+      // plate at rest; focus is the glow and the value lift, not a keyline.
       gradientPlate(ctx, r.x, r.y, r.w, r.h, {
-        topAlpha: focused ? 0.62 : legal ? 0.44 : 0.24,
-        border: focused ? FOCUS_RING : undefined,
+        topAlpha: focused ? 0.7 : legal ? 0.56 : 0.34,
+        floorAlpha: focused ? 0.54 : legal ? 0.42 : 0.24,
+        focused,
       });
       hudText(ctx, skill.name, r.x + 14, Math.round(r.y + (r.h - HUD_PX * 1.16) / 2), {
         color: legal ? PICO8[7] : PICO8[5],
@@ -1375,32 +1410,136 @@ export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
     lightActors.length = lightActorN;
   }
 
-  /** The battle HUD is SUPPRESSED under this (see render): the panel is opaque enough to own the frame. */
+  /**
+   * INSPECT, FILLED. The contract's panel is 1232 x 648 — the whole frame — and
+   * it was carrying six rows in its top-left corner and nothing else: ~90 %
+   * void, and the one screen in the game that reads as unfinished. It is now
+   * two columns inside the same rect:
+   *
+   *   WHO  — x 24..380 of the panel: the character themselves, idling at
+   *          ACTOR_SCALE (the size the wear card already shows them at), under
+   *          their name, element and HP rule, over the eight derived stats the
+   *          battle is actually resolved with. The relic rows are what CHANGES
+   *          those numbers, so the numbers belong on the same screen.
+   *   WHAT — the six slot rows, moved right and given the room to print all
+   *          FOUR substats under each main line instead of three across.
+   *
+   * Geometry (INSPECT, inspectRowY, SET_BAND, BACK) is unchanged; only what
+   * stands in it is.
+   */
+  const inspectPose: ActorDrawState = { pose: 'idle', time: 0, element: 'FIRE', facing: -1, x: 0, y: 0 };
+  const INSPECT_COL_W = 356;
   function drawInspectOverlay(ctx: CanvasRenderingContext2D, b: Battle): void {
     dimScene(pc, 0.62);
     plate(ctx, INSPECT.x, INSPECT.y, INSPECT.w, INSPECT.h, { alpha: 0.92, border: EDGE_REST, radius: 6 });
     const member = b.party.members[inspectSlot];
     if (!member) return;
+    const hero = b.heroes[inspectSlot] ?? null;
+    const element = member.def.element;
     hudText(ctx, member.def.name, INSPECT_NAME.x, INSPECT_NAME.y, { px: HUD_LARGE, color: PICO8[7] });
+
+    // ------------------------------------------------------------- WHO ----
+    const colX = INSPECT.x + 24;
+    const colY = inspectRowY(0) - 8;
+    const colH = SET_BAND.y - 24 - colY;
+    gradientPlate(ctx, colX, colY, INSPECT_COL_W, colH, { topAlpha: 0.42, floorAlpha: 0.3 });
+    drawIcon(ctx, ELEMENT_ICON_NAME[element], colX + 16, colY + 14, ELEMENT_GLYPH, ELEMENT_COLOR[element]);
+    hudText(ctx, member.awakened ? `${element} . AWAKENED` : element, colX + 16 + ELEMENT_GLYPH + 12, colY + 16,
+      { px: HUD_SMALL, color: member.awakened ? ACCENT : C_MUTED });
+    if (hero) {
+      const hpText = `${Math.max(0, Math.round(hero.hp))} / ${hero.maxHp}`;
+      hudText(ctx, hpText, colX + INSPECT_COL_W - 16, colY + 16, { px: HUD_SMALL, color: PICO8[7], align: 'right' });
+      drawHpRule(ctx, colX + 16, colY + 44, INSPECT_COL_W - 32, hero.maxHp > 0 ? hero.hp / hero.maxHp : 0, element, hero.alive);
+    }
+
+    // The character, at the scale the stage draws them: clipped to the column
+    // and stood on its own floor line, so a tall recipe cannot spill.
+    const recipe = ACTOR_RECIPES[member.def.id];
+    // The stat grid is TWO to a row, so it reserves half as many rows as there
+    // are stats. Reserving all eight left a 104-px band of nothing under the
+    // numbers and pushed the sprite up into the HP rule.
+    const statsTop = colY + colH - 10 - Math.ceil(INSPECT_STATS.length / 2) * 26;
+    if (recipe) {
+      ctx.save();
+      roundRectPath(ctx, colX + 1, colY + 1, INSPECT_COL_W - 2, colH - 2, 4);
+      ctx.clip();
+      inspectPose.time = clock;
+      inspectPose.element = element;
+      inspectPose.x = colX + INSPECT_COL_W / 2;
+      // Centred in the band between the HP rule and the stat grid, feet on its
+      // own floor line — bottom-anchored to the stats it left the whole gap
+      // above the head, which read as a hole rather than as a portrait.
+      inspectPose.y = Math.round((colY + 70 + statsTop - 10) / 2 + ACTOR_W * 0.45);
+      drawActor(ctx, recipe, inspectPose);
+      ctx.restore();
+    }
+
+    // The eight numbers the battle is resolved with, two to a row.
+    if (hero) {
+      for (let i = 0; i < INSPECT_STATS.length; i += 2) {
+        const ry = statsTop + (i / 2) * 26;
+        for (let k = 0; k < 2; k++) {
+          const stat = INSPECT_STATS[i + k];
+          const sx = colX + 16 + k * ((INSPECT_COL_W - 32) / 2);
+          hudText(ctx, stat, sx, ry, { px: HUD_SMALL, color: C_MUTED });
+          hudText(ctx, String(Math.round(hero.stats[stat])), sx + (INSPECT_COL_W - 32) / 2 - 16, ry,
+            { px: HUD_SMALL, color: PICO8[7], align: 'right' });
+        }
+      }
+    }
+
+    // ------------------------------------------------------------ WHAT ----
+    const rowX = colX + INSPECT_COL_W + 28;
+    const rowW = INSPECT.x + INSPECT.w - 24 - rowX;
     for (let i = 0; i < SLOTS.length; i++) {
       const slot = SLOTS[i];
       const relic = member.relics[slot];
       const ry = inspectRowY(i);
+      gradientPlate(ctx, rowX, ry - 8, rowW, 64, { topAlpha: relic ? 0.4 : 0.22, floorAlpha: relic ? 0.28 : 0.14 });
       // The contract's 32-px slot icon, finally an icon: a mark, not `Wp`/`Bt`.
-      drawIcon(ctx, SLOT_ICON_NAME[slot], INSPECT.x + 24, ry, INSPECT_ROW_ICON, relic ? ACCENT : PICO8[5], relic ? 1 : 0.7);
-      const tx = INSPECT.x + 24 + INSPECT_ROW_ICON + 16;
+      drawIcon(ctx, SLOT_ICON_NAME[slot], rowX + 14, ry, INSPECT_ROW_ICON, relic ? ACCENT : PICO8[5], relic ? 1 : 0.7);
+      const tx = rowX + 14 + INSPECT_ROW_ICON + 16;
       if (!relic) {
-        hudText(ctx, 'empty', tx, ry + 6, { px: HUD_SMALL, color: PICO8[5] });
+        hudText(ctx, slot, tx, ry + 1, { px: HUD_SMALL, color: PICO8[5] });
+        hudText(ctx, 'nothing worn', tx, ry + 22, { px: HUD_SMALL, color: PICO8[5], alpha: 0.7 });
+        // An empty row still says what the slot is FOR — the mains it can roll.
+        // Six rows of the word "nothing" over 800 px of panel is the one case
+        // where this screen still reads as unfinished; the rows a worn relic
+        // fills with substats, an empty one fills with the reason to fill it.
+        hudText(ctx, `rolls ${MAIN_BY_SLOT[slot].map((m) => m.replace('_PCT', '%')).join(' . ')}`, tx + 300, ry + 12,
+          { px: HUD_SMALL, color: PICO8[5], alpha: 0.7 });
         continue;
       }
-      hudText(ctx, relicTitle(relic), tx, ry + 2, { color: PICO8[7] });
-      const lines = [mainLine(relic), substatLine(relic, 0), substatLine(relic, 1), substatLine(relic, 2)].filter((s) => s.length > 0);
-      for (let j = 0; j < lines.length; j++) {
-        hudText(ctx, lines[j], tx + 240 + j * 190, ry + 4, { px: HUD_SMALL, color: PICO8[6] });
+      hudText(ctx, relicTitle(relic), tx, ry - 2, { color: PICO8[7] });
+      hudText(ctx, mainLine(relic), tx, ry + 24, { px: HUD_SMALL, color: ACCENT });
+      // All FOUR substats, on their own row under the title — the old layout
+      // printed three of them across the card and dropped the fourth.
+      const subX = tx + 300;
+      const subW = (rowX + rowW - 14 - subX) / 4;
+      for (let j = 0; j < 4; j++) {
+        const line = substatLine(relic, j);
+        if (!line) continue;
+        hudText(ctx, line, subX + j * subW, ry + 12, { px: HUD_SMALL, color: PICO8[6] });
       }
     }
+
     const counts = new Map<SetId, number>();
     for (const id of activeSets(wornRelics(member))) counts.set(id, (counts.get(id) ?? 0) + 1);
+    hudText(ctx, 'SETS', SET_BAND.x, SET_LINE_Y[0] - 26, { px: HUD_SMALL, color: C_MUTED });
+    if (counts.size === 0) hudText(ctx, 'no set is complete yet', SET_BAND.x, SET_LINE_Y[0], { px: HUD_SMALL, color: PICO8[5] });
+    // WHAT THEY CAN DO, on the half of the set band the set lines never reach:
+    // three skills, name and cd/target, the same block the draft's detail strip
+    // opens an option out with. Relics change the numbers on the left, skills
+    // are what spends them, and the inspect panel is where a player reads both.
+    const skillX = SET_BAND.x + 512;
+    hudText(ctx, 'SKILLS', skillX, SET_LINE_Y[0] - 26, { px: HUD_SMALL, color: C_MUTED });
+    for (let i = 0; i < member.def.skills.length && i < SET_LINE_Y.length; i++) {
+      const sk = SKILLS[member.def.skills[i]];
+      if (!sk) continue;
+      hudText(ctx, sk.name, skillX, SET_LINE_Y[i], { px: HUD_SMALL, color: PICO8[7] });
+      hudText(ctx, `cd ${sk.cooldown} . ${sk.target.toLowerCase().replace(/_/g, ' ')}`,
+        skillX + 200, SET_LINE_Y[i], { px: HUD_SMALL, color: PICO8[6] });
+    }
     let li = 0;
     for (const [id, times] of counts) {
       if (li >= SET_LINE_Y.length) break;
@@ -1435,8 +1574,12 @@ export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
       }
       const ph = 56;
       const py = y + (PAUSE_BTN.h - ph) / 2;
+      // These two keep their border — the contract's own reason: over a 0.66
+      // dim with no lit world behind them, a borderless plate dissolves. Focus
+      // is still the glow, so the whole game answers "which one?" the same way.
+      if (focused) focusGlow(ctx, PAUSE_BTN_X, py, PAUSE_BTN.w, ph, PLATE_RADIUS, ACCENT);
       plate(ctx, PAUSE_BTN_X, py, PAUSE_BTN.w, ph, {
-        border: focused ? FOCUS_RING : EDGE_LIT, borderWidth: focused ? 2 : 1, alpha: disabled ? 0.4 : 0.62,
+        border: EDGE_LIT, borderWidth: 1, alpha: disabled ? 0.4 : focused ? 0.78 : 0.62,
       });
       hudTextCentered(ctx, labels[i], PAUSE_BTN_X, py, PAUSE_BTN.w, ph, { color: disabled ? PICO8[5] : PICO8[7] });
     }

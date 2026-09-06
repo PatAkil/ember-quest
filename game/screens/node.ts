@@ -30,8 +30,9 @@ import {
   HUD_SMALL, NAME_MAX_PACT, SKIP, TEXT_LABEL, WEAR_BTN, WEAR_X, WEAR_Y, safeInsetFor,
 } from './layout';
 import {
-  ACCENT, ACCENT_HP, C_DEBUFF, C_GOLD, C_MUTED, C_VIOLET, drawFocusablePlate,
-  drawPrimaryButton, drawSecondaryButton, gradientPlate, hudFit, hudText, hudTextCentered, plate,
+  ACCENT_HP, C_DEBUFF, C_GOLD, C_MUTED, C_VIOLET, drawFocusablePlate,
+  drawPendingButton, drawPrimaryButton, drawSecondaryButton, gradientPlate, hudFit, hudText, hudTextCentered,
+  hudWidth, plate, textWash, titleBand,
 } from './hud';
 import type { CharacterDef, Modifier, Pact, PactId, PartyMember, Relic, SetId, Slot } from '../types';
 import { SHARPEN_RELICS, SLOTS } from '../types';
@@ -123,7 +124,7 @@ export function sharpenPreview(relics: Partial<Record<Slot, Relic>>): Set<Slot> 
  * place would not be seen as a new decision.
  */
 export type NodeProps =
-  | { kind: 'SHRINE'; view: ScreenView; pact: Pact; untakenCount: number }
+  | { kind: 'SHRINE'; view: ScreenView; pact: Pact; untakenCount: number; biome?: string }
   | {
     kind: 'FORGE'; view: ScreenView; worn: readonly Relic[]; options: readonly ForgeOption[];
     pool: readonly SetId[]; levels: number; rebrand?: readonly (readonly SetId[])[];
@@ -418,13 +419,14 @@ export function createNodeScreen(deps: NodeScreenDeps): NodeScreen {
     const cardY = rect.y;
     const focused = regions.focused() === 'shrine-take';
 
-    drawBanner(ctx, 'A SHRINE . THE PACT ON OFFER', C_VIOLET);
-    drawFocusablePlate(ctx, x, cardY, w, cardH, focused, C_VIOLET, 0.6);
+    drawBanner(ctx, 'A SHRINE . THE PACT ON OFFER', 'SHRINE', C_VIOLET);
+    drawFocusablePlate(ctx, x, cardY, w, cardH, focused, C_VIOLET, 0.6, C_VIOLET);
+    // The pact's name is a card title (bitmap, per the contract) and gets the
+    // band the relic cards get — the two type voices in two boxes.
+    titleBand(ctx, x, cardY, w, CARD_PAD + TITLE_H + 8, C_VIOLET);
     let y = cardY + CARD_PAD;
     centerBitmap(pact.name.slice(0, NAME_MAX_PACT), x, w, y, C_VIOLET);
-    y += TITLE_H + 8;
-    rule(x, w, y, C_VIOLET);
-    y += 12;
+    y = cardY + CARD_PAD + TITLE_H + 8 + 12;
     hudText(ctx, 'CURSE', x + CARD_PAD, y, { px: HUD_SMALL, color: C_MUTED });
     y += ROW_SMALL;
     hudText(ctx, modifierLine(pact.curse), x + CARD_PAD, y, { color: C_DEBUFF });
@@ -442,15 +444,33 @@ export function createNodeScreen(deps: NodeScreenDeps): NodeScreen {
 
     // The stack so far, and how much of the pool is left.
     const taken = props.view.pactsTaken ?? [];
-    hudText(ctx, 'PACTS TAKEN', PACT_CHIP.x, PACT_CHIP.y - 26, { px: HUD_SMALL, color: C_MUTED });
-    if (taken.length === 0) hudText(ctx, 'none yet', PACT_CHIP.x, PACT_CHIP.y, { px: HUD_SMALL, color: C_DIM });
+    // Both corner captions get the log line's wash (UI item 8): the left one sits
+    // on the marsh's moon bloom and the right one on the sky, and dim HUD grey on
+    // either is a caption you have to hunt for.
+    const cap = (text: string, cx: number, cy: number, right: boolean, color: string): void => {
+      const cw = hudWidth(ctx, text, HUD_SMALL);
+      // A DRAWN wash may not bleed into the safe inset (only hit rects may), so
+      // the right-hand caption's wash stops at the inset rather than running the
+      // 16 px of air its left-hand twin gets.
+      const wx = right ? Math.max(inset.left, cx - cw - 24) : cx - 14;
+      const ww = Math.min(cw + 40, CANVAS_W - inset.right - wx);
+      textWash(ctx, wx, cy - 6, ww, HUD_SMALL + 12, 0.55);
+      hudText(ctx, text, cx, cy, { px: HUD_SMALL, color, align: right ? 'right' : 'left' });
+    };
+    cap('PACTS TAKEN', PACT_CHIP.x, PACT_CHIP.y - 26, false, C_MUTED);
+    if (taken.length === 0) cap('none yet', PACT_CHIP.x, PACT_CHIP.y, false, C_DIM);
     taken.forEach((id: PactId, i: number) => {
       const cy = PACT_CHIP.y + i * (PACT_CHIP.h + PACT_CHIP.gap);
       plate(ctx, PACT_CHIP.x, cy, PACT_CHIP.w, PACT_CHIP.h, { alpha: 0.5 });
       hudText(ctx, PACTS[id]?.name ?? id, PACT_CHIP.x + 12, cy + 12, { px: HUD_SMALL, color: C_VIOLET });
     });
-    hudText(ctx, `${props.untakenCount} pact${props.untakenCount === 1 ? '' : 's'} left in the crypt`,
-      CANVAS_W - inset.right, PACT_CHIP.y - 26, { px: HUD_SMALL, color: C_MUTED, align: 'right' });
+    // The BIOME's own name, not "the crypt": this line printed the act-1 room
+    // while the party was standing in the Frost Marsh, in every act of every
+    // run. `biome` rides the SHRINE props (main.ts hands it `run.biome().name`);
+    // an absent one falls back to the neutral noun rather than to act 1's.
+    const where = props.biome ? `the ${props.biome.toLowerCase()}` : 'this place';
+    cap(`${props.untakenCount} pact${props.untakenCount === 1 ? '' : 's'} left in ${where}`,
+      CANVAS_W - inset.right, PACT_CHIP.y - 26, true, C_MUTED);
 
     drawSecondaryButton(ctx, SKIP.x, SKIP.y, SKIP.w, SKIP.h, 'WALK PAST', regions.focused() === 'shrine-skip');
     hudTextCentered(ctx, 'both halves last the rest of the run . walking past mends nothing', 0,
@@ -463,7 +483,7 @@ export function createNodeScreen(deps: NodeScreenDeps): NodeScreen {
     const relic = relicIdx !== null ? props.worn[relicIdx] : null;
 
     if (step === 'RECAST' && relic) {
-      drawBanner(ctx, 'RECAST . WHICH SUBSTAT?', ACCENT);
+      drawBanner(ctx, 'RECAST . WHICH SUBSTAT?');
       const color = RARITY_COLOR[relic.rarity];
       centerBitmap(relicTitle(relic), CARD_X[1], CARD_W, CARD_Y + 8, color);
       hudTextCentered(ctx, mainLine(relic), CARD_X[1], CARD_Y + TITLE_H + 16, CARD_W, HUD_SMALL, { px: HUD_SMALL, color: C_DIM });
@@ -489,7 +509,7 @@ export function createNodeScreen(deps: NodeScreenDeps): NodeScreen {
     const o: ColumnOptions = step === 'MODE'
       ? { ...base, rowEnabled: (_m, _slot, _relic, m, row) => !!pickedAt && pickedAt.member === m && pickedAt.row === row }
       : base;
-    drawBanner(ctx, step === 'MODE' ? 'THE FORGE . WHAT SHALL IT BECOME?' : 'THE FORGE . CHOOSE A RELIC', ACCENT);
+    drawBanner(ctx, step === 'MODE' ? 'THE FORGE . WHAT SHALL IT BECOME?' : 'THE FORGE . CHOOSE A RELIC');
     drawPartyColumns(pc, regions, props.view.party, o);
 
     if (step === 'MODE' && relic && relicIdx !== null) {
@@ -506,14 +526,14 @@ export function createNodeScreen(deps: NodeScreenDeps): NodeScreen {
       buttons.forEach(([id, label, why, enabled], i) => {
         const focused = regions.focused() === id;
         if (!enabled) {
-          gradientPlate(ctx, WEAR_X[i], WEAR_Y + 12, WEAR_BTN.w, WEAR_BTN.h - 24, { topAlpha: 0.3, border: focused ? C_TEXT : undefined });
+          gradientPlate(ctx, WEAR_X[i], WEAR_Y + 12, WEAR_BTN.w, WEAR_BTN.h - 24, { topAlpha: 0.34, floorAlpha: 0.22, focused });
           hudTextCentered(ctx, label, WEAR_X[i], WEAR_Y + 24, WEAR_BTN.w, HUD_PX, { color: C_MUTED, alpha: 0.6 });
           hudTextCentered(ctx, why, WEAR_X[i], WEAR_Y + 50, WEAR_BTN.w, HUD_SMALL, { px: HUD_SMALL, color: C_MUTED, alpha: 0.5 });
           return;
         }
         if (i === 0) drawPrimaryButton(ctx, WEAR_X[i], WEAR_Y, WEAR_BTN.w, WEAR_BTN.h, label, focused, regions.pressing() === id);
         else {
-          gradientPlate(ctx, WEAR_X[i], WEAR_Y + 12, WEAR_BTN.w, WEAR_BTN.h - 24, { topAlpha: focused ? 0.6 : 0.4, border: focused ? C_TEXT : undefined });
+          gradientPlate(ctx, WEAR_X[i], WEAR_Y + 12, WEAR_BTN.w, WEAR_BTN.h - 24, { topAlpha: focused ? 0.66 : 0.48, floorAlpha: focused ? 0.5 : 0.36, focused });
           hudTextCentered(ctx, label, WEAR_X[i], WEAR_Y + 22, WEAR_BTN.w, HUD_PX, { color: C_TEXT });
           hudTextCentered(ctx, why, WEAR_X[i], WEAR_Y + 50, WEAR_BTN.w, HUD_SMALL, { px: HUD_SMALL, color: C_DIM });
         }
@@ -539,7 +559,7 @@ export function createNodeScreen(deps: NodeScreenDeps): NodeScreen {
     const inset = safeInsetFor(pc);
     const o = columns(props);
     const altar = props.kind === 'ALTAR';
-    drawBanner(ctx, altar ? 'THE ALTAR . ONE AWAKENS' : 'A REST . HEAL, OR SHARPEN', altar ? C_GOLD : ACCENT_HP);
+    drawBanner(ctx, altar ? 'THE ALTAR . ONE AWAKENS' : 'A REST . HEAL, OR SHARPEN', altar ? 'ALTAR' : 'HEAL', altar ? C_GOLD : ACCENT_HP);
     drawPartyColumns(pc, regions, props.view.party, o);
 
     // The focused column's detail, on the one line between the columns and the seats.
@@ -550,6 +570,11 @@ export function createNodeScreen(deps: NodeScreenDeps): NodeScreen {
       const detail = altar
         ? (member.awakened ? `${member.def.name} has already awakened` : `${member.def.awakening.name} . ${awakeningDetail(member.def)}`)
         : restDetail(member, props.candidates.indexOf(focusM) >= 0);
+      // One line over open floor between the columns and the seats — the log
+      // line's own treatment, a short wash that fades out at both ends, so the
+      // marsh's reeds do not run through it (UI item 8).
+      const dw = hudWidth(ctx, detail, HUD_PX);
+      textWash(ctx, (CANVAS_W - dw) / 2 - 24, FOOT_NOTE_Y - 6, dw + 48, HUD_PX + 12, 0.55);
       hudTextCentered(ctx, detail, 0, FOOT_NOTE_Y, CANVAS_W, HUD_PX, { color: altar ? C_GOLD : ACCENT_HP });
     }
 
@@ -557,16 +582,19 @@ export function createNodeScreen(deps: NodeScreenDeps): NodeScreen {
       const chosen = relicIdx !== null ? props.view.party.members[relicIdx] : null;
       if (chosen) {
         drawPrimaryButton(ctx, CONTINUE.x, CONTINUE.y, CONTINUE.w, CONTINUE.h, `AWAKEN ${chosen.def.name.toUpperCase()}`,
-          regions.focused() === 'altar-continue', regions.pressing() === 'altar-continue', C_GOLD);
+          regions.focused() === 'altar-continue', regions.pressing() === 'altar-continue');
       } else {
-        hudTextCentered(ctx, 'choose who awakens', CONTINUE.x, CONTINUE.y + 34, CONTINUE.w, HUD_PX, { color: C_MUTED, alpha: 0.7 });
+        // Not bare grey text on the floor: the seat is there, it is simply not
+        // lit yet (UI item 6 — an affordance on every control, not only the
+        // focused one).
+        drawPendingButton(ctx, CONTINUE.x, CONTINUE.y, CONTINUE.w, CONTINUE.h, 'CHOOSE WHO AWAKENS');
       }
       hudTextCentered(ctx, 'the altar cannot be declined . once per lap, one member', 0, pc.height - inset.bottom - 18, CANVAS_W, HUD_SMALL,
         { px: HUD_SMALL, color: C_DIM });
       return;
     }
     drawPrimaryButton(ctx, CONTINUE.x, CONTINUE.y, CONTINUE.w, CONTINUE.h, 'FULL HEAL',
-      regions.focused() === 'rest-heal', regions.pressing() === 'rest-heal', ACCENT_HP);
+      regions.focused() === 'rest-heal', regions.pressing() === 'rest-heal');
     hudTextCentered(ctx, 'A on a column sharpens that member . FULL HEAL is also on B', 0, pc.height - inset.bottom - 18, CANVAS_W, HUD_SMALL,
       { px: HUD_SMALL, color: C_DIM });
   }

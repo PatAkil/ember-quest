@@ -19,13 +19,14 @@
 import type { Audio, HitRegions, Input, PixelCanvas } from '../../engine';
 import { PICO8 } from '../../engine';
 import {
-  CANVAS_W, CONTINUE, DRAFT_CARD, DRAFT_X, DRAFT_Y, HUD_LARGE, HUD_PX, HUD_SMALL, NAME_MAX_CHARACTER,
+  CANVAS_W, CONTINUE, DRAFT_CARD, DRAFT_X, DRAFT_Y, HUD_LARGE, HUD_SMALL, NAME_MAX_CHARACTER,
   NAME_MAX_SKILL, PARTY_BACK, PORTRAIT, WEAR_BTN, WEAR_X, WEAR_Y, safeInsetFor,
 } from './layout';
 import {
   ACCENT, ACCENT_COOL, ACCENT_HP, C_GOLD, C_MUTED, C_VIOLET, ELEMENT_COLOR, ELEMENT_ICON_NAME,
-  drawFocusablePlate, drawIcon, drawPrimaryButton, drawSecondaryButton, formatSetBonus, gradientPlate,
-  hudText, hudTextCentered, plate, portraitFor, roundRectPath,
+  FOCUS_CHOSEN, PLATE_RADIUS, focusGlow, focusLift,
+  drawFocusablePlate, drawIcon, drawPendingButton, drawPrimaryButton, drawSecondaryButton, formatSetBonus,
+  gradientPlate, hudText, hudTextCentered, plate, portraitFor, roundRectPath,
 } from './hud';
 import type { CharacterDef, Element, LeaderSkill, Relic, SetId, Stat, SummonOffer } from '../types';
 import { CHARACTERS } from '../data/characters';
@@ -57,14 +58,26 @@ export const DRAFT_DETAIL_W = DRAFT_X[3] + DRAFT_CARD.w - DRAFT_X[0];
 export function draftDetailRect(count: number): { x: number; y: number; w: number; h: number } {
   const rows = Math.max(1, Math.min(2, Math.ceil(count / 4)));
   const y = DRAFT_Y[rows];
-  // One row of cards leaves TWO grid rows under it; the strip takes both rather
-  // than leaving a dead band between itself and CONTINUE.
-  const h = rows === 1 ? DRAFT_Y[2] + DRAFT_CARD.h - DRAFT_Y[1] : DRAFT_CARD.h;
+  // SIZED TO ITS CONTENT, not to the grid rows the cards left over. A 3-offer
+  // SUMMON fills one card row and used to hand the strip BOTH remaining rows —
+  // a 1184 x 288 plate carrying a 120-px block, 78 % of it empty, the largest
+  // dead area in the game after the inspect panel. The strip is now the block
+  // plus its padding wherever the cards leave it room; the leftover height goes
+  // back to the frame as air, which costs nothing and reads as composition.
+  // Clamped off the foot row: at two card rows the strip starts at y 392 and
+  // its natural 168 would run to 560, eight px INTO CONTINUE's band.
+  const h = Math.min(DETAIL_BLOCK_H + 2 * DETAIL_PAD, CONTINUE.y - DETAIL_FOOT_GAP - y);
   return { x: DRAFT_DETAIL_X, y, w: DRAFT_DETAIL_W, h };
 }
-/** The height the detail's three columns actually occupy — the block is centred in a tall strip. */
+/** The height the detail's three columns actually occupy — the strip is measured from it. */
 // promote to layout.ts
-export const DETAIL_BLOCK_H = 120;
+export const DETAIL_BLOCK_H = 128;
+/** Air above and below that block inside the strip. */
+// promote to layout.ts
+export const DETAIL_PAD = 20;
+/** And the air the strip leaves between its own foot and the CONTINUE row. */
+// promote to layout.ts
+export const DETAIL_FOOT_GAP = 12;
 /** One skill = one 40-px block: the name, then its cd/target line with air under the name. */
 // promote to layout.ts
 export const DETAIL_ROW = 40;
@@ -314,7 +327,10 @@ export function createDraftScreen(deps: DraftScreenDeps): DraftScreen {
     const def = option.def;
     const focused = regions.focused() === id;
     const color = ELEMENT_COLOR[def.element];
-    drawFocusablePlate(ctx, r.x, r.y, r.w, r.h, focused, picked ? ACCENT : undefined, picked ? 0.68 : 0.55);
+    // PICKED is the same light at `FOCUS_CHOSEN`, not an amber keyline (UI item 5).
+    if (!focused && picked) focusGlow(ctx, r.x, r.y, r.w, r.h, PLATE_RADIUS, ACCENT, FOCUS_CHOSEN);
+    drawFocusablePlate(ctx, r.x, r.y, r.w, r.h, focused, undefined, picked ? 0.68 : 0.55, color);
+    if (!focused && picked) focusLift(ctx, r.x, r.y, r.w, r.h, PLATE_RADIUS, ACCENT, FOCUS_CHOSEN);
 
     drawPortrait(def, r.x + DRAFT_PAD, r.y + 10, focused || picked ? C_TEXT : C_DIM);
     const tx = r.x + DRAFT_PAD + PORTRAIT + 12;
@@ -380,7 +396,10 @@ export function createDraftScreen(deps: DraftScreenDeps): DraftScreen {
     }
     const strip = draftDetailRect(count);
     const top = Math.round(strip.y + (strip.h - DETAIL_BLOCK_H) / 2);
-    gradientPlate(ctx, strip.x, strip.y, strip.w, strip.h, { topAlpha: 0.5 });
+    // A FLOOR under the whole strip: the old wash reached zero at 62 % of its
+    // height, which is where the "cd 5 . all enemies" line sits, so the crypt's
+    // brazier ran straight through the skill column.
+    gradientPlate(ctx, strip.x, strip.y, strip.w, strip.h, { topAlpha: 0.62, floorAlpha: 0.5 });
 
     if (props.kind === 'REBRAND') {
       const target = props.sets[k];
@@ -441,7 +460,7 @@ export function createDraftScreen(deps: DraftScreenDeps): DraftScreen {
     if (step === 'SWAP_OUT' && props.kind === 'SUMMON') {
       const o = swapColumns(props);
       const name = chosen !== null && chosen >= 0 ? props.offers[chosen]?.def.name ?? '' : '';
-      drawBanner(ctx, `WHO STEPS ASIDE FOR ${name.toUpperCase()}?`, ACCENT_COOL);
+      drawBanner(ctx, `WHO STEPS ASIDE FOR ${name.toUpperCase()}?`, name.toUpperCase(), ACCENT_COOL);
       drawPartyColumns(pc, regions, props.view.party, o);
       drawSecondaryButton(ctx, PARTY_BACK.x, PARTY_BACK.y, PARTY_BACK.w, PARTY_BACK.h, 'BACK', regions.focused() === 'swap-back');
       hudTextCentered(ctx, 'they hand over their relics, their HP fraction, the seat and the awakening', 0,
@@ -453,7 +472,7 @@ export function createDraftScreen(deps: DraftScreenDeps): DraftScreen {
     const banner = props.kind === 'DRAFT' ? 'CHOOSE YOUR FIRST HERO'
       : props.kind === 'SUMMON' ? (props.full ? 'A SUMMON . THE PARTY IS FULL' : 'A SUMMON . ONE JOINS YOU')
         : 'REBRAND . CHOOSE THE NEW SET';
-    drawBanner(ctx, banner, props.kind === 'SUMMON' ? ACCENT_COOL : ACCENT);
+    drawBanner(ctx, banner, props.kind === 'SUMMON' ? 'SUMMON' : undefined, ACCENT_COOL);
 
     if (props.kind === 'REBRAND') {
       props.sets.forEach((_id, k) => drawSetCard(props, k, draftSlotRect(k, props.sets.length)));
@@ -467,7 +486,7 @@ export function createDraftScreen(deps: DraftScreenDeps): DraftScreen {
     const face = FACE_ID[props.kind];
     const label = props.kind === 'DRAFT' ? 'BEGIN THE RUN' : props.kind === 'REBRAND' ? 'REBRAND' : 'RECRUIT';
     if (chosen === null) {
-      hudTextCentered(ctx, 'pick one', CONTINUE.x, CONTINUE.y + 34, CONTINUE.w, HUD_PX, { color: C_MUTED, alpha: 0.7 });
+      drawPendingButton(ctx, CONTINUE.x, CONTINUE.y, CONTINUE.w, CONTINUE.h, `${label} . PICK ONE`);
     } else {
       drawPrimaryButton(ctx, CONTINUE.x, CONTINUE.y, CONTINUE.w, CONTINUE.h, label,
         regions.focused() === `${face}-continue`, regions.pressing() === `${face}-continue`);

@@ -33,10 +33,11 @@ import {
   PORTRAIT, RELIC_TITLE_MAX, SET_LINE_Y, safeInsetFor,
 } from './layout';
 import {
-  ACCENT, ACCENT_COOL, ACCENT_HP, C_CREAM, C_GOLD, C_MUTED, C_VIOLET, EDGE_SOFT, ELEMENT_COLOR, HP_RULE_H,
+  ACCENT, ACCENT_COOL, ACCENT_HP, C_GOLD, C_MUTED, C_VIOLET, EDGE_SOFT, ELEMENT_COLOR, HP_RULE_H,
+  FOCUS_CHOSEN, INK_TROUGH, PLATE_RADIUS, focusGlow, focusLift,
   ELEMENT_ICON_NAME, SLOT_ICON_NAME, drawFocusablePlate, drawHpRule, drawIcon, drawPrimaryButton,
-  drawSecondaryButton, formatSetBonus, gradientPlate, hudText, hudTextCentered, plate,
-  portraitFor, roundRectPath,
+  drawSecondaryButton, formatSetBonus, gradientPlate, hudText, hudTextCentered, hudWidth, plate,
+  portraitFor, roundRectPath, textWash,
 } from './hud';
 import type { PactId, Party, PartyMember, Rarity, Relic, RoomType, Slot } from '../types';
 import { SLOTS } from '../types';
@@ -166,8 +167,35 @@ export function drawPauseIcon(ctx: CanvasRenderingContext2D, regions: HitRegions
  */
 // promote to layout.ts
 export const BANNER_Y = 26;
-export function drawBanner(ctx: CanvasRenderingContext2D, text: string, color = ACCENT): void {
-  hudTextCentered(ctx, text, 0, BANNER_Y, CANVAS_W, HUD_LARGE, { px: HUD_LARGE, color });
+/**
+ * ONE ACCENT SYSTEM. The screen title is ALWAYS the amber — there is no colour
+ * parameter any more, because that parameter is what produced a cyan SUMMON, a
+ * green REST, a violet SHRINE and a gold ALTAR, four titles in four hues on
+ * four consecutive screens of one run. Where the room's own family still needs
+ * to be said, it is said in a WORD: `accentWord` is drawn in `accentColor`
+ * inside the otherwise-amber line, so the colour identifies the thing it names
+ * rather than repainting the whole plate.
+ *
+ * Drawn as up to three runs measured with hudWidth: `ctx.letterSpacing` adds
+ * its px after every glyph including the last, so the parts sum to the whole
+ * and the line stays centred where a single call would have put it.
+ */
+export function drawBanner(ctx: CanvasRenderingContext2D, text: string, accentWord?: string, accentColor: string = ACCENT): void {
+  const px = HUD_LARGE;
+  const y = BANNER_Y + (HUD_LARGE - px * 1.16) / 2;
+  const at = accentWord ? text.indexOf(accentWord) : -1;
+  if (at < 0) {
+    hudTextCentered(ctx, text, 0, BANNER_Y, CANVAS_W, HUD_LARGE, { px, color: ACCENT });
+    return;
+  }
+  const head = text.slice(0, at);
+  const mid = text.slice(at, at + accentWord!.length);
+  const tail = text.slice(at + accentWord!.length);
+  const total = hudWidth(ctx, text, px);
+  let x = Math.round((CANVAS_W - total) / 2);
+  if (head) x += hudText(ctx, head, x, y, { px, color: ACCENT });
+  x += hudText(ctx, mid, x, y, { px, color: accentColor });
+  if (tail) hudText(ctx, tail, x, y, { px, color: ACCENT });
 }
 
 // ======================================================= the party columns ==
@@ -322,7 +350,7 @@ function drawHead(pc: PixelCanvas, m: number, member: PartyMember, leader: boole
   const barW = CARD_W - 2 * COL_PAD;
   if (dead) {
     ctx.save();
-    ctx.fillStyle = 'rgba(3,4,10,0.66)';
+    ctx.fillStyle = INK_TROUGH;
     ctx.fillRect(Math.round(barX), y + 54, barW, HP_RULE_H);
     ctx.globalAlpha = 0.5;
     ctx.fillStyle = C_MUTED;
@@ -345,8 +373,12 @@ function drawRow(pc: PixelCanvas, regions: HitRegions, m: number, member: PartyM
   const enabled = o.pick !== 'ROW' || (o.rowEnabled ? o.rowEnabled(member, slot, relic, m, row) : relic !== undefined);
   const color = relic ? RARITY_COLOR[relic.rarity] : C_MUTED;
 
-  if (focused || chosen) {
-    drawFocusablePlate(ctx, r.x + 2, r.y + 2, r.w - 4, r.h - 4, focused, chosen ? ACCENT : undefined, 0.5);
+  if (focused) {
+    drawFocusablePlate(ctx, r.x + 2, r.y + 2, r.w - 4, r.h - 4, true, undefined, 0.5, ACCENT);
+  } else if (chosen) {
+    focusGlow(ctx, r.x + 2, r.y + 2, r.w - 4, r.h - 4, PLATE_RADIUS, ACCENT, FOCUS_CHOSEN);
+    plate(ctx, r.x + 2, r.y + 2, r.w - 4, r.h - 4, { alpha: 0.5 });
+    focusLift(ctx, r.x + 2, r.y + 2, r.w - 4, r.h - 4, PLATE_RADIUS, ACCENT, FOCUS_CHOSEN);
   }
   ctx.save();
   if (!enabled) ctx.globalAlpha *= 0.45;
@@ -373,10 +405,20 @@ export function drawPartyColumns(pc: PixelCanvas, regions: HitRegions, party: Pa
     const colFocused = o.pick === 'MEMBER' && regions.focused() === colId(o, m);
     const colChosen = o.isMemberChosen?.(m) ?? false;
     const enabled = o.pick !== 'MEMBER' || (o.memberEnabled ? o.memberEnabled(member, m) : true);
+    // The column carries six rows of small text over a lit diorama, so its
+    // wash holds a FLOOR instead of reaching zero two thirds down — that fade
+    // is what let the marsh's dead trees run through the relic rows. Focus is
+    // the glow and the lift, never a keyline.
+    // CHOSEN is the same light at `FOCUS_CHOSEN` strength, never a border: an
+    // amber keyline round the chosen column was the loudest edge on the party
+    // screen and told the player "focused" in the very shape round 3 retired.
+    const lit = colFocused || colChosen;
+    if (lit) focusGlow(ctx, rect.x, rect.y, rect.w, rect.h, PLATE_RADIUS, ACCENT, colFocused ? 1 : FOCUS_CHOSEN);
     gradientPlate(ctx, rect.x, rect.y, rect.w, rect.h, {
-      topAlpha: colFocused ? 0.6 : 0.42,
-      border: colFocused ? C_CREAM : colChosen ? ACCENT : undefined,
+      topAlpha: lit ? 0.66 : 0.5,
+      floorAlpha: lit ? 0.5 : 0.38,
     });
+    if (lit) focusLift(ctx, rect.x, rect.y, rect.w, rect.h, PLATE_RADIUS, ACCENT, colFocused ? 1 : FOCUS_CHOSEN);
     ctx.save();
     if (!enabled) ctx.globalAlpha *= 0.5;
     drawHead(pc, m, member, party.leader === m, o, colFocused || colChosen ? C_TEXT : C_DIM);
@@ -390,9 +432,20 @@ export function drawSetBand(pc: PixelCanvas, party: Party): void {
   const ctx = pc.ctx;
   const counts = new Map<string, number>();
   for (const m of party.members) for (const id of activeSets(wornRelics(m))) counts.set(id, (counts.get(id) ?? 0) + 1);
-  hudText(ctx, 'SETS IN PLAY', PARTY_SET_BAND.x, PARTY_SET_LABEL_Y, { px: HUD_SMALL, color: C_MUTED });
+  // A WASH PER LINE (UI item 8). This band stands between the columns and the
+  // foot row over OPEN FLOOR — the marsh's reeds and the crypt's brazier ran
+  // straight through "SETS IN PLAY / none yet". One plate over the block would
+  // put a hard vertical edge across the middle column's foot, so each line gets
+  // the log line's own treatment instead: a short wash the width of that line,
+  // faded out at both ends, with nothing between the lines.
+  const washed = (text: string, y: number, color: string): void => {
+    const w = hudWidth(ctx, text, HUD_SMALL);
+    textWash(ctx, PARTY_SET_BAND.x - 14, y - 6, w + 40, HUD_SMALL + 12, 0.55);
+    hudText(ctx, text, PARTY_SET_BAND.x, y, { px: HUD_SMALL, color });
+  };
+  washed('SETS IN PLAY', PARTY_SET_LABEL_Y, C_MUTED);
   if (counts.size === 0) {
-    hudText(ctx, 'none yet', PARTY_SET_BAND.x, SET_LINE_Y[0], { px: HUD_SMALL, color: C_DIM });
+    washed('none yet', SET_LINE_Y[0], C_DIM);
     return;
   }
   let line = 0;
@@ -401,7 +454,7 @@ export function drawSetBand(pc: PixelCanvas, party: Party): void {
     const def = SETS[id as keyof typeof SETS];
     if (!def) continue;
     const stack = n > 1 ? ` x${n}` : '';
-    hudText(ctx, `${def.name}${stack}  ${formatSetBonus(def.bonus)}`, PARTY_SET_BAND.x, SET_LINE_Y[line], { px: HUD_SMALL, color: C_TEXT });
+    washed(`${def.name}${stack}  ${formatSetBonus(def.bonus)}`, SET_LINE_Y[line], C_TEXT);
     line += 1;
   }
 }
@@ -556,9 +609,17 @@ export function createPartyScreen(deps: PartyScreenDeps): PartyScreen {
 }
 
 /** A button that is present but not offered: the label, and the reason under it. */
+/**
+ * A control that is not offered here — SWAP OUT away from a SUMMON, LEADER
+ * away from a leader decision. It keeps its SEAT (UI item 6): two bare grey
+ * lines on the diorama read as a caption nobody can act on, where the same
+ * words on a quiet plate read as a button that is simply not lit yet, which is
+ * what they are. `drawPendingButton`'s own body, plus the reason under it.
+ */
 export function drawDisabled(
   ctx: CanvasRenderingContext2D, rect: { x: number; y: number; w: number; h: number }, label: string, why: string,
 ): void {
-  hudTextCentered(ctx, label, rect.x, rect.y + 20, rect.w, HUD_PX, { color: C_MUTED, alpha: 0.7 });
-  hudTextCentered(ctx, why, rect.x, rect.y + 46, rect.w, HUD_SMALL, { px: HUD_SMALL, color: C_MUTED, alpha: 0.55 });
+  gradientPlate(ctx, rect.x, rect.y + 12, rect.w, rect.h - 24, { topAlpha: 0.34, floorAlpha: 0.22 });
+  hudTextCentered(ctx, label, rect.x, rect.y + 22, rect.w, HUD_PX, { color: C_MUTED, alpha: 0.75 });
+  hudTextCentered(ctx, why, rect.x, rect.y + 48, rect.w, HUD_SMALL, { px: HUD_SMALL, color: C_MUTED, alpha: 0.6 });
 }

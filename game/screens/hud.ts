@@ -183,8 +183,20 @@ export const PLATE_INK = '6,8,16';
 export const PLATE_TOP = 'rgba(255,255,255,0.16)';
 
 export function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
-  const rr = Math.min(r, w / 2, h / 2);
   ctx.beginPath();
+  roundRectSubpath(ctx, x, y, w, h, r);
+}
+
+/**
+ * The same rounded rectangle as a SUBPATH — it does not call `beginPath`, so a
+ * caller can put a second shape in the same path. That is the whole difference
+ * between a focus glow and a solid amber board: `focusGlow` clips
+ * (padded box MINUS plate) even-odd, and `roundRectPath`'s own `beginPath`
+ * silently threw the padded box away, leaving the clip equal to the plate and
+ * the "glow" filling its interior instead of bleeding out of it.
+ */
+export function roundRectSubpath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+  const rr = Math.min(r, w / 2, h / 2);
   ctx.moveTo(x + rr, y);
   ctx.arcTo(x + w, y, x + w, y + h, rr);
   ctx.arcTo(x + w, y + h, x, y + h, rr);
@@ -274,22 +286,120 @@ export function hudFit(ctx: CanvasRenderingContext2D, text: string, maxWidth: nu
 
 // ================================================================== focus ===
 /**
- * The focus ring is its OWN colour and its own weight, because a plate's
- * unfocused border is already saying something else — a relic's rarity, a
- * room's accent. Cream at 2 px on a denser plate is the one combination no
- * rarity can wear (COMMON is grey, RARE blue, EPIC pink, LEGENDARY orange), so
- * "which one is focused" is answered by colour AND width, never by colour alone.
+ * FOCUS IS LIGHT, NOT A KEYLINE. Round 2 retired the 1-px bordered rounded
+ * rectangle as a BUTTON and then kept it as the focused STATE — the command
+ * list, the leader rows, the draft cards, the map nodes and the bank rows all
+ * answered "which one is the keyboard on?" with a hairline box, which is the
+ * same web control wearing a different hat. Focus is now two things a lit
+ * diorama can actually carry:
+ *
+ *   1. a GLOW in the key colour, bled around the plate (`focusGlow`, drawn
+ *      UNDER it so it reads as light spilling out from behind), and
+ *   2. a VALUE LIFT — a denser plate, a soft accent lip along the top and a
+ *      faint tint across the body (`focusLift`), so the focused thing is
+ *      brighter than its neighbours even in a greyscale reduction.
+ *
+ * `FOCUS_RING` is GONE: nothing in the game draws a focus ring any more. The
+ * two pause overlays keep a border on their secondaries — over a 0.66 dim with
+ * no lit world behind them a borderless plate dissolves — but that border is
+ * `EDGE_LIT` in both states and the glow is what says which one is focused, so
+ * the line is the button's own anatomy and never the cursor.
  */
-export const FOCUS_RING = PICO8[7];
-export const FOCUS_RING_W = 2;
 export const FOCUS_PLATE_ALPHA = 0.76;
+/** How far the focus glow bleeds, and how hard. */
+export const FOCUS_GLOW_BLUR = 22;
+export const FOCUS_GLOW_ALPHA = 0.42;
 
-// Two reused option records: a focusable plate is drawn several times a frame
+/**
+ * The glow: the accent, blurred OUT OF the plate's own footprint and never
+ * into it. The shape is filled with the accent under a shadow, but the fill
+ * itself is clipped away — an even-odd clip of (a padded box MINUS the plate)
+ * leaves the source invisible and only its bleed on the canvas. That clip is
+ * built with `roundRectSubpath`, NOT `roundRectPath`: the latter opens a new
+ * path and would drop the padded box, which turns the clip into the plate
+ * itself and the glow into a 0.42-alpha accent slab a translucent plate cannot
+ * hide — a focused party column as a solid amber board.
+ *
+ * ONE pass, wide and soft. A second tighter pass was tried and read as a 1-px
+ * saturated keyline round every focused card, node and row — the bordered
+ * rounded rectangle again, wearing the glow's name. Focus is carried by the
+ * bleed plus `focusLift`'s value change, never by an edge.
+ */
+export function focusGlow(
+  ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number,
+  radius: number = PLATE_RADIUS, color: string = ACCENT, strength = 1,
+): void {
+  const px = Math.round(x);
+  const py = Math.round(y);
+  const pw = Math.round(w);
+  const ph = Math.round(h);
+  const pad = Math.ceil(FOCUS_GLOW_BLUR * strength) * 3;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(px - pad, py - pad, pw + pad * 2, ph + pad * 2);
+  roundRectSubpath(ctx, px, py, pw, ph, radius);
+  ctx.clip('evenodd');
+  ctx.shadowColor = color;
+  ctx.shadowBlur = FOCUS_GLOW_BLUR * strength;
+  ctx.globalAlpha = FOCUS_GLOW_ALPHA * strength;
+  ctx.fillStyle = color;
+  roundRectPath(ctx, px, py, pw, ph, radius);
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * The value lift: light LANDING on the plate — a short accent wash down from
+ * its top edge, a 1-px lip where the light meets it, and a very faint tint
+ * across the whole body so the focused thing is warmer and brighter than its
+ * neighbours everywhere, not only at the head. That last term is what makes
+ * focus survive a greyscale reduction; it is held at `FOCUS_BODY_ALPHA`
+ * because at any more it stops being a value change and becomes a colour.
+ * The head wash is capped at `FOCUS_LIFT_H` for the same reason — a
+ * proportional lift on a 456-px party column would be a 228-px amber field.
+ */
+export const FOCUS_LIFT_H = 26;
+export const FOCUS_BODY_ALPHA = 0.07;
+/**
+ * How much of the focus light a CHOSEN-but-not-focused thing carries — the
+ * column the two party buttons will act on, the draft offer already picked.
+ * It is the same light at a little over half strength, not a border: two
+ * states in one vocabulary, told apart by how lit they are.
+ */
+export const FOCUS_CHOSEN = 0.55;
+export function focusLift(
+  ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number,
+  radius: number = PLATE_RADIUS, color: string = ACCENT, strength = 1,
+): void {
+  const pw = Math.round(w);
+  const ph = Math.round(h);
+  const lh = Math.max(6, Math.min(FOCUS_LIFT_H, Math.round(h * 0.5)));
+  ctx.save();
+  ctx.translate(Math.round(x), Math.round(y));
+  roundRectPath(ctx, 0, 0, pw, ph, radius);
+  ctx.clip();
+  ctx.globalAlpha = FOCUS_BODY_ALPHA * strength;
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, pw, ph);
+  ctx.globalAlpha = strength;
+  ctx.fillStyle = tintGrad(ctx, lh, color, 0.3);
+  ctx.fillRect(0, 0, pw, lh);
+  ctx.globalAlpha = 0.45 * strength;
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, pw, 1);
+  ctx.restore();
+}
+
+// One reused option record: a focusable plate is drawn several times a frame
 // and must not allocate to do it.
-const FOCUS_OPTS: PlateOptions = { border: FOCUS_RING, borderWidth: FOCUS_RING_W, alpha: FOCUS_PLATE_ALPHA };
 const REST_OPTS: PlateOptions = {};
 
-/** A plate that can hold focus: the ring when it does, its own accent (or nothing) when it does not. */
+/**
+ * A plate that can hold focus: glow + a denser body + the accent lip when it
+ * does, its own accent border (a relic's rarity, a room's colour) when it does
+ * not. `accentColor` overrides what the glow is made of — a draft card glows in
+ * its element, a relic card in its rarity — defaulting to the one amber.
+ */
 export function drawFocusablePlate(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -299,9 +409,15 @@ export function drawFocusablePlate(
   focused: boolean,
   accent?: string,
   alpha: number = PLATE_ALPHA,
+  accentColor?: string,
 ): void {
+  const glow = accentColor ?? accent ?? ACCENT;
   if (focused) {
-    plate(ctx, x, y, w, h, FOCUS_OPTS);
+    focusGlow(ctx, x, y, w, h, PLATE_RADIUS, glow);
+    REST_OPTS.border = undefined;
+    REST_OPTS.alpha = FOCUS_PLATE_ALPHA;
+    plate(ctx, x, y, w, h, REST_OPTS);
+    focusLift(ctx, x, y, w, h, PLATE_RADIUS, glow);
     return;
   }
   REST_OPTS.border = accent;
@@ -405,13 +521,19 @@ const V_GRADS = new Map<string, CanvasGradient>();
 const TINT_GRADS = new Map<string, CanvasGradient>();
 const H_GRADS = new Map<string, CanvasGradient>();
 
-function vGrad(ctx: CanvasRenderingContext2D, h: number, topAlpha: number): CanvasGradient {
-  const key = `${h}|${topAlpha}`;
+function vGrad(ctx: CanvasRenderingContext2D, h: number, topAlpha: number, floorAlpha = 0): CanvasGradient {
+  const key = `${h}|${topAlpha}|${floorAlpha}`;
   let g = V_GRADS.get(key);
   if (!g) {
     g = ctx.createLinearGradient(0, 0, 0, h);
     g.addColorStop(0, `rgba(${INK},${topAlpha})`);
-    g.addColorStop(0.62, `rgba(${INK},${topAlpha * 0.42})`);
+    g.addColorStop(0.62, `rgba(${INK},${Math.max(topAlpha * 0.42, floorAlpha)})`);
+    // A plate with a FLOOR holds its ink almost to the bottom edge and only
+    // then lets go, so a text block near the plate's foot still has ink under
+    // it. Without one (the default, and every battle panel) the wash reaches
+    // zero at 62 % and the scene comes back through — which is what let the
+    // marsh's dead trees run through the relic rows.
+    if (floorAlpha > 0) g.addColorStop(0.9, `rgba(${INK},${floorAlpha})`);
     g.addColorStop(1, `rgba(${INK},0)`);
     V_GRADS.set(key, g);
   }
@@ -462,24 +584,66 @@ function hWash(ctx: CanvasRenderingContext2D, w: number, alpha: number): CanvasG
 /** The gradient plate: ink at the top fading to nothing, and a border ONLY when it is focused or targeted. */
 export function gradientPlate(
   ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number,
-  o: { topAlpha?: number; border?: string; radius?: number } = {},
+  o: { topAlpha?: number; floorAlpha?: number; border?: string; radius?: number; focused?: boolean; accent?: string } = {},
 ): void {
   const px = Math.round(x);
   const py = Math.round(y);
   const pw = Math.round(w);
   const ph = Math.round(h);
+  const r = o.radius ?? PLATE_RADIUS;
+  if (o.focused) focusGlow(ctx, px, py, pw, ph, r, o.accent ?? ACCENT);
   ctx.save();
   ctx.translate(px, py);
-  roundRectPath(ctx, 0, 0, pw, ph, o.radius ?? PLATE_RADIUS);
-  ctx.fillStyle = vGrad(ctx, ph, o.topAlpha ?? PANEL_TOP_ALPHA);
+  roundRectPath(ctx, 0, 0, pw, ph, r);
+  ctx.fillStyle = vGrad(ctx, ph, o.topAlpha ?? PANEL_TOP_ALPHA, o.floorAlpha ?? 0);
   ctx.fill();
   ctx.restore();
+  if (o.focused) focusLift(ctx, px, py, pw, ph, r, o.accent ?? ACCENT);
   if (!o.border) return;
   ctx.save();
-  roundRectPath(ctx, px + 0.5, py + 0.5, pw - 1, ph - 1, o.radius ?? PLATE_RADIUS);
+  roundRectPath(ctx, px + 0.5, py + 0.5, pw - 1, ph - 1, r);
   ctx.strokeStyle = o.border;
   ctx.lineWidth = 1;
   ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * THE TITLE BAND: the one box the bitmap face gets to itself. DESIGN.md's
+ * "Two kinds of text" gives card and door titles to bitmap `FONT_HD` and
+ * everything the player reads as UI to the vector HUD face — which is right,
+ * and which put a 3x-scaled bitmap word two centimetres above vector body copy
+ * INSIDE THE SAME PLATE on every relic card, wear column, room card, pact card
+ * and door. The rule is kept and the collision is not: the title now sits on a
+ * denser strip of its own across the head of the card, closed by the card's own
+ * hairline, so the two voices are in two boxes. Top corners rounded to the
+ * plate's radius, bottom square, because it is the head of the plate and not a
+ * chip floating on it.
+ */
+export function titleBand(
+  ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string,
+  radius: number = PLATE_RADIUS, alpha = 0.42,
+): void {
+  const px = Math.round(x);
+  const py = Math.round(y);
+  const pw = Math.round(w);
+  const ph = Math.round(h);
+  const rr = Math.min(radius, pw / 2, ph / 2);
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(px + rr, py);
+  ctx.lineTo(px + pw - rr, py);
+  ctx.arcTo(px + pw, py, px + pw, py + rr, rr);
+  ctx.lineTo(px + pw, py + ph);
+  ctx.lineTo(px, py + ph);
+  ctx.lineTo(px, py + rr);
+  ctx.arcTo(px, py, px + rr, py, rr);
+  ctx.closePath();
+  ctx.fillStyle = `rgba(${INK},${alpha})`;
+  ctx.fill();
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = color;
+  ctx.fillRect(px, py + ph - 1, pw, 1);
   ctx.restore();
 }
 
@@ -496,6 +660,40 @@ export function textWash(ctx: CanvasRenderingContext2D, x: number, y: number, w:
 // ================================================================ HP rules ===
 /** The panel's HP bar: a 4-px rule the width of the NUMBER, over a trough tinted to the actor's element. */
 export const HP_RULE_H = 4;
+
+/**
+ * ONE HP colour in the whole game — `ACCENT_HP` — which SHIFTS toward the
+ * danger hue as the bar empties. Two colours for the same quantity (green in
+ * battle, gold on the map) is two vocabularies; a single colour that never
+ * changes is a bar the player has to read the NUMBER off to know they are
+ * dying. So: green above `HP_DANGER_FROM`, and from there it walks to
+ * `C_DEBUFF` — the colour everything done TO you already wears — reaching it
+ * at `HP_DANGER_FULL`.
+ *
+ * The ramp is quantised to `HP_RAMP_N` steps and baked ONCE into an array of
+ * colour strings: a bar is drawn several times a frame on the map and in every
+ * panel, and mixing a colour per draw would build a string per bar per frame.
+ */
+export const HP_DANGER_FROM = 0.35;
+export const HP_DANGER_FULL = 0.1;
+const HP_RAMP_N = 12;
+function mixHex(a: string, b: string, t: number): string {
+  const pa = parseInt(a.replace('#', ''), 16);
+  const pb = parseInt(b.replace('#', ''), 16);
+  const m = (sh: number): number => Math.round((((pa >> sh) & 255) * (1 - t)) + (((pb >> sh) & 255) * t));
+  return `rgb(${m(16)},${m(8)},${m(0)})`;
+}
+const HP_RAMP: string[] = [];
+for (let i = 0; i < HP_RAMP_N; i++) HP_RAMP.push(mixHex(ACCENT_HP, C_DEBUFF, i / (HP_RAMP_N - 1)));
+
+/** The one HP colour at this fraction: `ACCENT_HP` healthy, walking to `C_DEBUFF` under 35 %. */
+export function hpColor(frac: number): string {
+  const f = clamp01(frac);
+  if (f >= HP_DANGER_FROM) return HP_RAMP[0];
+  const t = clamp01((HP_DANGER_FROM - f) / (HP_DANGER_FROM - HP_DANGER_FULL));
+  return HP_RAMP[Math.min(HP_RAMP_N - 1, Math.round(t * (HP_RAMP_N - 1)))];
+}
+
 export function drawHpRule(
   ctx: CanvasRenderingContext2D, x: number, y: number, w: number, frac: number, element: Element, alive = true,
 ): void {
@@ -509,7 +707,7 @@ export function drawHpRule(
   ctx.fillStyle = ELEMENT_COLOR[element];
   ctx.fillRect(x0, y0, ww, HP_RULE_H);
   ctx.restore();
-  ctx.fillStyle = alive ? ACCENT_HP : PICO8[5];
+  ctx.fillStyle = alive ? hpColor(frac) : PICO8[5];
   ctx.fillRect(x0, y0, Math.max(0, Math.round(ww * clamp01(frac))), HP_RULE_H);
 }
 
@@ -689,19 +887,58 @@ export function drawPrimaryButton(
   roundRectPath(ctx, 0, 0, pw, ph, 6);
   ctx.fillStyle = `rgba(${INK},0.86)`;
   ctx.fill();
-  // Lit from above in the key's own colour, then a bright lip along the top —
-  // the plate reads as a thing with light falling on it, not as a bordered box.
+  // Lit from above in the key's own colour. NO hard bright rule along the top:
+  // a 2-px 0.9-alpha accent bar is the anatomy of a web CTA, not of a lit slab,
+  // and it was the loudest edge on every screen that carried a primary. What is
+  // left is the wash itself plus a 1-px lip at a third of that alpha — enough
+  // to say "light lands here", not enough to draw a frame.
   ctx.clip();
-  ctx.fillStyle = tintGrad(ctx, ph, accent, focused ? 0.34 : 0.2);
+  ctx.fillStyle = tintGrad(ctx, ph, accent, focused ? 0.4 : 0.24);
   ctx.fillRect(0, 0, pw, ph);
-  ctx.globalAlpha = focused ? 0.9 : 0.6;
+  ctx.globalAlpha = focused ? 0.34 : 0.22;
   ctx.fillStyle = accent;
-  ctx.fillRect(0, 0, pw, 2);
+  ctx.fillRect(0, 0, pw, 1);
   ctx.restore();
-  hudTextCentered(ctx, label, px, py, pw, ph, { color: focused ? PICO8[7] : '#e6dfd2' });
+  hudTextCentered(ctx, label, px, py, pw, ph, { color: focused ? PICO8[7] : C_CREAM });
 }
 
-/** The quiet half of a pair: text, and a rule under it when it holds focus. */
+/**
+ * The primary's seat while there is nothing to press yet — a SUMMON before an
+ * offer is picked, the ALTAR before a member is. It was bare dim grey text on
+ * the floor, so the biggest control on the screen had no affordance at all
+ * until it was already answered. Now it is the same slab at a fraction of the
+ * light: unmistakably a button, unmistakably not ready.
+ */
+export function drawPendingButton(
+  ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, label: string,
+  accent: string = ACCENT,
+): void {
+  const ph = Math.min(h, 56);
+  const py = Math.round(y + (h - ph) / 2);
+  const px = Math.round(x);
+  const pw = Math.round(w);
+  ctx.save();
+  ctx.translate(px, py);
+  roundRectPath(ctx, 0, 0, pw, ph, 6);
+  ctx.fillStyle = `rgba(${INK},0.62)`;
+  ctx.fill();
+  ctx.clip();
+  ctx.fillStyle = tintGrad(ctx, ph, accent, 0.1);
+  ctx.fillRect(0, 0, pw, ph);
+  ctx.globalAlpha = 0.16;
+  ctx.fillStyle = accent;
+  ctx.fillRect(0, 0, pw, 1);
+  ctx.restore();
+  hudTextCentered(ctx, label, px, py, pw, ph, { color: C_MUTED });
+}
+
+/**
+ * The quiet half of a pair. It is still TEXT, not a slab — but it is text on a
+ * PLATE, because DECLINE / SKIP / WALK PAST / KEEP <name> printed straight onto
+ * a lit floor read as a caption, not as a thing to press: three of the four
+ * controls on a SUMMON had no visible seat at all. The plate is short, quiet
+ * and borderless; focus adds the glow and the underline.
+ */
 export function drawSecondaryButton(
   ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, label: string,
   focused: boolean, accent: string = ACCENT,
@@ -710,7 +947,20 @@ export function drawSecondaryButton(
   const tw = hudWidth(ctx, label, px);
   const tx = Math.round(x + (w - tw) / 2);
   const ty = Math.round(y + (h - px * 1.16) / 2);
-  hudText(ctx, label, tx, ty, { color: focused ? PICO8[7] : PICO8[6] });
+  // The seat: the label's own width plus air, never the full hit rect — a
+  // secondary that fills its 280 px would weigh the same as the primary.
+  const sw = Math.min(Math.round(w), Math.round(tw) + 56);
+  const sh = Math.min(Math.round(h), 44);
+  const sx = Math.round(x + (w - sw) / 2);
+  const sy = Math.round(y + (h - sh) / 2);
+  if (focused) focusGlow(ctx, sx, sy, sw, sh, 6, accent, 0.8);
+  ctx.save();
+  ctx.translate(sx, sy);
+  roundRectPath(ctx, 0, 0, sw, sh, 6);
+  ctx.fillStyle = `rgba(${INK},${focused ? 0.7 : 0.44})`;
+  ctx.fill();
+  ctx.restore();
+  hudText(ctx, label, tx, ty, { color: focused ? PICO8[7] : C_CREAM });
   if (!focused) return;
   ctx.save();
   ctx.globalAlpha = 0.9;

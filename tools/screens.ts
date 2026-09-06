@@ -278,6 +278,10 @@ function buildTick(fixture?: string, screen?: string): Tick {
         view: viewOf(P_FULL, { act: 2, score: 640, pactsTaken: (stacked ? ['HASTE', 'FURY'] : []) as PactId[] }),
         pact: stacked ? PACTS.DEARTH : PACTS.VEIL,
         untakenCount: stacked ? 3 : 5,
+        // The fixture stands in act 2, so the shrine's own line has to name act
+        // 2's biome — the hardcoded "the crypt" is exactly the defect the
+        // fixture would otherwise keep reproducing.
+        biome: 'FROST MARSH',
       };
       view = props.view;
       pending = { kind: 'SHRINE', pact: props.pact.id, untakenCount: props.untakenCount };
