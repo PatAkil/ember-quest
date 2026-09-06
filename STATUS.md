@@ -15,6 +15,16 @@ npm run build && npm run smoke   # before every commit (smoke needs the dev serv
 npm run sim                      # act-1 fixtures per policy; --runs N [--seed S] the ladder;
                                  # --battles --runs N; --vault N; --selfcheck; --dump
 node tools/capture.mjs sheets | battle seed=N | phone | play | playfull [acts=1] [phone=1] [ko=1] [seed=N] | shot url=…
+node tools/seats.mjs drive seeds=1,4,12,16,20 marsh=1 | measure | overlay seed=20 | report
+                                 # the IN-SCENE instrument: each actor's own pixels at its own seat,
+                                 # masks planted at layout.ts's anchors read at runtime (read its header)
+node tools/rulers.mjs [actors=…] [json=1] | hash [out=…] [against=…]
+                                 # the sheet rulers off the real bakes, unrounded — lit, torso band,
+                                 # settle, idle change, crownDy, dead height, components, blob, the
+                                 # L* 38–49.3 hole; `hash` md5s all 645 bakes and diffs two trees
+node tools/probe.mjs crop | diff | step | ground | refval
+                                 # frame probes: pixels side by side, what moved between two frames,
+                                 # a vertical value step, the ground under each rank, a reference crop
 ```
 
 Playable at http://localhost:5173/: title → draft (three of six, leader
@@ -26,7 +36,10 @@ Space/Z, B = X/C, 1/2/3 skills, P/Esc pause, I inspect).
 Fixture harnesses (no game state): `tools/lineup.html` (every actor, every
 pose, ×N), `tools/vfx.html` (every skill effect), `tools/backdrops.html`
 (six biomes, three tiers), `tools/screens.html` (every run screen on a
-fixture, `?phone=1`).
+fixture, `?phone=1`). The art loop's rulers live in `tools/seats.mjs` (in scene), `tools/rulers.mjs`
+(on the sheet) and `tools/probe.mjs` (frame probes); each prints its own usage with
+`node tools/<x>.mjs help`, and seats.mjs's header states the in-scene instrument in full —
+the port reproduced the round-14 verdict to 0.3 L on every seat and exactly on every ruler.
 
 ## Playing it on a phone
 

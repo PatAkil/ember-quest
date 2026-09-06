@@ -1658,3 +1658,16 @@ branch, then EMBER's fourteen frames judged in a battle frame, then the heroes, 
 bosses), the ordinary enemies on the kit under the engine's value-law fix. The defining
 prompt is `.claude/prompts/pixel-pipeline.md`. The kit's sprite loop stays paused; its
 criteria and rulers apply to the hand-drawn actors unchanged.
+
+### Corrections to the round-14 verdict, found when the instrument was ported to `tools/`
+
+The port (`tools/seats.mjs`, `tools/rulers.mjs`, `tools/probe.mjs`) reproduced the verdict's
+seat numbers to 0.3 L worst case (114 comparisons) and every sheet ruler exactly, and in doing
+so found two slips in the verdict's prose, neither of which changes a conclusion: (1) the
+hero seats' share below L 35 on the six named references spans 24.6 % (GALE, seed 12) to
+48.3 % (EMBER, marsh), not "26.3–48"; (2) the plane blob quoted as 23.68 % in the DUST_WRAITH
+paragraph is CRYPT_WARDEN's — DUST_WRAITH's is 5.99 %, still well over the 2 % bar. The
+verdict's byte-identity finding (54 of 645 bakes moved, all four actors') and its enemy-ceiling
+misses (4 of 13 seats on the named set; 6 of 17 when seeds 3 and 11 are driven too) reproduce
+exactly.
+

@@ -37,8 +37,12 @@ ember-quest/
 ├── sim/run.mjs               # balance simulator runner (npm run sim)
 ├── smoke.mjs                 # headless boot gate (npm run smoke)
 ├── tools/                    # the art loop's eyes: lineup.html/.ts (every recipe through the real bake pipeline,
-│                             #   ship-criteria metrics), capture.mjs (Playwright: sheets, battle frames, phone, any page);
-│                             #   tools/out/ (captures) and tools/ref/ (the owner's reference frames) are gitignored
+│                             #   ship-criteria metrics), capture.mjs (Playwright: sheets, battle frames, phone, any page),
+│                             #   seats.mjs (the IN-SCENE instrument: each actor's own pixels at its seat, masks planted
+│                             #     at layout.ts's anchors READ AT RUNTIME — its header states the instrument in full),
+│                             #   rulers.mjs (the sheet rulers off the real bakes, unrounded, + md5 per bake for byte identity),
+│                             #   probe.mjs (crop · diff · step · ground · refval frame probes), study.html/.ts (the pixel
+│                             #     study sheet); tools/out/ (captures) and tools/ref/ (the owner's reference frames) are gitignored
 ├── index.html                # arcade shell; game mounts into #screen
 ├── .github/workflows/pages.yml   # push to main = deploy to GitHub Pages
 └── .claude/skills/           # ten skills; agents/game-writer.md
@@ -74,7 +78,10 @@ ember-quest/
   `play` is its `acts=1` alias), `shot url=<dev page> name=<n> [phone=1]` (any page that sets
   `window.__lineup.ready`; `/tools/screens.html?screen=…&fixture=…` renders any run screen from
   fixtures). Needs the dev server; long captures run on a snapshot server while other writers are
-  saving, because a hot reload resets the run. An art or scene change is not done until its sheets and frames have been opened and judged.
+  saving, because a hot reload resets the run. An art or scene change is not done until its sheets and frames have been opened and judged. An in-scene number is measured with `node tools/seats.mjs`, never rebuilt per session: it reads the
+  stage anchors out of `game/screens/layout.ts` at runtime and records the commit and the anchors in
+  every capture, which is what decision 3 after round 14 requires. The sheet rulers are
+  `node tools/rulers.mjs` (`hash` for byte identity between two trees); frame probes are `node tools/probe.mjs`.
 - **Engine edits are allowed** — the engine here is a fork owned by this game.
   New primitives go into the owning module, are re-exported from `engine/index.ts`,
   and are added to the API table below in the same change. There is no fixture
