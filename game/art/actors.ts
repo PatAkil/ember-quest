@@ -447,7 +447,14 @@ const BLOOD_TABARD: Ramp = ramp(352, 21, 42); // round 7: another fifth off — 
 // the shroud's lit left third still running L 75-85 with 18.2 % of the sprite
 // over L 75, the second-highest non-glowing figure: one step off that third
 // buys the whole enemy plane three or four L without touching round 9's split.
-const ASH_HIDE: Ramp = ramp(246, 8, 58, { mid: -10, lit: -8 });
+// ROUND 11 — and NINE more off the lit step, measured in the frame rather than
+// on the sheet. Round 10's -8 bought the sheet's >L 75 share 19.9 -> 9.3 and
+// moved nothing in the scene: over twelve driven crypt seeds the wraith's torso
+// still read p50 55.9-59.1 at ENEMY_FEET[0]/[1], the highest standard enemy in
+// the game and above the party median + 5 on thirteen of them. The lit third of
+// the shroud IS this figure — the shade side is already on `legal()`'s floor —
+// so the only tone left that can move the frame is the one carrying its light.
+const ASH_HIDE: Ramp = ramp(246, 8, 58, { mid: -10, lit: -17 });
 /**
  * ROUND 8 — HUE SEPARATION, not another chroma cut. Measured over the top ten
  * colours of the idle-0 bake, ASH_HOUND and DUST_WRAITH overlapped 71 % (they
@@ -647,21 +654,75 @@ const HURT_FLASH = '#fff2dc';
 // erasing. Forty-five per cent still blanches the figure at 12 fps and leaves
 // its lit side, its shadow side and its silhouette all readable underneath.
 const HURT_MIX = 0.45;
+/**
+ * ROUND 11 — THE FLASH IS AN EDGE, NOT A WASH. `HURT_MIX` capped the tint on
+ * the INPUT and the frame still compounded it: the sprite's 45 % cream, plus
+ * the skill family's own white core over the same pixels, plus the light rig's
+ * gain, plus the bloom, put **61 % of the target above L 75 and 1.2 % below
+ * L 35** at the hit and left it 56 % white 360 ms later — the recoil four
+ * rounds went into authoring is invisible in the one animation it exists for.
+ * A hit does not bleach a body; it lights its EDGE. The tint is therefore
+ * distance-weighted from the silhouette: the outer cell of every edge (which
+ * is the part's own dark keyline, and every interior hole's lip with it) goes
+ * nearly to the flash colour, the cell behind it half way, and the whole
+ * interior keeps its authored values under a mix a fifth of the old one. The
+ * figure reads as rimmed in white light with its planes, its shadow side and
+ * its face still legible inside — and the VFX layer over it is untouched.
+ */
+// The three weights are set by what they cost in the FRAME, not by what reads
+// on a sheet: a 1-cell rim on a 43 x 44 silhouette is already ~17 % of its
+// cells, so a second bright band would put more of the target over L 75 than
+// round 10's uniform 0.45 wash did. The rim is one cell of near-flash; the cell
+// behind it is barely over the interior, which is what makes the edge read as
+// LIGHT ON A FORM rather than as a two-cell white keyline.
+const HURT_RIM_MIX = 0.85; //  the silhouette's own edge cell — the keyline, lit
+const HURT_EDGE_MIX = 0.28; // one cell behind it, so the rim has falloff and not a hard step
+const HURT_CORE_MIX = 0.18; // and the interior, which keeps its own values
 const flashCache = new Map<string, string>();
-function flashTint(hex: string): string {
-  let out = flashCache.get(hex);
+function flashTint(hex: string, amount: number = HURT_MIX): string {
+  const key = amount === HURT_MIX ? hex : hex + '|' + amount;
+  let out = flashCache.get(key);
   if (out === undefined) {
     const n = parseInt(hex.slice(1), 16);
     const f = parseInt(HURT_FLASH.slice(1), 16);
     const mix = (sh: number): number => {
       const a = (n >> sh) & 255;
       const b = (f >> sh) & 255;
-      return a + (b - a) * HURT_MIX;
+      return a + (b - a) * amount;
     };
     out = '#' + hex2(mix(16)) + hex2(mix(8)) + hex2(mix(0));
-    flashCache.set(hex, out);
+    flashCache.set(key, out);
   }
   return out;
+}
+/**
+ * Tint one composed grid by DISTANCE FROM THE SILHOUETTE: 1 = a painted cell
+ * with an empty 4-neighbour, 2 = a painted cell touching one of those, 0 =
+ * everything deeper in. Two 4-neighbour passes over a 128-cell grid, once per
+ * (recipe, element) at bake — never on the draw path.
+ */
+function flashEdges(pixels: (string | null)[], res: number): void {
+  const band = new Uint8Array(res * res);
+  const empty = (x: number, y: number): boolean => x < 0 || y < 0 || x >= res || y >= res || pixels[y * res + x] === null;
+  for (let y = 0; y < res; y++) {
+    for (let x = 0; x < res; x++) {
+      const i = y * res + x;
+      if (pixels[i] === null) continue;
+      if (empty(x - 1, y) || empty(x + 1, y) || empty(x, y - 1) || empty(x, y + 1)) band[i] = 1;
+    }
+  }
+  for (let y = 0; y < res; y++) {
+    for (let x = 0; x < res; x++) {
+      const i = y * res + x;
+      if (pixels[i] === null || band[i] !== 0) continue;
+      if ((x > 0 && band[i - 1] === 1) || (x < res - 1 && band[i + 1] === 1) || (y > 0 && band[i - res] === 1) || (y < res - 1 && band[i + res] === 1)) band[i] = 2;
+    }
+  }
+  for (let i = 0; i < pixels.length; i++) {
+    const c = pixels[i];
+    if (c === null) continue;
+    pixels[i] = flashTint(c, band[i] === 1 ? HURT_RIM_MIX : band[i] === 2 ? HURT_EDGE_MIX : HURT_CORE_MIX);
+  }
 }
 
 function composePose(recipe: ActorRecipe, pose: PoseName, frame: number, element: Element): Sprite {
@@ -723,12 +784,9 @@ function composePose(recipe: ActorRecipe, pose: PoseName, frame: number, element
     }
   }
   if (pose === 'hurt' && frame === 0) {
-    // The first frame of a recoil is a FLASH: every pixel tinted 45 % toward a
-    // hot cream, so the figure blanches without dissolving into a silhouette.
-    for (let i = 0; i < pixels.length; i++) {
-      const c = pixels[i];
-      if (c !== null) pixels[i] = flashTint(c);
-    }
+    // The first frame of a recoil is a FLASH — on the silhouette's EDGE, with
+    // the interior held at a fifth of the old wash, so the pose survives it.
+    flashEdges(pixels, res);
   }
   return { w: res, h: res, pixels };
 }
@@ -1169,7 +1227,14 @@ const BOSS_HIT_SIZE = { w: 56, h: 88 };
 
 const TOWER_AT: Point = { x: 7, y: 25 }; // BASALT's full-height kite, carried on the far arm and reaching the knee
 const SHIELD_AT: Point = { x: 10, y: 29 }; // the Drowned Knight's broken kite, low on a hunched frame
-const PLUME_AT: Point = { x: 29, y: -1 }; // a crest ABOVE the helm, not a flame growing out of the skull
+// ROUND 11 — the crest is anchored at its SOCKET, not at its tip. Five rows
+// came off the top of the flame (`PLUME` in parts.ts) to bring PYRE_KNIGHT from
+// 61 cells / 16.9 % of the frame into the 50-56 elite band; placed literally,
+// a shorter part left at y -1 would have kept the same top row and floated the
+// socket five rows clear of the helm. Moving the placement down by the same
+// five keeps the socket exactly where it was mounted and takes the five cells
+// off the FIGURE'S HEIGHT, which is the number the round-10 verdict measured.
+const PLUME_AT: Point = { x: 29, y: 5 }; // a crest ABOVE the helm, not a flame growing out of the skull
 const KELP_AT: Point = { x: 36, y: 18 }; // ROUND 8 — off the visor: at (27,6) the weed covered the whole face and painted the vertical bars the critic read there five rounds running
 const HALO_AT: Point = { x: 22, y: 1 };
 const OFFHAND_AT: Point = { x: 18, y: 42 }; // GALE's sheathed second blade, at the hip
@@ -1180,7 +1245,7 @@ const CLAW_LEFT_AT: Point = { x: 26, y: 64 }; // the Hollow King's other hand �
 const SAINT_STAFF_AT: Point = { x: 34, y: 50 }; // ROUND 8 — four cells further out and five rows higher, so the shaft breaks the bell's own edge instead of running down inside it
 
 /** The recoil rig each arms family swaps to on a hit; a cradle (the robe sleeves) keeps its hands, so it has none. */
-const RECOIL_ARMS: Partial<Record<PartId, PartId>> = {
+const RECOIL_ARMS: Record<string, PartId> = {
   arms_bare: 'arms_bare_hurt',
   arms_sleeve: 'arms_sleeve_hurt',
   arms_mantle: 'arms_mantle_hurt',
@@ -1191,6 +1256,21 @@ const RECOIL_ARMS: Partial<Record<PartId, PartId>> = {
   arms_robe_boss: 'arms_robe_boss_hurt',
   arms_brute: 'arms_plate_hurt',
 };
+
+/**
+ * ROUND 11 — the hook for `actors-late.ts`. `RECOIL_ARMS` was module-private,
+ * so the `arms_*_hurt` grids the late pack authored were unreachable and six of
+ * its humanoids drove the head DOWN on a hit (the round-10 critic's crownDy +3).
+ * `lateRecipes()` calls this before it builds, and every pair it registers is
+ * then found by `humanoid()`/`boss()` exactly as the nineteen's own are. Keys
+ * are arms part ids; values the hurt rig to swap in. Registering a key that
+ * already exists overwrites it, which is how a late recipe may re-point a
+ * SHARED arms family at its own recoil — nothing here touches the nineteen
+ * unless a caller names one of their arms ids.
+ */
+export function registerRecoilArms(map: Record<string, PartId>): void {
+  for (const k of Object.keys(map)) RECOIL_ARMS[k] = map[k];
+}
 
 export interface HumanoidOpts {
   id: string;
@@ -1768,7 +1848,13 @@ export const ACTOR_RECIPES: Record<string, ActorRecipe> = {
     sway: 'head_king_sway',
     sway2: 'head_king_sway2',
     extras: [{ part: 'claw_left', at: CLAW_LEFT_AT, z: 2 }],
-    palette: { cloth2: BLOOD_TABARD, cloth: DUSK_CLOTH, accent: ramp(284, 20, 42) },
+    // ROUND 11 — THE EYES COME ONTO THE PALETTE. `#c641bc` (H 305, S 67 %) was
+    // the only magenta in the game and belonged to no ramp on the stage: the
+    // DARK element's default glow, inherited because this recipe never named
+    // one. The crypt's violet is this actor's own accent hue (284), so the
+    // sockets are lit in it — still the brightest thing on a dead king's face,
+    // no longer a colour that appears nowhere else in the frame.
+    palette: { cloth2: BLOOD_TABARD, cloth: DUSK_CLOTH, accent: ramp(284, 20, 42), glow: glowRamp(282, 48, 82) },
   }),
   // --- FROST MARSH ---
   BOG_TOAD: creature({
