@@ -32,7 +32,7 @@
 // tools/capture.mjs) and as a table under the canvas.
 
 import { ACTOR_RECIPES, bakePose } from '../game/art/actors';
-import { VFX_RECIPES, spawnVfx, updateVfx, renderVfx, vfxBounds } from '../game/art/vfx';
+import { VFX_RECIPES, spawnVfx, updateVfx, renderVfx, renderVfxUnder, vfxBounds } from '../game/art/vfx';
 import type { VfxBounds, VfxInstance, VfxKind } from '../game/art/vfx';
 import type { SkillId } from '../game/types';
 
@@ -127,7 +127,14 @@ const { list: ROWS, detail } = rows();
 const mode = params.get('mode') ?? (detail ? 'both' : 'bloom');
 const showRaw = mode === 'both' || mode === 'raw';
 const showBloom = mode === 'both' || mode === 'bloom';
-const CELL = Math.max(80, Number(params.get('cell') ?? (detail ? 190 : 150)));
+/**
+ * Round 3 roughly quadrupled the impact half's reach (the ground splash alone
+ * now runs to ~4.5 sizes either side, capped at 320 px) and moved every impact family's draw origin to
+ * the CONTACT POINT — a fixed offset toward the attacker — so a cell that
+ * fitted the round-2 clouds clips the near half of every one of them. The cell
+ * is the frame an effect is JUDGED in, so it grew with the effects.
+ */
+const CELL = Math.max(80, Number(params.get('cell') ?? (detail ? 620 : 520)));
 const GUTTER = 128;
 const STRIPS = (showRaw ? 1 : 0) + (showBloom ? 1 : 0);
 
@@ -283,6 +290,20 @@ interface Envelope {
   top: number;
   right: number;
   bottom: number;
+  /**
+   * The worst PER-FRAME overrun of that frame's own `vfxBounds`, in multiples
+   * of `size`; 0 when every frame's drawn pixels sat inside the box the module
+   * declared for that frame.
+   *
+   * The four numbers above are a union over the whole life, and for one
+   * archetype that is the wrong question: `projectile`'s box travels with the
+   * head on purpose (see BOUNDS in vfx.ts), so its lifetime union spans the
+   * entire flight corridor — ~6.8 sizes — while the box at any given instant is
+   * 2.9. The union column reported that as a 2.3-size overrun and it was read
+   * as a bounds bug. This column asks what the light plane actually needs: at
+   * the moment it reads the rect, does the rect contain what is drawn?
+   */
+  over: number;
 }
 
 function measureEnvelope(row: Row, seed: number): Envelope | null {
@@ -291,12 +312,27 @@ function measureEnvelope(row: Row, seed: number): Envelope | null {
   const s = v.size;
   // Room for the widest archetype (a light pillar stands 3.4 sizes) plus the
   // ground wash below and a wide shockwave either side.
-  const half = Math.ceil(s * 5 + 80);
+  // + 160 of slack, not 80: round 3's contact offset moves an impact family's
+  // whole draw origin a fixed distance toward the attacker, on top of the
+  // archetype's own reach.
+  const half = Math.ceil(s * 5 + 160);
   const size = half * 2;
   const c = makeCanvas(size, size);
   const ctx = ctxOf(c);
   const list: VfxInstance[] = [];
   spawnVfx(list, row.skill, half, half, { from: { x: half - CELL * 0.9, y: half + CELL * 0.12 }, seed });
+  // The ORIGIN the drawn pixels are reported against is the instance's own
+  // (v.x, v.y), not the point spawnVfx was called at. Round 3 offsets an
+  // impact's whole instance to the contact point, a fixed distance toward the
+  // attacker, and vfxBounds is relative to that offset origin — which is what
+  // game/screens/battle.ts feeds the light plane. Measuring from the spawn
+  // point instead reported every impact family's envelope 0.6-0.9 sizes wide on
+  // the left and the same amount narrow on the right, and made the table below
+  // read as a bounds bug when the bounds were right.
+  const ox = list[0].x;
+  const oy = list[0].y;
+  const box: VfxBounds = { x: 0, y: 0, w: 0, h: 0 };
+  let over = 0;
   let l = Infinity;
   let t = Infinity;
   let r = -Infinity;
@@ -308,8 +344,14 @@ function measureEnvelope(row: Row, seed: number): Envelope | null {
     ctx.clearRect(0, 0, size, size);
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
+    renderVfxUnder(ctx, list);
     renderVfx(ctx, list);
     const px = ctx.getImageData(0, 0, size, size).data;
+    // This frame's own drawn extent, for the per-frame containment column.
+    let fl = Infinity;
+    let ft = Infinity;
+    let fr = -Infinity;
+    let fb = -Infinity;
     for (let y = 0; y < size; y++) {
       const row0 = y * size * 4;
       for (let x = 0; x < size; x++) {
@@ -318,16 +360,26 @@ function measureEnvelope(row: Row, seed: number): Envelope | null {
         if (x > r) r = x;
         if (y < t) t = y;
         if (y > b) b = y;
+        if (x < fl) fl = x;
+        if (x > fr) fr = x;
+        if (y < ft) ft = y;
+        if (y > fb) fb = y;
       }
+    }
+    if (fr >= 0) {
+      vfxBounds(list[0], box);
+      const o = Math.max(box.x - fl, box.y - ft, fr - (box.x + box.w), fb - (box.y + box.h), 0);
+      if (o > over) over = o;
     }
     updateVfx(list, STEP);
   }
   if (l === Infinity) return null;
   return {
-    left: (l - half) / s,
-    top: (t - half) / s,
-    right: (r - half) / s,
-    bottom: (b - half) / s,
+    left: (l - ox) / s,
+    top: (t - oy) / s,
+    right: (r - ox) / s,
+    bottom: (b - oy) / s,
+    over: over / s,
   };
 }
 
@@ -382,14 +434,33 @@ const RENDER_REPS = 240;
 /** Ages swept for the cost peak, as fractions of the life. */
 const PEAK_SWEEP = [0.06, 0.16, 0.3, 0.46, 0.62];
 
-/** A fresh instance of `row`, stepped to `frac` of its life. */
-function at(row: Row, seed: number, frac: number): VfxInstance[] {
-  const cx = CELL / 2;
-  const cy = floorY() - VFX_OFFSET;
+/** A fresh instance of `row`, stepped to `frac` of its life, at (cx, cy). */
+function at(row: Row, seed: number, frac: number, cx = CELL / 2, cy = floorY() - VFX_OFFSET): VfxInstance[] {
   const list: VfxInstance[] = [];
   spawnVfx(list, row.skill, cx, cy, { from: { x: cx - CELL * 0.9, y: cy + CELL * 0.12 }, seed });
   stepTo(list, list[0].duration * frac);
   return list;
+}
+
+/**
+ * The cost canvas is sized to the EFFECT, not to the display cell.
+ *
+ * Until round 3 the timing ran into a CELL-sized offscreen (150 px on the
+ * overview) while the archetypes' own envelopes were already 250-430 px wide,
+ * so the backend clipped between a third and three quarters of every blit and
+ * the table reported the cost of the middle of an effect, not the effect. It
+ * flattered exactly the change this round makes — doubling the impact half's
+ * reach adds fill OUTSIDE a 150-px box and would have cost nothing on the old
+ * harness. Cap: no archetype's envelope reaches 640 px at these sizes, and a
+ * canvas bigger than the thing drawn into it costs nothing to clear.
+ */
+const COST_MAX = 640;
+
+function costCanvas(row: Row, seed: number): { c: HTMLCanvasElement; cx: number; cy: number } {
+  const probe = at(row, seed, 0.3);
+  const b = vfxBounds(probe[0]);
+  const dim = Math.min(COST_MAX, Math.max(CELL, Math.ceil(Math.max(b.w, b.h)) + 48));
+  return { c: makeCanvas(dim, dim), cx: dim / 2, cy: dim / 2 };
 }
 
 /** Live particles in an instance right now — the ones drawPart will not skip. */
@@ -416,13 +487,13 @@ function timeRender(ctx: CanvasRenderingContext2D, list: VfxInstance[]): number 
 
 /** Cost of one archetype at its peak and at mid-life, into an offscreen the size of a cell. */
 function measure(row: Row, seed: number): VfxMetrics {
-  const c = makeCanvas(CELL, CELL);
+  const { c, cx, cy } = costCanvas(row, seed);
   const ctx = ctxOf(c);
   let msPeak = 0;
   let peakAt = 0;
   let peakParts = 0;
   for (const frac of PEAK_SWEEP) {
-    const probe = at(row, seed, frac);
+    const probe = at(row, seed, frac, cx, cy);
     if (probe.length === 0) continue;
     const ms = timeRender(ctx, probe);
     if (ms <= msPeak) continue;
@@ -430,7 +501,7 @@ function measure(row: Row, seed: number): VfxMetrics {
     peakAt = frac;
     peakParts = liveParts(probe[0]);
   }
-  const list = at(row, seed, 0.5);
+  const list = at(row, seed, 0.5, cx, cy);
   const v = list[0];
   const particles = v.count;
   const dark = v.darkCount;
@@ -486,12 +557,19 @@ function render(): VfxMetrics[] {
     for (let k = 0; k < AGES; k++) {
       const target = ((k + 0.5) / AGES) * (v ? v.duration : 1);
       stepTo(list, target);
-      // One cell: ground, actor, effect — the effect translated from the
-      // instance's own origin to this cell's, because renderVfx draws at (x, y).
+      // One cell, in game/screens/battle.ts's own order: ground, the effect's
+      // GROUND half, the actor, then everything the effect throws into the air.
+      // The sheet drew only `renderVfx` for one round and the floor pool was
+      // simply missing from every cell — the one place the pool is supposed to
+      // be judged.
       cellCtx.setTransform(1, 0, 0, 1, 0, 0);
       cellCtx.globalCompositeOperation = 'source-over';
       cellCtx.globalAlpha = 1;
       drawGround(cellCtx, CELL, CELL);
+      renderVfxUnder(cellCtx, list);
+      cellCtx.setTransform(1, 0, 0, 1, 0, 0);
+      cellCtx.globalCompositeOperation = 'source-over';
+      cellCtx.globalAlpha = 1;
       drawActor(cellCtx, cx);
       renderVfx(cellCtx, list);
       if (SHOW_BOUNDS && list.length > 0) drawBounds(cellCtx, vfxBounds(list[0]));
@@ -541,7 +619,9 @@ function table(metrics: VfxMetrics[]): string {
     ...body,
     '',
     `worst mean render: ${worstPeak.toFixed(3)} ms at each family's own peak, ` +
-    `${worstMid.toFixed(3)} ms at mid-life (budget: <= 0.5 ms; means include rasterisation)`,
+    `${worstMid.toFixed(3)} ms at mid-life (budget: <= 1.5 ms per family, the round-3 gate; ` +
+    `HEAD measures 0.59-0.68 on this same harness. Means include rasterisation, and the cost ` +
+    `canvas is sized to the EFFECT, not to the display cell — see COST_MAX)`,
   ].join('\n');
 }
 
@@ -551,7 +631,7 @@ function table(metrics: VfxMetrics[]): string {
  * reads back every frame of every row.
  */
 function envelopeTable(): string {
-  const head = 'archetype      skill            measured [l, t, r, b] x size          declared';
+  const head = 'archetype      skill            measured [l, t, r, b] x size          declared                                per-frame';
   const lines = ROWS.map((row, i) => {
     const e = measureEnvelope(row, SEED_BASE + i);
     if (!e) return `${row.kind.padEnd(14)} ${row.skill.padEnd(14)} (nothing drawn)`;
@@ -562,9 +642,16 @@ function envelopeTable(): string {
     const f = (n: number): string => (n >= 0 ? ' ' : '') + n.toFixed(2);
     return `${row.kind.padEnd(14)} ${row.skill.padEnd(14)} ` +
       `[${f(e.left)}, ${f(e.top)}, ${f(e.right)}, ${f(e.bottom)}]   ` +
-      `[${f(d.x / v.size)}, ${f(d.y / v.size)}, ${f((d.x + d.w) / v.size)}, ${f((d.y + d.h) / v.size)}]`;
+      `[${f(d.x / v.size)}, ${f(d.y / v.size)}, ${f((d.x + d.w) / v.size)}, ${f((d.y + d.h) / v.size)}]   ` +
+      (e.over <= 0.005 ? 'in' : `OUT by ${e.over.toFixed(2)}`);
   });
-  return ['', 'measured drawn envelope vs vfxBounds (multiples of size, y negative up):', head, ...lines].join('\n');
+  return ['',
+    'measured drawn envelope vs vfxBounds (multiples of size, y negative up).',
+    'The first two columns are LIFETIME unions; "per-frame" is the column that matters —',
+    'whether each frame\'s drawn pixels sat inside the box vfxBounds declared for THAT frame,',
+    'which is what the light plane reads. A travelling box (projectile) is `in` per frame and',
+    'far wider than its box over a whole life; that is the design, not an overrun.',
+    head, ...lines].join('\n');
 }
 
 const metrics = render();

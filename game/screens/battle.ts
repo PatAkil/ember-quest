@@ -38,7 +38,7 @@ import { wornRelics, activeSets, relicTitle, mainLine, substatLine } from '../si
 
 import { ACTOR_RECIPES, drawActor, actorHitRect, ACTOR_W, BOSS_W } from '../art/actors';
 import type { ActorDrawState, PoseName } from '../art/actors';
-import { spawnVfx, updateVfx, renderVfx, vfxBounds, vfxImpactDelay } from '../art/vfx';
+import { spawnVfx, updateVfx, renderVfx, renderVfxUnder, vfxBounds, vfxImpactDelay } from '../art/vfx';
 import type { VfxBounds, VfxInstance } from '../art/vfx';
 
 import {
@@ -262,12 +262,13 @@ export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
   /** One scratch rect for vfxBounds — the numbers are copied straight into a pooled record. */
   const vfxBox: VfxBounds = { x: 0, y: 0, w: 0, h: 0 };
 
-  function addLightActor(x: number, y: number, w: number, h: number, glow: number): void {
+  function addLightActor(x: number, y: number, w: number, h: number, glow: number, kind: 'actor' | 'vfx' = 'actor'): void {
     let rec = lightActorPool[lightActorN];
     if (!rec) {
-      rec = { x: 0, y: 0, w: 0, h: 0, glow: 0 };
+      rec = { x: 0, y: 0, w: 0, h: 0, glow: 0, kind: 'actor' };
       lightActorPool[lightActorN] = rec;
     }
+    rec.kind = kind;
     rec.x = x;
     rec.y = y;
     rec.w = w;
@@ -1405,7 +1406,15 @@ export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
     for (const v of vfx) {
       if (v.age >= v.duration) continue;
       const box = vfxBounds(v, vfxBox);
-      addLightActor(box.x, box.y, box.w, box.h, 0.7);
+      // 'vfx', not 'actor': engine/light.ts gives an effect's box its GLOW and
+      // nothing else. An effect already draws its own bright pixels; running
+      // the per-actor multiplicative gain and rim spill over its bounds as well
+      // lifted a 500 x 670 px slab of the frame, and the verifier measured 41.7
+      // of the target's 50.9 white-out points coming from exactly that — not
+      // from anything vfx.ts paints. The glow stays at 0.7: it is what seeds
+      // the bloom with the hit, and it lands on the floor at the box's foot,
+      // not on the bodies.
+      addLightActor(box.x, box.y, box.w, box.h, 0.7, 'vfx');
     }
     lightActors.length = lightActorN;
   }
@@ -1606,9 +1615,23 @@ export function createBattleScreen(deps: BattleScreenDeps): BattleScreen {
     // The flat tiers have no light plane, so the engine's ambient field is their
     // dust; at HIGH/MED the light module's own motes and fog do that job.
     if (lowTier) particles.render(ctx);
+    // Pass 3a: the GROUND half of every live effect — the contact apron and the
+    // pool of light that lands on the floor — under the actors who are standing
+    // in it. A pool of light is behind whoever is standing on that floor, and
+    // while the whole layer drew in one pass after the stage it painted over
+    // them: at seed 16 the two enemies who were NOT the target went from 6.8 %
+    // and 3.6 % of their own pixels above L 75 to 72.8 % and 48.1 %, the Crypt
+    // Warden's legs erased into the pool. Nothing inside vfx.ts fixes that —
+    // only the order does. It is also what lets the pool sit AROUND the target's
+    // feet (vfx.ts's WASH_DROP) instead of being pushed a full height
+    // down-stage to keep it off the silhouette.
+    renderVfxUnder(ctx, vfx);
     drawStage(ctx, b, order);
     // Pass 4: near plane, key light, rim, prop glow, fog, dust.
     light.renderLightPlane(ctx, { time: clock, actors: lightActors });
+    // Pass 4a: everything the effect throws INTO the air — the family's own art,
+    // the sparks, the contact flash, the shockwave front. Over the actors, where
+    // a hit belongs.
     renderVfx(ctx, vfx);
     // A frozen number hanging over PAUSED is noise, not information.
     if (!paused) drawPops(ctx);
