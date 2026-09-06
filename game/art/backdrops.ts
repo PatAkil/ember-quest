@@ -81,14 +81,7 @@ function softBlob(
 }
 
 /** A round-topped arch opening, apex at (x, top), springing at `spring`. */
-function arch(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  half: number,
-  top: number,
-  spring: number,
-  fill: string,
-): void {
+function archPath(ctx: CanvasRenderingContext2D, x: number, half: number, top: number, spring: number): void {
   ctx.beginPath();
   ctx.moveTo(x - half, spring);
   ctx.lineTo(x - half, top + half);
@@ -96,8 +89,30 @@ function arch(
   ctx.quadraticCurveTo(x + half, top, x + half, top + half);
   ctx.lineTo(x + half, spring);
   ctx.closePath();
+}
+
+/**
+ * An arch. With a `rim` it is a MASS and not a cut-out: the shadow it throws on
+ * the ground, then `faceShade`'s lit crown / hard break / shaded flank clipped
+ * to the arch's own curve. The spire's broken gate is the largest mid mass in
+ * that biome and was the flat trapezoid round 3 item 3 actually named; the nine
+ * merlons twenty lines below it had already been given this treatment.
+ */
+function arch(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  half: number,
+  top: number,
+  spring: number,
+  fill: string,
+  rim?: string,
+  rimA = 0.3,
+): void {
+  if (rim) propShadow(ctx, x, spring + 2, half * 1.2, 0.34);
+  archPath(ctx, x, half, top, spring);
   ctx.fillStyle = fill;
   ctx.fill();
+  if (rim) faceShadeIn(ctx, () => archPath(ctx, x, half, top, spring), top, spring, rim, rimA);
 }
 
 /** A column: slightly tapered, with a lighter key-side edge. */
@@ -785,6 +800,396 @@ function groundGrain(
   ctx.restore();
 }
 
+// ------------------------------------------------- the ground, in PIXELS --
+//
+// Everything above this line is SOFT ground: gradients, blobs, rotated paths
+// at 6-10 % contrast. Round 3 measured what that costs — the floor's whole
+// p10->p90 range was 4.4 L in the near band and 11.8 in the mid, against
+// `octopath-4`'s 30.8 / 51.9 — and named the consequence: "the scatter is
+// there, the VALUES are not, so the floor reads as an airbrush and the razor
+// sharp actors read as pasted onto it".
+//
+// This is the answer, and it is a different KIND of mark. The reference's
+// ground is pixel art at the sprites' own cell size: in `octopath-4` the sand
+// carries stones with a lit crown and a dark bed, wheel ruts, dry tufts and a
+// scuffed lane, all of them 2-3 sprite-pixels across; in `octopath-2` a night
+// forest still holds its near ground at p50 45.8 because the dirt strip in
+// front of the party is hard-edged tufts over a warm bed. So the floor plane
+// draws on the ACTOR's grid — `CELL = ACTOR_SCALE` — with every rect snapped
+// to it, and `engine/light.ts` bakes that plane with NO blur and NO pad scale
+// (`BLUR_FLOOR = 0`, `bakePlane(..., crisp)`) so the cells survive to the
+// screen whole. DESIGN.md's "exactly one plane is pixelated" is amended to
+// name the floor as the second: FAR and MID keep their 6-px and 2.6-px blur,
+// which is the depth-of-field split the rule was really protecting.
+//
+// The other half of the round-3 note is COLOUR: "the crypt floor is satMean
+// 13.4 where all three references' grounds run 25-78. Put a second hue into
+// the floor (a cool stone against the amber pool) rather than tinting the
+// whole plane one temperature." Hence `PixelInk`'s two families — a warm pair
+// and a cool pair — chosen per piece by whether it lies inside a light pool.
+
+/** The actor's own cell (game/art/actors.ts ACTOR_SCALE). Every mark below is a whole number of these. */
+const CELL = 2;
+
+/** Snap to the cell grid. Off-grid rects are what a 2-px ground loses its edges to. */
+function q(v: number): number {
+  return Math.round(v / CELL) * CELL;
+}
+
+/**
+ * The five tones a pixel ground is drawn with. `lit`/`bed` are the two ends of
+ * ONE stone — a crown catching the key and the shadow it sits in — and the gap
+ * between them is the 25-40 % local contrast the brief asks for, not the 6-10 %
+ * the soft scatter above uses. `cool` and `coolLit` are the same pair in the
+ * opposing temperature, so the ground has two hues rather than one tint.
+ */
+interface PixelInk {
+  /** The lit crown of a warm stone: the brightest ground value in the frame. */
+  lit: string;
+  /** Its body. */
+  mid: string;
+  /** The bed it sits in, and the ruts. */
+  bed: string;
+  /** The opposing family's body — cool stone against a warm pool, warm silt in a cold room. */
+  cool: string;
+  /** That family's lit crown. */
+  coolLit: string;
+}
+
+interface PixelGroundOptions {
+  seed: number;
+  ink: PixelInk;
+  /** Stones to lay. The six biomes run 900-1300. */
+  count: number;
+  /** First row of ground (default FLOOR_Y + 4). */
+  top?: number;
+  /** The two lit pools, [x, y, rx, ry] — inside them a piece is warm and brighter. */
+  pools?: readonly (readonly [number, number, number, number])[];
+  /** 0..1 — how many pieces are the OPPOSING family outside the pools (default 0.55). */
+  coolShare?: number;
+  /** Ruts / cracks cut into the bed. Default count * 0.16. */
+  ruts?: number;
+  /** Standing matter — dry tufts, reeds, cinders. Default count * 0.1; 0 for a stone floor. */
+  tufts?: number;
+  /** Global alpha multiplier (0.85-1.1). */
+  strength?: number;
+}
+
+/**
+ * Is (x, y) inside one of the lit pools, and how deep? 1 at a pool's centre,
+ * 0 outside every pool. Drives BOTH the temperature choice and the value: a
+ * stone in the pool gets its lit crown, one in the vignette keeps its bed.
+ */
+function poolAt(pools: readonly (readonly [number, number, number, number])[] | undefined, x: number, y: number): number {
+  if (!pools || !pools.length) return 0;
+  let best = 0;
+  for (const [px, py, prx, pry] of pools) {
+    const d = Math.hypot((x - px) / prx, (y - py) / pry);
+    const w = d >= 1 ? 0 : 1 - d * d;
+    if (w > best) best = w;
+  }
+  return best;
+}
+
+/**
+ * Broad, slow variation across the plane, 0..1. Two crossed sines at
+ * incommensurate wavelengths: enough to break an even field into calm and busy
+ * regions the size of a prop, which is the scale the references vary at. A
+ * uniform grain over 1280 px reads as film noise; a modulated one reads as
+ * ground. Cheap, seedable and no allocation.
+ */
+function broad(x: number, y: number, phase: number): number {
+  const a = Math.sin(x * 0.0121 + y * 0.0247 + phase);
+  const b = Math.cos(x * 0.0057 - y * 0.0138 + phase * 1.7);
+  return 0.5 + 0.5 * (a * 0.6 + b * 0.4);
+}
+
+/**
+ * The ground, authored at the actor's cell. Four marks, one seeded pass:
+ *
+ *  - STONES. A body of 2-7 cells by 1-3, a crown row on top in `lit` (the key
+ *    is upper-left in every biome, so the crown is the top and the left cell)
+ *    and a bed row under and right of it in `bed`. Three marks, ~30 % apart in
+ *    value: that is the whole difference between this and a 6 % fleck.
+ *  - RUTS. One-cell-tall runs of `bed` following the perspective — the grooves
+ *    a floor gets from being walked and dragged over.
+ *  - TUFTS. One-cell stalks of dry matter standing 2-4 cells proud, leaning.
+ *  - THE LANE. A scuffed diagonal from the enemy rank to the party's — the
+ *    reference's worn path, drawn as a denser field of crowns rather than as
+ *    another soft band.
+ *
+ * All of it is bake time: ~4000 snapped fillRects per biome, once.
+ */
+function pixelGround(ctx: CanvasRenderingContext2D, W: number, H: number, o: PixelGroundOptions): void {
+  const rand = rng(o.seed);
+  const ink = o.ink;
+  const top = o.top ?? FLOOR_Y + 4;
+  const depth = H + 16 - top;
+  const strength = o.strength ?? 1;
+  const coolShare = o.coolShare ?? 0.55;
+  ctx.save();
+
+  // --- the grain, first: the ground's OWN texture at the cell ---------------
+  // Without this every mark below floats on an airbrush: the first pass of the
+  // pixel ground put stones on a smooth lavender field and read as confetti on
+  // a gradient. The reference's sand is noisy at the sprite's own cell before
+  // a single stone is laid on it, and half of `octopath-4`'s ground chroma is
+  // here rather than in the pebbles. Drawn as short 1-3 cell runs so the mark
+  // count stays in the low thousands at bake time.
+  {
+    const rows = Math.ceil((H + 12 - top) / CELL);
+    for (let r = 0; r < rows; r++) {
+      const y = q(top + r * CELL);
+      const t = (y - top) / Math.max(1, depth);
+      // Denser and coarser toward the camera; the far rows are nearly smooth.
+      // HALVED again in round 4's fix pass: at 0.2-0.46 of a row the near band
+      // read as static rather than as ground at 1x (`c-A-botleft.png`), because
+      // a single-cell mark repeated every few pixels is noise however well its
+      // values are chosen. The value now comes from the STONES below, which are
+      // bigger and clumped; the grain is only the tone between them.
+      // ...and the ramp INVERTS. Up-stage the plane is compressed into a few
+      // rows and the grain is the only thing that can carry its range; at the
+      // camera the stones are four times the size and carry it themselves, so
+      // grain there only competes with them. Dense at the wall, sparse at the
+      // front — the opposite of the first pass, and the reason the vault's
+      // near ground stopped reading as a field of dark chips.
+      const per = Math.round((W / CELL) * (0.19 - t * 0.09));
+      for (let i = 0; i < per; i++) {
+        const x = q(-12 + rand() * (W + 24));
+        const bn = broad(x, y, o.seed & 7);
+        // The broad field GATES, it does not merely weight. An ungated grain
+        // at this density is television static — every square inch equally
+        // busy, which is the one thing `octopath-4`'s sand never is: it swings
+        // between scoured, almost smooth sweeps and beds of visible grit, at
+        // the scale of a prop. Below the knee the row is left alone.
+        // The knee is higher too: below it the row is left completely alone, so
+        // the plane keeps swept, quiet ground between the busy beds.
+        if (bn < 0.46 || rand() > (bn - 0.4) * 1.8) continue;
+        const w = poolAt(o.pools, x, y);
+        const roll = rand();
+        const warm = w > 0.14 ? roll < 0.72 : roll < 1 - coolShare;
+        // More DARK marks up-stage, more lit ones forward: the mid band is the
+        // one the feet sit in and it measured the least range of the three.
+        const up = rand() < 0.09 + t * 0.13;
+        // A mark GROWS as the plane comes forward — that ramp is the whole of
+        // a receding texture. One cell at the wall line, up to five by two at
+        // the camera; a constant 2-px fleck across 300 px of depth reads as
+        // noise laid over a photograph rather than as ground going away.
+        const mw = CELL * (1 + Math.floor(rand() * (1.6 + t * 3.4)));
+        const mh = CELL * (t > 0.58 && rand() < 0.42 ? 2 : 1);
+        // The (1 - t) term lifts the FAR rows' contrast: up-stage the plane is
+        // compressed into a few rows and a flat grain there measured 11.8 L of
+        // range against the near band's 30.
+        const a0 = strength * (up ? 0.14 + rand() * 0.3 : 0.2 + rand() * 0.44) * (0.55 + w * 0.55) * (0.5 + bn * 0.8) * (1 + (1 - t) * 1.1);
+        if (up) {
+          // A LIT mark is NEVER alone. On its own a bright cell on a smooth
+          // field is confetti — which is what the first pass of this read as
+          // on `bd-SKY_RUINS.png`, a hundred loose warm flecks with nothing
+          // under them. Paired with a bed cell in the row beneath, the same
+          // two marks are a grain of ground catching the key and casting its
+          // own shadow, and the eye reads FORM instead of noise. Same rule as
+          // the stones below, at one third the size.
+          ctx.globalAlpha = Math.min(1, a0 * 1.15);
+          ctx.fillStyle = ink.bed;
+          ctx.fillRect(x, y + mh, mw, CELL);
+        }
+        ctx.globalAlpha = a0;
+        ctx.fillStyle = up ? (warm ? ink.lit : ink.coolLit) : ink.bed;
+        ctx.fillRect(x, y, mw, mh);
+      }
+    }
+  }
+
+  // --- the scuffed lane, first: everything else lies on top of it ----------
+  // From the enemy rank's far seat to the party's near one, widening as it
+  // comes forward. Drawn as crowns at ~35 % density, so it is a WORN band of
+  // the same pixels as the rest of the floor and not a soft airbrushed streak.
+  {
+    // A SCUFF, not a dot. Round 4's first pass laid 400-600 single crowns along
+    // the diagonal and they read as loose sparks scattered over the ground —
+    // most of what made the marsh's near band look like spilled grain. Half the
+    // count now, and each sample lays two or three marks in a short run, which
+    // is what a heel actually leaves.
+    const laneN = Math.round(o.count * 0.26);
+    for (let i = 0; i < laneN; i++) {
+      const t = rand();
+      const cx = 250 + t * 700;
+      const cy = FLOOR_Y + 26 + t * (H - FLOOR_Y - 40);
+      const spread = 46 + t * 150;
+      const x0 = cx + (rand() - 0.5) * spread * 2;
+      const y0 = cy + (rand() - 0.5) * spread * 0.5;
+      if (y0 < top || y0 > H + 8) continue;
+      const dn = Math.min(1, Math.abs((x0 - cx) / spread));
+      if (rand() < dn * dn) continue;
+      const w = poolAt(o.pools, x0, y0);
+      const warm = w > 0.12 || rand() > coolShare;
+      const a0 = strength * (0.2 + rand() * 0.34) * (0.55 + w * 0.7) * (1 - dn * 0.6);
+      const runs = 2 + Math.floor(rand() * 2);
+      let x = x0;
+      let y = y0;
+      for (let k = 0; k < runs; k++) {
+        const len = CELL * (2 + Math.floor(rand() * 3));
+        if (y < top || y > H + 8) break;
+        // Crown over bed, the same pairing the grain and the stones use: a worn
+        // lane is scuffed GROUND, not a dusting of loose sparks.
+        ctx.globalAlpha = Math.min(1, a0 * 0.9);
+        ctx.fillStyle = ink.bed;
+        ctx.fillRect(q(x), q(y) + CELL, len, CELL);
+        ctx.globalAlpha = a0;
+        ctx.fillStyle = warm ? ink.lit : ink.coolLit;
+        ctx.fillRect(q(x), q(y), len, CELL);
+        x += len + CELL * (rand() < 0.5 ? 0 : 1);
+        y += CELL * (rand() < 0.6 ? 1 : 0);
+      }
+    }
+  }
+
+  // --- gravel beds ----------------------------------------------------------
+  // The reference's ground is not an even sprinkle: `octopath-4`'s sand has
+  // PATCHES — a bed of dark pebbles here, a scoured lighter sweep there — and
+  // the patches are most of its p10->p90. Each one is an irregular field of
+  // bed-toned cells with a few crowns caught in it.
+  {
+    const n = Math.round(o.count * 0.035) + 12;
+    for (let i = 0; i < n; i++) {
+      const t = rand() < 0.56 ? rand() * 0.42 : Math.sqrt(rand());
+      const cx = -40 + rand() * (W + 80);
+      const cy = top + t * depth;
+      const rx = (26 + rand() * 62) * (0.6 + t);
+      const ry = rx * (0.26 + t * 0.2);
+      const dark = rand() < 0.62;
+      // Half the cells of round 4's first pass: a patch is a BED of gravel,
+      // and a bed is a few dozen visible pieces, not a few hundred dots.
+      const cells = Math.round(rx * ry * 0.024);
+      for (let k = 0; k < cells; k++) {
+        const a2 = rand() * Math.PI * 2;
+        const rr = Math.sqrt(rand());
+        const x = q(cx + Math.cos(a2) * rx * rr);
+        const y = q(cy + Math.sin(a2) * ry * rr);
+        if (y < top - 6 || y > H + 8) continue;
+        const w = poolAt(o.pools, x, y);
+        const cw = CELL * (2 + (rand() < 0.4 ? 1 : 0));
+        const a0 = strength * (0.36 + rand() * 0.5) * (dark ? 1 : 0.42 + w * 0.5);
+        if (!dark) {
+          ctx.globalAlpha = Math.min(1, a0);
+          ctx.fillStyle = ink.bed;
+          ctx.fillRect(x, y + CELL, cw, CELL);
+        }
+        ctx.globalAlpha = a0;
+        ctx.fillStyle = dark ? ink.bed : w > 0.2 ? ink.lit : ink.coolLit;
+        ctx.fillRect(x, y, cw, CELL);
+      }
+    }
+  }
+
+  // --- stones ---------------------------------------------------------------
+  // In CLUMPS. Rubble collects where rubble already is; an even sprinkle of
+  // single stones reads as confetti, which is what the first pass of this
+  // looked like on `bd-EMBER_CRYPT.png`.
+  let placed = 0;
+  let guard = 0;
+  while (placed < o.count && guard < o.count * 12) {
+    guard++;
+    // Depth-weighted toward the camera, the way a receding plane's texture
+    // gets bigger and sparser as it comes forward.
+    // A third of the pieces are pulled UP-STAGE deliberately: sqrt() alone
+    // biases everything to the camera and left the mid ground — the band the
+    // actors' feet sit in — measuring 11.8 L of range against the near band's.
+    const t = rand() < 0.36 ? rand() * 0.42 : Math.sqrt(rand());
+    const ay = top + t * depth;
+    const ax = -24 + rand() * (W + 48);
+    const w0 = poolAt(o.pools, ax, ay);
+    // Thin toward the vignette: the frame's edges are dark in every reference.
+    const edge = Math.max(0.24, Math.min(1, Math.min(ax + 60, W - ax + 60) / 260));
+    if (rand() > (0.36 + w0 * 0.64) * edge) continue;
+    // Rubble collects: three quarters of the pieces come in a pile, and the
+    // pile is tighter than it was so it reads as ONE object with parts rather
+    // than as five pebbles that happen to be near each other.
+    const clump = rand() < 0.74 ? 2 + Math.floor(rand() * 5) : 1;
+    const spread = (9 + t * 26);
+    for (let c = 0; c < clump && placed < o.count; c++) {
+      placed++;
+      const x = q(c === 0 ? ax : ax + (rand() - 0.5) * spread * 2);
+      const y = q(c === 0 ? ay : ay + (rand() - 0.5) * spread * 0.55);
+      if (y > H + 10 || y < top - 8) continue;
+      const w = poolAt(o.pools, x, y);
+      const warm = w > 0.16 || rand() > coolShare;
+      const body = warm ? ink.mid : ink.cool;
+      const crown = warm ? ink.lit : ink.coolLit;
+      // TWO cells minimum, up to seven by four at the camera. A one-cell stone
+      // is indistinguishable from a grain of the field it lies on, and a
+      // thousand of them is the static the fix pass was called on.
+      const cw = CELL * (2 + Math.floor(rand() * (1.6 + t * 5)));
+      const ch = CELL * (1 + Math.floor(rand() * (1.4 + t * 2.6)));
+      const a = strength * (0.6 + 0.4 * w) * (0.72 + rand() * 0.42);
+      // The BED first — down and right of the stone, one cell proud on each
+      // side, because the key is upper left in every biome. This is the dark
+      // half of the 25-40 % local contrast; without it a crown is a fleck.
+      ctx.globalAlpha = Math.min(1, a * 1.05);
+      ctx.fillStyle = ink.bed;
+      ctx.fillRect(x + CELL, y + CELL, cw, ch);
+      // The body.
+      ctx.globalAlpha = Math.min(1, a);
+      ctx.fillStyle = body;
+      ctx.fillRect(x, y, cw, ch);
+      // The crown: the top row, and the left cell of the row under it. Two
+      // marks is what turns a rectangle into a lit face and a shaded one.
+      ctx.globalAlpha = Math.min(1, a * (0.9 + rand() * 0.3));
+      ctx.fillStyle = crown;
+      ctx.fillRect(x, y, cw - (rand() < 0.5 ? CELL : 0), CELL);
+      if (ch > CELL) ctx.fillRect(x, y + CELL, CELL, CELL);
+    }
+  }
+
+  // --- ruts -----------------------------------------------------------------
+  {
+    const n = o.ruts ?? Math.round(o.count * 0.2);
+    for (let i = 0; i < n; i++) {
+      const t = rand() < 0.62 ? rand() * 0.42 : Math.sqrt(rand());
+      let y = q(top + t * depth);
+      let x = q(-20 + rand() * (W + 40));
+      const len = 3 + Math.floor(rand() * (5 + t * 9));
+      // Ruts run TOWARD the camera, so they lean away from the vanishing point.
+      const lean = (x - VP_X) / (W * 0.5);
+      ctx.globalAlpha = strength * (0.42 + rand() * 0.48) * (1 + (1 - t) * 0.55);
+      ctx.fillStyle = ink.bed;
+      for (let k = 0; k < len; k++) {
+        ctx.fillRect(x, y, CELL * (1 + (rand() < 0.3 ? 1 : 0)), CELL);
+        x = q(x + lean * CELL * (0.6 + rand() * 1.2));
+        y += CELL;
+        if (y > H + 8) break;
+      }
+    }
+  }
+
+  // --- tufts ----------------------------------------------------------------
+  {
+    const n = o.tufts ?? Math.round(o.count * 0.1);
+    for (let i = 0; i < n; i++) {
+      const t = Math.sqrt(rand());
+      const y = q(top + 10 + t * depth * 0.98);
+      const x = q(-16 + rand() * (W + 32));
+      if (y > H + 6) continue;
+      const w2 = poolAt(o.pools, x, y);
+      const edge = Math.max(0.2, Math.min(1, Math.min(x + 60, W - x + 60) / 240));
+      if (rand() > (0.3 + w2 * 0.7) * edge) continue;
+      if (rand() > 0.2 + broad(x, y, (o.seed >> 3) & 7) * 1.0) continue;
+      const h = 2 + Math.floor(rand() * (1 + t * 2));
+      const lean = rand() < 0.5 ? -1 : 1;
+      const warm = w2 > 0.18 || rand() > coolShare;
+      ctx.globalAlpha = strength * (0.45 + 0.5 * w2) * (0.6 + rand() * 0.5);
+      // The stalk's own shadow on the bed, then the stalk, then its lit tip.
+      ctx.fillStyle = ink.bed;
+      ctx.fillRect(x + CELL, y, CELL, CELL);
+      ctx.fillStyle = warm ? ink.mid : ink.cool;
+      for (let k = 0; k < h; k++) ctx.fillRect(x + (k > h * 0.6 ? lean * CELL : 0), y - k * CELL, CELL, CELL);
+      ctx.fillStyle = warm ? ink.lit : ink.coolLit;
+      ctx.fillRect(x + (h > 1 ? lean * CELL : 0), y - (h - 1) * CELL, CELL, CELL);
+    }
+  }
+  ctx.restore();
+}
+
 /**
  * The dark foreground corner the command list is read against. The skill rows
  * live at x 24-344, y 535-670 and the log at x 360-930, y 545-580; a lit floor
@@ -794,9 +1199,15 @@ function groundGrain(
  * what the reference frames do — their darkest band is the near ground.
  */
 function readingShade(ctx: CanvasRenderingContext2D, W: number, H: number, ink: string, strength = 1): void {
-  blobAt(ctx, 40, H + 30, 470, 300, ink, 0.62 * strength, false);
-  blobAt(ctx, 150, H - 20, 320, 190, ink, 0.4 * strength, false);
-  blobAt(ctx, W - 30, H + 40, 400, 250, ink, 0.34 * strength, false);
+  // Cut to a third of its old weight, and pulled into the two bottom CORNERS.
+  // At 0.62 over a 470-px radius this was a second floorLip: between the two
+  // of them the bottom quarter of every frame measured darker than the mid
+  // ground, and a corridor of shadow ran under the party's own feet. The
+  // command list is read against `screens/hud.ts`'s plate; the floor's job is
+  // to be the ground the actors stand on.
+  blobAt(ctx, -10, H + 30, 400, 250, ink, 0.52 * strength, false);
+  blobAt(ctx, 120, H - 10, 260, 150, ink, 0.26 * strength, false);
+  blobAt(ctx, W + 10, H + 46, 330, 200, ink, 0.26 * strength, false);
 }
 
 /** Where a ground pass thins out: the pool it crowds into, in logical px. */
@@ -1082,6 +1493,16 @@ function rimEdge(
  * gradient down its short axis — a lit top face, an unlit mid flank, a dark
  * underside — which is the same barrel trick `fallenColumn` uses, applied to
  * every slab, box and trough so one rule shades them all.
+ *
+ * THE BREAK. A smooth ramp is form but it is not PLANES, and at the mid plane's
+ * 2.6-px blur it comes back as a silhouette with a highlight on it — round 3's
+ * "every mid-ground prop is an untextured silhouette at one value". A mass in
+ * `octopath-3` — the cart, the barrel stack, the house gable — is two flat
+ * values meeting on a HARD LINE, and it is the line, not the gradient, that
+ * says solid-with-two-faces. So the ramp now carries one discontinuity at 42 %
+ * of the mass's height: everything above it is the lit plane, everything below
+ * is the shaded one, and every helper that calls this (slabProp, drum,
+ * wedgeBox, trough, fallenColumn, fallenBell, stairs' treads) gets it for free.
  */
 function faceShade(
   ctx: CanvasRenderingContext2D,
@@ -1091,17 +1512,34 @@ function faceShade(
   lit: string,
   litA: number,
 ): void {
+  faceShadeIn(ctx, () => {
+    ctx.beginPath();
+    ctx.moveTo(pts[0], pts[1]);
+    for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]);
+    ctx.closePath();
+  }, top, bottom, lit, litA);
+}
+
+/** `faceShade` for a shape whose outline is a PATH, not a point list (see `arch`). */
+function faceShadeIn(
+  ctx: CanvasRenderingContext2D,
+  path: () => void,
+  top: number,
+  bottom: number,
+  lit: string,
+  litA: number,
+): void {
   ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(pts[0], pts[1]);
-  for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]);
-  ctx.closePath();
+  path();
   ctx.clip();
   const g = ctx.createLinearGradient(0, top, 0, bottom);
   g.addColorStop(0, hexA(lit, litA * 1.5));
-  g.addColorStop(0.22, hexA(lit, litA * 0.55));
-  g.addColorStop(0.5, 'rgba(0,0,0,0)');
-  g.addColorStop(1, 'rgba(0,0,0,0.38)');
+  g.addColorStop(0.2, hexA(lit, litA * 0.7));
+  g.addColorStop(0.42, hexA(lit, litA * 0.28));
+  // The break: two stops 1/1000 apart is a hard line in a linear gradient.
+  g.addColorStop(0.4205, 'rgba(0,0,0,0.14)');
+  g.addColorStop(0.72, 'rgba(0,0,0,0.2)');
+  g.addColorStop(1, 'rgba(0,0,0,0.42)');
   ctx.fillStyle = g;
   ctx.fillRect(-4000, top - 4, 8000, bottom - top + 8);
   ctx.restore();
@@ -1425,10 +1863,15 @@ function edgeCurtain(
  * front actor's feet (y 516) so it never eats a boot.
  */
 function floorLip(ctx: CanvasRenderingContext2D, W: number, H: number, ink: string, h: number): void {
+  // SHALLOWER AND WEAKER than it was (112 px to opaque). At that depth it owned
+  // the whole bottom quarter and was most of why the near ground measured p50
+  // L 7.3 — darker than the mid ground behind it, which is an inversion of
+  // every reference frame. It is a LIP now: the last rows sink, the ground in
+  // front of the party stays lit, and the alpha never reaches the flat ink.
   const g = ctx.createLinearGradient(0, H - h, 0, H + PAD);
   g.addColorStop(0, hexA(ink, 0));
-  g.addColorStop(0.55, hexA(ink, 0.42));
-  g.addColorStop(1, ink);
+  g.addColorStop(0.62, hexA(ink, 0.2));
+  g.addColorStop(1, hexA(ink, 0.62));
   ctx.fillStyle = g;
   ctx.fillRect(-PAD, H - h, W + PAD * 2, h + PAD);
 }
@@ -1459,6 +1902,13 @@ const CRYPT_MID_INK = '#14101f';
 const CRYPT_NEAR_INK = '#07050d';
 /** The floor's own litter: chipped flagstone and rubble, either side of the ground tone. */
 const CRYPT_GROUND: GroundInk = { lit: '#4f4460', dark: '#0d0917', seam: '#0a0714' };
+/**
+ * The crypt's ground at the ACTOR's cell. Warm sandstone where the braziers
+ * and the two pools reach it, cold blue-violet flag where they do not — the
+ * second hue round 3 asked for, so the floor carries chroma without the whole
+ * plane going one temperature.
+ */
+const CRYPT_PIX: PixelInk = { lit: '#93764f', mid: '#4e4038', bed: '#191228', cool: '#3c4468', coolLit: '#6a76a4' };
 /** The seed every crypt plane shares, so the stepped horizon lines up across them. */
 const CRYPT_SEED = 0xc1a7;
 
@@ -1477,15 +1927,19 @@ const CRYPT: BiomeLook = {
   // right), which is half of why three critics in a row read the frame
   // left-first. Halving the key and lifting the fill and pool2 inverts that
   // ordering without moving one pixel of the wall it rakes.
-  key: { color: '#ff9436', x: 244, y: 158, radius: 430, alpha: 0.21, actorWeight: 0.5 },
+  // The key moved with the brazier (see mid(), and the far arch below): a
+  // source at x 244 justified a fire the frame no longer keeps there.
+  key: { color: '#ff9436', x: 372, y: 168, radius: 430, alpha: 0.21, actorWeight: 0.5 },
   fill: { color: '#4a63a8', x: 1080, y: 630, radius: 660, alpha: 0.2, actorWeight: 1.4 },
   // A symmetric PAIR, not one centred pool. The stage is a diagonal with the
   // enemies on the left third (layout.ts ENEMY_FEET x 206-452) and the party on
   // the right (HERO_FEET x 700-880); one pool at x 640 peaked between them,
   // where nobody stands, and left the enemy plane unlit.
   pool: { color: '#ffb15c', x: 336, y: 462, rx: 320, ry: 116, alpha: 0.2, actorWeight: 0.85 },
-  pool2: { color: '#ffb970', x: 798, y: 462, rx: 320, ry: 116, alpha: 0.2, actorWeight: 1.15 },
-  shafts: { color: '#ffb066', alpha: 0.065, x: 150, y: -90, angle: -0.52, count: 4, width: 52, length: 1050, gap: 152 },
+  // Pool2 is the PARTY's ground and it is now the brightest floor in the room:
+  // the eye has to land on the half of the stage the player controls.
+  pool2: { color: '#ffb970', x: 798, y: 462, rx: 328, ry: 120, alpha: 0.235, actorWeight: 1.15 },
+  shafts: { color: '#ffb066', alpha: 0.065, x: 296, y: -90, angle: -0.52, count: 4, width: 52, length: 1050, gap: 152 },
   grade: {
     shadow: '#3a1b2a',
     shadowAlpha: 0.20,
@@ -1510,9 +1964,18 @@ const CRYPT: BiomeLook = {
       [0.68, '#241c26'],
       [1, '#14101a'],
     ]);
-    arch(ctx, 190, 84, 132, FLOOR_Y, '#3c2315');
-    arch(ctx, 190, 50, 196, FLOOR_Y, '#6b3a1a');
-    softBlob(ctx, 190, 320, 116, 120, '#c9631f', 0.15);
+    // THE FAR-LEFT DOORWAY, DIMMED. Measured with the critic's own method the
+    // largest bright AND largest saturated mass in every crypt frame was this
+    // one — x 60-260, opposite the party, the first thing the eye found and
+    // nothing the player controls. It stays as architecture (the room needs a
+    // way out) at a third of its glow; the FIRE that justified it has moved
+    // up-stage behind the enemy rank, and the wall there carries its spill.
+    arch(ctx, 190, 84, 132, FLOOR_Y, '#33201a');
+    arch(ctx, 190, 50, 196, FLOOR_Y, '#452718');
+    softBlob(ctx, 190, 326, 82, 86, '#a1501a', 0.075);
+    // The brazier's own spill on the back wall, at x 452 — up-stage, behind
+    // where the enemies stand, so their silhouettes read against it.
+    softBlob(ctx, 452, 336, 104, 96, '#c9631f', 0.13);
     for (const x of [372, 470, 640, 812, 980, 1112, 1216]) {
       pillar(ctx, x, 96, FLOOR_Y, 19, CRYPT_FAR_INK, '#3a3859');
     }
@@ -1546,8 +2009,11 @@ const CRYPT: BiomeLook = {
       ctx.stroke();
     }
     ctx.restore();
-    softBlob(ctx, 1092, 96, 132, 118, '#2f7ea8', 0.2);
-    softBlob(ctx, 1068, 84, 15, 15, '#d8f4ff', 0.42);
+    // ...and the COLD window is raised to meet it: with the brazier halved,
+    // the room's two loudest sources now sit across the wheel AND across the
+    // frame instead of one amber mass owning the left edge.
+    softBlob(ctx, 1092, 96, 146, 132, '#2f7ea8', 0.26);
+    softBlob(ctx, 1068, 84, 17, 17, '#d8f4ff', 0.48);
     softBlob(ctx, 1148, 132, 10, 10, '#cdeeff', 0.3);
     // Dust haze washing the whole far plane down toward the floor.
     hazeWash(ctx, W, 150, '#927a70', 0.52, CRYPT_SEED);
@@ -1609,28 +2075,61 @@ const CRYPT: BiomeLook = {
     ctx.translate(612, FLOOR_Y + 30);
     ctx.rotate(-0.05);
     poly(ctx, [-25, 0, -25, -74, 22, -58, 25, 0], '#120e1e');
+    faceShade(ctx, [-25, 0, -25, -74, 22, -58, 25, 0], -74, 0, RIM, 0.16);
     rimEdge(ctx, [-25, 0, -25, -74, 22, -58], RIM, 0.12, 2);
     ctx.restore();
     slabProp(ctx, 892, FLOOR_Y + 30, 122, 26, 0.02, '#120e1e', RIM, 0.12);
     poly(ctx, [833, FLOOR_Y + 4, 833, FLOOR_Y - 8, 951, FLOOR_Y - 4, 951, FLOOR_Y + 8], '#161125');
+    faceShade(ctx, [833, FLOOR_Y + 4, 833, FLOOR_Y - 8, 951, FLOOR_Y - 4, 951, FLOOR_Y + 8], FLOOR_Y - 8, FLOOR_Y + 8, RIM, 0.14);
     slabProp(ctx, 1176, FLOOR_Y + 34, 44, 78, 0.17, '#120e1e', RIM, 0.26);
 
-    // The brazier that anchors the key — kept hard left, out of the actor row.
-    poly(ctx, [212, FLOOR_Y + 26, 222, 352, 254, 352, 264, FLOOR_Y + 26], '#120e1c');
-    poly(ctx, [206, 352, 270, 352, 260, 332, 216, 332], '#241a24');
-    softBlob(ctx, 238, 320, 86, 74, '#ff7d20', 0.2);
-    softBlob(ctx, 238, 312, 30, 28, '#ffca7a', 0.34);
+    // THE BRAZIER, MOVED. It used to stand at x 206-270 and it was the
+    // largest, brightest, most saturated mass in every crypt frame — at the
+    // far left, opposite the party. It now stands at x 452, UP-STAGE and
+    // BEHIND the enemy rank (layout.ts seats them x 150-520), so the fire is
+    // something the enemies are silhouetted against rather than a lamp in the
+    // corner shouting at the player, and its bloom is a quarter of what it was:
+    // 86 px of glow at 0.2 down to 40 at 0.095, with a 13-px core at 0.19
+    // instead of a 30-px one at 0.34.
+    poly(ctx, [426, FLOOR_Y + 8, 436, 344, 468, 344, 478, FLOOR_Y + 8], '#120e1c');
+    poly(ctx, [420, 344, 484, 344, 474, 326, 430, 326], '#241a24');
+    faceShade(ctx, [420, 344, 484, 344, 474, 326, 430, 326], 326, 344, RIM, 0.4);
+    softBlob(ctx, 452, 318, 40, 34, '#e8752a', 0.095);
+    softBlob(ctx, 452, 312, 13, 12, '#f0c294', 0.19);
+    // ---- THE CENTRE MASS (composition, round 3 item 2) ----------------------
+    // "The centre band x 470-670 is empty floor in every battle frame; the
+    // mid-ground mass round 2 asked for sits in the blurred FAR plane." So one
+    // real mass stands here, on the MID plane, straddling the wall/floor joint
+    // so it occludes the horizon — in front of the far wall, behind the actor
+    // line. It stays DARK and its rim runs at the inside-the-actor-band third
+    // (this file's header rule: interest lives outside x 330-950 at HEAD
+    // height), and it tops out around FLOOR_Y - 80, under the far rank's heads.
+    // A collapsed grave stack: a kerbed base, a snapped stele leaning off it
+    // and a rolled drum, so the mass has three profiles and not one block.
+    slabProp(ctx, 604, FLOOR_Y + 26, 118, 34, 0.02, '#0f0b1a', RIM, 0.11);
+    poly(ctx, [566, FLOOR_Y - 8, 572, FLOOR_Y - 82, 612, FLOOR_Y - 74, 616, FLOOR_Y - 6], '#110d1d');
+    faceShade(ctx, [566, FLOOR_Y - 8, 572, FLOOR_Y - 82, 612, FLOOR_Y - 74, 616, FLOOR_Y - 6], FLOOR_Y - 82, FLOOR_Y - 6, RIM, 0.13);
+    rimEdge(ctx, [566, FLOOR_Y - 8, 572, FLOOR_Y - 82, 612, FLOOR_Y - 74], RIM, 0.1, 2);
+    wedgeBox(ctx, 690, FLOOR_Y + 18, 84, 44, 0.7, 0.06, '#0e0a18', RIM, 0.1, false);
+    drum(ctx, 654, FLOOR_Y + 34, 40, 20, '#0f0b1a', RIM, 0.1);
     jointSpeckle(ctx, W, CRYPT_GROUND, CRYPT_SEED ^ 0x3d);
     horizonGlint(ctx, W, FLOOR_Y - 9, '#ff9646', 0.09, CRYPT_SEED, 9, 17);
   },
 
   floor(ctx, W, H) {
-    // The ground reads a clear step darker than the hazy mid-field behind it —
-    // that step is what lets a lit head and shoulder separate from the room.
+    // THE GROUND IS LIT FROM THE FRONT NOW. It used to ramp DOWN as it came
+    // toward the camera (#2c2434 -> #0f0b17), which put the near quarter at
+    // p50 L 7.3 against the mid ground's 18.8 — the bottom of the picture was
+    // the darkest thing in it and the reference does the exact opposite: in
+    // `octopath-4` the near sand is the BRIGHTEST plane in the frame, and even
+    // `octopath-2`'s night forest holds a warm lit dirt strip across its front.
+    // The ramp now brightens forward and eases back only in the last rows.
     vgrad(ctx, 0, FLOOR_Y - JOINT_LIFT, W, H - FLOOR_Y + JOINT_LIFT, [
-      [0, '#2c2434'],
-      [0.3, '#1c1526'],
-      [1, '#0f0b17'],
+      [0, '#281d31'],
+      [0.17, '#3a2c3e'],
+      [0.46, '#503d47'],
+      [0.78, '#a68170'],
+      [1, '#9c7663'],
     ]);
     // Broad scuff along the stage diagonal: centuries of feet between the
     // brazier and the vault, plus a damp band where the wall weeps. These are
@@ -1640,17 +2139,30 @@ const CRYPT: BiomeLook = {
     scuffBand(ctx, 960, FLOOR_Y + 26, 560, H + 20, 84, 190, '#332b3e', 0.036, true);
     scuffBand(ctx, 206, FLOOR_Y + 56, 140, H - 50, 78, 156, '#0a0712', 0.3, false);
     scuffBand(ctx, 1080, FLOOR_Y + 44, 1200, H + 10, 82, 168, '#0a0712', 0.26, false);
-    floorGrid(ctx, W, H, '#5a4c66', 0.055, CRYPT_SEED);
-    // Cracked flagstones with rubble: 104 pieces at three sizes and free
-    // rotation, crowded into the two lit pools and thinning into the vignette.
+    floorGrid(ctx, W, H, '#5a4c66', 0.035, CRYPT_SEED);
+    // Cracked flagstones with rubble: the SOFT scatter, the big shapes, still
+    // rotated and perspective-squashed — it carries the silhouettes.
     scatterGround(ctx, W, H, {
       seed: CRYPT_SEED ^ 0x51,
-      count: 116,
+      count: 96,
       kinds: [kStone, kStone, kBrick, kSlab, kCrack, kStone, kCrack, kBrick],
       ink: CRYPT_GROUND,
       pool: [566, 476, 520, 140],
     });
-    groundGrain(ctx, W, H, CRYPT_GROUND, CRYPT_SEED ^ 0x9c, 1250);
+    // ...and the PIXEL ground over it, which is where the value lives: crowns,
+    // beds, ruts and a scuffed lane on the actors' own 2-px grid.
+    pixelGround(ctx, W, H, {
+      seed: CRYPT_SEED ^ 0xa3,
+      ink: CRYPT_PIX,
+      count: 980,
+      // The two foot pools, plus a THIRD wide one across the near ground: the
+      // brief's "near plane lit MORE than the mid", and the reference's own
+      // habit of putting its warmest, busiest ground right under the camera.
+      pools: [[336, 470, 340, 128], [798, 470, 340, 128], [620, 706, 660, 168]],
+      coolShare: 0.5,
+      tufts: 46,
+    });
+    groundGrain(ctx, W, H, CRYPT_GROUND, CRYPT_SEED ^ 0x9c, 900);
     // The masses that stand FORWARD of the wall — the middle third used to be
     // an empty column of floor. They belong to this plane: the floor is opaque
     // from FLOOR_Y down, so a prop drawn on the mid plane below the joint is
@@ -1676,8 +2188,8 @@ const CRYPT: BiomeLook = {
     for (const [x0, x1] of [[560, 470], [760, 900], [640, 660]] as const) {
       crackRun(ctx, x0, x1, FLOOR_Y + 20, H, '#080610', 0.42, CRYPT_SEED ^ x0);
     }
-    readingShade(ctx, W, H, '#07050d');
-    fadeTop(ctx, W, FLOOR_Y - 26, 40, CRYPT_SEED);
+    readingShade(ctx, W, H, '#07050d', 0.3);
+    fadeTop(ctx, W, FLOOR_Y - 26, 56, CRYPT_SEED);
   },
 
   near(ctx, W, H) {
@@ -1687,7 +2199,7 @@ const CRYPT: BiomeLook = {
     edgeCurtain(ctx, W, H, -1, 186, CRYPT_NEAR_INK);
     poly(ctx, [-40, -40, 380, -40, 150, 74, 112, 150], CRYPT_NEAR_INK);
     poly(ctx, [W + 40, -40, W - 380, -40, W - 158, 74, W - 120, 150], CRYPT_NEAR_INK);
-    floorLip(ctx, W, H, CRYPT_NEAR_INK, 112);
+    floorLip(ctx, W, H, CRYPT_NEAR_INK, 48);
   },
 };
 
@@ -1702,6 +2214,16 @@ const MARSH_MID_INK = '#12212b';
 const MARSH_NEAR_INK = '#060f14';
 /** Silt and shell against standing water — one step either side of the shallows. */
 const MARSH_GROUND: GroundInk = { lit: '#3f6b76', dark: '#08131a', seam: '#061018' };
+/**
+ * The marsh bed at the ACTOR's cell (see `pixelGround`). Sun-bleached SEDGE
+ * where the dusk fill off the right bank reaches the shallows, cold
+ * water-stone where it does not — the second hue the floor needs to carry
+ * chroma without the whole plane going one temperature. The warm family is
+ * pulled toward the bed's own green (`#a3b184`, not the `#a8896a` it started
+ * at): a straight ochre grain on teal water read as RUST, which is a different
+ * material, not a different light.
+ */
+const MARSH_PIX: PixelInk = { lit: '#95a37a', mid: '#5b6a55', bed: '#0a1820', cool: '#2e6274', coolLit: '#63b6cc' };
 const MARSH_SEED = 0x3e11;
 
 /** A bare marsh tree: leaning trunk, three forks, no leaves. */
@@ -1794,6 +2316,9 @@ function hull(
   ctx.closePath();
   ctx.fillStyle = fill;
   ctx.fill();
+  // The gunwale takes the moon, the belly falls away from it: without this the
+  // wreck is one silhouette with a keyline drawn round its top edge.
+  faceShade(ctx, [-hw, -h * 0.9, hw, -h * 0.62, hw * 0.86, h * 0.2, -hw * 0.2, h * 0.9], -h * 0.9, h * 0.6, rim, rimA * 0.9);
   rimEdge(ctx, [-hw * 0.9, -h * 0.9, 0, -h * 0.1, hw, -h * 0.62], rim, rimA, 2);
   ctx.save();
   ctx.globalAlpha = rimA * 0.7;
@@ -1826,6 +2351,13 @@ const MARSH: BiomeLook = {
     highlight: '#a9e8dd',
     highlightAlpha: 0.09,
   },
+  // THE MOON AS A LIGHT. First-ten-minutes defect 5: under `dimScene` it came
+  // back a flat mid-grey disc with a cyan ring — a hole punched in the sky —
+  // because a hard-edged disc under a uniform multiply is still a hard-edged
+  // disc. `engine/light.ts` re-applies this additively after the grade, as a
+  // core inside a wide falloff, and a gradient survives a multiply as a
+  // gradient. Centred on the same (196, 126) the far plane paints it at.
+  sky: { color: '#dcf4ec', x: 196, y: 126, r: 34, halo: 210, alpha: 0.42 },
   fog: { color: '#7fa8ad', alpha: 0.095, y: 272, height: 262, speed: 9, bands: 2 },
   motes: { color: '#cdeee4', count: 56, size: 8, rise: 12, drift: 15 },
   rim: '#bff0e2',
@@ -1871,7 +2403,17 @@ const MARSH: BiomeLook = {
     deadTree(ctx, 1064, FLOOR_Y + 34, 290, -26, MARSH_MID_INK);
     deadTree(ctx, 962, FLOOR_Y + 6, 148, 14, MARSH_MID_INK);
     // The jetty, and the pilings that once carried it.
-    poly(ctx, [1180, FLOOR_Y + 40, 1160, FLOOR_Y + 4, 890, FLOOR_Y + 14, 900, FLOOR_Y + 54], '#101f28');
+    // TWO PLANKS at different heights with a broken end between them, not one
+    // 270-px board: its deck line was the last straight rule left in the set
+    // (353 px at y 408 on `bd-FROST_MARSH` at HIGH, 346 at MED). A jetty this
+    // rotten does not keep one level edge across its whole length.
+    const deckA = [1180, FLOOR_Y + 40, 1162, FLOOR_Y + 2, 1028, FLOOR_Y + 8, 1040, FLOOR_Y + 46];
+    const deckB = [1036, FLOOR_Y + 48, 1022, FLOOR_Y + 16, 886, FLOOR_Y + 26, 898, FLOOR_Y + 58];
+    poly(ctx, deckA, '#101f28');
+    faceShade(ctx, deckA, FLOOR_Y + 2, FLOOR_Y + 46, RIM, 0.3);
+    poly(ctx, deckB, '#0e1c24');
+    faceShade(ctx, deckB, FLOOR_Y + 16, FLOOR_Y + 58, RIM, 0.24);
+    propShadow(ctx, 1030, FLOOR_Y + 60, 150, 0.3);
     for (const [x, h] of [[920, 62], [986, 74], [1052, 54], [1120, 68]] as const) {
       ctx.fillStyle = '#0c1a22';
       ctx.fillRect(x, FLOOR_Y + 10, 9, h);
@@ -1907,16 +2449,36 @@ const MARSH: BiomeLook = {
       softBlob(ctx, x, y, r * 3.6, r * 3.6, '#2f8f76', 0.5);
       softBlob(ctx, x, y, r, r, '#d8fff0', 0.8);
     }
+    // ---- THE CENTRE MASS (composition, round 3 item 2) ----------------------
+    // "The centre band x 470-670 is empty floor in every battle frame; the
+    // mid-ground mass round 2 asked for sits in the blurred FAR plane." So one
+    // real mass stands here, on the MID plane, straddling the wall/floor joint
+    // so it occludes the horizon — in front of the far wall, behind the actor
+    // line. It stays DARK and its rim runs at the inside-the-actor-band third
+    // (this file's header rule: interest lives outside x 330-950 at HEAD
+    // height), and it tops out around FLOOR_Y - 80, under the far rank's heads.
+    // A half-sunk punt against a rotted stump, out in the shallows.
+    hull(ctx, 596, FLOOR_Y + 4, 148, 38, -0.06, '#0c1a22', RIM, 0.12);
+    slabProp(ctx, 678, FLOOR_Y + 10, 30, 74, 0.08, '#0b171f', RIM, 0.12);
+    poly(ctx, [660, FLOOR_Y - 62, 666, FLOOR_Y - 78, 694, FLOOR_Y - 74, 690, FLOOR_Y - 58], '#0b171f');
+    reeds(ctx, 636, FLOOR_Y + 16, 62, 6, '#0c1a21', 16, 29);
     jointSpeckle(ctx, W, MARSH_GROUND, MARSH_SEED ^ 0x3d, 380);
     horizonGlint(ctx, W, FLOOR_Y - 6, '#9fe4d6', 0.07, MARSH_SEED, 8, 14);
   },
 
   floor(ctx, W, H) {
-    // Water, a clear step darker than the hazy bank behind it.
+    // LIT FROM THE FRONT, like the crypt's: the shallows brighten as they come
+    // toward the camera and ease back only in the last rows. `octopath-2` is
+    // the case that settles it — a NIGHT forest that still holds a warm, lit
+    // silt strip across its near ground at p50 45.8, because that is where the
+    // camera is and the eye needs somewhere to stand.
     vgrad(ctx, 0, FLOOR_Y - JOINT_LIFT, W, H - FLOOR_Y + JOINT_LIFT, [
-      [0, '#2c4a56'],
-      [0.26, '#152932'],
-      [1, '#0a141a'],
+      [0, '#22434f'],
+      [0.18, '#2b5059'],
+      [0.48, '#3b6360'],
+      [0.66, '#4a7d6d'],
+      [0.84, '#69a98a'],
+      [1, '#5f9c7e'],
     ]);
     // Ripples, BROKEN. These were eight full-width fillRects — dead-straight
     // 1280-px rules lying on the water, the same defect as a straight horizon
@@ -1975,7 +2537,20 @@ const MARSH: BiomeLook = {
       pool: [566, 476, 520, 140],
       alpha: 0.56,
     });
-    groundGrain(ctx, W, H, MARSH_GROUND, MARSH_SEED ^ 0x9c, 1100, 0.85);
+    // ...and the PIXEL ground over it, on the actors' own 2-px grid: crowns,
+    // beds, ruts and a scuffed lane, at 25-40 % local contrast. This is where
+    // the plane's VALUE lives; the soft scatter above only carries silhouettes.
+    // The two foot pools plus a third wide one across the near ground — the
+    // near plane has to be lit MORE than the mid, not less.
+    pixelGround(ctx, W, H, {
+      seed: MARSH_SEED ^ 0xa7,
+      ink: MARSH_PIX,
+      count: 760,
+      pools: [[336, 462, 340, 128], [798, 462, 340, 128], [620, 706, 660, 168]],
+      coolShare: 0.58,
+      tufts: 64,
+    });
+    groundGrain(ctx, W, H, MARSH_GROUND, MARSH_SEED ^ 0x9c, 760, 0.85);
     // The two masses forward of the bank: the floor plane is opaque from
     // FLOOR_Y down, so anything standing in the shallows belongs here.
     fallenColumn(ctx, 566, FLOOR_Y + 116, 148, 20, 0.04, '#0a1a22', '#79a8a6', 0.32);
@@ -1992,8 +2567,8 @@ const MARSH: BiomeLook = {
     for (const [x, base, h, n, lean] of [[252, 552, 92, 5, 10], [1046, 566, 84, 6, -12]] as const) {
       reeds(ctx, x, base, h, n, '#0a171d', lean, x);
     }
-    readingShade(ctx, W, H, '#040c11', 1.25);
-    fadeTop(ctx, W, FLOOR_Y - 26, 40, MARSH_SEED);
+    readingShade(ctx, W, H, '#040c11', 0.34);
+    fadeTop(ctx, W, FLOOR_Y - 26, 56, MARSH_SEED);
   },
 
   near(ctx, W, H) {
@@ -2017,7 +2592,7 @@ const MARSH: BiomeLook = {
       ctx.stroke();
     }
     ctx.restore();
-    floorLip(ctx, W, H, MARSH_NEAR_INK, 104);
+    floorLip(ctx, W, H, MARSH_NEAR_INK, 48);
   },
 };
 
@@ -2034,12 +2609,23 @@ const RUINS_MID_INK = '#3a3560';
 const RUINS_NEAR_INK = '#0b0a17';
 /** Weathered masonry and dead grass over a violet platform. */
 const RUINS_GROUND: GroundInk = { lit: '#57506f', dark: '#0d0b1a', seam: '#090714' };
+/** Sunlit sandstone against the platform's violet shadow (see `pixelGround`). */
+const RUINS_PIX: PixelInk = { lit: '#b09270', mid: '#5b4d52', bed: '#150f22', cool: '#464070', coolLit: '#7d76b4' };
 const RUINS_SEED = 0x5c99;
 
 /** A chunk of floating rock: a flat-ish top, a jagged broken underside. */
-function floatIsland(ctx: CanvasRenderingContext2D, x: number, baseY: number, w: number, h: number, fill: string): void {
+function floatIsland(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  baseY: number,
+  w: number,
+  h: number,
+  fill: string,
+  rim?: string,
+  rimA = 0.3,
+): void {
   const hw = w / 2;
-  poly(ctx, [
+  const pts = [
     x - hw, baseY - h * 0.32,
     x - hw * 0.7, baseY - h,
     x - hw * 0.1, baseY - h * 0.86,
@@ -2048,7 +2634,37 @@ function floatIsland(ctx: CanvasRenderingContext2D, x: number, baseY: number, w:
     x + hw * 0.62, baseY - h * 0.05,
     x + hw * 0.2, baseY,
     x - hw * 0.35, baseY - h * 0.08,
-  ], fill);
+  ];
+  poly(ctx, pts, fill);
+  // With a rim these are MASSES, not trapezoids: the sun is upper left, so the
+  // crust is the lit plane, the rock hanging under it the shaded one, and
+  // `faceShade`'s break falls where the soil stops and the stone starts. Round
+  // 3 named `ff-bd-SKY_RUINS.png`'s islands as the worst case of a flat
+  // silhouette on this plane. The NEAR-plane copies pass no rim — that plane is
+  // the darkest thing on screen by contract and stays a cut-out.
+  if (rim) {
+    faceShade(ctx, pts, baseY - h, baseY, rim, rimA);
+    rimEdge(ctx, [
+      x - hw, baseY - h * 0.32,
+      x - hw * 0.7, baseY - h,
+      x - hw * 0.1, baseY - h * 0.86,
+      x + hw * 0.55, baseY - h,
+    ], rim, rimA * 1.15, 2);
+    // The keel: a second, darker mass under the break, so the island reads as
+    // soil ON rock rather than one carved chip.
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(pts[0], pts[1]);
+    for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]);
+    ctx.closePath();
+    ctx.clip();
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.ellipse(x + hw * 0.1, baseY + h * 0.12, hw * 0.92, h * 0.42, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 }
 
 /** A thin wind-blown streak — a tapered curved stroke, never a filled shape. */
@@ -2105,6 +2721,9 @@ const RUINS: BiomeLook = {
     highlight: '#ffdca0',
     highlightAlpha: 0.09,
   },
+  // The low sun, re-applied after the grade so a terminal overlay dims it as a
+  // LIGHT and not into a grey coin (see MARSH.sky and engine/light.ts SkyLight).
+  sky: { color: '#ffe6b0', x: 220, y: 138, r: 32, halo: 210, alpha: 0.4 },
   fog: { color: '#8f96c8', alpha: 0.05, y: 260, height: 240, speed: 6, bands: 2 },
   motes: { color: '#e8ddff', count: 58, size: 7, rise: -10, drift: 22 },
   rim: '#ffe0a8',
@@ -2166,15 +2785,20 @@ const RUINS: BiomeLook = {
     windStreak(ctx, 900, 220, 320, -18, '#dcd6ff', 0.12, 2);
     hazeWash(ctx, W, 150, '#aa96aa', 0.42, RUINS_SEED);
     // A broken skyline where the platform meets the air, not a 1280-px rule.
-    horizonBand(ctx, W, FLOOR_Y - 10, 24, '#241f38', RUINS_SEED, 9, 19);
+    // TWELVE segments at a 30-px step, not nine at 19. The joint carried a
+    // 316-px straight rule at y 394, x 717-1033 at LOW and ARCADE (306 px even
+    // at the 4-L threshold) — two adjacent segments that happened to land at
+    // the same height, chained. More segments and a taller step is the same
+    // lever the forge's horizon needed.
+    horizonBand(ctx, W, FLOOR_Y - 10, 28, '#241f38', RUINS_SEED, 12, 30);
   },
 
   mid(ctx, W) {
     const RIM = '#c0a8d0';
     // Bigger, closer masonry, still clear of the actor row at head height.
-    floatIsland(ctx, 210, FLOOR_Y - 70, 210, 130, RUINS_MID_INK);
+    floatIsland(ctx, 210, FLOOR_Y - 70, 210, 130, RUINS_MID_INK, RIM, 0.26);
     pillar(ctx, 236, FLOOR_Y - 176, FLOOR_Y - 76, 16, RUINS_MID_INK, '#443e6c');
-    floatIsland(ctx, 1080, FLOOR_Y - 40, 240, 150, RUINS_MID_INK);
+    floatIsland(ctx, 1080, FLOOR_Y - 40, 240, 150, RUINS_MID_INK, RIM, 0.26);
     arch(ctx, 1080, 44, FLOOR_Y - 172, FLOOR_Y - 76, RUINS_MID_INK);
     // The arch's key-lit edge — the side facing the sun catches a warm rim,
     // the one thing that reads this as a RUIN and not a silhouette cut-out.
@@ -2187,7 +2811,7 @@ const RUINS: BiomeLook = {
     ctx.quadraticCurveTo(1036, FLOOR_Y - 172, 1080, FLOOR_Y - 172);
     ctx.stroke();
     ctx.restore();
-    floatIsland(ctx, 620, 150, 130, 60, '#38335c');
+    floatIsland(ctx, 620, 150, 130, 60, '#38335c', RIM, 0.2);
 
     // Six masses at three depths and three scales, none of them mirrored, each
     // with a rim on the key side and a shadow on the ground.
@@ -2196,6 +2820,11 @@ const RUINS: BiomeLook = {
     slabProp(ctx, 434, FLOOR_Y - 50, 30, 34, 0.12, '#241e42', RIM, 0.15);
     // 3. A flight of broken steps climbing out of frame at the right.
     stairs(ctx, 916, FLOOR_Y + 30, 150, 4, 15, '#1d193a', RIM, 0.15);
+    // A snapped baluster standing ACROSS the joint at x 790, between the
+    // stairs and the centre mass: the run above needs occluding as well as
+    // stepping, and this is the gap it ran through.
+    slabProp(ctx, 790, FLOOR_Y + 22, 26, 96, 0.04, '#1a1636', RIM, 0.13);
+    drum(ctx, 828, FLOOR_Y + 30, 34, 22, '#1a1636', RIM, 0.12);
     // 5. Masonry at the left edge — where there used to be two identical
     //    trapezoids at 520 and 780. Their crowns must not sit at the same
     //    height OR be flat: two level tops a block apart, softened by the mid
@@ -2215,22 +2844,40 @@ const RUINS: BiomeLook = {
 
     windStreak(ctx, 340, 260, 300, -20, '#bcb4e8', 0.12, 3);
     windStreak(ctx, 760, 300, 260, 18, '#bcb4e8', 0.1, 2);
+    // ---- THE CENTRE MASS (composition, round 3 item 2) ----------------------
+    // "The centre band x 470-670 is empty floor in every battle frame; the
+    // mid-ground mass round 2 asked for sits in the blurred FAR plane." So one
+    // real mass stands here, on the MID plane, straddling the wall/floor joint
+    // so it occludes the horizon — in front of the far wall, behind the actor
+    // line. It stays DARK and its rim runs at the inside-the-actor-band third
+    // (this file's header rule: interest lives outside x 330-950 at HEAD
+    // height), and it tops out around FLOOR_Y - 80, under the far rank's heads.
+    // A fallen arch springer, still carrying two courses of its voussoirs.
+    slabProp(ctx, 612, FLOOR_Y + 24, 130, 40, -0.02, '#191531', RIM, 0.11);
+    poly(ctx, [566, FLOOR_Y - 14, 574, FLOOR_Y - 86, 626, FLOOR_Y - 78, 638, FLOOR_Y - 10], '#1b1734');
+    faceShade(ctx, [566, FLOOR_Y - 14, 574, FLOOR_Y - 86, 626, FLOOR_Y - 78, 638, FLOOR_Y - 10], FLOOR_Y - 86, FLOOR_Y - 10, RIM, 0.13);
+    rimEdge(ctx, [566, FLOOR_Y - 14, 574, FLOOR_Y - 86, 626, FLOOR_Y - 78], RIM, 0.1, 2);
+    drum(ctx, 686, FLOOR_Y + 22, 52, 30, '#1b1734', RIM, 0.1);
     jointSpeckle(ctx, W, RUINS_GROUND, RUINS_SEED ^ 0x3d, 700);
     horizonGlint(ctx, W, FLOOR_Y - 10, '#ffc888', 0.08, RUINS_SEED, 9, 19);
   },
 
   floor(ctx, W, H) {
+    // Lit from the front (see MARSH.floor): the platform catches the low sun
+    // hardest where it is nearest the camera.
     vgrad(ctx, 0, FLOOR_Y - JOINT_LIFT, W, H - FLOOR_Y + JOINT_LIFT, [
-      [0, '#2f2a46'],
-      [0.3, '#1c182c'],
-      [1, '#0f0d1a'],
+      [0, '#2b2740'],
+      [0.18, '#3c3350'],
+      [0.48, '#584659'],
+      [0.8, '#b48764'],
+      [1, '#a97d5b'],
     ]);
     // Where feet crossed the platform, and where the wind laid the dust down.
     scuffBand(ctx, 280, FLOOR_Y + 32, 730, H - 24, 92, 200, '#443c60', 0.05, true);
     scuffBand(ctx, 940, FLOOR_Y + 28, 560, H + 16, 80, 180, '#0b0916', 0.26, false);
     scuffBand(ctx, 150, FLOOR_Y + 54, 90, H - 40, 72, 152, '#0b0916', 0.26, false);
     // A whisper of the perspective grid — structure, not a synthwave floor.
-    floorGrid(ctx, W, H, '#584f7c', 0.05, RUINS_SEED);
+    floorGrid(ctx, W, H, '#584f7c', 0.03, RUINS_SEED);
     // Broken flagstones: irregular missing slabs, not a uniform lattice.
     for (const [x, y, w, h] of [[400, 470, 90, 46], [880, 520, 110, 50], [640, 600, 70, 34]] as const) {
       ctx.save();
@@ -2247,7 +2894,20 @@ const RUINS: BiomeLook = {
       pool: [566, 476, 520, 140],
       alpha: 0.5,
     });
-    groundGrain(ctx, W, H, RUINS_GROUND, RUINS_SEED ^ 0x9c, 1250);
+    // ...and the PIXEL ground over it, on the actors' own 2-px grid: crowns,
+    // beds, ruts and a scuffed lane, at 25-40 % local contrast. This is where
+    // the plane's VALUE lives; the soft scatter above only carries silhouettes.
+    // The two foot pools plus a third wide one across the near ground — the
+    // near plane has to be lit MORE than the mid, not less.
+    pixelGround(ctx, W, H, {
+      seed: RUINS_SEED ^ 0xa7,
+      ink: RUINS_PIX,
+      count: 800,
+      pools: [[336, 462, 340, 128], [798, 462, 340, 128], [620, 706, 660, 168]],
+      coolShare: 0.5,
+      tufts: 52,
+    });
+    groundGrain(ctx, W, H, RUINS_GROUND, RUINS_SEED ^ 0x9c, 860);
     // The two masses standing forward of the wall line — the floor plane is
     // opaque from FLOOR_Y down, so they belong to it and not to mid().
     fallenColumn(ctx, 552, FLOOR_Y + 122, 144, 23, 0.05, '#12102a', '#a294bc', 0.32);
@@ -2271,8 +2931,8 @@ const RUINS: BiomeLook = {
     // The platform's broken edge, hard left and right — this floor ends in open air.
     poly(ctx, [0, H, 0, FLOOR_Y + 30, 60, FLOOR_Y + 50, 30, FLOOR_Y + 90, 0, H], '#0c0a16');
     poly(ctx, [W, H, W, FLOOR_Y + 34, W - 54, FLOOR_Y + 56, W - 26, FLOOR_Y + 96, W, H], '#0c0a16');
-    readingShade(ctx, W, H, '#080713', 0.95);
-    fadeTop(ctx, W, FLOOR_Y - 26, 40, RUINS_SEED);
+    readingShade(ctx, W, H, '#080713', 0.3);
+    fadeTop(ctx, W, FLOOR_Y - 26, 56, RUINS_SEED);
   },
 
   near(ctx, W, H) {
@@ -2290,7 +2950,7 @@ const RUINS: BiomeLook = {
     windStreak(ctx, 40, H * 0.62, 150, -78, RUINS_NEAR_INK, 0.34, 6);
     windStreak(ctx, W + 30, H * 0.26, -180, 92, RUINS_NEAR_INK, 0.42, 7);
     windStreak(ctx, W - 50, H * 0.58, -140, 74, RUINS_NEAR_INK, 0.34, 6);
-    floorLip(ctx, W, H, RUINS_NEAR_INK, 108);
+    floorLip(ctx, W, H, RUINS_NEAR_INK, 48);
   },
 };
 
@@ -2306,15 +2966,40 @@ const FORGE_MID_INK = '#171313';
 const FORGE_NEAR_INK = '#090504';
 /** Slag, cinder and scale over a soot floor. */
 const FORGE_GROUND: GroundInk = { lit: '#5b4438', dark: '#0a0706', seam: '#070403' };
+/** Furnace-lit brick against cold grey slag (see `pixelGround`). */
+const FORGE_PIX: PixelInk = { lit: '#b0813f', mid: '#584237', bed: '#150c08', cool: '#4a4548', coolLit: '#8a8288' };
 const FORGE_SEED = 0xf01e;
 
 /** An anvil silhouette: a flat base, a tapered waist, a horn to one side. `dir` mirrors the horn. */
-function anvilShape(ctx: CanvasRenderingContext2D, x: number, baseY: number, w: number, fill: string, dir: 1 | -1 = 1): void {
+function anvilShape(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  baseY: number,
+  w: number,
+  fill: string,
+  dir: 1 | -1 = 1,
+  rim?: string,
+  rimA = 0.3,
+): void {
   const hw = (w / 2) * dir;
-  poly(ctx, [x - hw * 0.55, baseY, x - hw * 0.55, baseY - w * 0.16, x + hw * 0.55, baseY - w * 0.16, x + hw * 0.55, baseY], fill);
-  poly(ctx, [x - hw * 0.4, baseY - w * 0.16, x - hw * 0.28, baseY - w * 0.5, x + hw * 0.28, baseY - w * 0.5, x + hw * 0.4, baseY - w * 0.16], fill);
-  poly(ctx, [x - hw * 0.5, baseY - w * 0.5, x - hw * 0.5, baseY - w * 0.62, x + hw * 0.32, baseY - w * 0.62, x + hw * 0.32, baseY - w * 0.5], fill);
-  poly(ctx, [x + hw * 0.2, baseY - w * 0.58, x + hw * 1.1, baseY - w * 0.7, x + hw * 1.08, baseY - w * 0.58, x + hw * 0.28, baseY - w * 0.48], fill);
+  const base = [x - hw * 0.55, baseY, x - hw * 0.55, baseY - w * 0.16, x + hw * 0.55, baseY - w * 0.16, x + hw * 0.55, baseY];
+  const waist = [x - hw * 0.4, baseY - w * 0.16, x - hw * 0.28, baseY - w * 0.5, x + hw * 0.28, baseY - w * 0.5, x + hw * 0.4, baseY - w * 0.16];
+  const face = [x - hw * 0.5, baseY - w * 0.5, x - hw * 0.5, baseY - w * 0.62, x + hw * 0.32, baseY - w * 0.62, x + hw * 0.32, baseY - w * 0.5];
+  const horn = [x + hw * 0.2, baseY - w * 0.58, x + hw * 1.1, baseY - w * 0.7, x + hw * 1.08, baseY - w * 0.58, x + hw * 0.28, baseY - w * 0.48];
+  poly(ctx, base, fill);
+  poly(ctx, waist, fill);
+  poly(ctx, face, fill);
+  poly(ctx, horn, fill);
+  // Four flat quads at one value is a pictogram of an anvil. The furnace is up
+  // and left, so the FACE takes the light and the waist and plinth fall away
+  // under it, each with `faceShade`'s hard break across the middle.
+  if (rim) {
+    faceShade(ctx, face, baseY - w * 0.62, baseY - w * 0.46, rim, rimA * 1.6);
+    faceShade(ctx, horn, baseY - w * 0.7, baseY - w * 0.46, rim, rimA);
+    faceShade(ctx, waist, baseY - w * 0.5, baseY - w * 0.16, rim, rimA * 0.6);
+    faceShade(ctx, base, baseY - w * 0.16, baseY, rim, rimA * 0.5);
+    rimEdge(ctx, [x - hw * 0.5, baseY - w * 0.62, x + hw * 0.32, baseY - w * 0.62], rim, rimA * 1.4, 2);
+  }
 }
 
 /** A hanging chain: a column of small linked rings. */
@@ -2401,7 +3086,12 @@ const FORGE: BiomeLook = {
     ] as const) {
       softBlob(ctx, x, y, r, r * 0.62, '#8fa6cf', a);
     }
-    horizonBand(ctx, W, FLOOR_Y - 11, 26, '#241108', FORGE_SEED, 8, 20);
+    // ELEVEN segments at a 28-px step, not eight at 20: with the floor plane
+    // lit from the front the joint carries a bigger value change than it did,
+    // and the forge measured the longest run left in the set (516 px at the
+    // 1.5-L threshold). More, taller steps is the only lever that shortens a
+    // run without flattening the step itself.
+    horizonBand(ctx, W, FLOOR_Y - 11, 30, '#241108', FORGE_SEED, 11, 28);
   },
 
   mid(ctx, W) {
@@ -2410,8 +3100,8 @@ const FORGE: BiomeLook = {
     const RIM = '#a07a5e';
     // Two anvils, one horned left and one right, at different sizes — they
     // used to be the same shape twice.
-    anvilShape(ctx, 250, FLOOR_Y + 30, 96, FORGE_MID_INK, 1);
-    anvilShape(ctx, 1058, FLOOR_Y + 24, 116, FORGE_MID_INK, -1);
+    anvilShape(ctx, 250, FLOOR_Y + 30, 96, FORGE_MID_INK, 1, RIM, 0.34);
+    anvilShape(ctx, 1058, FLOOR_Y + 24, 116, FORGE_MID_INK, -1, RIM, 0.34);
     propShadow(ctx, 250, FLOOR_Y + 30, 60, 0.4);
     propShadow(ctx, 1058, FLOOR_Y + 24, 70, 0.4);
 
@@ -2419,6 +3109,7 @@ const FORGE: BiomeLook = {
     // 3. A double bellows against the left wall, past the actor band.
     propShadow(ctx, 150, FLOOR_Y + 26, 76, 0.4);
     poly(ctx, [72, FLOOR_Y - 96, 176, FLOOR_Y - 74, 214, FLOOR_Y - 32, 176, FLOOR_Y - 4, 74, FLOOR_Y - 22], '#120e0d');
+    faceShade(ctx, [72, FLOOR_Y - 96, 176, FLOOR_Y - 74, 214, FLOOR_Y - 32, 176, FLOOR_Y - 4, 74, FLOOR_Y - 22], FLOOR_Y - 96, FLOOR_Y - 4, RIM, 0.3);
     poly(ctx, [214, FLOOR_Y - 36, 262, FLOOR_Y - 30, 262, FLOOR_Y - 24, 214, FLOOR_Y - 26], '#0f0c0b');
     rimEdge(ctx, [72, FLOOR_Y - 96, 176, FLOOR_Y - 74, 214, FLOOR_Y - 32], RIM, 0.32);
     for (const [x, h] of [[104, 26], [186, 30]] as const) {
@@ -2447,6 +3138,20 @@ const FORGE: BiomeLook = {
     for (const [x, y, r] of [[300, 260, 2.5], [1120, 230, 2.5], [640, 200, 1.8]] as const) {
       softBlob(ctx, x, y, r * 5, r * 5, '#c17a3e', 0.12);
     }
+    // ---- THE CENTRE MASS (composition, round 3 item 2) ----------------------
+    // "The centre band x 470-670 is empty floor in every battle frame; the
+    // mid-ground mass round 2 asked for sits in the blurred FAR plane." So one
+    // real mass stands here, on the MID plane, straddling the wall/floor joint
+    // so it occludes the horizon — in front of the far wall, behind the actor
+    // line. It stays DARK and its rim runs at the inside-the-actor-band third
+    // (this file's header rule: interest lives outside x 330-950 at HEAD
+    // height), and it tops out around FLOOR_Y - 80, under the far rank's heads.
+    // A coal bunker with its shovel leaning on it, and a low flue stack.
+    slabProp(ctx, 608, FLOOR_Y + 22, 128, 46, 0.01, '#141010', RIM, 0.11);
+    poly(ctx, [560, FLOOR_Y - 24, 566, FLOOR_Y - 88, 606, FLOOR_Y - 84, 602, FLOOR_Y - 20], '#151110');
+    faceShade(ctx, [560, FLOOR_Y - 24, 566, FLOOR_Y - 88, 606, FLOOR_Y - 84, 602, FLOOR_Y - 20], FLOOR_Y - 88, FLOOR_Y - 20, RIM, 0.13);
+    rimEdge(ctx, [560, FLOOR_Y - 24, 566, FLOOR_Y - 88, 606, FLOOR_Y - 84], RIM, 0.1, 2);
+    drum(ctx, 694, FLOOR_Y + 16, 46, 34, '#141010', RIM, 0.1);
     jointSpeckle(ctx, W, FORGE_GROUND, FORGE_SEED ^ 0x3d, 500);
     horizonGlint(ctx, W, FLOOR_Y - 11, '#ff7c34', 0.09, FORGE_SEED, 8, 20);
   },
@@ -2454,16 +3159,20 @@ const FORGE: BiomeLook = {
   floor(ctx, W, H) {
     // Soot-grey, not the mid plane's orange-brown — the floor is what the
     // furnace lights, not a light source of its own.
+    // Lit from the front (see MARSH.floor): swept ash over hot brick, brightest
+    // in the rows the camera stands in.
     vgrad(ctx, 0, FLOOR_Y - JOINT_LIFT, W, H - FLOOR_Y + JOINT_LIFT, [
-      [0, '#221a16'],
-      [0.28, '#161211'],
-      [1, '#0d0a09'],
+      [0, '#1e1713'],
+      [0.18, '#2b211b'],
+      [0.48, '#3f2e23'],
+      [0.8, '#7d573d'],
+      [1, '#734e36'],
     ]);
     // Where the barrows ran between furnace and anvil, and the swept ash banks.
     scuffBand(ctx, 260, FLOOR_Y + 30, 700, H - 20, 96, 210, '#4b382c', 0.05, true);
     scuffBand(ctx, 930, FLOOR_Y + 26, 540, H + 16, 82, 182, '#080605', 0.28, false);
     scuffBand(ctx, 140, FLOOR_Y + 56, 70, H - 40, 74, 156, '#080605', 0.28, false);
-    floorGrid(ctx, W, H, '#5a3a28', 0.05, FORGE_SEED);
+    floorGrid(ctx, W, H, '#5a3a28', 0.03, FORGE_SEED);
     // Cooled runnels of slag, held to the sides (x < 350 / > 930) — a dim
     // ember fill, not a stroke, tapering wide-near/narrow-far to the vanishing
     // point, so nothing bright crosses the actor row.
@@ -2497,7 +3206,20 @@ const FORGE: BiomeLook = {
       pool: [566, 478, 520, 142],
       alpha: 0.6,
     });
-    groundGrain(ctx, W, H, FORGE_GROUND, FORGE_SEED ^ 0x9c, 1500);
+    // ...and the PIXEL ground over it, on the actors' own 2-px grid: crowns,
+    // beds, ruts and a scuffed lane, at 25-40 % local contrast. This is where
+    // the plane's VALUE lives; the soft scatter above only carries silhouettes.
+    // The two foot pools plus a third wide one across the near ground — the
+    // near plane has to be lit MORE than the mid, not less.
+    pixelGround(ctx, W, H, {
+      seed: FORGE_SEED ^ 0xa7,
+      ink: FORGE_PIX,
+      count: 1120,
+      pools: [[336, 462, 340, 128], [798, 462, 340, 128], [620, 706, 660, 168]],
+      coolShare: 0.46,
+      tufts: 18,
+    });
+    groundGrain(ctx, W, H, FORGE_GROUND, FORGE_SEED ^ 0x9c, 980);
     // The right third measured 44 % less local detail than the left, and it is
     // the half the party stands on. A slack tub, a spill of quench water and a
     // dropped billet put edges back into x 700-950 without lighting anything.
@@ -2515,8 +3237,8 @@ const FORGE: BiomeLook = {
     ] as const) {
       slabProp(ctx, x, y, w, h, r, '#0e0b09', '#a07a5e', 0.26);
     }
-    readingShade(ctx, W, H, '#070403', 1.15);
-    fadeTop(ctx, W, FLOOR_Y - 26, 40, FORGE_SEED);
+    readingShade(ctx, W, H, '#070403', 0.34);
+    fadeTop(ctx, W, FLOOR_Y - 26, 56, FORGE_SEED);
   },
 
   near(ctx, W, H) {
@@ -2525,7 +3247,7 @@ const FORGE: BiomeLook = {
     chainLine(ctx, 90, -40, 140, FORGE_NEAR_INK, 0.9);
     chainLine(ctx, W - 100, -40, 170, FORGE_NEAR_INK, 0.9);
     anvilShape(ctx, 130, H - 30, 150, FORGE_NEAR_INK, -1);
-    floorLip(ctx, W, H, FORGE_NEAR_INK, 110);
+    floorLip(ctx, W, H, FORGE_NEAR_INK, 50);
   },
 };
 
@@ -2543,6 +3265,8 @@ const VAULT_MID_INK = '#0e222c';
 const VAULT_NEAR_INK = '#050f14';
 /** Silt and shell-white shards over a drowned flagstone floor. */
 const VAULT_GROUND: GroundInk = { lit: '#3e6d7c', dark: '#061318', seam: '#050f14' };
+/** Pale shell silt against deep-water flagstone (see `pixelGround`). */
+const VAULT_PIX: PixelInk = { lit: '#8fbfae', mid: '#42615f', bed: '#04141b', cool: '#2f6172', coolLit: '#69bbcf' };
 const VAULT_SEED = 0x7a1e;
 
 /** A band of wavering underwater light — thin sine-wave strokes, composited additive. */
@@ -2658,7 +3382,9 @@ const VAULT: BiomeLook = {
     ctx.translate(150, FLOOR_Y + 10);
     ctx.rotate(-0.32);
     poly(ctx, [-140, -18, 140, -18, 140, 18, -140, 18], VAULT_MID_INK);
+    faceShade(ctx, [-140, -18, 140, -18, 140, 18, -140, 18], -18, 18, RIM, 0.3);
     ctx.restore();
+    propShadow(ctx, 150, FLOOR_Y + 26, 130, 0.3);
 
     // Six masses at three depths and three scales, none of them mirrored.
     // 3. A row of low urns against the left wall, three sizes.
@@ -2682,15 +3408,34 @@ const VAULT: BiomeLook = {
     for (const [x, y, r] of [[210, 340, 16], [270, 400, 10], [1060, 320, 15], [1140, 380, 9]] as const) {
       softBlob(ctx, x, y, r * 2.4, r * 2.4, '#7fe0d0', 0.28);
     }
+    // ---- THE CENTRE MASS (composition, round 3 item 2) ----------------------
+    // "The centre band x 470-670 is empty floor in every battle frame; the
+    // mid-ground mass round 2 asked for sits in the blurred FAR plane." So one
+    // real mass stands here, on the MID plane, straddling the wall/floor joint
+    // so it occludes the horizon — in front of the far wall, behind the actor
+    // line. It stays DARK and its rim runs at the inside-the-actor-band third
+    // (this file's header rule: interest lives outside x 330-950 at HEAD
+    // height), and it tops out around FLOOR_Y - 80, under the far rank's heads.
+    // A broken votive pedestal with its offering urns, crusted over.
+    slabProp(ctx, 606, FLOOR_Y + 26, 120, 38, 0.02, '#0a1c25', RIM, 0.11);
+    poly(ctx, [572, FLOOR_Y - 10, 578, FLOOR_Y - 80, 620, FLOOR_Y - 72, 624, FLOOR_Y - 6], '#0b1e27');
+    faceShade(ctx, [572, FLOOR_Y - 10, 578, FLOOR_Y - 80, 620, FLOOR_Y - 72, 624, FLOOR_Y - 6], FLOOR_Y - 80, FLOOR_Y - 6, RIM, 0.13);
+    rimEdge(ctx, [572, FLOOR_Y - 10, 578, FLOOR_Y - 80, 620, FLOOR_Y - 72], RIM, 0.1, 2);
+    drum(ctx, 684, FLOOR_Y + 20, 44, 40, '#0b1e27', RIM, 0.1);
+    frond(ctx, 660, FLOOR_Y + 12, 46, 4, 20, '#0a1b23', 57);
     jointSpeckle(ctx, W, VAULT_GROUND, VAULT_SEED ^ 0x3d, 540);
     horizonGlint(ctx, W, FLOOR_Y - 10, '#96dcee', 0.08, VAULT_SEED, 9, 18);
   },
 
   floor(ctx, W, H) {
+    // Lit from the front (see MARSH.floor): the surface shaft reaches the near
+    // flags, and the silt there is the palest thing on the plane.
     vgrad(ctx, 0, FLOOR_Y - JOINT_LIFT, W, H - FLOOR_Y + JOINT_LIFT, [
-      [0, '#173842'],
-      [0.28, '#0d222a'],
-      [1, '#061318'],
+      [0, '#153039'],
+      [0.18, '#1d3c45'],
+      [0.48, '#2b5057'],
+      [0.8, '#628f81'],
+      [1, '#5a8477'],
     ]);
     // Where the silt banked up, and the scoured channels between the banks.
     scuffBand(ctx, 270, FLOOR_Y + 30, 720, H - 24, 94, 204, '#31606e', 0.045, true);
@@ -2707,7 +3452,20 @@ const VAULT: BiomeLook = {
       pool: [566, 476, 520, 140],
       alpha: 0.5,
     });
-    groundGrain(ctx, W, H, VAULT_GROUND, VAULT_SEED ^ 0x9c, 1150, 0.9);
+    // ...and the PIXEL ground over it, on the actors' own 2-px grid: crowns,
+    // beds, ruts and a scuffed lane, at 25-40 % local contrast. This is where
+    // the plane's VALUE lives; the soft scatter above only carries silhouettes.
+    // The two foot pools plus a third wide one across the near ground — the
+    // near plane has to be lit MORE than the mid, not less.
+    pixelGround(ctx, W, H, {
+      seed: VAULT_SEED ^ 0xa7,
+      ink: VAULT_PIX,
+      count: 780,
+      pools: [[336, 462, 340, 128], [798, 462, 340, 128], [620, 706, 660, 168]],
+      coolShare: 0.56,
+      tufts: 40,
+    });
+    groundGrain(ctx, W, H, VAULT_GROUND, VAULT_SEED ^ 0x9c, 560, 0.9);
     // The burst reliquary chest and the crusted votive statue stand forward of
     // the wall, so they belong to the floor plane — the floor is opaque from
     // FLOOR_Y down and would paint over anything mid() drew below the joint.
@@ -2721,8 +3479,8 @@ const VAULT: BiomeLook = {
     ctx.arc(618, FLOOR_Y - 30, 15, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
-    readingShade(ctx, W, H, '#030c11', 1.3);
-    fadeTop(ctx, W, FLOOR_Y - 26, 40, VAULT_SEED);
+    readingShade(ctx, W, H, '#030c11', 0.34);
+    fadeTop(ctx, W, FLOOR_Y - 26, 56, VAULT_SEED);
   },
 
   near(ctx, W, H) {
@@ -2733,7 +3491,7 @@ const VAULT: BiomeLook = {
     // Silt clouds hanging in the water, right at the frame edges.
     softBlob(ctx, 40, H * 0.6, 160, 200, '#0d262e', 0.5);
     softBlob(ctx, W - 40, H * 0.5, 170, 210, '#0d262e', 0.5);
-    floorLip(ctx, W, H, VAULT_NEAR_INK, 106);
+    floorLip(ctx, W, H, VAULT_NEAR_INK, 48);
   },
 };
 
@@ -2747,6 +3505,8 @@ const SPIRE_MID_INK = '#171b2c';
 const SPIRE_NEAR_INK = '#08090f';
 /** Rain-wet stone: the sky caught in the puddles, the shadow under the lip. */
 const SPIRE_GROUND: GroundInk = { lit: '#5b6484', dark: '#080911', seam: '#06070d' };
+/** Storm-lit wet stone against the warm bronze of the parapet's copper (see `pixelGround`). */
+const SPIRE_PIX: PixelInk = { lit: '#93a6cc', mid: '#4a5064', bed: '#0a0c16', cool: '#6b5a52', coolLit: '#b09070' };
 const SPIRE_SEED = 0xb01d;
 
 /** A small triangular banner, hanging from a point and fluttering to one side. */
@@ -2855,6 +3615,14 @@ const SPIRE: BiomeLook = {
     highlight: '#d6e6ff',
     highlightAlpha: 0.1,
   },
+  // The strike's afterglow — this biome's brightest sky object, and the same
+  // rule applies to it (see MARSH.sky).
+  // PURE HALO, not a disc: unlike the moon and the sun there is no painted
+  // BODY here for a core to sit inside — the far plane paints a soft bloom and
+  // a bolt — so an r-26 core came back as a hard white orb hanging beside the
+  // lightning. r ~ 0 collapses `skySprite`'s first stops onto the centre and
+  // leaves the long falloff, which is what an afterglow is.
+  sky: { color: '#f2f8ff', x: 224, y: 40, r: 4, halo: 210, alpha: 0.3 },
   fog: { color: '#5a6088', alpha: 0.07, y: 270, height: 250, speed: 10, bands: 2 },
   motes: { color: '#e2ecff', count: 54, size: 7, rise: 20, drift: 26 },
   rim: '#e6f0ff',
@@ -2912,19 +3680,30 @@ const SPIRE: BiomeLook = {
     for (const [x, hw, h, kind] of merlons) {
       const top = FLOOR_Y - h;
       const a = x > 330 && x < 950 ? 0.12 : 0.26;
+      // Round 3: "`ff-bd-STORM_SPIRE.png`'s monoliths are flat trapezoids at
+      // one value." They were: a fill and a keyline, nothing between. Each is
+      // now a MASS — the shadow it throws on the parapet, the lit crown facing
+      // the strike, `faceShade`'s hard break where the coping meets the shaft,
+      // and the flank below it a clear step darker.
+      let pts: readonly number[];
+      let lip: readonly number[];
       if (kind === 1) {
-        poly(ctx, [x - hw, FLOOR_Y + 10, x - hw, top + 8, x - hw * 0.2, top, x + hw, top + 14, x + hw, FLOOR_Y + 10], SPIRE_MID_INK);
-        rimEdge(ctx, [x - hw, top + 8, x - hw * 0.2, top], RIM, a);
+        pts = [x - hw, FLOOR_Y + 10, x - hw, top + 8, x - hw * 0.2, top, x + hw, top + 14, x + hw, FLOOR_Y + 10];
+        lip = [x - hw, top + 8, x - hw * 0.2, top];
       } else if (kind === 2) {
-        poly(ctx, [x - hw, FLOOR_Y + 10, x - hw, top + 18, x - hw * 0.1, top + 18, x - hw * 0.1, top, x + hw, top, x + hw, FLOOR_Y + 10], SPIRE_MID_INK);
-        rimEdge(ctx, [x - hw, top + 18, x - hw * 0.1, top + 18, x - hw * 0.1, top, x + hw, top], RIM, a);
+        pts = [x - hw, FLOOR_Y + 10, x - hw, top + 18, x - hw * 0.1, top + 18, x - hw * 0.1, top, x + hw, top, x + hw, FLOOR_Y + 10];
+        lip = [x - hw, top + 18, x - hw * 0.1, top + 18, x - hw * 0.1, top, x + hw, top];
       } else if (kind === 3) {
-        poly(ctx, [x - hw, FLOOR_Y + 10, x - hw * 0.55, top, x + hw * 1.05, top + 6, x + hw * 1.2, FLOOR_Y + 10], SPIRE_MID_INK);
-        rimEdge(ctx, [x - hw, FLOOR_Y + 10, x - hw * 0.55, top, x + hw * 1.05, top + 6], RIM, a);
+        pts = [x - hw, FLOOR_Y + 10, x - hw * 0.55, top, x + hw * 1.05, top + 6, x + hw * 1.2, FLOOR_Y + 10];
+        lip = [x - hw, FLOOR_Y + 10, x - hw * 0.55, top, x + hw * 1.05, top + 6];
       } else {
-        poly(ctx, [x - hw, FLOOR_Y + 10, x - hw, top, x + hw, top, x + hw, FLOOR_Y + 10], SPIRE_MID_INK);
-        rimEdge(ctx, [x - hw, FLOOR_Y + 10, x - hw, top, x + hw, top], RIM, a);
+        pts = [x - hw, FLOOR_Y + 10, x - hw, top, x + hw, top, x + hw, FLOOR_Y + 10];
+        lip = [x - hw, FLOOR_Y + 10, x - hw, top, x + hw, top];
       }
+      propShadow(ctx, x, FLOOR_Y + 12, hw * 1.2, 0.3);
+      poly(ctx, pts, SPIRE_MID_INK);
+      faceShade(ctx, pts, top, FLOOR_Y + 10, RIM, a * 1.5);
+      rimEdge(ctx, lip, RIM, a);
     }
     pennant(ctx, 294, FLOOR_Y - 68, 70, 26, '#242840');
     pennant(ctx, 924, FLOOR_Y - 72, 66, -24, '#242840');
@@ -2932,7 +3711,7 @@ const SPIRE: BiomeLook = {
     // Six masses at three depths and three scales, none of them mirrored.
     // 1. A broken gate arch standing on the platform's far side. arch() takes
     //    (x, half, top, spring): a 62-px half-width springing at the floor.
-    arch(ctx, 546, 62, FLOOR_Y - 158, FLOOR_Y + 6, '#0d101c');
+    arch(ctx, 546, 62, FLOOR_Y - 158, FLOOR_Y + 6, '#0d101c', RIM, 0.13);
     // Its crown is gone: punched out, so the silhouette breaks instead of
     // closing. Nothing else on this plane reaches these rows.
     ctx.save();
@@ -2972,22 +3751,41 @@ const SPIRE: BiomeLook = {
       softBlob(ctx, x, y, r, r * 0.42, '#2a2f4c', 0.55);
       softBlob(ctx, x, y - r * 0.2, r * 0.7, r * 0.2, '#565f90', 0.15);
     }
+    // ---- THE CENTRE MASS (composition, round 3 item 2) ----------------------
+    // "The centre band x 470-670 is empty floor in every battle frame; the
+    // mid-ground mass round 2 asked for sits in the blurred FAR plane." So one
+    // real mass stands here, on the MID plane, straddling the wall/floor joint
+    // so it occludes the horizon — in front of the far wall, behind the actor
+    // line. It stays DARK and its rim runs at the inside-the-actor-band third
+    // (this file's header rule: interest lives outside x 330-950 at HEAD
+    // height), and it tops out around FLOOR_Y - 80, under the far rank's heads.
+    // The gate arch already stands at x 484-608; this widens its footing into
+    // the empty half of the band with a spill of its own coping.
+    slabProp(ctx, 664, FLOOR_Y + 22, 116, 34, -0.02, '#101422', RIM, 0.11);
+    poly(ctx, [626, FLOOR_Y - 6, 632, FLOOR_Y - 74, 674, FLOOR_Y - 66, 678, FLOOR_Y - 2], '#111527');
+    faceShade(ctx, [626, FLOOR_Y - 6, 632, FLOOR_Y - 74, 674, FLOOR_Y - 66, 678, FLOOR_Y - 2], FLOOR_Y - 74, FLOOR_Y - 2, RIM, 0.13);
+    rimEdge(ctx, [626, FLOOR_Y - 6, 632, FLOOR_Y - 74, 674, FLOOR_Y - 66], RIM, 0.1, 2);
+    drum(ctx, 716, FLOOR_Y + 30, 48, 24, '#111527', RIM, 0.1);
     jointSpeckle(ctx, W, SPIRE_GROUND, SPIRE_SEED ^ 0x3d);
     horizonGlint(ctx, W, FLOOR_Y - 10, '#c4d4ff', 0.09, SPIRE_SEED, 9, 18);
   },
 
   floor(ctx, W, H) {
+    // Lit from the front (see MARSH.floor): wet flagstone throwing the storm
+    // light back at the camera.
     vgrad(ctx, 0, FLOOR_Y - JOINT_LIFT, W, H - FLOOR_Y + JOINT_LIFT, [
-      [0, '#282a3e'],
-      [0.3, '#171929'],
-      [1, '#0b0c17'],
+      [0, '#22273c'],
+      [0.18, '#2d3550'],
+      [0.48, '#3f4a72'],
+      [0.8, '#6c7aa2'],
+      [1, '#627098'],
     ]);
     // The rain runs off the platform along these two falls, and the middle
     // stays wettest — a sheen, not a highlight.
     scuffBand(ctx, 300, FLOOR_Y + 30, 740, H - 20, 96, 206, '#4a5478', 0.055, true);
     scuffBand(ctx, 950, FLOOR_Y + 26, 560, H + 16, 82, 180, '#080911', 0.26, false);
     scuffBand(ctx, 140, FLOOR_Y + 54, 70, H - 40, 74, 154, '#080911', 0.26, false);
-    floorGrid(ctx, W, H, '#565c82', 0.05, SPIRE_SEED);
+    floorGrid(ctx, W, H, '#565c82', 0.03, SPIRE_SEED);
     // Wet stone and standing water, with the bolts caught in the puddles.
     scatterGround(ctx, W, H, {
       seed: SPIRE_SEED ^ 0x37,
@@ -2997,7 +3795,20 @@ const SPIRE: BiomeLook = {
       pool: [566, 476, 520, 140],
       alpha: 0.44,
     });
-    groundGrain(ctx, W, H, SPIRE_GROUND, SPIRE_SEED ^ 0x9c, 1250);
+    // ...and the PIXEL ground over it, on the actors' own 2-px grid: crowns,
+    // beds, ruts and a scuffed lane, at 25-40 % local contrast. This is where
+    // the plane's VALUE lives; the soft scatter above only carries silhouettes.
+    // The two foot pools plus a third wide one across the near ground — the
+    // near plane has to be lit MORE than the mid, not less.
+    pixelGround(ctx, W, H, {
+      seed: SPIRE_SEED ^ 0xa7,
+      ink: SPIRE_PIX,
+      count: 800,
+      pools: [[336, 462, 340, 128], [798, 462, 340, 128], [620, 706, 660, 168]],
+      coolShare: 0.44,
+      tufts: 24,
+    });
+    groundGrain(ctx, W, H, SPIRE_GROUND, SPIRE_SEED ^ 0x9c, 860);
     // The fallen bell lies forward of the parapet, so it belongs to the floor
     // plane — the floor is opaque from FLOOR_Y down.
     fallenBell(ctx, 578, FLOOR_Y + 124, 132, 38, 0.3, '#2b3148', '#9fb0d8', 0.28);
@@ -3012,8 +3823,8 @@ const SPIRE: BiomeLook = {
     }
     fallenColumn(ctx, 1024, FLOOR_Y + 152, 96, 8, -0.28, '#151928', '#9fb0d8', 0.3);
     drum(ctx, 902, FLOOR_Y + 96, 40, 28, '#151928', '#9fb0d8', 0.15);
-    readingShade(ctx, W, H, '#06070d', 0.9);
-    fadeTop(ctx, W, FLOOR_Y - 26, 40, SPIRE_SEED);
+    readingShade(ctx, W, H, '#06070d', 0.3);
+    fadeTop(ctx, W, FLOOR_Y - 26, 56, SPIRE_SEED);
   },
 
   near(ctx, W, H) {
@@ -3029,7 +3840,7 @@ const SPIRE: BiomeLook = {
     const MERLON_H = 64;
     for (let x = -20; x < 200; x += MERLON) poly(ctx, [x, H + 20, x, H - MERLON_H, x + MERLON * 0.62, H - MERLON_H, x + MERLON * 0.62, H + 20], SPIRE_NEAR_INK);
     for (let x = W + 20; x > W - 200; x -= MERLON) poly(ctx, [x, H + 20, x, H - MERLON_H, x - MERLON * 0.62, H - MERLON_H, x - MERLON * 0.62, H + 20], SPIRE_NEAR_INK);
-    floorLip(ctx, W, H, SPIRE_NEAR_INK, 96);
+    floorLip(ctx, W, H, SPIRE_NEAR_INK, 46);
   },
 };
 

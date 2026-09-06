@@ -88,6 +88,38 @@ export interface PoolLight extends ActorWeight {
   alpha: number;
 }
 
+/**
+ * A SKY BODY — a moon, a sun, a lightning afterglow: the brightest object in
+ * the biome, and the one thing in the frame that has to keep reading as a
+ * LIGHT after somebody paints a terminal overlay over the top of it.
+ *
+ * THE dimScene INTERACTION. `engine/ui.ts`'s `dimScene` is a flat black
+ * `source-over` at 0.5-0.66 — a uniform multiply. That is proportional, so it
+ * cannot invert the frame's value order; what it does do is take a body that
+ * was authored as a FLAT DISC with a hard edge and hand back a flat mid-grey
+ * disc with a coloured ring around it, which reads as a hole punched in the
+ * sky and not as a moon (the marsh's, on `playfull-end-GAME_OVER.png`). A
+ * gradient survives the same multiply as a gradient: what dims proportionally
+ * and still reads as a light is a CORE inside a wide falloff.
+ *
+ * So the body is re-applied here, additively, in `renderPost` AFTER the grade
+ * — the grade's multiply is the other thing flattening it — as one cached
+ * sprite: `r` is the body itself, `halo` the reach of its glow, `alpha` the
+ * peak. One `drawImage` per frame for the biomes that declare it and nothing
+ * at all for the four that do not.
+ */
+export interface SkyLight {
+  color: string;
+  x: number;
+  y: number;
+  /** Radius of the body's own core, in logical px. */
+  r: number;
+  /** Radius at which its glow reaches zero. */
+  halo: number;
+  /** Peak alpha at the centre (0.2-0.6). */
+  alpha: number;
+}
+
 /** The grading pass: one 'multiply' tint that carries the vignette, one 'screen' lift. */
 export interface GradeLook {
   /** Shadow tint multiplied over the frame (the biome's colour of darkness). */
@@ -172,6 +204,13 @@ export interface BiomeLook {
   motes: MoteLook;
   /** Optional volumetric shafts leaning out of the key light. */
   shafts?: ShaftLook;
+  /**
+   * Optional sky body — the moon, the sun, the afterglow. Re-applied additively
+   * after the grade so it survives a terminal `dimScene` as a light; see
+   * `SkyLight`. Biomes with no sky (the crypt, the forge, the vault) omit it
+   * and pay nothing.
+   */
+  sky?: SkyLight;
   /** Rim colour spilled along the key-lit side of every actor silhouette. */
   rim: string;
   /** Preset + colour for the caller's engine/particles.ts ambient layer (the coarse pixel layer; the motes above are this module's soft one). */
@@ -192,6 +231,24 @@ export type BiomeLooks = Record<string, BiomeLook>;
 
 /** One actor's bounding rect on the stage, for rim light and glow. */
 export interface LightActor {
+  /**
+   * WHAT this box is. `'actor'` (the default, and what an absent field means)
+   * is a BODY: it gets the multiplicative gain, the rim spill and, if it
+   * carries a lit prop, the glow. `'vfx'` is an EFFECT's bounds — it gets the
+   * glow and NOTHING else.
+   *
+   * The distinction is not cosmetic. `game/screens/battle.ts` feeds every
+   * effect's `vfxBounds` through the same `addLightActor` the six fighters go
+   * through, and everything above the `glow > 0` test used to run on it: a
+   * `'color-dodge'` gain over a `GAIN_RX x GAIN_RY` (0.66 x 0.98) ellipse of
+   * the box, plus a rim spill 1.15 x 0.95 of it. On a body that ellipse is a
+   * torso; on a round-3 effect box it is up to 515 x 674 px of the frame lifted
+   * multiplicatively, which is why a hit turned its target white — the target's
+   * share above L 75 at the moment of impact measures 25.8 % from the sprite's
+   * own flash and 67.5 % once the effect's box is fed in. An effect is light
+   * that ALREADY draws its own bright pixels; it must not also be a gain.
+   */
+  kind?: 'actor' | 'vfx';
   /** Left edge of the actor's box in logical px. */
   x: number;
   /** Top edge of the actor's box in logical px. */
@@ -273,6 +330,18 @@ export interface Light {
 const PLANE_PAD = 40;
 
 /**
+ * The scale a padded plane is rasterised at, so that a painter's full logical
+ * rect still covers the padded canvas: `max((W + 2·PAD)/W, (H + 2·PAD)/H)`,
+ * about the frame centre. On the game's 1280x720 that is **1.1111** (the
+ * height drives it, not the width). It has ONE definition because three places
+ * have to agree on it — `bakePlane`, `bakeFlat`, and `renderPost`'s sky body,
+ * which has to land on top of the far plane that paints it.
+ */
+function padScale(width: number, height: number): number {
+  return Math.max((width + PLANE_PAD * 2) / width, (height + PLANE_PAD * 2) / height);
+}
+
+/**
  * Depth of each plane: 1 = locked to the actor plane, 0 = infinitely far. The
  * offset applied is -(1 - depth) x shake, which makes a far plane LAG the
  * camera — the parallax that turns four flat layers into a diorama.
@@ -282,10 +351,22 @@ const DEPTH_MID = 0.62;
 const DEPTH_FLOOR = 0.9;
 const DEPTH_NEAR = 1.35;
 
-/** Bake-time blur radius per plane, in logical px. The actor plane gets none. */
+/**
+ * Bake-time blur radius per plane, in logical px. The actor plane gets none —
+ * and NEITHER DOES THE FLOOR any more. DESIGN.md's depth-of-field split still
+ * holds for FAR and MID (6 and 2.6 px, the two planes the camera is not
+ * focused on), but the ground the actors stand on is at the actor plane's own
+ * depth, and a 1.25-px blur over it turned a 2-px stone into a 4-px smudge:
+ * the floor's whole p10->p90 range measured 4.4 L near and 11.8 mid against
+ * `octopath-4`'s 30.8 / 51.9, so the sharp sprites read as pasted onto an
+ * airbrush. Zero here is what lets `backdrops.ts`'s `pixelGround` author the
+ * ground at ACTOR_SCALE and have the cells survive the bake (see `crisp`
+ * in `bakePlane`, which also drops the plane's `padScale` — 1.1111 on a
+ * 1280x720 frame).
+ */
 const BLUR_FAR = 6;
 const BLUR_MID = 2.6;
-const BLUR_FLOOR = 1.25;
+const BLUR_FLOOR = 0;
 const BLUR_NEAR = 8;
 /** MED flattens mid+floor into one layer and blurs the lot a little less. */
 const BLUR_MED_BACK = 2.5;
@@ -478,6 +559,7 @@ function bakePlane(
   height: number,
   blur: number,
   opaqueUnder?: string,
+  crisp = false,
 ): HTMLCanvasElement {
   const w = width + PLANE_PAD * 2;
   const h = height + PLANE_PAD * 2;
@@ -488,7 +570,30 @@ function bakePlane(
     rc.fillStyle = opaqueUnder;
     rc.fillRect(0, 0, w, h);
   }
-  const s = Math.max(w / width, h / height);
+  if (crisp) {
+    // A PIXEL plane. The scale below is `padScale` — 1.1111 on a 1280x720
+    // frame — which is exactly the wrong transform for a ground authored on a
+    // 2-px grid: every
+    // cell lands on a fractional boundary and the rasteriser antialiases both
+    // of its edges, so a hard-pixel stone arrives as a 3-px gradient. Draw at
+    // 1:1 inside the padding instead, and pay for the bleed by stretching the
+    // outermost row and column of the finished plane outwards — `drawPlane`
+    // rounds its parallax offset, so at 1:1 the plane reaches the screen with
+    // its cells still whole.
+    rc.save();
+    rc.translate(PLANE_PAD, PLANE_PAD);
+    painter(rc, width, height);
+    rc.restore();
+    rc.imageSmoothingEnabled = false;
+    // left / right columns, then top / bottom rows over the full padded width.
+    rc.drawImage(raw, PLANE_PAD, 0, 1, h, 0, 0, PLANE_PAD, h);
+    rc.drawImage(raw, w - PLANE_PAD - 1, 0, 1, h, w - PLANE_PAD, 0, PLANE_PAD, h);
+    rc.drawImage(raw, 0, PLANE_PAD, w, 1, 0, 0, w, PLANE_PAD);
+    rc.drawImage(raw, 0, h - PLANE_PAD - 1, w, 1, 0, h - PLANE_PAD, w, PLANE_PAD);
+    rc.imageSmoothingEnabled = true;
+    return blur > 0 ? blurred(raw, blur) : raw;
+  }
+  const s = padScale(width, height);
   rc.save();
   rc.translate(w / 2, h / 2);
   rc.scale(s, s);
@@ -605,6 +710,8 @@ interface Baked {
   glowSprite: HTMLCanvasElement | null;
   /** The actor plane's multiplicative light, drawn 'color-dodge' (see GAIN_FLOOR). */
   gainSprite: HTMLCanvasElement | null;
+  /** The sky body's core-in-a-halo, re-applied after the grade (see SkyLight). */
+  skySprite: HTMLCanvasElement | null;
   /**
    * Key, fill and both floor pools flattened to five parallel arrays — centre,
    * elliptical reach and ACTOR-PLANE weight (alpha x KeyLight.actorWeight).
@@ -773,6 +880,30 @@ function softSprite(color: string, size: number): HTMLCanvasElement {
 }
 
 /**
+ * The sky body as a LIGHT: a hot core that holds its value across the disc, a
+ * soft limb, then a long falloff to nothing at `halo`. Five stops rather than
+ * softSprite's three, because this one is judged after a 0.5 multiply — the
+ * shape of the ramp is the whole point (see `SkyLight`).
+ */
+function skySprite(look: SkyLight): HTMLCanvasElement {
+  const size = Math.max(8, Math.ceil(look.halo * 2));
+  const cv = makeCanvas(size, size);
+  const c = ctx2d(cv);
+  const R = size / 2;
+  const core = Math.max(0.02, Math.min(0.9, look.r / look.halo));
+  const g = c.createRadialGradient(R, R, 0, R, R, R);
+  g.addColorStop(0, withAlpha(look.color, 1));
+  g.addColorStop(core * 0.72, withAlpha(look.color, 0.92));
+  g.addColorStop(core, withAlpha(look.color, 0.5));
+  g.addColorStop(core + (1 - core) * 0.24, withAlpha(look.color, 0.17));
+  g.addColorStop(core + (1 - core) * 0.6, withAlpha(look.color, 0.045));
+  g.addColorStop(1, withAlpha(look.color, 0));
+  c.fillStyle = g;
+  c.fillRect(0, 0, size, size);
+  return cv;
+}
+
+/**
  * The actor plane's GAIN sprite: a flat colour whose value is the dodge amount
  * `1 - 1/G` per channel, under an alpha profile that holds most of its strength
  * over the silhouette and lets go before the box edge.
@@ -831,7 +962,7 @@ function bakeFlat(look: BiomeLook, width: number, height: number): HTMLCanvasEle
   const cv = makeCanvas(w, h);
   const c = ctx2d(cv);
   c.imageSmoothingEnabled = true;
-  const s = Math.max(w / width, h / height);
+  const s = padScale(width, height);
   const layer = makeCanvas(w, h);
   const lc = ctx2d(layer);
   lc.imageSmoothingEnabled = true;
@@ -910,6 +1041,7 @@ function bakeBiome(look: BiomeLook, tier: LightTier, width: number, height: numb
     rimSprite: null,
     glowSprite: null,
     gainSprite: null,
+    skySprite: null,
     srcX: [],
     srcY: [],
     srcRX: [],
@@ -927,6 +1059,9 @@ function bakeBiome(look: BiomeLook, tier: LightTier, width: number, height: numb
     pushSource(baked, look.pool2.x, look.pool2.y, look.pool2.rx, look.pool2.ry, aw(look.pool2));
   }
   baked.gradeMap = bakeGradeMap(look, width, height, low);
+  // Every tier, LOW included: the flat bake carries the same flat disc, and a
+  // terminal overlay is drawn over LOW exactly as it is over HIGH.
+  if (look.sky && look.sky.alpha > 0) baked.skySprite = skySprite(look.sky);
   if (low) {
     baked.flat = bakeFlat(look, width, height);
     return baked;
@@ -939,10 +1074,28 @@ function bakeBiome(look: BiomeLook, tier: LightTier, width: number, height: numb
   if (med) {
     // MED folds mid and floor into one plane: one fewer full-screen draw, and
     // the floor's parallax difference is invisible next to a phone's shake.
+    //
+    // They are RASTERISED SEPARATELY first, though. `fadeTop` in
+    // game/art/backdrops.ts feathers the floor's top edge with
+    // 'destination-out'; on a SHARED canvas that erase goes straight through
+    // the mid content under it and down to the far plane, and what comes back
+    // is a hard full-width boundary at the wall/floor joint — exactly the
+    // defect `bakeFlat` was given per-painter layers for at LOW. Measured with
+    // the straight-edge detector on `bd-SUNKEN_VAULT`: a 1171-px run at y 379
+    // at MED against 187 px at HIGH, and 1249 px on `bd-SKY_RUINS`. The temp
+    // canvas is oversized by PLANE_PAD on every side because the floor
+    // painters deliberately draw past the logical rect (`floorLip`,
+    // `edgeCurtain`), and it is composited before the blur, so the frame still
+    // draws exactly one bitmap and pays nothing.
     baked.mid = bakePlane(
       (c, w, h) => {
         look.mid(c, w, h);
-        look.floor(c, w, h);
+        const P = PLANE_PAD;
+        const fl = makeCanvas(w + P * 2, h + P * 2);
+        const fc = ctx2d(fl);
+        fc.translate(P, P);
+        look.floor(fc, w, h);
+        c.drawImage(fl, -P, -P);
       },
       width,
       height,
@@ -950,7 +1103,7 @@ function bakeBiome(look: BiomeLook, tier: LightTier, width: number, height: numb
     );
   } else {
     baked.mid = bakePlane(look.mid, width, height, BLUR_MID);
-    baked.floor = bakePlane(look.floor, width, height, BLUR_FLOOR);
+    baked.floor = bakePlane(look.floor, width, height, BLUR_FLOOR, undefined, true);
   }
   baked.near = bakePlane(look.near, width, height, BLUR_NEAR);
   if (look.fog.alpha > 0) baked.fogBand = bakeFogBand(look.fog, width);
@@ -1175,7 +1328,9 @@ export function createLight(opts: CreateLightOptions): Light {
           //     needs. Centred on the box and NOT pushed toward the light: the
           //     sprite's own baked rim already carries the direction, and a
           //     pushed gain lights the air on one side instead of the figure.
-          if (gainS) {
+          // A 'vfx' box is an effect's bounds, not a body: no gain, no spill,
+          // only the glow below (see LightActor.kind).
+          if (gainS && a.kind !== 'vfx') {
             const gw = a.w * GAIN_RX;
             const gh = a.h * GAIN_RY;
             ctx.globalCompositeOperation = 'color-dodge';
@@ -1190,10 +1345,12 @@ export function createLight(opts: CreateLightOptions): Light {
           // well past the reference frames' own 14-20 %, and buys TIDE only
           // 0.6 -> 5.1 % because TIDE's measured box is a white robe with a lit
           // orb in the middle of it, not a garment plane.
-          const rw = a.w * 1.15;
-          const rh = a.h * 0.95;
-          ctx.globalAlpha = RIM_FLOOR + RIM_LIFT * reach;
-          ctx.drawImage(rimS, cx + dx * a.w * RIM_PUSH_X - rw / 2, cy + dy * a.h * RIM_PUSH_Y - rh / 2, rw, rh);
+          if (a.kind !== 'vfx') {
+            const rw = a.w * 1.15;
+            const rh = a.h * 0.95;
+            ctx.globalAlpha = RIM_FLOOR + RIM_LIFT * reach;
+            ctx.drawImage(rimS, cx + dx * a.w * RIM_PUSH_X - rw / 2, cy + dy * a.h * RIM_PUSH_Y - rh / 2, rw, rh);
+          }
           const glow = a.glow ?? 0;
           if (glow > 0) {
             // Anchored at the PROP, not at the actor's centre of mass.
@@ -1368,6 +1525,42 @@ export function createLight(opts: CreateLightOptions): Light {
         ctx.globalCompositeOperation = 'multiply';
         ctx.globalAlpha = 1;
         ctx.drawImage(b.gradeMap, 0, 0);
+      }
+
+      // --- the sky body, re-applied as a light (see SkyLight) --------------
+      //     AFTER the grade, additively, so the one object the frame calls its
+      //     brightest keeps a core and a falloff through both the grade's
+      //     multiply and whatever terminal dim the caller paints next.
+      //
+      //     IT IS DRAWN IN THE FAR PLANE'S SPACE, NOT IN SCREEN SPACE. `sky.x`
+      //     / `sky.y` are the coordinates the biome's FAR painter paints the
+      //     body at, and that painter is rasterised through `bakePlane`'s pad
+      //     scale (`padScale`, 1.1111 on a 1280x720 frame, about the frame
+      //     centre) and then blitted by `drawPlane` at `-PLANE_PAD` plus the
+      //     far plane's own parallax lag and sway. Drawn at raw (sky.x, sky.y)
+      //     the sprite landed +49 x / +26 y off its own body and the marsh and
+      //     ruins showed TWO overlapping discs at every tier — a rendering bug,
+      //     not a light. Position AND size go through the same transform, and
+      //     the offset follows `drawPlane`'s exactly (same rounding, same
+      //     `sway * 0.3`) so the body cannot detach during a camera shake —
+      //     which is precisely when GAME_OVER is drawn. The flat tiers (LOW /
+      //     ARCADE) blit their one merged plane at exactly `-PLANE_PAD` with no
+      //     parallax and no sway, so there the offset term is zero.
+      const sky = l.sky;
+      if (sky && b.skySprite) {
+        const sway = Math.sin((frame.time ?? 0) * SWAY_RATE) * SWAY_PX;
+        const ox = b.flat ? -PLANE_PAD : Math.round(-PLANE_PAD - (1 - DEPTH_FAR) * shakeX + sway * 0.3);
+        const oy = b.flat ? -PLANE_PAD : Math.round(-PLANE_PAD - (1 - DEPTH_FAR) * shakeY);
+        const ps = padScale(W, H);
+        const cx = ox + PLANE_PAD + W / 2 + ps * (sky.x - W / 2);
+        const cy = oy + PLANE_PAD + H / 2 + ps * (sky.y - H / 2);
+        const s = b.skySprite;
+        const dw = s.width * ps;
+        const dh = s.height * ps;
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = sky.alpha;
+        ctx.drawImage(s, cx - dw / 2, cy - dh / 2, dw, dh);
+        ctx.globalAlpha = 1;
       }
 
       // save/restore is the whole contract here: composite op, alpha, fill and

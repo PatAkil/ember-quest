@@ -24,6 +24,19 @@
 //   runs=40 batches=5          the per-frame cost is the MIN of `batches` batch means of
 //                              `runs` frames each — the machine runs other agents' builds,
 //                              and a single mean measures their load as much as the frame
+//   dim=0.62                   paint engine/ui.ts's `dimScene` fill over the finished
+//                              frame at that alpha — the terminal-overlay case the
+//                              GAME_OVER / WIN / PAUSED screens draw. It is here because
+//                              a flat multiply over a hard-edged sky body is what turned
+//                              the marsh's moon into a grey coin with a cyan ring
+//                              (first-ten-minutes defect 5), and that defect took a
+//                              whole `playfull acts=2` run to see. 0 (default) skips it.
+//   shake=14                   feed renderBackground a camera shake of that many px on
+//                              both axes. The planes lag it by their own depth
+//                              (drawPlane), and the sky body has to follow the FAR
+//                              plane's lag exactly or it detaches from its own disc —
+//                              which is the state a GAME_OVER frame is drawn in, because
+//                              the death shake is still running. 0 (default) is a still.
 //   t=2.4                      the frame time in seconds fed to every render call —
 //                              fog bands, light shafts and the key-light breathing
 //                              alpha are all a function of this, so a nonzero moment
@@ -113,12 +126,22 @@ const g2d = ctx;
 // tool used to stop after renderPost, so an ARCADE capture came back
 // byte-identical to LOW and the ARCADE look was never actually verifiable.
 const crt = TIER === 'ARCADE' ? createCrt() : null;
+// The terminal overlay, byte for byte what engine/ui.ts's dimScene paints
+// (a flat black source-over, oversized so a shake cannot expose an edge).
+const DIM = Math.max(0, Math.min(1, Number(params.get('dim') ?? 0)));
+const SHAKE = Number(params.get('shake') ?? 0);
 function frame(t: number): void {
   g2d.clearRect(0, 0, CANVAS_W, CANVAS_H);
-  light.renderBackground(g2d, { time: t, shakeX: 0, shakeY: 0 });
+  light.renderBackground(g2d, { time: t, shakeX: SHAKE, shakeY: SHAKE * 0.6 });
   light.renderLightPlane(g2d, ACTOR_N > 0 ? { time: t, actors: actorBoxes } : { time: t });
   light.renderPost(g2d, { time: t });
   if (crt) crt.render(g2d, CANVAS_W, CANVAS_H, 1 / 60);
+  if (DIM > 0) {
+    g2d.save();
+    g2d.fillStyle = `rgba(0,0,0,${DIM})`;
+    g2d.fillRect(-16, -16, CANVAS_W + 32, CANVAS_H + 32);
+    g2d.restore();
+  }
 }
 
 // The bake is the expensive half and happens ONCE per (biome, tier): time it
@@ -154,7 +177,7 @@ frame(TIME);
 const known = Object.keys(BACKDROPS).filter((k) => k.includes(' '));
 const timing = `bake ${bakeMs.toFixed(1)} ms · frame ${frameMs.toFixed(2)} ms (best of ${BATCHES}x${RUNS}; mean ${meanMs.toFixed(2)}; tier ${TIER})`;
 out.textContent = [
-  `backdrop · biome=${biomeParam} -> ${look.id} · tier=${TIER} · t=${TIME} · actors=${ACTOR_N}`,
+  `backdrop · biome=${biomeParam} -> ${look.id} · tier=${TIER} · t=${TIME} · actors=${ACTOR_N} · dim=${DIM} · shake=${SHAKE}`,
   timing,
   `known biomes: ${known.join(', ')}`,
 ].join('\n');
