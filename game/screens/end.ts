@@ -34,7 +34,8 @@ const C_DEATH = C_DEBUFF;
 const C_VICTORY = ACCENT;
 
 /**
- * The survivors stand in the frame the player screenshots (UI item 10). They
+ * The whole party stands in the frame the player screenshots (UI item 10),
+ * the survivors in idle and the fallen in their dead poses since UI round 4. They
  * are placed on the party's own side, clear of the centred verdict block and of
  * CONTINUE's plate, and drawn INSIDE the scene pass so the crypt's key light
  * and rim reach them; a cached warm pool is laid over the terminal dim

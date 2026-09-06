@@ -9,9 +9,9 @@
 //            rides the same frame: a stepper on the WEAR row's outer seats,
 //            CONTINUE between them, and the chosen level is clamped up by
 //            `minAscensionFor` — one per Vault relic worn (DESIGN.md:922).
-//   DOORS    the act-6 clear. DESCEND and ANOTHER LAP, 520 x 200 at DOOR_X
-//            96 / 664, DOOR_Y 320, titles in bitmap FONT_HD at TEXT_LABEL —
-//            door labels are one of the two things that stay bitmap.
+//   DOORS    the act-6 clear. DESCEND and ANOTHER LAP on the door seats
+//            (`DOOR_X` / `DOOR_Y` / `DOOR_H` in layout.ts), titles in the HUD
+//            face at HUD_TITLE since UI round 4 (`renderDoors`).
 //   BANK     run end. Pick n of the worn relics on the party columns, then,
 //            only if the Vault would overflow, drop down to VAULT_SIZE on the
 //            grid. Under-dropping is legal: the seam trims lowest-level-first.

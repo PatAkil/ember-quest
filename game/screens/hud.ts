@@ -8,8 +8,9 @@
 // player reads as UI goes through hudText/hudWidth — the vector HUD_FONT at
 // HUD_PX / HUD_SMALL / HUD_LARGE, light weight, letter-spaced, on a 1-px dark
 // drop shadow (DESIGN.md → UI constraints, "Two kinds of text"). The bitmap
-// FONT_HD stays for what belongs to the world: damage pops, the logo, card
-// titles and door labels.
+// FONT_HD stays for what belongs to the world: damage pops and the logo. Card
+// and door titles moved to the HUD face at HUD_TITLE in UI round 4, so the
+// bitmap face is only ever alone in a frame.
 
 import { PICO8 } from '../../engine';
 import type { Element, SetBonus, Slot, StatusKind } from '../types';
@@ -654,10 +655,10 @@ export function gradientPlate(
 }
 
 /**
- * THE TITLE BAND: the one box the bitmap face gets to itself. DESIGN.md's
- * "Two kinds of text" gives card and door titles to bitmap `FONT_HD` and
- * everything the player reads as UI to the vector HUD face — which is right,
- * and which put a 3x-scaled bitmap word two centimetres above vector body copy
+ * THE TITLE BAND: the box a title gets to itself. DESIGN.md's "Two kinds of
+ * text" once gave card and door titles to bitmap `FONT_HD` and everything the
+ * player reads as UI to the vector HUD face — which put a 3x-scaled bitmap
+ * word two centimetres above vector body copy
  * INSIDE THE SAME PLATE on every relic card, wear column, room card, pact card
  * and door. The rule is kept and the collision is not: the title now sits on a
  * denser strip of its own across the head of the card, closed by the card's own
@@ -922,10 +923,11 @@ export const ELEMENT_ICON_NAME: Record<Element, IconName> = {
 // ================================================================= buttons ===
 /**
  * TWO buttons in the whole game, and neither is a bordered rounded rectangle.
- * The PRIMARY action is a lit borderless plate with a soft key-coloured glow —
- * it is the thing to press, so it is the thing that is lit. The SECONDARY is
- * plain text that grows a focus underline. Both keep their full contract hit
- * rect; only the paint is smaller.
+ * The PRIMARY action is a lit patch of the floor — a low feathered ellipse of
+ * ink with the key's light landing on its crown (see the block comment inside
+ * `drawPrimaryButton`) — it is the thing to press, so it is the thing that is
+ * lit. The SECONDARY is plain text that grows a focus underline. Both keep
+ * their full contract hit rect; only the paint is smaller.
  */
 export function drawPrimaryButton(
   ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, label: string,

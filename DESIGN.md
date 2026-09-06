@@ -1266,9 +1266,9 @@ whole hit rect — with a focus underline; the 1-px-bordered rounded rectangle
 is retired. A
 primary whose decision is not yet answerable (a SUMMON before an offer is
 picked, the ALTAR before a member is) keeps its seat at a fraction of the
-light rather than becoming grey text on the floor. `TEXT_BODY 2` remains the bitmap fallback where a screen has no HUD
-font yet, and the character limits below are measured in whichever font
-the screen uses. Limits at those scales: battle log line ≤ `LOG_LINE_MAX = 72` chars,
+light rather than becoming grey text on the floor. `TEXT_BODY 2` survives only as the size of the status and RESIST pops in
+`battle.ts`; every screen draws its UI text in the HUD face, and the character
+limits below are measured in that face. Limits at those scales: battle log line ≤ `LOG_LINE_MAX = 72` chars,
 character names ≤ 16, skill names ≤ 14, relic set names ≤ 8, enemy names ≤
 16, biome names ≤ 12, pact names ≤ 16, sigil and pact blurbs ≤ 30 wrapped
 by `textWidth` inside the drawn card's width − 2 × `CARD_PAD` (`CARD_W =

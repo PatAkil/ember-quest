@@ -215,7 +215,7 @@ export function createNodeScreen(deps: NodeScreenDeps): NodeScreen {
 
   /**
    * The pact card's REAL rect. The card is measured from the rows it holds and
-   * centred in the contract's 440-px band, so registering the whole band made
+   * centred in the contract's band (`CARD_H` 472), so registering the whole band made
    * ~105 px of empty frame above and below it accept the pact. The fitted rect
    * is what is registered; TAP_MIN grows it if a very short pact ever needs it.
    * Measured once per pact — hudFit costs a measureText per word.
@@ -430,8 +430,8 @@ export function createNodeScreen(deps: NodeScreenDeps): NodeScreen {
     drawBanner(ctx, 'A SHRINE . THE PACT ON OFFER', 'SHRINE', C_VIOLET);
     // The pact's violet lives in its title and its band's rule, not in a stroke.
     drawFocusablePlate(ctx, x, cardY, w, cardH, focused, undefined, 0.66, C_VIOLET);
-    // The pact's name is a card title (bitmap, per the contract) and gets the
-    // band the relic cards get — the two type voices in two boxes.
+    // The pact's name is a card title (the HUD face at HUD_TITLE since round 4)
+    // and gets the band the relic cards get.
     titleBand(ctx, x, cardY, w, CARD_PAD + TITLE_H + 8, C_VIOLET);
     let y = cardY + CARD_PAD;
     centerBitmap(pact.name.slice(0, NAME_MAX_PACT), x, w, y, C_VIOLET);

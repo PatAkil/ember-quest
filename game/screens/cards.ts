@@ -202,7 +202,8 @@ function relicCardParts(ctx: CanvasRenderingContext2D, relic: Relic, w: number):
  *
  * `cardY` / `cardH` come from the ROW, not from this card: the row sizes every
  * card to the tallest, so the tops, the set lines and the sigil lines all align
- * across the offer. The HIT rect stays the contract's full 440 either way.
+ * across the offer. The HIT rect stays the contract's full band (`CARD_H`, 472 since
+ * UI round 4) either way.
  */
 function drawRelicCard(
   pc: PixelCanvas, regions: HitRegions, relic: Relic, x: number, w: number, id: string,
@@ -372,7 +373,7 @@ export function createCardsScreen(deps: CardsScreenDeps): CardsScreen {
     hudTextCentered(ctx, label, 0, BANNER_Y, CANVAS_W, HUD_LARGE, { px: HUD_LARGE, color: C_ACCENT });
     const { xs, w } = cardXs(offer.length);
     // ONE height for the row: measured from every card, taken from the tallest,
-    // centred in the contract's 440-px band once.
+    // centred in the contract's band (`CARD_H` 472) once.
     // THE ROW FILLS THE BAND (UI round-4 item 4). Round 3 sized the row to its
     // tallest card and centred it, which left 174 px of bare floor under it.
     // The row is the band now: the head group sits at the top and the set and
@@ -500,7 +501,7 @@ export function createCardsScreen(deps: CardsScreenDeps): CardsScreen {
     const { xs, w } = cardXs(1);
     const x = xs[0];
     // The plate is the height of the three lines it holds, centred in the
-    // contract's 440-px band — the room card used to be 62 % empty.
+    // contract's band (`CARD_H` 472) — the room card used to be 62 % empty.
     const blurb = hudFit(ctx, s.roomCard.blurb, w - 2 * CARD_PAD, HUD_PX, BLURB_LINES_MAX);
     const blockH = TITLE_H + 20 + HUD_SMALL + 14 + blurb.length * ROW;
     // A FLOOR under the measured height (UI round-4 item 4): a two-line blurb
