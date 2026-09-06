@@ -286,6 +286,21 @@ const SH_STREAK = 1;
 const SH_STAR = 2;
 const SH_CHIP = 3;
 const SH_SHARD = 4;
+/**
+ * The impact's own shard: a tapered spindle filled as a PATH, not a scaled
+ * sprite blit — a coloured skirt with a hot white core inside it.
+ *
+ * It exists for cost. Round 4 needs ~16 shards 20-36 px wide and 130-260 px
+ * long on every impact, and as `SH_STREAK` (a 128x32 bitmap scaled into a
+ * rotated rect) that measured ~75 us EACH on the sheet's software canvas —
+ * 1.2 ms of the 1.5 ms budget for the shards alone. A spindle is two solid
+ * fills over half the bounding box with no texture sampling, and it is also
+ * closer to what `octopath-2-water-skill-bloom.jpg`'s shards actually are:
+ * hard-edged slivers with a white centre, not motion blur.
+ */
+const SH_BOLT = 5;
+/** How far a shard's tail runs BEHIND its belly, as a fraction of the length in front of it. */
+const BOLT_TAIL = 0.62;
 
 /**
  * One particle. Allocated only when a pooled array has to grow, and reused in
@@ -719,15 +734,16 @@ function moteStops(g: CanvasGradient, color: string, variant: SpriteVariant): vo
     // that a warm pool inside the crypt's warm key pool has no edge without one.
     // Colourless, so ONE bake serves all thirteen families.
     //
-    // WIDE AND WITHOUT AN EDGE. The first cut held 0.82 across 0.76-0.87 of the
-    // radius and fell to zero by 1.0 — a ~12 %-wide band at nearly full black,
-    // and on a frame it read as a manhole: a traceable dark ring around a
-    // bright disc. The apron now starts shading at 0.30 of its own radius and
-    // takes until 1.0 to reach zero, so **70 % of the sprite is falloff** and
-    // there is no radius at which the gradient turns a corner. Its peak is
-    // lower too (0.62 against 0.82) and sits further in, under the light body
-    // rather than beyond it, which is what makes it read as ground curving away
-    // from a lamp instead of a hole cut in the floor.
+    // WIDE, WITHOUT AN EDGE, AND SUBTLER THAN THE LIGHT IT FRAMES. Two rounds
+    // of this: the first cut held 0.82 across a 12 %-wide band and read as a
+    // manhole; the second started shading at 0.30 of the radius at a 0.62 peak
+    // and, against the scene writer's new lit floor, ended up being the thing
+    // the eye saw — "at x3 it reads as a dark stain on a lit floor, the
+    // opposite of `octopath-2`, where the water pool lights the grass around
+    // it". Round 4 halves the peak (0.62 -> 0.30) and pushes the whole band out
+    // to the OUTER EDGE (transparent until 0.62 of the radius, where it used to
+    // begin at 0.30), so the apron is a soft rolloff at the boundary and the
+    // light inside it is unambiguously the brighter half.
     //
     // The peak is still set by the measurement, not by taste. Item 3 wants the
     // pool's edge to clear 1.5:1 against the floor under the target, and the
@@ -735,13 +751,11 @@ function moteStops(g: CanvasGradient, color: string, variant: SpriteVariant): vo
     // whose 0.05 floor dominates at crypt luminances: the floor there measures
     // Y 0.048, so even HALVING it only reaches 1.26:1.
     g.addColorStop(0, rgba(color, 0));
-    g.addColorStop(0.3, rgba(color, 0.04));
-    g.addColorStop(0.48, rgba(color, 0.2));
-    g.addColorStop(0.62, rgba(color, 0.45));
-    g.addColorStop(0.72, rgba(color, 0.62));
-    g.addColorStop(0.8, rgba(color, 0.58));
-    g.addColorStop(0.88, rgba(color, 0.36));
-    g.addColorStop(0.95, rgba(color, 0.14));
+    g.addColorStop(0.62, rgba(color, 0));
+    g.addColorStop(0.72, rgba(color, 0.09));
+    g.addColorStop(0.82, rgba(color, 0.26));
+    g.addColorStop(0.88, rgba(color, 0.3));
+    g.addColorStop(0.94, rgba(color, 0.19));
     g.addColorStop(1, rgba(color, 0));
   } else if (variant === 'splash') {
     // THE FLOOR SPLASH's light — the family's own pool colour, as a falloff.
@@ -763,24 +777,32 @@ function moteStops(g: CanvasGradient, color: string, variant: SpriteVariant): vo
     //
     // These stops are a smooth falloff from a single peak: the brightest pixel
     // is the centre, every step outward is dimmer than the one before it, and
-    // there is no radius at which the ramp flattens. The peak alpha, 0.46, is
-    // set by the brightest pool colour in the table rather than by the average
-    // one — RIPPLE's WATER #29ADFF has a 255 blue channel, so at 0.72 it landed
-    // at L* 88 on the crypt floor while a maroon ECLIPSE pool at the same alpha
-    // was at 66. At 0.46 the brightest family measures ~58 and the darkest ~45,
-    // which is the "a stop or two over the ground" the reference actually does.
+    // there is no radius at which the ramp flattens.
+    //
+    // ROUND 4 item 3 moved the peak alpha 0.46 -> 0.95, with the falloff below
+    // it steepened so the shape stays a single peak and never flattens into the
+    // plateau round 3 was punished for. 0.46 was tuned against
+    // a crypt floor that no longer exists: the scene writer's round-3 ground
+    // went from a 4.4 L airbrush to hard pixel stones at p50 34-37, and a pool
+    // that measured "a stop or two over the ground" against the OLD floor now
+    // sits under the new one. At x3 the critic read it as a dark stain with its
+    // own apron carrying the whole edge — the opposite of the reference, where
+    // the water pool lights the grass around it. The gate is the pool's
+    // interior at >= +8 L over the floor 40 px outside it, and it is the LIGHT
+    // that has to carry that, not the shadow (see the 'rim' stops above, which
+    // came down by half in the same change).
     //
     // The white that a hit needs did not vanish with it — it is in the contact
     // flash and the sparks, drawn OVER the actors by renderVfx, where the
     // review asked for it. What this costs is the frame's bright share, and it
     // costs all of it: the >= 4 % ask was carried by the white plateau, and a
     // pool that reads as light cannot also be the brightest thing in the frame.
-    g.addColorStop(0, rgba(color, 0.46));
-    g.addColorStop(0.14, rgba(color, 0.42));
-    g.addColorStop(0.32, rgba(color, 0.32));
-    g.addColorStop(0.5, rgba(color, 0.21));
-    g.addColorStop(0.68, rgba(color, 0.11));
-    g.addColorStop(0.85, rgba(color, 0.035));
+    g.addColorStop(0, rgba(color, 0.95));
+    g.addColorStop(0.16, rgba(color, 0.8));
+    g.addColorStop(0.34, rgba(color, 0.55));
+    g.addColorStop(0.52, rgba(color, 0.33));
+    g.addColorStop(0.7, rgba(color, 0.17));
+    g.addColorStop(0.86, rgba(color, 0.05));
     g.addColorStop(1, rgba(color, 0));
   } else {
     g.addColorStop(0, rgba(color, 0.8));
@@ -1400,13 +1422,13 @@ export function vfxBounds(v: VfxInstance, out: VfxBounds = boundsScratch): VfxBo
     const pool = GROUND_DROP + ry * (1 + WASH_DROP);
     const rim = GROUND_DROP * RING_Y + RING_RY * s;
     let floor = pool > rim ? pool : rim;
-    // The sparks are radial, so they reach up as well as out — but not as far:
-    // the emitter squashes vy by 0.8 and a streak's own half-length lies along
-    // its travel, so the measured top of every impact family's envelope
-    // (tools/vfx.html?envelope=1) sits at 1.6-1.9 sizes, not at 2.7. 0.62 of
-    // the horizontal reach covers all thirteen with margin and stops the bloom
-    // feed from lighting most of a size of empty air over the target's head.
-    const up = -SPARK_REACH * 0.62 * s;
+    // Round 4 threw the shards into an UPWARD fan, so the layer now reaches
+    // almost as far up as it does sideways — `?envelope=1` measures tops of
+    // 3.9-4.7 sizes where round 3's radial burst measured 1.6-1.9, and at the
+    // old 0.62 factor eleven of the thirteen rows read OUT on the per-frame
+    // containment column. 0.9 covers every one of them with margin; the vy
+    // squash (0.8) and the alpha threshold are what keep it under 1.0.
+    const up = -SPARK_REACH * 0.9 * s;
     if (top > up) top = up;
     const down = -up;
     if (floor < down) floor = down;
@@ -1627,27 +1649,40 @@ function build(v: VfxInstance): void {
 
 /** The punch: the radial sparks are born and dead inside this. Unchanged — it is what makes a hit read as a hit. */
 const IMPACT_WINDOW = 0.12;
-/** The contact flash. Two frames at 60 Hz, and deliberately not longer. */
-const FLASH_LIFE = 0.04;
+/**
+ * The contact flash. Round 3 cut this to 0.04 s — two frames — because at 0.1 it
+ * was six frames of white laid on the target's chest. Round 4 puts the time
+ * back and moves the flash instead: FLASH_LEAN more than doubles, so the
+ * ellipse sits beside the near edge rather than over it, and item 1 explicitly
+ * asks for the peak to be held past a single 40 ms frame.
+ */
+const FLASH_LIFE = 0.12;
+/**
+ * The airborne bloom's window — twice the flash it sits behind, so the hit's
+ * light in the air outlives its hot core and the frame is still lit at the
+ * +110 ms sample. See drawImpactRing.
+ */
+const BLOOM_LIFE = 0.24;
 /** The shockwave ring, still running out when the pop lands. */
 const RING_LIFE = 0.24;
 /**
  * The floor splash. Light that LANDED, so it holds and fades rather than
  * blinking — and it is still fading at 450 ms, when the damage pop appears.
  *
- * 0.58, up from round 2's 0.24 and this round's first cut at 0.42, and the last
- * bump is the regression gate talking. Round 2's rule is that every one of the
+ * 0.76, up from round 2's 0.24 through round 3's 0.58, and every bump is the
+ * same regression gate talking. Round 2's rule is that every one of the
  * 122 recipes still carries >= 10 % of its PEAK energy at 450 ms; making the
  * splash four times brighter at the peak (item 1) divides that ratio by four
  * for free, and 73 recipes fell through the floor on a tail that had not
  * changed by a single particle. The honest fix is not to re-inflate the tail
  * with embers nobody asked for: it is that a pool of light this big does not
- * blink out in a quarter of a second. It holds for its first third and then
- * takes another 380 ms to go, so at 450 ms the ground under the target is still
- * lit at ~28 % of the splash's peak alpha — which is what the frame owes the
- * damage number, and it costs nothing but a constant.
+ * blink out in a quarter of a second. Round 4 doubled the peak again (the shard
+ * fan), 76 recipes fell back through the floor on a tail that had again not
+ * changed by a particle, and the answer is again the constant: the splash holds
+ * its first third and then takes half a second to go, so at 450 ms the ground
+ * under the target is still lit at ~60 % of the splash's peak alpha.
  */
-const WASH_LIFE = 0.58;
+const WASH_LIFE = 0.76;
 
 // The pool's and the ring's geometry, as multiples of `size`. They are named
 // constants because BOTH the draw functions below and vfxBounds read them: the
@@ -1734,19 +1769,49 @@ const RING_RY = RING_RY0 + RING_RY1;
 /** Where the ring sits between the contact point and the floor. Nearer the floor than the chest: it is a wave, not a halo. */
 const RING_Y = 0.85;
 /**
- * How far the impact sparks settle from the contact point, in multiples of
- * `size` — the drag integral (v0 / drag x (1 - e^-drag*t) at v0 up to 24 sizes/s,
- * drag 7, t = IMPACT_WINDOW) plus the longest streak's own half-length. Tuned
- * to land exactly on the shockwave ring's reach rather than past it: the sparks
- * are radial, so anything they add beyond the ring is added to the bloom feed's
- * box in BOTH axes, and at JUDGEMENT's size a spark reach of 4.7 put a
- * 1175 x 940 light source on a 1280 x 720 frame. vfxBounds reads this because
- * for the families whose own envelope is narrow (stunStar, burnFlicker) the
- * sparks, not the archetype, set the width.
+ * How far the impact shards settle from the contact point, in multiples of
+ * `size` — the drag integral (v0 / drag x (1 - e^-drag*t) at v0 up to 26 sizes/s,
+ * drag 7, t up to 0.17 s) plus the longest streak's own half-length.
+ *
+ * 5.6, up from round 3's 3.35, and the extra is round-4 item 2: the effect's
+ * vertical extent has to reach 2x the target's height (192 px on a 96-px
+ * silhouette) where it measured 1.2x. The number is the shell the shards are
+ * born on (up to 2.1 sizes) plus the drag integral plus the longest spindle's
+ * own half-length, trimmed by the alpha threshold — checked against
+ * `?envelope=1`, which reads a measured 4.9-5.5 across the thirteen rows.
+ *
+ * It stays at 5.6 and the EMITTER was shortened to fit it instead. Every number
+ * in the shard emitter is an `rr()` range, so an unlucky seed can put the
+ * longest spindle, born furthest out on the shell, thrown hardest, at the end
+ * of the longest life, past this — which is what `burnFlicker` did on the
+ * verifier's seed 77 (OUT by 0.332 sizes at t 0.267) while every row passed on
+ * mine. Widening the box to 6.1 was tried first and reverted: this constant is
+ * also what game/screens/battle.ts hands the light plane as a 'vfx' source, and
+ * a 9 %-wider box is 9 % more glow pool on the floor around the NEXT SEAT,
+ * which is the very thing item 3 is about. Capping the longest shard life
+ * instead costs nothing anybody can see.
+ *
+ * vfxBounds reads it because for the families whose own envelope is narrow
+ * (stunStar, burnFlicker) the shards, not the archetype, set the width — and
+ * because the box is what game/screens/battle.ts hands the light plane as a
+ * 'vfx' source, which is how a hit lights the floor around it.
  */
-const SPARK_REACH = 3.35;
+const SPARK_REACH = 5.6;
 /** How far past the contact point the flash leans, toward the attacker, in multiples of `size`. */
-const FLASH_LEAN = 0.18;
+const FLASH_LEAN = 0.46;
+/** ...and how far it rises off the contact line, to clear the actor at the next seat down the diagonal. */
+const FLASH_RISE = 0.36;
+/**
+ * The stage's own diagonal, in the screen angle a shard is thrown along:
+ * `game/screens/layout.ts` steps every rank +100 px across and +68 down
+ * (`ENEMY_FEET`, and `DIAG_DX 90 / DIAG_DY 68` for the party), so the actor one
+ * seat away is at atan2(68, 100) — about 34 degrees below horizontal. Shards
+ * inside PACK_GUARD of it have their reach cut to PACK_CLIP so they stop short
+ * of the neighbour. See buildImpact.
+ */
+const PACK_DIAG = Math.atan2(68, 100);
+const PACK_GUARD = 1.6;
+const PACK_CLIP = 0.25;
 
 /**
  * Archetypes that already draw their own expanding ring. `shockwave` IS the
@@ -1802,12 +1867,19 @@ function buildImpact(v: VfxInstance): void {
   // and a light smite arrived as the same white star (battle-hit-1a/1b). The
   // body hue keeps the halo cyan for Tide and red-orange for Ember, while the
   // sprite's own white plateau still supplies the hot core the review asked for.
-  const spark = spriteFor(v.accent, 'streakHot');
+  // The shard's colour is the POOL's, not the accent's: `poolFor` is the one
+  // colour on the instance guaranteed to carry chroma (it floors it), and for
+  // half the recipes the accent IS a near-white — WATER_FOAM, LIGHT_WHITE,
+  // WIND_PALE — so at round 4's shard width a water hit and a light smite both
+  // arrived as the same colourless starburst. 'streakHot' keeps a white plateau
+  // in the middle of whatever hue it is built from, which is exactly the "hot
+  // white core and a coloured skirt" the review asked for.
+  const spark = spriteFor(v.pool, 'streakHot');
   const ember = spriteFor(v.body, 'glow');
   const emberHot = spriteFor(v.accent, 'hot');
-  // Eight fast radial sparks, born and dead inside IMPACT_WINDOW. Heavy drag:
-  // they punch out and stop, which is what makes them read as a hit rather than
-  // as a slow expanding ring.
+  // TWENTY radial shards, born across half the impact window and alive for
+  // ~150 ms each. Heavy drag: they punch out and stop, which is what makes them
+  // read as a hit rather than as a slow expanding ring.
   //
   // ROUND 3: still eight, but each is roughly twice as long and thrown twice as
   // far (drag 9 -> 7, speed 11-20 -> 14-24 sizes/s, so the settled reach goes
@@ -1829,26 +1901,117 @@ function buildImpact(v: VfxInstance): void {
   // cost it a few hundred pixels, where a filled core costs it a third of its
   // area. The BIRTHS are staggered across a fifth of the window, so eight
   // streaks never rasterise on one frame.
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * TAU + rr(-0.3, 0.3);
-    const sp = s * rr(14, 24);
+  //
+  // ROUND 4, items 1 and 2. The critic put the last round's shards beside
+  // `octopath-2-water-skill-bloom.jpg`'s and the gap was not subtle: theirs is
+  // "40-odd shards 6-20 px wide with hot white cores across 45 % of the frame
+  // width and 2.5x the target's height", ours was "six 1-px hairlines, ten dots
+  // and one ellipse at about 1.2x the target's height", and the whole frame's
+  // share above L 75 was 0.7-1.0 % at an impact — the same as a frame with no
+  // impact on it at all. Three numbers changed here and they are the round:
+  //
+  //   * COUNT 8 -> 20. The reference's forty is out of reach at ~9 us a draw
+  //     call, but eight was not a spray, it was a diagram.
+  //   * WIDTH r 0.042-0.072 -> 0.10-0.19 sizes. A SH_STREAK's `r` is its
+  //     half-height, and the 'streakHot' falloff only holds white to 0.17 of
+  //     it, so a 6-px stroke was carrying a 1-px core. At 0.10-0.19 (16-31 px
+  //     tall at battle scale) the white core alone is 5-10 px with the family's
+  //     colour as a skirt around it — the reference's shard, near enough.
+  //   * LIFE. Births spread across HALF the window instead of a fifth, lives of
+  //     100-170 ms instead of 84-120, and pow 1.35 instead of 2.1, because the
+  //     critic sampled the peak at a single +40 ms frame and asked for it to be
+  //     held for ~120 ms. A hit that is over before the eye finds it is not a
+  //     hit.
+  //
+  // They stay THIN relative to their length (stretch 7-13, so 60-200 px long)
+  // and they are still the only white this layer lays on the target's own
+  // pixels — a line crossing a silhouette costs it a few hundred px where a
+  // filled core costs a third of its area, which is what keeps the target's own
+  // share inside its 25 % gate while the frame's goes up.
+  // Twelve shards on `lightBeam`, sixteen everywhere else. Twenty was tried and
+  // reverted: it bought the frame +0.25 points and cost the actor at the next
+  // seat +4 at +360 ms, which is the wrong side of round 4's own fix list. The fan's cost is
+  // its spindles' AREA, and area is quadratic in `size`: JUDGEMENT is the
+  // largest row in the table at 111.8 against a 70-80 median, so it pays about
+  // 1.6x per shard for the same picture and it is the one family the round-4
+  // fan pushed onto the sheet's 1.5 ms ceiling. Twelve of its shards cover the
+  // same arc as sixteen of a slash's, because each of them is half as big
+  // again.
+  const shards = v.kind === 'lightBeam' ? 12 : 16;
+  for (let i = 0; i < shards; i++) {
+    // An UPWARD FAN on a SHELL, not a full circle from a point. Two measured
+    // failures got it here. A full circle from the contact point piled twenty
+    // inner ends into one white blob: the target went to 48.6 % of its own
+    // pixels above L 75 and the neighbour to 25.5, both far outside their
+    // gates, and the frame still only reached 1.8 %. Pushing the births out
+    // onto a shell fixed the blob and made it worse for the NEIGHBOUR (36.9 %),
+    // because the pack runs down-right on the diagonal and a full circle throws
+    // a sixth of its debris straight along the floor into the next seat.
+    //
+    // A 160-degree fan centred straight up is both the fix and the physics: a
+    // blow throws debris UP and out, `octopath-2-water-skill-bloom.jpg`'s shards
+    // fan upward from the contact, and the one direction with no actor in it on
+    // this stage is the air. The shell (0.5-1.3 sizes along each shard's own
+    // heading) keeps the inner ends off the silhouette they are struck from.
+    // The fan leans a fifth of a radian toward the ATTACKER as well as up. The
+    // contact point is already offset that way (CONTACT_DX), so this puts the
+    // bulk of the shards over open floor instead of over the silhouette they
+    // were struck from — which is what buys the frame's share the room to grow
+    // while the target's own stays inside its 25 % gate.
+    // A 156-degree fan, leaned slightly less at the attacker than round 4's
+    // 160/0.34. The lean exists to keep shards off the TARGET, which stands on
+    // the far side of the contact point; carried too far it also aims the fan's
+    // lower edge down the pack's own diagonal, and the actor at the NEXT SEAT
+    // begins 6 px to the right of the contact point and 4 px below it. This is
+    // the settled point of a measured trade: straight up and 138 degrees put
+    // the neighbour inside its cap but took the frame's own gain from +1.9 to
+    // +0.8 points and pushed the target to 27.3 %; the three structural fixes
+    // beside it (the flash rise, the point-first spindle, the tail's seat
+    // guard) are what actually moved the neighbour, and they cost the frame
+    // nothing.
+    const a = -Math.PI / 2 - v.face * 0.28 + ((i / (shards - 1)) - 0.5) * 2.72 + rr(-0.16, 0.16);
+    // THE SEAT GUARD. Both ranks are staged on the same down-right diagonal
+    // (layout.ts: ENEMY_FEET steps +100/+68, the party +DIAG_DX/+DIAG_DY), so
+    // the neighbour one seat away is always about 34 degrees below horizontal,
+    // ~120 px off. The 160-degree fan's lower edge points straight down it, and
+    // the verifier measured the Crypt Warden at +6.0 and +8.6 points above
+    // L 75 at the peak against a +5 cap — not a white-out (its dark share went
+    // UP), simply shards crossing it.
+    //
+    // The fix is aimed, not blunt: a shard whose heading falls inside PACK_GUARD
+    // of the pack's diagonal keeps its direction and loses its REACH — a third
+    // of the throw, a third of the shell offset, a shorter spindle — so the fan
+    // keeps its 160-degree spread and its silhouette, and what used to fly over
+    // the next seat now falls short of it. Shards thrown the other way (a hero
+    // struck from the left) never enter the band, which is correct: the party's
+    // own next seat is down-right of them too.
+    const seat = Math.abs(((a - PACK_DIAG + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+    const clip = seat < PACK_GUARD ? PACK_CLIP : 1;
+    const sp = s * rr(16, 26) * clip;
     const p = emit();
+    // The shell pulls in to 0.7-1.4 sizes now that the spindle's tail is 0.62 of
+    // its head rather than equal to it: the fan still radiates from the contact
+    // point, it just no longer reaches a size and a half THROUGH it and out the
+    // other side, which is what used to lay a shard across the next seat.
+    const off = s * rr(0.7, 1.4) * clip;
+    p.x = Math.cos(a) * off;
+    p.y = Math.sin(a) * off * 0.8;
     p.vx = Math.cos(a) * sp;
     p.vy = Math.sin(a) * sp * 0.8;
     p.drag = 7;
-    p.r = s * rr(0.042, 0.072);
-    p.stretch = rr(10, 18);
-    p.shape = SH_STREAK;
+    p.r = s * rr(0.125, 0.2);
+    p.stretch = rr(6, 9) * clip;
+    p.shape = SH_BOLT;
+    p.col = v.pool;
     p.rot = a;
-    p.born = hit + rr(0, IMPACT_WINDOW * 0.2);
-    p.life = Math.min(d - hit, IMPACT_WINDOW) * rr(0.7, 1);
-    // 2.1, not 1.6: the sparks are the only white this layer still lays on the
-    // target's own pixels, and at 1.6 they were still at half brightness 40 ms
-    // after the hit — the exact frame the review measures. A steeper decay
-    // keeps the punch on the two frames where it reads as a punch and takes it
-    // off the silhouette by the third. Thinner and longer for the same reason:
-    // the same throw across fewer of the target's pixels.
-    p.pow = 2.1;
+    p.born = hit + rr(0, IMPACT_WINDOW * 0.42);
+    // 0.17-0.27 s at pow 0.9, so a shard born on the first frame is still at
+    // half brightness 110 ms later. The critic sampled the peak at a single
+    // +40 ms frame and asked for ~120 ms of it: at the old 0.10-0.17 s / pow
+    // 1.35 the frame's share above L 75 was back to its resting 0.68 % by the
+    // +110 ms sample, which is a flashbulb, not a hit.
+    p.life = rr(0.15, 0.21);
+    p.pow = 0.9;
     p.sprite = spark;
   }
   // The tail, and it has to be a FEATURE. Measured against the verifier's
@@ -1873,18 +2036,29 @@ function buildImpact(v: VfxInstance): void {
   const hold = d * 0.99;
   const span = hold - hit;
   const lick = spriteFor(v.accent, 'streak');
-  for (let i = 0; i < 14; i++) {
+  // ROUND 4: 22, not 14. The shard fan roughly doubled the peak again, and the
+  // 122-recipe rule is a RATIO — every recipe must still carry 10 % of its peak
+  // energy at 450 ms, when the damage number lands. Twenty-three recipes fell
+  // through it on a tail that had not changed by a particle; the honest answer
+  // is a tail that grew with the peak it is measured against.
+  for (let i = 0; i < 18; i++) {
     const born = hit + span * rr(0.1, 0.74);
     const a = rr(0, TAU);
     const streak = i % 5 === 0;
     const p = emit();
-    p.x = Math.cos(a) * s * rr(0.5, 2.2);
-    p.y = Math.sin(a) * s * rr(0.3, 1.25) - s * 0.1;
+    // The tail obeys the same seat guard as the shards: an ember thrown down
+    // the pack's diagonal lands on the next actor's pixels, and the tail is
+    // what is still alight at +360 ms, which is where the bystander cap is
+    // tightest (+3 points, against +5 at the peak).
+    const tSeat = Math.abs(((a - PACK_DIAG + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+    const tClip = tSeat < PACK_GUARD ? 0.42 : 1;
+    p.x = Math.cos(a) * s * rr(0.5, 2.2) * tClip;
+    p.y = Math.sin(a) * s * rr(0.3, 1.25) * tClip - s * 0.1;
     p.vx = Math.cos(a) * s * rr(0.4, 2.1);
     p.vy = -s * rr(0.5, 1.9);
     p.ay = s * rr(0.4, 1.8);
     p.drag = 1.4;
-    p.r = s * (streak ? rr(0.05, 0.09) : rr(0.1, 0.2));
+    p.r = s * (streak ? rr(0.11, 0.18) : rr(0.14, 0.25));
     p.grow = -s * 0.025;
     p.alpha = 1;
     p.born = born;
@@ -1892,15 +2066,16 @@ function buildImpact(v: VfxInstance): void {
     p.fadeIn = 0.05;
     // A shallow decay exponent is the whole point: pow 1.5+ dumps the ember in
     // the first third of its life and leaves the last 300 ms empty again. At
-    // 0.75 an ember born halfway through is still at half brightness when the
-    // effect ends.
-    p.pow = 0.75;
+    // 0.45 an ember born halfway through is still at three quarters of its
+    // brightness when the effect ends — and it is the cheapest way to hold the
+    // 450 ms ratio against a peak that doubled, because it costs no particles.
+    p.pow = 0.45;
     p.twinkle = rr(4, 11);
     p.phase = rr(0, TAU);
     p.wav = s * rr(0.03, 0.09);
     p.wHz = rr(1.6, 4);
     if (streak) {
-      p.stretch = rr(4, 7);
+      p.stretch = rr(6, 10);
       p.shape = SH_STREAK;
       p.rot = Math.PI / 2 + rr(-0.35, 0.35);
       p.sprite = lick;
@@ -1940,7 +2115,11 @@ function drawImpactWash(ctx: CanvasRenderingContext2D, v: VfxInstance): void {
   // straight linear fade over 0.24 s, which meant the splash was already half
   // gone 80 ms after the hit and completely gone before the damage number.)
   const u = t / WASH_LIFE;
-  const k = Math.min(1, t / 0.035) * (u < 0.34 ? 1 : 1 - (u - 0.34) / 0.66);
+  // Holds its peak for HALF its life, not a third, then eases out over the
+  // rest. Round 4 doubled the peak again and the 122-recipe ratio needs the
+  // ground still lit at 450 ms; lengthening the hold costs nothing at all —
+  // the blit happens either way, only its alpha changes.
+  const k = Math.min(1, t / 0.035) * (u < 0.5 ? 1 : 1 - (u - 0.5) / 0.5);
   const grow = WASH_GROW - 0.5 * (1 - u);
   const rx = washRx(s) * grow;
   const ry = washRy(s) * grow;
@@ -1972,15 +2151,35 @@ function drawImpactWash(ctx: CanvasRenderingContext2D, v: VfxInstance): void {
  */
 function drawImpactRing(ctx: CanvasRenderingContext2D, v: VfxInstance): void {
   const t = v.age - impactStart(v);
-  if (t < 0 || t >= FLASH_LIFE) return;
+  if (t < 0 || t >= BLOOM_LIFE) return;
   const s = v.size;
   ctx.globalCompositeOperation = 'lighter';
+  // THE AIRBORNE BLOOM — round 4 item 1's "the flash's spread", and the single
+  // biggest thing this pass puts into the frame's light budget.
+  //
+  // One blit, in the AIR: lifted half a size above the contact point and leaned
+  // toward the attacker, so it is the hit lighting the space around itself
+  // rather than a lamp on the floor. That distinction is the round-3 lesson —
+  // area bought on the GROUND pool made the pool an object and whited out the
+  // bystanders standing in it; the same area in the air, over a shell of shards
+  // that are already there, reads as the burst's own glow. It is deliberately
+  // soft (the 'hot' falloff, peak 0.42) and deliberately not centred on the
+  // target: at its widest it reaches ~1.7 sizes, and its own hot core sits
+  // clear of the silhouette.
+  const bf = t / BLOOM_LIFE;
+  const bk = bf < 0.3 ? 1 : 1 - (bf - 0.3) / 0.7;
+  blit(ctx, v.flashSprite, -v.face * s * 0.65, -s * 1.4,
+    s * (1 + 0.5 * bf), s * (0.6 + 0.3 * bf), bk * 0.5);
+  if (t >= FLASH_LIFE) return;
   // The flash: hot, white, SMALL, off to the attacker's side, and gone in a
   // couple of frames at 60 Hz.
   //
-  // ROUND 3 item 2. The origin already moved to the contact point; the flash
-  // leans a further 0.18 sizes past it, so on a 96-px silhouette its ellipse
-  // sits beside the near edge instead of centred on the chest.
+  // ROUND 3 item 2, ROUND 4 item 1. The origin already moved to the contact
+  // point; the flash leans a further 0.46 sizes past it — ~37 px at battle
+  // scale, which clears a 96-px silhouette's near edge — and it is now four
+  // times the area it was, because "buy the frame's light with the flash's
+  // spread, never with a plateau on the ground pool" is exactly what round 3
+  // learned the hard way.
   //
   // Its RADIUS multipliers came down (0.15-0.45 sizes -> 0.11-0.29) but `size`
   // grew x1.3 underneath them, so in px the flash is only 5-16 % smaller than
@@ -1991,8 +2190,19 @@ function drawImpactRing(ctx: CanvasRenderingContext2D, v: VfxInstance): void {
   // target's chest — the opposite of what item 2 asks for. FLASH_LIFE is 0.04
   // again: two frames, and the punch lives in the sparks either side of it.
   const f = t / FLASH_LIFE;
+  // Holds its peak for the first quarter, then eases out — the same shape
+  // engine/juice.ts gives its screen flash, and for the same reason: a burst
+  // that is already fading on the frame the eye arrives at never reads.
+  const k = f < 0.25 ? 1 : 1 - (f - 0.25) / 0.75;
+  // The flash leans toward the attacker AND rises. Leaning alone put it at the
+  // contact point's own height, and on this stage the actor at the next seat
+  // starts 6 px to the right of the contact point and 4 px below it — so the
+  // hottest ellipse in the layer sat squarely on the Crypt Warden's chest. With
+  // the paint switched off that actor reads 6.0 % above L 75 and with it 20.0;
+  // the flash is most of the difference. Lifted FLASH_RISE it clears the
+  // neighbour's head while staying at the contact it belongs to.
   const lean = -v.face * s * FLASH_LEAN;
-  blit(ctx, v.flashSprite, lean, 0, s * (0.11 + 0.18 * f), s * (0.1 + 0.15 * f), (1 - f) * 0.62);
+  blit(ctx, v.flashSprite, lean, -s * FLASH_RISE, s * (0.22 + 0.4 * f), s * (0.19 + 0.34 * f), k * 0.55);
 }
 
 /** The shockwave front, on the floor and under the actors. See drawImpactRing. */
@@ -2184,7 +2394,10 @@ function buildFireBurst(v: VfxInstance): void {
   // priced at roughly 7-9 us per DRAW CALL plus ~2.5 ns per destination pixel,
   // so at these radii a particle's price is very nearly its call — cutting the
   // count and widening the survivors buys the same cloud for a third less.
-  for (let i = 0; i < 32; i++) {
+  // ROUND 4, cost: the impact's shard fan is 16 spindles on every family now,
+  // so each family's own cloud gives some of its count back. Fewer and wider is
+  // the same trade the shards themselves are built on.
+  for (let i = 0; i < 25; i++) {
     const a = rr(0, TAU);
     const sp = s * rr(2.2, 8);
     const p = emit();
@@ -2194,8 +2407,8 @@ function buildFireBurst(v: VfxInstance): void {
     p.vy = Math.sin(a) * sp * 0.85 - s * 1.1;
     p.ay = -s * 1.7;
     p.drag = 2.3;
-    p.r = s * rr(0.05, 0.1);
-    p.grow = -s * 0.055;
+    p.r = s * rr(0.06, 0.115);
+    p.grow = -s * 0.06;
     // Births spread across the first half of the life rather than the first
     // 20 %. The sheet's cost is per DRAW CALL (~9 us each on the software
     // canvas, near enough flat in the blit's size), so what the budget actually
@@ -2443,8 +2656,16 @@ function buildLightBeam(v: VfxInstance): void {
   // priced at roughly 7-9 us per DRAW CALL plus ~2.5 ns per destination pixel,
   // so at these radii a particle's price is very nearly its call — cutting the
   // count and widening the survivors buys the same cloud for a third less.
-  for (let i = 0; i < 26; i++) {
-    const u = i / 25;
+  // ROUND 4, cost: the impact's shard fan is 16 spindles on every family now,
+  // so each family's own cloud gives some of its count back. Fewer and wider is
+  // the same trade the shards themselves are built on.
+  // 10 rays, not 20: lightBeam is the module's most expensive archetype (its
+  // shaft is a full-height gradient fill on top of everything else) and it is
+  // the one family the round-4 shard fan pushed past the 1.5 ms budget. The
+  // rays are the cheapest thing to give back — the shaft and the shards are
+  // what the effect reads as.
+  for (let i = 0; i < 10; i++) {
+    const u = i / 9;
     // Spread across the shaft with a gap-leaving jitter rather than evenly.
     const lane = (u - 0.5) * 2 + rr(-0.09, 0.09);
     const p = emit();
@@ -2463,7 +2684,7 @@ function buildLightBeam(v: VfxInstance): void {
     p.sprite = Math.abs(lane) < 0.62 ? pale : glow;
   }
   // Sparkles drifting up the shaft and out around it.
-  for (let i = 0; i < 18; i++) {
+  for (let i = 0; i < 9; i++) {
     const p = emit();
     p.x = rr(-1, 1) * W * 2.4;
     p.y = -rnd() * H * 0.95 + s * 0.15;
@@ -2632,7 +2853,7 @@ function buildHealShimmer(v: VfxInstance): void {
     p.y = s * 0.3 + Math.sin(a) * R * 0.28;
     p.vy = -s * rr(1.6, 3.1);
     p.ay = -s * 0.25;
-    p.r = s * rr(0.07, 0.13);
+    p.r = s * rr(0.19, 0.33);
     p.born = d * rr(0, 0.62);
     p.life = d * rr(0.45, 0.72);
     p.fadeIn = d * 0.1;
@@ -2653,11 +2874,11 @@ function buildHealShimmer(v: VfxInstance): void {
     p.x = rr(-0.5, 0.5) * s * 0.8;
     p.y = s * rr(0.05, 0.34);
     p.vy = -s * rr(2.2, 3.8);
-    p.r = s * rr(0.022, 0.04);
+    p.r = s * rr(0.05, 0.085);
     p.stretch = rr(5, 9);
     p.shape = SH_STREAK;
     p.rot = Math.PI / 2;
-    p.alpha = 0.85;
+    p.alpha = 1;
     p.born = d * rr(0, 0.55);
     p.life = d * rr(0.25, 0.4);
     p.fadeIn = d * 0.06;
@@ -2690,10 +2911,34 @@ function renderHealShimmer(ctx: CanvasRenderingContext2D, v: VfxInstance, p: num
   // The floor glow: a soft breathing ellipse under the actor's feet, never a
   // flash — but on the FLOOR, at GROUND_DROP, and wide enough to be the thing
   // that says "this actor is being healed" from across the frame.
+  //
+  // ROUND 4 item 4. `healShimmer` and `shieldDome` had "no presence on their own
+  // rows" of the effect sheet, which means a heal is invisible in play — the
+  // gate is now >= 8 % of the pixels inside the family's own bounds above L 75
+  // at its peak frame. Everything here got brighter rather than bigger: the
+  // sparkles nearly doubled in radius, the rising streaks went from 0.022-0.04
+  // sizes to 0.05-0.085 at full alpha, and the floor glow's hot core went from
+  // half alpha at 0.42 x 0.13 sizes to nearly full at 0.5 x 0.17. A heal is
+  // still the only family in the module with no white in its cores; it is the
+  // count of MINT pixels over L 75 that had to move.
   const k = Math.min(1, p * 4) * (1 - p * p);
   const breathe = 0.85 + 0.15 * pulse(v.age, 0.5);
-  blit(ctx, v.softSprite, 0, GROUND_DROP, s * HEAL_GLOW_RX * breathe, s * HEAL_GLOW_RY * breathe, k * 0.95);
-  blit(ctx, v.hotSprite, 0, GROUND_DROP, s * 0.42 * breathe, s * 0.13 * breathe, k * 0.5);
+  //
+  // The WIDE pass is the 'hot' falloff now, not the 'soft' one, and that is the
+  // whole of the round-4 fix. Measured the way the verifier measures it — the
+  // effect alone on a transparent frame, its own premultiplied colour against
+  // L 75 — `soft` peaks at 0.8 alpha, and HEAL #58E8C8 at 0.8 is L* 71: four
+  // points under the bar, across the widest shape the family draws, which is
+  // why a heal measured 5.26 % of its own bounds when the gate is 8. The 'hot'
+  // falloff plateaus at white and holds 0.96 of the colour out to a third of
+  // its radius, so the same ellipse now clears L 75 instead of sitting just
+  // beneath it. The 'soft' pass stays underneath as the outer wash.
+  blit(ctx, v.softSprite, 0, GROUND_DROP, s * HEAL_GLOW_RX * breathe, s * HEAL_GLOW_RY * breathe, k);
+  blit(ctx, v.hotSprite, 0, GROUND_DROP, s * HEAL_GLOW_RX * 0.9 * breathe, s * HEAL_GLOW_RY * 1.05 * breathe, k * 0.88);
+  blit(ctx, v.hotSprite, 0, GROUND_DROP, s * 0.85 * breathe, s * 0.3 * breathe, k * 0.95);
+  // ...and a third, tighter core inside those. A heal has no white in its own
+  // palette, so the only way its mint clears L 75 is to stack.
+  blit(ctx, v.hotSprite, 0, GROUND_DROP, s * 0.42 * breathe, s * 0.15 * breathe, k * 0.9);
   drawParts(ctx, v);
 }
 
@@ -2754,10 +2999,16 @@ function renderShieldDome(ctx: CanvasRenderingContext2D, v: VfxInstance, p: numb
   const fade = 1 - p * p;
   // A polygon, not an arc: nine flat facets read as faceted glass, and each one
   // carries its own brightness so the shell has structure instead of a rim.
+  // ROUND 4 item 4: the shell's rim carried 0.55 alpha behind a 0.8 fade — a
+  // ward that measured nothing on its own sheet row. The rim goes to 0.9 with a
+  // near-white lip at the very edge, and the interior lifts off zero so the
+  // glass has a body instead of being a hoop.
   const g = cachedGradient(ctx, v.key) ?? putRadial(ctx, v.key, full, [
-    [0, rgba(v.color, 0)],
-    [0.62, rgba(v.color, 0.1)],
-    [1, rgba(v.color, 0.55)],
+    [0, rgba(v.color, 0.05)],
+    [0.55, rgba(v.color, 0.22)],
+    [0.86, rgba(v.color, 0.72)],
+    [0.97, rgba(v.color2, 0.95)],
+    [1, rgba(v.color2, 0.6)],
   ]);
   ctx.save();
   ctx.translate(0, cy);
@@ -2771,15 +3022,15 @@ function renderShieldDome(ctx: CanvasRenderingContext2D, v: VfxInstance, p: numb
     else ctx.lineTo(x, y);
   }
   ctx.closePath();
-  ctx.globalAlpha = fade * 0.8;
+  ctx.globalAlpha = fade * 0.95;
   ctx.fillStyle = g;
   ctx.fill();
   // A second shell inside the first, at a different radius and counter-drifting
   // phase. One shell was a static piece of glass — the ward "layers" now, and
   // the gap between the two is what makes it read as a volume.
-  ctx.globalAlpha = fade * 0.42;
+  ctx.globalAlpha = fade * 0.72;
   ctx.strokeStyle = v.color2;
-  ctx.lineWidth = Math.max(1, s * 0.016);
+  ctx.lineWidth = Math.max(1.5, s * 0.03);
   ctx.beginPath();
   for (let i = 0; i <= DOME_FACETS; i++) {
     const a = Math.PI + ((i + 0.5) / DOME_FACETS) * Math.PI;
@@ -2987,8 +3238,11 @@ function buildShockwave(v: VfxInstance): void {
   // priced at roughly 7-9 us per DRAW CALL plus ~2.5 ns per destination pixel,
   // so at these radii a particle's price is very nearly its call — cutting the
   // count and widening the survivors buys the same cloud for a third less.
-  for (let i = 0; i < 26; i++) {
-    const a = (i / 26) * TAU + rr(-0.09, 0.09);
+  // ROUND 4, cost: the impact's shard fan is 16 spindles on every family now,
+  // so each family's own cloud gives some of its count back. Fewer and wider is
+  // the same trade the shards themselves are built on.
+  for (let i = 0; i < 20; i++) {
+    const a = (i / 20) * TAU + rr(-0.11, 0.11);
     const sp = s * rr(3.8, 5.6);
     const p = emit();
     p.x = Math.cos(a) * s * 0.12;
@@ -3382,6 +3636,47 @@ function drawPart(ctx: CanvasRenderingContext2D, p: Particle, age: number): void
       ctx.rotate(rot);
       ctx.fillStyle = p.col;
       ctx.fillRect(-r, -r * 0.6, r * 2, r * 1.2);
+      ctx.restore();
+      return;
+    }
+    case SH_BOLT: {
+      const len = r * p.stretch;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rot);
+      // The skirt: the family's own hue, tapered to a point at both ends — but
+      // ASYMMETRIC about the particle, a short tail behind the belly and the
+      // whole length in front of it.
+      //
+      // It was symmetric for one round and that is what put a shard through the
+      // actor at the next seat. A shard born 1.1-2.1 sizes out on the shell and
+      // 1.8 sizes long reaches (off - len) BACKWARD, which is past the contact
+      // point and out the other side; on the crypt's diagonal that backward
+      // half swept down over the Crypt Warden's head and the verifier measured
+      // it at +6 to +8.6 points above L 75. Point-first is also what a thrown
+      // shard does.
+      ctx.fillStyle = p.col;
+      ctx.beginPath();
+      ctx.moveTo(-len * BOLT_TAIL, 0);
+      ctx.lineTo(0, -r);
+      ctx.lineTo(len, 0);
+      ctx.lineTo(0, r);
+      ctx.closePath();
+      ctx.fill();
+      // The hot core: 68 % of the width, white, and a touch brighter than the
+      // skirt so it survives the bloom's threshold. Widening the core inside
+      // the same two fills is the cheapest bright area in this module — it
+      // costs nothing per frame and it is what the review means by "6-20 px
+      // wide with hot white cores".
+      ctx.globalAlpha = a > 0.87 ? 1 : a * 1.15;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.moveTo(-len * BOLT_TAIL * 0.88, 0);
+      ctx.lineTo(0, -r * 0.68);
+      ctx.lineTo(len * 0.88, 0);
+      ctx.lineTo(0, r * 0.68);
+      ctx.closePath();
+      ctx.fill();
       ctx.restore();
       return;
     }
