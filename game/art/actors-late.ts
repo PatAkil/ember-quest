@@ -137,7 +137,7 @@ export function lateRecipes(): Record<string, ActorRecipe> {
       strike: 'cloud_strike',
       hurt: 'cloud_hurt',
       dead: ['cloud_dead'],
-      settle: { part: 'cloud_body', dy: -1 },
+      settle: { part: 'cloud_settle' },
       palette: { cloth: STORM_SLATE, accent: RAIN, glow: glowRamp(190, 52, 88) },
     }),
     // The elite is the wingspan: TEMPEST WING and GALE BREATH, so the membranes
@@ -192,7 +192,7 @@ export function lateRecipes(): Record<string, ActorRecipe> {
   const SCORCHED_IRON: Ramp = ramp(8, 13, 34); // the furnace knight's plate
   const SLAG: Ramp = ramp(34, 24, 40); // cooling slag on the golem's fist
   const EMBER_RED: Ramp = ramp(6, 27, 40); // the knight's scorched tabard
-  const WOLF_HIDE: Ramp = ramp(12, 21, 36); // a charcoal hide, warm where PYRE_KNIGHT's charred iron is violet — five points up, see DRAKE_HIDE
+  const WOLF_HIDE: Ramp = ramp(12, 21, 36, { plane: 2 }); // a charcoal hide, warm where PYRE_KNIGHT's charred iron is violet — five points up, see DRAKE_HIDE
   const WOLF_SPINE: Ramp = ramp(26, 32, 42);
   const SMITH_LEATHER: Ramp = ramp(30, 27, 42, { mid: -5, lit: -4, spec: 3 }); // the Forge Saint's leathers
   // ROUND 12 — the priest's apron is its own ramp now, four points of
@@ -202,7 +202,11 @@ export function lateRecipes(): Record<string, ActorRecipe> {
   // it and the late pack's mean is only 0.3 clear of its 12 floor.
   const PRIEST_APRON: Ramp = ramp(30, 25, 42, { mid: -5, lit: -4, spec: 3 });
   const SMITH_STOLE: Ramp = ramp(348, 19, 36);
-  const VAPOUR: Ramp = ramp(188, 13, 50); // the steam wraith, clear of TIDE's and LUMEN's pale blues
+  const VAPOUR: Ramp = ramp(188, 13, 50); // the steam wraith's outer veil, clear of TIDE's and LUMEN's pale blues
+  // ROUND 13 — a SECOND vapour material, denser and a touch warmer, for the
+  // core inside each billow. The wraith carried one ramp over 865 cells and ten
+  // colours total, which is what made it the flattest interior in the cast.
+  const VAPOUR_CORE: Ramp = ramp(206, 17, 40, { plane: 2 });
   const SOOT_LINEN: Ramp = ramp(24, 8, 40); // the Forge Saint's chasuble — a LIGHT boss in soot, not in white
 
   const forge: Record<string, ActorRecipe> = {
@@ -277,8 +281,8 @@ export function lateRecipes(): Record<string, ActorRecipe> {
       strike: 'steam_strike',
       hurt: 'steam_hurt',
       dead: ['steam_dead', 'steam_dead_b'],
-      settle: { part: 'steam_body', dy: -1 },
-      palette: { cloth: VAPOUR, glow: glowRamp(30, 70, 90) },
+      settle: { part: 'steam_settle' },
+      palette: { cloth: VAPOUR, cloth2: VAPOUR_CORE, glow: glowRamp(30, 70, 90) },
     }),
     // The elite: banded plate over a scorched tabard, a chimney venting off the
     // far pauldron, and a visor that is a furnace DOOR with the fire behind it.
@@ -473,7 +477,7 @@ export function lateRecipes(): Record<string, ActorRecipe> {
   const MONK_SASH: Ramp = ramp(186, 21, 34);
   const STORM_COAT: Ramp = ramp(222, 19, 44); // the warden's and the seraph's storm indigo // the warden's and the seraph's storm indigo
   const GRANITE: Ramp = ramp(246, 7, 40); // the colossus, cool where the ruins' stone is warm
-  const CLINKER: Ramp = ramp(22, 11, 30); // the ember elemental's burnt heart
+  const CLINKER: Ramp = ramp(22, 11, 30, { plane: 5 }); // the ember elemental's burnt heart — the plane step lifted five points so it lands inside the review's L* 28-38 plane bin instead of one point under it
 
   const spire: Record<string, ActorRecipe> = {
     // DIVEBOMB: already falling where the ruins' raptor stands mantled — the
@@ -558,7 +562,7 @@ export function lateRecipes(): Record<string, ActorRecipe> {
       // left are the hottest. The last three points come off the ramp's
       // saturation, which touches every step alike and leaves the core the
       // brightest thing in the biome.
-      palette: { bone: CLINKER, glow: glowRamp(20, 74, 92) },
+      palette: { bone: CLINKER, glow: glowRamp(20, 71, 92) },
     }),
     // CHAIN BOLT: granite bound in brass, with two conductor rods standing off
     // the shoulders and an arc between them — the widest and brightest part of

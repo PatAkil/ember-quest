@@ -758,6 +758,29 @@ function topLight(g: Grid, lit: string, n = 2, only?: string): void {
     }
   }
 }
+/**
+ * THE SHADOW UNDERSIDE of a mass, following its own curve: `n` rows up from
+ * each column's lowest painted cell dropped into the PLANE step. A ruled
+ * `planeStep` line cannot follow a belly that is deep at the brisket, tucked at
+ * the loin and deep again at the haunch — it plants a rectangular slab across
+ * the lower half instead, which is what the round-13 wolf's first pass read as.
+ */
+function underPlane(g: Grid, x0: number, x1: number, n: number, only?: string): void {
+  const h = g.length;
+  const w = g[0].length;
+  for (let x = Math.max(0, x0); x <= Math.min(w - 1, x1); x++) {
+    let bottom = -1;
+    for (let y = 0; y < h; y++) if (g[y][x] !== '.') bottom = y;
+    if (bottom < 0) continue;
+    for (let i = 0; i < n; i++) {
+      const y = bottom - i;
+      if (y < 0 || g[y][x] === '.') break;
+      if (only && g[y][x] !== only) break;
+      const p = PLANE_OF[g[y][x]];
+      if (p) g[y][x] = p;
+    }
+  }
+}
 /** Drop a region of a grid into the PLANE step — the authored dark side of a mass, exempt from the contrast lift. */
 function planeBox(g: Grid, x0: number, y0: number, x1: number, y1: number): void {
   for (let y = Math.max(0, y0); y <= y1 && y < g.length; y++) {
@@ -1193,15 +1216,32 @@ function cloudGrid(o: CloudPose = {}): string[] {
   // is exactly what the first measurement of this sprite showed.
   const strands = [0, 3, 6, 9, 13, 17, 21, 25, 28];
   box(g, 4 + dx, cy + 8, 35 + dx, cy + 10, 'c'); // the base course the curtain hangs from
+  // ROUND 13 — BROKEN DIAGONAL STREAKS OF TWO LENGTHS. Round 10's curtain was
+  // nine near-vertical bars of one value on one pitch, and the full-frame critic
+  // read it as a diagram twice. Each streak now falls on a real slant, long and
+  // short alternate, and two DASHES of the accent's deep step break each one
+  // across its length. The breaks are in value, not in the outline: a gap below
+  // the base course would bake the lower half of a strand as its own component.
   strands.forEach((sx, i) => {
-    const len = Math.min(28, 15 + ((i * 5) % 9) + rain);
-    limb(g, 5 + dx + sx, cy + 2, 3 + dx + sx, cy + 8 + len, 3 - (i % 2), 1, i % 3 === 0 ? 'A' : 'a');
+    const long = i % 2 === 0;
+    const len = Math.min(28, (long ? 21 : 12) + ((i * 5) % 5) + rain);
+    const x0 = 5 + dx + sx;
+    const x1 = x0 - 4 - (i % 3);
+    const y0 = cy + 2;
+    const y1 = cy + 8 + len;
+    limb(g, x0, y0, x1, y1, 3 - (i % 2), 1, i % 3 === 0 ? 'A' : 'a');
+    const t = long ? 0.55 : 0.45;
+    const xa = Math.round(x0 + (x1 - x0) * t);
+    const ya = Math.round(y0 + (y1 - y0) * t);
+    seamLine(g, xa, ya, xa - 1, ya + 2, '<');
   });
   topLight(g, '+', 3, 'C');
   underbelly(g, '2', '[', 3, 'C', 2);
-  box(g, 5 + dx, cy + 9, 34 + dx, cy + 10, '['); // a deep course under the mass, where the curtain leaves it
+  // the deep course under the mass, where the curtain leaves it — BROKEN, and
+  // its plane stepped: a full-width band was 164 contiguous cells of one colour
+  for (let x = 5 + dx; x <= 34 + dx; x++) if (x % 5 !== 2) box(g, x, cy + 9, x, cy + 10, '[');
   planeEll(g, 26 + dx, cy + 6, 12, 7);
-  planeBox(g, 6 + dx, cy + 9, 34 + dx, cy + 11);
+  planeStep(g, 6 + dx, 34 + dx, cy + 9, 5, 1, 3);
   let out = rowsOf(g);
   // the two held lights, low in the mass where a face would be
   out = stampRows(out, cy + 4, cy + 4, [11 + dx, 'G#'], [19 + dx, '#G']);
@@ -1224,6 +1264,7 @@ beastKit('cloud', {
   wind: cloudGrid({ dx: -4, dy: -2, rain: -6, swell: 3 }),
   strike: cloudGrid({ dx: 3, dy: 2, rain: 9, bolt: true }),
   hurt: cloudGrid({ dx: -7, dy: -3, rain: -4, swell: 1 }),
+  settle: cloudGrid({ rain: 2, swell: 2 }),
   dead: [
     (() => {
       // It does not fall — it RAINS OUT: the head flattens to a third of its
@@ -1291,13 +1332,17 @@ function drakeGrid(o: DrakePose = {}): string[] {
   drakeWing(g, 27 + bx, 25 + by, Math.min(50, 45 + bx + 4 * wl), 12 + by - 6 * wl, 'D', '3');
   featherPass(g, 'D3', '=', 'D', ']', { notch: 3, lead: 2, x0: 28 + bx });
   // neck and skull
-  limb(g, 32 + bx, 27 + by, 43 + hx, 13 + hy, 10, 6, 'L');
-  ell(g, 46 + hx, 11 + hy, 6, 5, 'L');
+  // ROUND 13 — a heavier skull on a shorter neck. The round-12 critic read the
+  // drake as a wyvern "though the small head on a long neck is still the
+  // weakest part of it": fourteen rows of rise carrying a 13x11 skull is a
+  // swan's build. Ten rows now, and a 17x15 skull on the end of them.
+  limb(g, 32 + bx, 27 + by, 42 + hx, 17 + hy, 12, 9, 'L');
+  ell(g, 45 + hx, 15 + hy, 8, 7, 'L');
   // horns, a brow ridge and the jaw
-  limb(g, 45 + hx, 7 + hy, 38 + hx, 1 + hy, 4, 1, 'B');
-  limb(g, 48 + hx, 8 + hy, 44 + hx, 3 + hy, 3, 1, 'B');
-  limb(g, 48 + hx, 13 + hy, 56 + hx, 14 + hy, 5, 2, 'L');
-  limb(g, 45 + hx, 13 + hy, 55 + hx, 17 + hy + 2 * jaw, 5, 3, 'B');
+  limb(g, 44 + hx, 10 + hy, 37 + hx, 4 + hy, 4, 1, 'B');
+  limb(g, 47 + hx, 11 + hy, 43 + hx, 6 + hy, 3, 1, 'B');
+  limb(g, 49 + hx, 16 + hy, 57 + hx, 17 + hy, 5, 2, 'L');
+  limb(g, 46 + hx, 17 + hy, 56 + hx, 20 + hy + 2 * jaw, 5, 3, 'B');
   // four legs on four different pitches
   limb(g, 12 + bx, 38 + by, 10 + bx, 47 + by, 8, 5, 'l');
   limb(g, 19 + bx, 39 + by, 20 + bx, 48 + by, 7, 4, 'L');
@@ -1330,10 +1375,10 @@ function drakeGrid(o: DrakePose = {}): string[] {
     limb(g, rx + bx, 22 + by, rx - 10 + bx, 41 + by, 1, 1, 'l');
     limb(g, rx + 1 + bx, 22 + by, rx - 9 + bx, 41 + by, 1, 1, '~');
   }
-  planeBox(g, 34 + bx, 20 + by, 44 + bx, 27 + by);
+  planeBox(g, 34 + bx, 22 + by, 44 + bx, 28 + by);
   let out = rowsOf(g);
-  out = stampRows(out, 9 + hy, 9 + hy, [44 + hx, '#GG']);
-  out = stampRows(out, 10 + hy, 10 + hy, [44 + hx, '#44']);
+  out = stampRows(out, 13 + hy, 13 + hy, [43 + hx, '#GG']);
+  out = stampRows(out, 14 + hy, 14 + hy, [43 + hx, '#44']);
   return out;
 }
 const DRAKE_ANCH = { feet: { x: 24, y: DRK_H - 1 }, hit: { x: 26, y: 31 } };
@@ -1588,8 +1633,8 @@ reg(
     R(24, [2, 'B'], [6, 'B'], [13, 'BB'], [20, 'B']),
     R(24, [1, 'BB'], [5, 'BB'], [13, 'BBB'], [19, 'BB']),
     R(24, [1, 'B%B'], [5, 'B%B'], [12, 'B%%%B'], [19, 'B%B']),
-    R(24, [1, 'BBBB'], [5, 'BBB'], [12, 'BBBBB'], [19, 'BBB']),
-    R(24, [1, 'BBBBBBBBBBB'], [13, 'BBBBBBBBB']),
+    R(24, [1, '%%%%'], [5, '%%%'], [12, '%%%%%'], [19, '%%%']),
+    R(24, [1, '%%%%%%%%%%%'], [13, '%%%%%%%%%']),
     R(24, [1, '%%%%%%%%%%%'], [12, '%%%%%%%%%%']),
     R(24, [1, 'B8888888888'], [12, '888888888B']),
     R(24, [2, '&&&&&&&&&&&&&&&&&&&&']),
@@ -1766,11 +1811,16 @@ reg(
 );
 
 // --- CINDER WOLF — the ember-cracked runner --------------------------------------
-// BRANDING BITE, and the round-7 note on ASH_HOUND ("four identical bars at one
-// pitch") is the thing to avoid: this one is taller and leggier than the hound,
-// its topline broken by a RUFF OF SPINES from skull to shoulder, its tail up and
-// forward, and its hind pair genuinely different geometry from its fore.
-const WLF_W = 50;
+// BRANDING BITE. ROUND 13 — RE-PROPORTIONED. Rounds 11 and 12 fixed the ruff and
+// the muzzle and the modelling, and the round-12 critic still read the standing
+// silhouette as a long-necked deer or goat: a thin neck rising at 45 degrees to a
+// small skull carried eleven rows ABOVE the withers, a shallow chest, and four
+// long thin legs. That is a browsing animal's build whatever is drawn on it. This
+// one is built the other way round — a HEAVY FOREHAND with the head carried level
+// with the shoulder line on a chest that reaches the elbow, a neck that is a short
+// thick wedge continuous with the withers rather than a stalk, legs that are 45 %
+// of the standing height instead of 60, and a body a third longer than it is tall.
+const WLF_W = 64;
 const WLF_H = 44;
 interface WolfPose {
   jaw?: number;
@@ -1786,82 +1836,92 @@ interface WolfPose {
 function wolfGrid(o: WolfPose = {}): string[] {
   const { jaw = 0, hx = 0, hy = 0, bx = 0, by = 0, fore = 0, hind = 0, tail = 0 } = o;
   const g = grid(WLF_W, WLF_H);
-  // tail carried UP and forward over the rump
-  limb(g, 8 + bx, 22 + by, 1 + bx, 10 + by - tail, 6, 2, 'L');
-  // rump, ribcage, shoulder — three masses, not one barrel
-  ell(g, 11 + bx, 24 + by, 8, 8, 'L');
-  ell(g, 21 + bx, 24 + by, 10, 7, 'L');
-  ell(g, 30 + bx, 22 + by, 7, 7, 'L');
-  // neck and skull. ROUND 12 — A LONG LEAN SKULL. Round 11's was a 13x11 dome
-  // with a two-cell muzzle on it, which the critic read as bulbous; a wolf's
-  // head is a wedge — a low braincase carried forward into a muzzle half again
-  // as long as it is deep. Seventeen cells of skull-and-muzzle against eleven,
-  // and the round-11 jaw break kept.
-  limb(g, 31 + bx, 19 + by, 38 + hx, 9 + hy, 9, 6, 'L');
-  ell(g, 38 + hx, 8 + hy, 6, 4, 'L');
-  limb(g, 40 + hx, 8 + hy, 47 + hx, 10 + hy, 7, 4, 'L'); // the muzzle, long and tapering
-  box(g, 41 + hx, 7 + hy, 46 + hx, 7 + hy, '~'); // lit along the bridge of it
-  limb(g, 37 + hx, 11 + hy, 46 + hx, 12 + hy + 2 * jaw, 5, 3, 'B'); // the lower jaw under it
-  limb(g, 39 + hx, 10 + hy, 46 + hx, 11 + hy, 1, 1, '{'); // the jaw break
-  box(g, 44 + hx, 9 + hy, 47 + hx, 9 + hy, '4'); // and the nose leather at the end
-  // ears, laid back along the skull
-  limb(g, 38 + hx, 5 + hy, 31 + hx, 3 + hy, 3, 1, 'L');
-  limb(g, 40 + hx, 6 + hy, 34 + hx, 2 + hy, 3, 1, 'l');
-  // THE RUFF. Round 11's seven five-to-nine-cell spines were the loudest thing
-  // in the sprite and both critics read a spined boar, not a wolf: a hackle is
-  // RAISED HAIR, one or two cells of it, not a row of quills. Nine one-cell
-  // ember-lit tufts along the neck and withers only — off the rump entirely,
-  // so the topline behind the shoulder is the animal's own back.
-  [0, 1, 2, 3, 4, 5, 6, 7, 8].forEach((i) => {
-    const sx = 14 + bx + i * 3;
+  // the tail, carried low and out behind the rump — a wolf's brush, not a flag
+  limb(g, 6 + bx, 14 + by, 0 + bx, 6 + by - tail, 6, 2, 'L');
+  // FIVE MASSES, and the shape of the animal is in how their undersides run:
+  // the brisket is deepest at the elbow, the barrel rises off it into a TUCKED
+  // loin, and the haunch drops again behind that. A single barrel from rump to
+  // chest is a bear; the tuck is what says canid at any size.
+  ell(g, 12 + bx, 14 + by, 9, 7, 'L'); // rump
+  ell(g, 11 + bx, 18 + by, 8, 7, 'L'); // haunch
+  ell(g, 24 + bx, 14 + by, 10, 6, 'L'); // barrel, tucked and dipped behind the withers
+  ell(g, 33 + bx, 14 + by, 9, 9, 'L'); // brisket, deep — the withers are its crown
+  // the neck: a short thick wedge running FORWARD out of the withers, not up,
+  // and narrow enough that the throat still steps back to the brisket
+  limb(g, 37 + bx, 12 + by, 44 + hx, 16 + hy, 11, 8, 'L');
+  // THE HEAD as its own mass, which is what round 12 did not have: a braincase
+  // whose poll stands four rows proud of the neck, a STOP (the step down from
+  // the brow to the bridge) six cells deep, the long lean muzzle round 12
+  // authored hung off the bottom of it, and ERECT ears. Round 11 laid the ears
+  // back along the skull "the way a running animal's are" and it cost the one
+  // outline cue that says canid at x2; they stand now, and the skull still sits
+  // level with the shoulder line.
+  ell(g, 48 + hx, 13 + hy, 7, 6, 'L');
+  limb(g, 52 + hx, 16 + hy, 61 + hx, 17 + hy, 5, 3, 'L'); // the muzzle: a third the depth of the skull, six cells clear of it
+  box(g, 53 + hx, 14 + hy, 60 + hx, 14 + hy, '~'); // lit along the bridge of it
+  limb(g, 50 + hx, 18 + hy, 60 + hx, 19 + hy + 2 * jaw, 4, 2, 'b'); // the lower jaw under it
+  limb(g, 52 + hx, 17 + hy, 60 + hx, 18 + hy, 1, 1, '{'); // the jaw break
+  box(g, 59 + hx, 16 + hy, 61 + hx, 16 + hy, '4'); // and the nose leather at the end
+  limb(g, 45 + hx, 9 + hy, 43 + hx, 3 + hy, 4, 1, 'L'); // ears, erect
+  limb(g, 50 + hx, 9 + hy, 49 + hx, 2 + hy, 4, 1, 'l');
+  // THE BELLY, planed BEFORE the legs are drawn so it follows the animal's own
+  // underside — deep at the brisket, tucked at the loin, deep again at the
+  // haunch — instead of a ruled slab across the lower half.
+  underPlane(g, 3 + bx, 44 + bx, 6);
+  // THE RUFF: one-cell ember-lit tufts along the neck and withers only, off the
+  // rump entirely (round 12's fix, re-laid on the new topline).
+  [0, 1, 2, 3, 4, 5, 6, 7].forEach((i) => {
+    const sx = 20 + bx + i * 3;
     const len = 1 + (i % 3 === 1 ? 1 : 0);
-    limb(g, sx, 18 + by, sx - 1, 18 + by - len, 2, 1, i % 2 ? 'A' : 'a');
+    limb(g, sx, 9 + by - Math.max(0, i - 4), sx - 1, 9 + by - len - Math.max(0, i - 4), 2, 1, i % 3 === 1 ? 'A' : '6');
   });
-  // four legs: fore pair near-vertical and forward, hind pair angled back off a haunch
-  limb(g, 9 + bx, 29 + by, 5 + bx - hind, 40 + by, 7, 4, 'l');
-  limb(g, 15 + bx, 30 + by, 13 + bx - hind, 41 + by, 6, 4, 'L');
-  limb(g, 27 + bx, 29 + by, 28 + bx + fore, 41 + by, 6, 4, 'l');
-  limb(g, 32 + bx, 28 + by, 34 + bx + fore, 40 + by, 6, 4, 'L');
-  box(g, 3 + bx - hind, 41 + by, 9 + bx - hind, 42 + by, 'l');
-  box(g, 11 + bx - hind, 42 + by, 17 + bx - hind, 43 + by, 'L');
-  box(g, 26 + bx + fore, 42 + by, 32 + bx + fore, 43 + by, 'l');
-  box(g, 31 + bx + fore, 40 + by, 38 + bx + fore, 42 + by, 'L');
+  // four legs, hanging off the elbow and the stifle: the tuck between them is
+  // the one place daylight gets under the animal
+  limb(g, 9 + bx, 22 + by, 5 + bx - hind, 40 + by, 7, 4, 'l');
+  limb(g, 16 + bx, 23 + by, 14 + bx - hind, 41 + by, 6, 4, 'L');
+  limb(g, 31 + bx, 22 + by, 32 + bx + fore, 41 + by, 7, 4, 'l');
+  limb(g, 37 + bx, 21 + by, 39 + bx + fore, 40 + by, 7, 4, 'L');
+  box(g, 3 + bx - hind, 41 + by, 10 + bx - hind, 42 + by, 'l');
+  box(g, 11 + bx - hind, 42 + by, 18 + bx - hind, 43 + by, 'L');
+  box(g, 30 + bx + fore, 42 + by, 37 + bx + fore, 43 + by, 'l');
+  box(g, 36 + bx + fore, 40 + by, 43 + bx + fore, 42 + by, 'L');
   topLight(g, '~', 2, 'L');
-  topLight(g, '!', 1, 'A');
-  underbelly(g, '4', '{', 5, 'L', 2);
-  // ROUND 12 — THREE PLANES ON A STEPPED SEAM (edge density 63.5). Round 11's
-  // body was a lit slab over a dark slab with the join running level across the
-  // whole animal, which is a stripe and not an edge between two forms. The
-  // CHEST falls away under the throat, the BELLY is a plane whose top edge
-  // STEPS two cells at a time as it runs back under the ribs, and the HAUNCH
-  // carries its own plane with a one-cell dark seam down the join.
-  planeEll(g, 31 + bx, 27 + by, 6, 5); // the chest, in the jaw's own shadow
-  planeStep(g, 13 + bx, 33 + bx, 27 + by, 5, 1, 6); // the belly, its top edge stepping down as it runs back
-  planeEll(g, 9 + bx, 29 + by, 8, 5); // the haunch's own shadow side
-  planeStep(g, 15 + bx, 21 + bx, 17 + by, 2, 2, 3, DARK_OF); // a stepped seam down the rump-to-rib join
-  planeStep(g, 26 + bx, 31 + bx, 18 + by, 2, 2, 3, DARK_OF); // and another down the shoulder
-  // FOUR RIBS crossing the belly plane, each a dark cell beside a shadow one:
-  // a one-cell diagonal does not cut an 8-connected region (the neighbours join
-  // round it), so a single line leaves the plane one flat blob — which is the
-  // 26 % single-colour mass this pass exists to break.
-  for (const rx of [19, 24, 29]) {
-    limb(g, rx + bx, 20 + by, rx - 7 + bx, 32 + by, 1, 1, '4');
-    limb(g, rx + 1 + bx, 20 + by, rx - 6 + bx, 32 + by, 1, 1, 'l');
+  underbelly(g, '4', '{', 4, 'L', 2);
+  underbelly(g, '{', '{', 2, 'F', 2); // and the deep step under the belly plane, so it is not one flat mass
+  // THREE PLANES ON A STEPPED SEAM (round 12, re-laid). The CHEST falls away
+  // under the throat, the BELLY is a plane whose top edge STEPS as it runs back
+  // under the ribs, and the HAUNCH carries its own. Round 12's three paired ribs
+  // cut the belly plane into ten cells — 1.05 % of the sprite, under decision
+  // 4's 2 % floor — so there are TWO ribs now and they stop short of the plane's
+  // hind end, which leaves the plane one contiguous mass behind them.
+  planeEll(g, 39 + bx, 17 + by, 6, 5); // the chest, in the jaw's own shadow
+  planeEll(g, 10 + bx, 20 + by, 8, 5); // the haunch's own shadow side
+  planeStep(g, 16 + bx, 22 + bx, 5 + by, 2, 2, 3, DARK_OF); // a stepped seam down the rump-to-rib join
+  planeStep(g, 28 + bx, 34 + bx, 5 + by, 2, 2, 3, DARK_OF); // and another down the shoulder
+  // TWO RIBS crossing the belly plane, each a dark cell beside a shadow one: a
+  // one-cell diagonal does not cut an 8-connected region (the neighbours join
+  // round it), so a single line leaves the plane one flat blob.
+  for (const rx of [22, 27, 32, 37]) {
+    limb(g, rx + bx, 11 + by, rx - 5 + bx, 23 + by, 1, 1, '4');
+    limb(g, rx + 1 + bx, 11 + by, rx - 4 + bx, 23 + by, 1, 1, 'l');
   }
+  // guard hair: one-cell ticks of the hide's shadow step down the lit topline,
+  // so the back is coat and not a painted stripe
+  for (const tx of [14, 19, 25, 30, 35, 41]) seamLine(g, tx + bx, 7 + by, tx - 2 + bx, 11 + by, 'l');
+  // the shoulder blade and the point of the haunch, each a two-cell stepped seam
+  planeStep(g, 34 + bx, 40 + bx, 12 + by, 2, 2, 3, DARK_OF);
+  planeStep(g, 6 + bx, 12 + bx, 14 + by, 2, 2, 3, DARK_OF);
   let out = rowsOf(g);
   // ember cracks along the flank, and the eye
-  out = stampRows(out, 21 + by, 21 + by, [12 + bx, '@'], [19 + bx, '@'], [26 + bx, '@']);
-  out = stampRows(out, 22 + by, 22 + by, [12 + bx, '7'], [19 + bx, '7'], [26 + bx, '7']);
-  out = stampRows(out, 23 + by, 23 + by, [13 + bx, '@'], [20 + bx, '@']);
-  out = stampRows(out, 7 + hy, 7 + hy, [38 + hx, '#G']);
-  out = stampRows(out, 8 + hy, 8 + hy, [38 + hx, '#4']);
+  out = stampRows(out, 11 + by, 11 + by, [13 + bx, '@'], [20 + bx, '@'], [27 + bx, '@']);
+  out = stampRows(out, 12 + by, 12 + by, [13 + bx, '7'], [20 + bx, '7'], [27 + bx, '7']);
+  out = stampRows(out, 13 + by, 13 + by, [14 + bx, '@'], [21 + bx, '@']);
+  out = stampRows(out, 13 + hy, 13 + hy, [49 + hx, '#G']);
+  out = stampRows(out, 14 + hy, 14 + hy, [49 + hx, '#4']);
   return out;
 }
-const WOLF_ANCH = { feet: { x: 21, y: WLF_H - 1 }, hit: { x: 22, y: 24 } };
+const WOLF_ANCH = { feet: { x: 25, y: WLF_H - 1 }, hit: { x: 30, y: 18 } };
 beastKit('wolf', {
-  // ROUND 11 — idle 2 changed 11.5 % of the sprite, the cast's lowest breath.
-  // It is a different animal now: head up, tail thrown further forward, the
-  // jaw parted and the fore pair carried a cell on.
   idle: [wolfGrid(), wolfGrid({ by: 1, hy: 1, tail: 1 }), wolfGrid({ hy: -2, by: -1, tail: 3, jaw: 2, fore: 2 })],
   wind: wolfGrid({ hx: -5, hy: 2, bx: -2, hind: 3, jaw: 1 }),
   strike: wolfGrid({ hx: 6, hy: 3, jaw: 5, fore: 4, bx: 1, tail: 2 }),
@@ -1869,21 +1929,27 @@ beastKit('wolf', {
   settle: wolfGrid({ hx: 2, hy: 1, jaw: 2, fore: 2, tail: 1 }),
   dead: [
     (() => {
-      // On its side, legs folded the same way, the skull turned into the floor
-      // and the ruff flat — twenty rows against forty-four.
+      // On its side, legs folded the same way, the skull turned into the floor.
+      // ROUND 13 — the four dorsal spines are GONE. Round 11 cut the standing
+      // ruff to one-cell tufts and left `for (const sx of [8, 14, 20, 26])
+      // limb(g, sx, 33, sx - 2, 29, 3, 1, 'a')` in the collapse, so the animal
+      // died as the spined boar it had stopped being: four four-cell quills,
+      // visible on all three frames of `poses-CINDER_WOLF.png` for two rounds.
+      // What replaces them is the ruff it actually wears — one-cell tufts lying
+      // flat along the shoulder.
       const g = grid(WLF_W, WLF_H);
-      limb(g, 2, 32, 12, 34, 5, 3, 'L');
-      ell(g, 16, 38, 12, 6, 'L');
-      limb(g, 24, 37, 34, 40, 8, 5, 'L');
-      ell(g, 37, 41, 6, 4, 'L');
-      limb(g, 39, 41, 45, 42, 4, 2, 'L');
-      for (const sx of [8, 14, 20, 26]) limb(g, sx, 33, sx - 2, 29, 3, 1, 'a');
-      limb(g, 12, 41, 8, 43, 5, 3, 'l');
-      limb(g, 22, 41, 26, 43, 5, 3, 'l');
+      limb(g, 2, 32, 14, 34, 5, 3, 'L');
+      ell(g, 19, 38, 14, 6, 'L');
+      limb(g, 29, 37, 40, 40, 9, 5, 'L');
+      ell(g, 43, 41, 6, 4, 'L');
+      limb(g, 45, 41, 52, 42, 4, 2, 'L');
+      for (const sx of [24, 28, 32, 36]) limb(g, sx, 33, sx - 1, 32, 2, 1, sx % 8 ? 'a' : 'A');
+      limb(g, 14, 41, 10, 43, 5, 3, 'l');
+      limb(g, 26, 41, 30, 43, 5, 3, 'l');
       topLight(g, '~', 1, 'L');
       underbelly(g, '4', '{', 2, 'L');
-      planeBox(g, 24, 38, 40, 43);
-      return stampRows(rowsOf(g), 40, 40, [36, '##']);
+      planeBox(g, 28, 38, 46, 43);
+      return stampRows(rowsOf(g), 40, 40, [42, '##']);
     })(),
   ],
   w: WLF_W,
@@ -1926,13 +1992,34 @@ const priestAnchors: Partial<Record<AnchorName, Point>> = {
   hit: { x: SPL, y: 14 },
 };
 bodyKit('priest', { rows: priestRows, anchors: priestAnchors, hemFrom: 14, pivot: 25, lean: 9 });
-const priestHeadRows = [
-  ...crown('L', [8, 6, 4, 3, 2, 2, 2], [2, 2, 1, 1, 0, 0, 0]), // a smith's hood, pulled forward off centre
-  stamp(sym(HL, hb(HL, 2, 'L'), 'L'), [6, 'DDD']), // the stole's end thrown over it
-  sym(HL, hb(HL, 2, '4'), '4'), // and the hood's dark lip
-  ...faceBlock({ side: 'L', sideDark: '4', brow: 1, spacing: 0, mouth: 3, cheek: true, turn: true }),
-];
-headKit('priest', { rows: priestHeadRows, down: { crown: 'L', dark: '4', face: 'S', eye: '#', deep: '(' }, lift: 1 });
+/**
+ * ROUND 13 — A BRIM. The full-frame critic's Sprites item 4 measured this
+ * figure at 73.9 % nearest-silhouette IoU against MARSH_HAG: an apron over two
+ * legs under a round hood is the same outline as a robe over two legs under a
+ * round hood, and the interior work of rounds 11 and 12 cannot change that.
+ * Everything identifying in `octopath-1` is HEADWEAR or a garment that leaves
+ * the body outline, so the smith gets the hat a smith wears — a hard flat brim
+ * five cells past the hood on the working side and three on the other, with a
+ * dark undercut beneath it.
+ */
+const PRIEST_BRIM = 5;
+const priestHeadRows = widen(
+  [
+    ...crown('L', [8, 6, 4, 3, 2, 2, 2], [2, 2, 1, 1, 0, 0, 0]), // a smith's hood, pulled forward off centre
+    stamp(sym(HL, hb(HL, 2, 'L'), 'L'), [6, 'DDD']), // the stole's end thrown over it
+    sym(HL, hb(HL, 2, '4'), '4'), // and the hood's dark lip
+    ...faceBlock({ side: 'L', sideDark: '4', brow: 1, spacing: 0, mouth: 3, cheek: true, turn: true }),
+  ],
+  2 * HL + 1 + 2 * PRIEST_BRIM,
+  PRIEST_BRIM,
+);
+const priestHeadFinal = stampRows(
+  stampRows(priestHeadRows, 6, 6, [1, '~'.repeat(2 * HL + 1 + 2 * PRIEST_BRIM - 3)]),
+  7,
+  7,
+  [1, 'L'.repeat(2 * HL + 1 + 2 * PRIEST_BRIM - 3)],
+);
+headKit('priest', { rows: stampRows(priestHeadFinal, 8, 8, [3, '4'.repeat(2 * HL + 1 + 2 * PRIEST_BRIM - 7)]), cx: HL + PRIEST_BRIM, down: { crown: 'L', dark: '4', face: 'S', eye: '#', deep: '(' }, lift: 1 });
 armKit(
   'apron',
   { arm: 'S', armDark: '(', fore: 'L', cuff: '4', hand: 'L', handDeep: '{', nearArm: 's' },
@@ -2010,18 +2097,39 @@ function steamGrid(o: SteamPose = {}): string[] {
     [1, 16, 9, 6],
     [-1, 9 - 2 * boil, 7, 5],
   ];
-  for (const [ox, oy, rx, ry] of billows) ell(g, cx + ox, oy + dy - boil * (40 - oy) * 0.12, rx, ry - boil, 'C');
+  // ROUND 13 — MODELLED. Untouched for two rounds, this was the cast's flattest
+  // interior (edge density 56.9 against the heroes' 85.7) and its emptiest bar
+  // BOG_TOAD: ten colours over 865 cells, because a billow was one filled
+  // ellipse of one step with a lit crown on top of it. Each billow is FOUR
+  // concentric tones now — a veil, its shadow body, a DENSE CORE in a second
+  // material (`cloth2`), and a lit heart inside that — so the column has a
+  // near side and a far side and a fold at every joint between them.
+  billows.forEach(([ox, oy, rx, ry], i) => {
+    const X = cx + ox;
+    const Y = oy + dy - boil * (40 - oy) * 0.12;
+    const R = ry - boil;
+    const s = i % 2 ? -1 : 1; // the core leans a different way on alternate billows, so the four rings never stack into one annulus
+    ell(g, X, Y, rx, R, 'C');
+    ell(g, X + rx * 0.14 * s, Y + R * 0.14, rx * 0.82, R * 0.8, 'c');
+    ell(g, X - rx * 0.24 * s, Y - R * 0.12, rx * 0.5, R * 0.52, 'D');
+    ell(g, X - rx * 0.4 * s, Y - R * 0.26, rx * 0.24, R * 0.26, i < 2 ? '=' : 'd');
+    ell(g, X, Y + R * 0.72, rx * 0.7, R * 0.28, i > 2 ? '[' : '2', true); // and a crescent under each, where one billow sits on the next
+  });
   // the crown of it wisps away, and the scald sits at its heart — the light end
   // a body of vapour needs to span L 15-85 at all
   limb(g, cx - 1, 8 + dy, cx + 3, 1 + dy, 5, 2, 'c');
   ell(g, cx - 2, 30 + dy, 4, 5, 'G');
-  // two vent arms, lashing forward at different heights
+  // two vent arms, lashing forward at different heights, each with its own core
   limb(g, cx + 8, 20 + dy, cx + 15 + reach, 15 + dy - reach, 6, 3, 'C');
+  limb(g, cx + 8, 20 + dy, cx + 14 + reach, 15 + dy - reach, 3, 1, 'D');
   limb(g, cx - 8, 26 + dy, cx - 14 - (reach >> 1), 24 + dy, 5, 3, 'c');
-  topLight(g, '+', 3, 'C');
-  for (const [ox, oy, rx, ry] of billows) ell(g, cx + ox - rx * 0.45, oy + dy - ry * 0.4, rx * 0.4, ry * 0.4, '+');
-  underbelly(g, '2', '[', 4, 'C');
-  planeBox(g, cx + 3, 17 + dy, cx + 13, 37 + dy);
+  limb(g, cx - 8, 26 + dy, cx - 13 - (reach >> 1), 24 + dy, 2, 1, 'd');
+  topLight(g, '+', 2, 'C');
+  underbelly(g, '2', '[', 3, 'C');
+  underbelly(g, ']', ']', 2, 'D');
+  // the far side of the column falls away, its edge following each billow
+  underPlane(g, cx + 4, cx + 16, 4);
+  planeStep(g, cx + 2, cx + 14, 14 + dy, 3, 4, 6);
   let out = rowsOf(g);
   // the hollow face: two vents and a torn mouth, all in the material's deep step
   out = stampRows(out, 12 + dy + face, 12 + dy + face, [cx - 5, '[[['], [cx + 2, '[[[']);
@@ -2035,6 +2143,12 @@ beastKit('steam', {
   wind: steamGrid({ boil: 1, dx: -4, dy: -1, reach: -3 }),
   strike: steamGrid({ boil: 0.3, dx: 4, dy: 1, reach: 8, face: 1 }),
   hurt: steamGrid({ boil: 0.6, dx: -7, dy: -3, reach: -4, face: -2 }),
+  // ROUND 13 — its own settle grid. The recipe used to carry `{ part:
+  // 'steam_body', dy: -1 }`, a one-cell translation of the idle, and once the
+  // billows had four tones in them that translation changed 47 % of the sprite
+  // — over criterion 7's band. A small change of boil moves the column without
+  // moving every edge in it.
+  settle: steamGrid({ reach: 4, boil: 0.45 }),
   dead: [
     (() => {
       // ROUND 11 — steam does not spread flat either: it comes UNDONE and goes
@@ -2403,7 +2517,31 @@ const dsentHeadRows = [
   stamp(sym(HL, hb(HL, 6, 'C'), 'C'), [8, '['], [14, '[']),
   sym(HL, hb(HL, 8, '2'), '2'),
 ];
-headKit('dsent', { rows: dsentHeadRows, down: { crown: 'M', dark: '5', face: 's', eye: '#', deep: '(' }, lift: 2 });
+/**
+ * ROUND 13 — A SWEPT CORAL FIN. 76.3 % nearest-silhouette IoU against
+ * CRYPT_WARDEN (the full-frame critic's Sprites item 4): the flared scale skirt
+ * round 11 gave this figure changed its lower half and left the head a plain
+ * dome over square shoulders, which is the crypt warden's outline. Three blades
+ * of coral now rise three rows off the helm and sweep FOURTEEN cells back over
+ * the far shoulder — outline, not interior, and on one side only. A kelp
+ * half-cape was tried first and made the pair WORSE (78.6): filling the far
+ * side made the two figures MORE alike, because the warden is already a solid
+ * block. What separates them is area OUTSIDE the shared outline.
+ */
+const DSENT_FIN = 14;
+const dsentHeadFinal = (() => {
+  const rows = widen(dsentHeadRows, 2 * HL + 1 + DSENT_FIN, DSENT_FIN);
+  const g = gridOf(['.'.repeat(rows[0].length), '.'.repeat(rows[0].length), '.'.repeat(rows[0].length), ...rows]);
+  const cx2 = DSENT_FIN + HL;
+  // a coral fin: three blades of falling length sweeping back over the far
+  // shoulder, the longest fourteen cells out and three rows above the crown
+  limb(g, cx2 - 1, 8, cx2 - 15, 1, 7, 2, 'B');
+  limb(g, cx2 - 2, 9, cx2 - 11, 4, 5, 2, '%');
+  limb(g, cx2 - 3, 11, cx2 - 9, 8, 4, 2, '8');
+  limb(g, cx2 - 4, 12, cx2 - 13, 6, 2, 1, '&');
+  return rowsOf(g);
+})();
+headKit('dsent', { rows: dsentHeadFinal, cx: HL + DSENT_FIN, down: { crown: 'M', dark: '5', face: 's', eye: '#', deep: '(' }, lift: 2 });
 armKit(
   'bronze',
   { arm: 'M', armDark: '5', fore: 'm', cuff: '5', hand: 'M', handDeep: '}', nearArm: 'm' },
@@ -2415,8 +2553,14 @@ reg('fallen_bronze', fallenBody({ g: 'M', dark: '5', deep: '}', boot: 'C', bootD
 /** RUSTED PIKE — a long shaft with a leaf head and a weed-wrapped grip; too tall to swing, so its rig thrusts. */
 reg(
   'rusted_pike',
+  // ROUND 13 — LEANED OUT. The pike stood straight up the middle of the figure
+  // and added nothing to the outline that the crypt warden's lantern arm does
+  // not: 76.3 % nearest-silhouette IoU between them. `outboard` carries it
+  // across the body the way round 11 carried the ward slab and the trident, so
+  // the head stands nine cells past the shoulder on the weapon side.
   part(
-    [
+    outboard(
+      [
       R(9, [4, 'M']),
       R(9, [3, 'M*M']),
       R(9, [3, 'M*M']),
@@ -2431,8 +2575,12 @@ reg(
       ...rep(12, R(9, [3, 'L4L'])),
       ...rep(3, R(9, [3, 'cCc'])),
       ...rep(6, R(9, [3, 'L4L'])),
-      R(9, [3, '4{4']),
-    ],
+        R(9, [3, '4{4']),
+      ],
+      26,
+      0.42,
+      22,
+    ),
     { weaponGrip: { x: 4, y: 26 } },
   ),
 );
@@ -2480,6 +2628,21 @@ function jellyGrid(o: JellyPose = {}): string[] {
   ell(g, cx - 1, by + 1, 12 - pulse * 2, 5, '7', true);
   ell(g, cx - 1, by + 2, 12 - pulse * 2, 4, 'd', true);
   ell(g, cx - 6, by + 1, 4, 3, 'G', true);
+  // ROUND 13 — RADIAL CANALS. The bell was one filled dome of one step with a
+  // lit crown on it: 19.0 % of the sprite in a single contiguous colour, the
+  // worst in the cast outside the two licensed glows. Six canals run from the
+  // apex to the rim the way a medusa's actually do, alternating the cloth's
+  // dark and shadow steps so neither is one mass, and they curve with the dome.
+  const brx = 14 - pulse * 2;
+  const bry = 11 - pulse * 3;
+  [-1.3, -1.0, -0.7, -0.4, -0.1, 0.2, 0.5, 0.8, 1.15].forEach((a, i) => {
+    const ax = Math.round(cx + Math.sin(a) * brx * 0.06);
+    const bx2 = Math.round(cx + Math.sin(a) * brx * 1.02);
+    const top = Math.round(by - bry * 0.85);
+    const ch = (['D', '3', 'U'] as const)[i % 3];
+    seamLine(g, ax, top, bx2, by + 4, ch);
+    seamLine(g, ax + 1, top, bx2 + 1, by + 4, ch);
+  });
   const out = rowsOf(g);
   return stampRows(out, by, by, [cx - 7, '@@']);
 }
@@ -2761,12 +2924,16 @@ function levGrid(o: LevPose = {}): string[] {
       seamLine(g, sx, cy2 - 2, sx + 2, cy2 + 6, 'l');
       seamLine(g, sx + 1, cy2 - 2, sx + 3, cy2 + 6, '{');
     }
-  nickRow(g, 43 + by, 4);
-  nickRow(g, 42 + by, 2);
-  nickRow(g, 44 + by, 2);
-  nickRow(g, 36 + by, 4);
-  nickRow(g, 35 + by, 2);
-  nickRow(g, 37 + by, 2);
+  nickRow(g, 43 + by, 7);
+  nickRow(g, 42 + by, 5);
+  nickRow(g, 44 + by, 5);
+  nickRow(g, 41 + by, 2);
+  nickRow(g, 45 + by, 2);
+  nickRow(g, 36 + by, 7);
+  nickRow(g, 35 + by, 5);
+  nickRow(g, 37 + by, 5);
+  nickRow(g, 34 + by, 2);
+  nickRow(g, 38 + by, 2);
   dropSpecks(g, 4);
   let out = rowsOf(g);
   // the eye, and a row of teeth that only shows when the jaw is open
@@ -3155,7 +3322,22 @@ const monkHeadRows = [
   sym(HL, 'HHH^HHH1111', '1'),
   ...faceBlock({ side: 'H', sideDark: '1', brow: -1, spacing: -1, mouth: 1, turn: true }),
 ];
-headKit('monk', { rows: monkHeadRows, down: { crown: 'H', dark: '1', face: 'S', eye: '#', deep: '(' }, lift: 1 });
+/**
+ * ROUND 13 — THE TOPKNOT THROWN OUT. 69.0 % against CRYPT_WARDEN: a bare torso
+ * over a wide stance under a round head is still a round head, and the round-11
+ * flare changed the bottom of the outline only. The knot leaves the head now —
+ * nine cells back and four up, in the hair's own three steps — which is the
+ * `octopath-1` method (a hat, a brim, a plume) applied to a monk.
+ */
+const MONK_KNOT = 10;
+const monkHeadFinal = (() => {
+  const g = gridOf(widen(monkHeadRows, 2 * HL + 1 + MONK_KNOT, MONK_KNOT));
+  limb(g, MONK_KNOT + HL - 4, 4, MONK_KNOT + HL - 15, 1, 5, 3, 'H');
+  limb(g, MONK_KNOT + HL - 5, 3, MONK_KNOT + HL - 13, 1, 2, 1, '^');
+  limb(g, MONK_KNOT + HL - 5, 6, MONK_KNOT + HL - 14, 4, 2, 1, '1');
+  return rowsOf(g);
+})();
+headKit('monk', { rows: monkHeadFinal, cx: HL + MONK_KNOT, down: { crown: 'H', dark: '1', face: 'S', eye: '#', deep: '(' }, lift: 1 });
 armKit(
   'late_bare',
   { arm: 'S', armDark: '(', fore: 'S', cuff: '0', hand: 'S', handDeep: '(', nearArm: 's' },
@@ -3232,7 +3414,31 @@ const wardenHeadRows = [
   sym(HL, hb(HL, 5, 'M'), 'M'), // 17  a brass gorget closing under the jaw
   sym(HL, hb(HL, 7, '5'), '5'), // 18
 ];
-headKit('warden', { rows: wardenHeadRows, down: { crown: 'M', dark: '5', face: 's', eye: '#', deep: '(' }, lift: 2 });
+/**
+ * ROUND 13 — A REAL WEATHER VANE. 74.2 % nearest-silhouette IoU against SABLE,
+ * 73.5 against TIDE and 72.4 against CRYPT_WARDEN (the full-frame critic's
+ * Sprites item 4): round 11's diagonal storm cape changed one side of the body
+ * and left a plain domed helm on square shoulders. The spur is a VANE now — a
+ * brass rod eight rows proud of the crown with a pointer six cells out over the
+ * cape side and a counterweight two cells the other way — which is also where
+ * this figure's criterion-1 margin comes from, because the top quarter was 9.3
+ * L over the bottom against the bar of 8.
+ */
+const WARD_VANE = 8;
+const wardenHeadFinal = (() => {
+  const g = gridOf(widen(wardenHeadRows, 2 * HL + 1 + 2 * WARD_VANE, WARD_VANE).map((r) => r).concat());
+  const cx2 = WARD_VANE + HL;
+  const lift = 5;
+  const rows: string[] = [];
+  for (let i = 0; i < lift; i++) rows.push('.'.repeat(g[0].length));
+  const g2 = gridOf(rows.concat(rowsOf(g)));
+  limb(g2, cx2 + 1, lift + 3, cx2 + 1, 1, 4, 3, '*'); // the rod, lit: the top quarter is where this figure's criterion-1 margin lives
+  limb(g2, cx2 + 1, 1, cx2 + 8, 3, 3, 2, '*'); // the pointer, out over the cape side
+  limb(g2, cx2 + 1, 1, cx2 - 3, 2, 3, 2, 'm'); // and its counterweight
+  box(g2, cx2 + 2, 3, cx2 + 3, 5, '5'); // one dark cell under the crown so the rod is not a slab
+  return rowsOf(g2);
+})();
+headKit('warden', { rows: wardenHeadFinal, cx: HL + WARD_VANE, down: { crown: 'M', dark: '5', face: 's', eye: '#', deep: '(' }, lift: 2 });
 armKit(
   'brass',
   { arm: 'C', armDark: '2', fore: 'M', cuff: '5', hand: 'M', handDeep: '}', nearArm: 'c' },
@@ -3363,6 +3569,16 @@ function emberGrid(o: EmberPose = {}): string[] {
     const ny = cy + Math.sin(a) * 13 * r;
     if (i > 0 && !BREAK.includes(i)) limb(g, px, py, nx, ny, 3, 3, 'G'); // the ring the embers ride
     if (i < 9) ell(g, nx, ny, 2 + ((i * 5) % 4), 2 + ((i * 5) % 4), i % 2 ? 'G' : '7');
+    // ROUND 13 — TONGUES, not a hoop. The full-frame critic read this as "a
+    // dark disc inside a flame ring" twice: a closed circle of one width is a
+    // diagram whatever is drawn on it. Every ember now throws a tongue OUT of
+    // the orbit, and they come in three heights on a 3-4-8 cycle, so the ring's
+    // outline is a ragged crown rather than a hoop.
+    if (i < 9) {
+      const h = [3, 6, 2][i % 3] + (i === 4 ? 3 : 0);
+      const a2 = a + 0.25;
+      limb(g, nx, ny, cx + Math.cos(a2) * (13 + h) * r, cy + Math.sin(a2) * (15 + h) * r, 3, 1, i % 2 ? 'G' : '7');
+    }
     px = nx;
     py = ny;
   }
@@ -3376,18 +3592,23 @@ function emberGrid(o: EmberPose = {}): string[] {
   // tone carried OUT through the lower break so the core belongs to the fire
   ell(g, kx, ky, 9, 10, 'b');
   ell(g, kx, ky, 7, 8, 'B');
-  ell(g, kx + 1, ky + 1, 4, 5, '8');
-  ell(g, kx + 1, ky + 2, 2, 3, '&');
+  ell(g, kx + 1, ky + 1, 5, 6, '8');
+  ell(g, kx + 1, ky + 2, 3, 4, '&');
   // the core's own tone, carried OUT through the lower break — FROST_WISP's
   // round-9 fix. It runs in the bone's SHADOW step, not its dark: this body is
   // a light source and a third of it below 3:1 is all the contrast budget a
   // licensed glow has.
   limb(g, kx - 6, ky + 4, kx - 13, ky + 8, 5, 3, 'b');
   limb(g, kx - 11, ky + 7, kx - 15, ky + 11, 3, 2, 'B');
+  // the clinker's far-lower quadrant in the bone's PLANE step. Round 12's
+  // elemental had no authored plane at all, which reads as 0 cells against
+  // coordinator decision 4's size-scaled floor of 2 % — and a burnt heart lit
+  // from the upper left has a shadow side whether or not a rule asks for one.
+  planeEll(g, kx + 1, ky + 2, 4, 5);
   // and the embers it stands on
   box(g, cx - 9, cy + 13, cx + 9, cy + 14, '7');
   underbelly(g, '8', '&', 2, 'B');
-  underbelly(g, '7', '>', 3); // the whole bottom of the fire falls to its own dark, so it is lit from above like everything else
+  underbelly(g, '7', '>', 2); // the whole bottom of the fire falls to its own dark, so it is lit from above like everything else
   const out = rowsOf(g);
   // two vents in the clinker where the fire shows through it
   return stampRows(stampRows(out, ky - 3, ky - 3, [kx - 4, '@@'], [kx + 2, '@@']), ky - 2, ky - 2, [kx - 4, '7.'], [kx + 3, '7']);
@@ -3573,11 +3794,28 @@ const seraphTop = bands(SRL, [
   [4, hbf(SRL, 8, 'c', '[', [11]), 'c'], // 23-26 into shadow
   [2, hb(SRL, 8, '['), '['], // 27-28 the hem band
 ]);
-const seraphRows = [
-  ...cutBands(keyEdge(sideModel(turn(selfShadowLate(shoulderDrop(seraphTop, 2, SRL, 'M', 6, 4), '}', 3, [8, 15], [5, SRW - 6], 8), { top: 2, bottom: 14, ch: 'M', pelvis: [16, 28] }), { from: 2, to: 1e9, seam: true }), 2, 8, 3), 2, 1e9, 0.28),
-  ...hemShift(bands(SRL + 1, [[9, hbf(SRL + 1, 9, 'c', '[', [12]), 'c']]), 0, 'c', 5, 2),
-  ...scallopHem(SRW + 2, 'c', '[', [4, 2, 6, 3]).map((r) => stamp(r, [0, '.'.repeat(9)], [SRW - 7, '.'.repeat(9)])),
-];
+/**
+ * ROUND 13 — THE ROBE, BROKEN. The round-12 critic put the seraph's largest
+ * single-colour blob at 16.2 % and named the wings, but the mass is the ROBE:
+ * 336 contiguous cells of the cloth's shadow step between two one-cell seams,
+ * rows 16 to 43. Four folds run belt to hem now (a seam that stops short of the
+ * hem does not cut the region) and a PLANE STEP takes the far skirt down, which
+ * is the treatment FORGE_SAINT got in round 12 and the reason its 25.9 % went
+ * to 11.5.
+ */
+const seraphRows = (() => {
+  const g = gridOf([
+    ...cutBands(keyEdge(sideModel(turn(selfShadowLate(shoulderDrop(seraphTop, 2, SRL, 'M', 6, 4), '}', 3, [8, 15], [5, SRW - 6], 8), { top: 2, bottom: 14, ch: 'M', pelvis: [16, 28] }), { from: 2, to: 1e9, seam: true }), 2, 8, 3), 2, 1e9, 0.28),
+    ...hemShift(bands(SRL + 1, [[9, hbf(SRL + 1, 9, 'c', '[', [12]), 'c']]), 0, 'c', 5, 2),
+    ...scallopHem(SRW + 2, 'c', '[', [4, 2, 6, 3]).map((r) => stamp(r, [0, '.'.repeat(9)], [SRW - 7, '.'.repeat(9)])),
+  ]);
+  planeStep(g, 28, 38, 20, 4, 3, 20);
+  seamLine(g, 12, 15, 9, 45, '[');
+  seamLine(g, 17, 15, 15, 45, 'C');
+  seamLine(g, 24, 15, 26, 45, '[');
+  seamLine(g, 30, 18, 33, 45, 'C');
+  return rowsOf(g);
+})();
 /**
  * Three pairs of wings, drawn FROM the shoulder outward at three pitches, so
  * none of them can bake as its own component. The robe's own rows are PADDED
@@ -3598,20 +3836,33 @@ function seraphWings(rows: readonly string[]): string[] {
   // now the cloth's DEEP step, explicitly — an explicit step is not resolved
   // by `autoShade` and cannot take the key — which leaves the lance's lit
   // metal vane as the only pale spike on the figure.
-  const wing2 = (x: number, dy: number, span: number, drop: number, ch: string): void => {
+  const spars: [number, number, number, number, string][] = [
+    [lx, 0, -17, 14, 'D'],
+    [rx, 1, 12, 7, 'D'],
+    [lx, 8, -11, -4, 'd'],
+    [rx, 6, 16, 2, 'd'],
+    [lx, 15, -13, -17, 'D'],
+    [rx, 13, 9, -11, 'D'],
+  ];
+  for (const [x, dy, span, drop, ch] of spars) {
     limb(g, x, sy + dy, x + span, sy + dy - drop, 7, 2, ch);
     for (let i = 1; i <= 3; i++) {
       const t = i / 3;
       limb(g, x, sy + dy, x + span * t, sy + dy - drop * t + 9 * t, 6 - i, 2, ch);
     }
-    limb(g, x + span * 0.38, sy + dy - drop * 0.38, x + span, sy + dy - drop, 5, 2, ']');
-  };
-  wing2(lx, 0, -17, 14, 'D');
-  wing2(rx, 1, 12, 7, 'D');
-  wing2(lx, 8, -11, -4, 'd');
-  wing2(rx, 6, 16, 2, 'd');
-  wing2(lx, 15, -13, -17, 'D');
-  wing2(rx, 13, 9, -11, 'D');
+  }
+  // ROUND 13 — FEATHERED, the way the hawk's and the drake's membranes were in
+  // round 12. Six wings drawn as filled fans of one step left 16.2 % of the
+  // sprite in a single contiguous colour — the second worst in the cast — at
+  // 70.3 % interior edge density. One pass over the whole fan, AFTER all six
+  // are down so the scan sees the stack as it will be baked, lays three courses
+  // down every column and notches the trailing edge. The courses are MID,
+  // SHADOW and DARK: no specular anywhere on a wing, because the lance's lit
+  // vane has to stay the only pale spike at x2, which is what round 12 bought.
+  featherPass(g, 'Dd', 'D', 'd', '3', { notch: 3, lead: 2, minRun: 3 });
+  // and the outer half of every spar in the cloth's explicit DEEP step, last,
+  // so an explicit step cannot be resolved by `autoShade` into a pale tip
+  for (const [x, dy, span, drop] of spars) limb(g, x + span * 0.38, sy + dy - drop * 0.38, x + span, sy + dy - drop, 5, 2, ']');
   return rowsOf(g);
 }
 const seraphBodyRows = seraphWings(seraphRows);
