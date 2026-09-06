@@ -3,7 +3,14 @@
 // main.ts's scenes.onEnter handlers (messaging-game-over: "putting it in the
 // onEnter handler guarantees exactly one send per terminal entry"). DESIGN.md
 // → UI constraints (end screens row): RETRY/CONTINUE reuse CONTINUE; the
-// act-6 doors row does not apply here — the slice ends at act 1.
+// act-6 doors row is the VAULT screen's (DESCEND / ANOTHER LAP), reached
+// before the run ends, so it never lands here.
+//
+// Phase 6a: what this screen reports is the seam's own `RunResult` — the act
+// and lap reached, the ascension it was run at, the clears, and what went into
+// the Vault — not a re-derivation. The score is the live view's (RunResult
+// carries no score; DESIGN.md → Score: "shown on the victory and death
+// screens ... never lost on death").
 //
 // The crypt stays on screen behind it: main.ts's shared scene pass, then
 // dimScene (the engine's terminal-screen overlay — GAME_OVER / WIN / PAUSED —
@@ -14,6 +21,7 @@
 import type { Audio, HitRegions, Input, Light, LightActor, PixelCanvas } from '../../engine';
 import { PICO8, dimScene } from '../../engine';
 import { CANVAS_W, CANVAS_H, CONTINUE, HUD_LARGE, HUD_PX, HUD_SMALL } from './layout';
+import { ACTS, VAULT_SIZE } from '../types';
 import { ACCENT, C_DEBUFF, KEY_LIGHT, drawPrimaryButton, hudText, hudTextCentered, hudWidth, withAlpha } from './hud';
 import type { ActorDrawState, ActorRecipe } from '../art/actors';
 import { ACTOR_RECIPES, ACTOR_W, actorHitRect, drawActor } from '../art/actors';
@@ -67,9 +75,9 @@ export interface EndScreenDeps {
   scene(drawWorld?: () => void, actors?: readonly LightActor[]): void;
   /** The shared scene layer — this screen only uses it for the survivors' contact shadows. */
   light: Light;
-  /** GAME_OVER's RETRY: start a fresh slice run. */
+  /** GAME_OVER's RETRY: a fresh run (the Vault face first, when there is anything in it to choose). */
   onRetry: () => void;
-  /** VICTORY's CONTINUE: restart the slice (there is no act 2 yet). */
+  /** VICTORY's CONTINUE: the same — the Vault has just been rewritten with what this run banked. */
   onContinue: () => void;
 }
 
@@ -166,18 +174,31 @@ export function createEndScreen(deps: EndScreenDeps): EndScreen {
         ctx.restore();
       }
 
-      hudTextCentered(ctx, `ACT 1   SCORE ${s.score}`, 0, SUMMARY_Y, CANVAS_W, HUD_PX, { color: C_DIM });
+      // The run's own report, not a second count of it.
+      const res = run.result();
+      const act = res ? res.actReached : 1;
+      const lap = res ? res.lap : 1;
+      const asc = res ? res.ascension : 0;
+      const summary = `ACT ${act} OF ${ACTS}   LAP ${lap}   A${asc}   SCORE ${s.score}`;
+      hudTextCentered(ctx, summary, 0, SUMMARY_Y, CANVAS_W, HUD_PX, { color: C_DIM });
       const verdict = won ? 'VICTORY' : 'GAME OVER';
       const vw = hudWidth(ctx, verdict, VERDICT_PX, 200);
       hudText(ctx, verdict, (CANVAS_W - vw) / 2, VERDICT_Y, { px: VERDICT_PX, weight: 200, color: accent });
-      // RETREAT is run.ts's own sentinel for a mid-battle QUIT (screens/battle.ts's `forfeit` tag,
-      // relayed through main.ts) — a player who walked away was not slain by anything and reads that
-      // line oddly credited to the pack they were fighting, so it gets its own verdict line instead.
-      const verdictLine = won ? 'ACT 1 CLEARED' : s.deathBy === 'RETREAT' ? 'YOU RETREATED' : `SLAIN BY ${s.deathBy.toUpperCase()}`;
+      // RETREAT is screens/run.ts's own sentinel for a mid-battle QUIT (screens/battle.ts's `forfeit`
+      // tag, which run.ts turns into a loss) — a player who walked away was not slain by anything and
+      // reads that line oddly credited to the pack they were fighting, so it gets its own line.
+      const verdictLine = won
+        ? lap > 1 ? `YOU DESCENDED AFTER ${lap} LAPS` : 'YOU DESCENDED'
+        : s.deathBy === 'RETREAT' ? 'YOU RETREATED' : `SLAIN BY ${s.deathBy.toUpperCase()}`;
       hudTextCentered(ctx, verdictLine, 0, LINE_Y, CANVAS_W, HUD_LARGE, {
         px: HUD_LARGE, color: C_TEXT,
       });
-      hudTextCentered(ctx, `ROOMS CLEARED ${s.roomsCleared} / ${run.rooms.length}`, 0, SUB_Y, CANVAS_W, HUD_SMALL, {
+      const rooms = res ? res.rooms.length : s.roomsCleared;
+      const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
+      const sub = res
+        ? `${plural(rooms, 'ROOM', 'ROOMS')}   ${plural(res.clears, 'CLEAR', 'CLEARS')}   ${plural(res.actsCleared, 'BOSS', 'BOSSES')}   VAULT ${res.banked.length} / ${VAULT_SIZE}`
+        : plural(rooms, 'ROOM', 'ROOMS');
+      hudTextCentered(ctx, sub, 0, SUB_Y, CANVAS_W, HUD_SMALL, {
         px: HUD_SMALL, color: C_DIM,
       });
 

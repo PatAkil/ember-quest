@@ -1,23 +1,34 @@
 // tools/capture.mjs — screenshots for the art loop. Needs the dev server up
-// (`npm run dev`, port 5173). Writes into tools/out/ (gitignored).
+// (`npm run dev`, port 5173, or CAPTURE_URL pointing at another one). Writes
+// into tools/out/ (gitignored).
 //
 //   node tools/capture.mjs                 # sheets + battle
 //   node tools/capture.mjs sheets          # line-ups (colour/grey/silhouette, x2 and x4) + every actor's pose sheet + metrics
 //   node tools/capture.mjs sheets actor=EMBER   # one actor's pose sheet only
-//   node tools/capture.mjs battle          # title, room card, battle frames, a hit, pause, inspect
+//   node tools/capture.mjs battle          # title, the opening (draft/summon/leader/map), a room card,
+//                                          # battle frames, a hit, pause, inspect
 //   node tools/capture.mjs phone           # the same battle frames on a phone viewport (touch)
-//   node tools/capture.mjs play            # a whole slice run through main.ts's dev state hook (window.__eq):
-//                                          # every room card, every card screen (offer + who-wears-it, or SKIP on
-//                                          # skip=1, or alternating on skip=alt), the boss battle, VICTORY or
-//                                          # GAME OVER -> play-*.png. Two more flags compose with any of the above:
-//                                          # phone=1 runs the SAME loop on a touch phone viewport (844x390,
-//                                          # dpr 3) -> phone-play-*.png; ko=1 sets party.members[2].hp = 1 right
-//                                          # after the first room card (before entering room 0's battle) via the
-//                                          # exact live-object mutation a QA driver would use, so a KO — the dead
-//                                          # pose, exclusion from targeting, KO_RETURN on a win — is forced into
-//                                          # the very first fight instead of relying on luck.
-//   node tools/capture.mjs shot url=/tools/vfx.html?skill=CINDER name=vfx-CINDER [selector=#sheet]
+//   node tools/capture.mjs playfull [acts=1] [phone=1] [ko=1] [seed=7]
+//                                          # A WHOLE ACT, played through the real screens. The driver reads
+//                                          # window.__eq.phase() / .pending() / .view() to know WHAT is up and
+//                                          # then acts by TAPPING CONTRACT GEOMETRY — never a dev decide() — so
+//                                          # what it proves is that every screen is reachable and answerable by
+//                                          # a player, not that the seam works. It writes playfull-*.png for
+//                                          # every distinct screen it passes (vault equip, draft, summon,
+//                                          # leader, map, each room card, battle, cards, wear, shrine/forge/
+//                                          # altar/rest, doors, bank, the end screen), a PLAYFULL OK line, and
+//                                          # playfull-decisions.json — the seed plus every answer given, which
+//                                          # is what replays a failure headlessly.
+//                                          # acts=1 stops at the act-1 clear; phone=1 runs the same loop on a
+//                                          # touch phone (844x390, dpr 3) -> phone-playfull-*.png; ko=1 drops
+//                                          # the last hero to hp 1 inside the first battle, so a KO — the dead
+//                                          # pose, exclusion from targeting, KO_RETURN on the win — is forced
+//                                          # rather than waited for. 16 minutes of budget per act.
+//   node tools/capture.mjs play            # the phase-4 slice driver retired with the slice: `play` is an
+//                                          # alias for `playfull acts=1` (skip=… no longer applies).
+//   node tools/capture.mjs shot url=/tools/vfx.html?skill=CINDER name=vfx-CINDER [selector=#sheet] [phone=1]
 //                                          # any dev page that sets window.__lineup.ready (or window.__ready) -> tools/out/<name>.png
+//                                          # phone=1 shoots it on the phone viewport (844x390, dpr 3)
 //
 // The game frames are read straight off the backing store (canvas.toDataURL),
 // so they are exact 1280x720 logical frames whatever the CSS fit; the sheets
@@ -39,6 +50,13 @@ for (const a of args) {
   else modes.add(a);
 }
 if (modes.size === 0) { modes.add('sheets'); modes.add('battle'); }
+// The phase-4 slice run is gone (screens/run.ts is an adapter over the real
+// seam now) and with it the loop `play` drove: one hard-coded five-room ladder
+// whose every screen was a card. The name survives as the alias the docs and
+// muscle memory expect.
+if (modes.has('play')) { modes.delete('play'); modes.add('playfull'); }
+
+const PHONE_VIEWPORT = { viewport: { width: 844, height: 390 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true };
 
 const HEROES = ['EMBER', 'GALE', 'TIDE', 'BASALT', 'SABLE', 'LUMEN'];
 const CRYPT = ['CINDER_IMP', 'ASH_HOUND', 'CRYPT_WARDEN', 'DUST_WRAITH', 'PYRE_KNIGHT', 'HOLLOW_KING'];
@@ -121,10 +139,12 @@ async function canvasBox(page) {
   if (!box) throw new Error('no game canvas');
   return box;
 }
-// --- the contract's geometry, mirrored (game/screens/layout.ts) -----------------
-// The battle screen dropped the enemy panel column: an enemy is tapped on its
-// SPRITE now, and the command list is three compact rows bottom-left instead of
-// three slabs across the bottom. These are the same numbers layout.ts exports.
+
+// --- the contract's geometry, mirrored (game/screens/layout.ts, plus the
+// phase-5 screens' own `// promote to layout.ts` constants) -------------------
+// The driver below NEVER calls a dev decide(): every answer it gives is a tap
+// at one of these rects, so a screen that draws its button somewhere else, or
+// registers it disabled, stalls the run and the mode fails. That is the point.
 const ENEMY_FEET = [[230, 380], [330, 448], [430, 516]];
 const ENEMY_FEET_PAIR = [[206, 400], [452, 504]];
 const BOSS_FEET = [322, 490];
@@ -138,8 +158,7 @@ function enemyTap(count, i) {
  * desktop and 56 tall stacked up from y 680 on a phone (layout.ts's
  * skillRowRect), with an 8-px gap either way. Without the phone branch every
  * tap landed in a gutter — skillTap(0) = (184, 556) sits between phone row 1
- * (496-552) and row 2 (560-616) — and `play phone=1` spun forever on a
- * cooldown, writing three frames in sixteen minutes.
+ * (496-552) and row 2 (560-616) — and the run spun forever on a cooldown.
  */
 function skillTap(i, phone) {
   const h = phone ? 56 : 40;
@@ -150,6 +169,66 @@ function skillTap(i, phone) {
 function heroPanelTap(i) {
   return [1116, [148, 264, 380][i]];
 }
+/** CONTINUE / SKIP / WALK PAST / FULL HEAL — one seat, (448, 552, 384, 96). */
+const CONTINUE_TAP = [640, 600];
+/** WEAR_BTN 280x96 at WEAR_X 40/344/648/952, y 552 — the wear row, the FORGE's modes, the ascension stepper. */
+const WEAR_TAP = [[180, 600], [484, 600], [788, 600], [1092, 600]];
+/** PARTY_SWAP / PARTY_LEADER / PARTY_BACK share those seats: 0, 1 and 3. */
+const PARTY_BACK_TAP = WEAR_TAP[3];
+/** The pause icon's hit rect, (1176, 0, 96, 96). */
+const PAUSE_TAP = [1224, 48];
+/** dimScene's three PAUSE_BTN 400x96 at x 440, y 216/336/456. */
+const PAUSE_BTN_TAP = [[640, 264], [640, 384], [640, 504]];
+/** The card slots: CARD_W 384 at CARD_X 40/448/856, CARD_Y 88, h 440. */
+const CARD_X = [40, 448, 856];
+const CARD_MID_TAP = [CARD_X[1] + 192, 88 + 220];
+const CARD_ROW_Y = 308;
+/** DRAFT_CARD 284x136 at DRAFT_X 48/348/648/948, DRAFT_Y 88/240/392 — the draft grid, and the Vault's chips. */
+const DRAFT_X = [48, 348, 648, 948];
+const DRAFT_Y = [88, 240, 392];
+/** draft.ts's `draftSlotRect`: row-major over the four columns at `DRAFT_PITCH = 300`, a short row centred on the CANVAS. */
+const DRAFT_PITCH = DRAFT_X[1] - DRAFT_X[0];
+function draftSlotTap(k, count) {
+  const row = Math.min(2, Math.floor(k / 4));
+  const inRow = Math.max(1, Math.min(4, count - row * 4));
+  const span = inRow * 284 + (inRow - 1) * (DRAFT_PITCH - 284);
+  const start = Math.round((1280 - span) / 2);
+  return [start + (k % 4) * DRAFT_PITCH + 142, DRAFT_Y[row] + 68];
+}
+/** The EPIC's own seat on a full SUMMON: the fourth column of the top row. */
+const EPIC_TAP = [DRAFT_X[3] + 142, DRAFT_Y[0] + 68];
+/** MAP_NODE 96 at MAP_X = 88 + 208 x stage, MAP_Y = 168 + 144 x row; a short stage is centred over three rows. */
+const STAGE_SIZES = [2, 3, 1, 3, 2];
+function mapRow(size, i) {
+  if (size >= 3) return i;
+  if (size === 2) return i * 2;
+  return 1;
+}
+function mapNodeTap(stage, i) {
+  const size = stage >= STAGE_SIZES.length ? 1 : (STAGE_SIZES[stage] ?? 1);
+  return [88 + 208 * stage + 48, 168 + 144 * mapRow(size, i) + 48];
+}
+/** PARTY_ROW 64 from y 128 in the card columns, and the whole column (head included) from y 56. */
+function partyRowTap(m, row) {
+  return [CARD_X[m] + 192, 128 + row * 64 + 32];
+}
+function partyColTap(m) {
+  return [CARD_X[m] + 192, 56 + 228];
+}
+/** The Vault's ascension stepper, one control on the foot row: ASC_DOWN (40, 552, 96, 96), ASC_UP (352, 552, 96, 96). */
+const ASC_DOWN_TAP = [88, 600];
+const ASC_UP_TAP = [400, 600];
+/** DOOR 520x200 at DOOR_X 96/664, DOOR_Y 320 — DESCEND and ANOTHER LAP. */
+const DOOR_TAP = [[356, 420], [924, 420]];
+/** Card centre x for n offered cards — cards.ts's cardXs: the 3-up/4-up rows verbatim, 1-2 centred. */
+function cardCentres(n) {
+  if (n >= 4) return [48, 348, 648, 948].map((x) => x + 142);
+  if (n === 3) return [40, 448, 856].map((x) => x + 192);
+  const gap = 24;
+  const total = n * 384 + (n - 1) * gap;
+  const start = 640 - total / 2;
+  return Array.from({ length: n }, (_, i) => Math.round(start + i * (384 + gap) + 192));
+}
 
 /** Tap at LOGICAL (1280x720) coordinates whatever the CSS fit. */
 async function tap(page, lx, ly, touch) {
@@ -159,6 +238,7 @@ async function tap(page, lx, ly, touch) {
   if (touch) await page.touchscreen.tap(x, y);
   else await page.mouse.click(x, y);
 }
+const tapAt = (page, xy, touch) => tap(page, xy[0], xy[1], touch);
 async function frame(page, name) {
   const data = await page.evaluate(() => document.querySelector('#screen canvas').toDataURL('image/png'));
   writeFileSync(`${OUT}/${name}.png`, Buffer.from(data.split(',')[1], 'base64'));
@@ -167,23 +247,369 @@ async function wait(page, ms) {
   await page.waitForTimeout(ms);
 }
 
-async function battle(page, prefix, touch, phone = touch) {
-  await page.goto(`${BASE}/`, { waitUntil: 'load' });
+// --- the dev state hook ------------------------------------------------------------
+// game/main.ts exposes window.__eq in dev builds only: .phase() is the router's
+// own key (which screen owns the frame), .pending() a JSON-safe summary of the
+// decision the seam is standing on, .view() the run, .node()/.vault() what a
+// multi-step screen believes its step is. Everything below reads those and
+// answers with taps.
+async function eqRead(page) {
+  const read = () => page.evaluate(() => ({
+    scene: window.__eq.scene(),
+    phase: window.__eq.phase ? window.__eq.phase() : null,
+    pending: window.__eq.pending ? window.__eq.pending() : null,
+    view: window.__eq.view ? window.__eq.view() : null,
+    run: window.__eq.run(),
+    node: window.__eq.node ? window.__eq.node() : null,
+    vault: window.__eq.vault ? window.__eq.vault() : null,
+    battle: window.__eq.battle(),
+    // Whose turn it is, and just enough of the live sim Battle to act on it (cooldowns, who is still
+    // alive) without shipping the whole heroes/enemies/log payload across the bridge on every poll.
+    actor: window.__eq.battleActor ? window.__eq.battleActor() : null,
+    tactics: window.__eq.battleObj ? (() => {
+      const b = window.__eq.battleObj();
+      if (!b) return null;
+      // SILENCE is why cooldowns alone are not legality: sim/battle.ts's
+      // isSkillLegal() blocks every slot ABOVE 0 while a hero is silenced, so a
+      // driver that picks by cooldown taps a disabled row and spins there for
+      // the rest of the run. Slot 0 is always legal, so the flag is enough.
+      return {
+        heroIds: b.heroes.map((h) => h.def.id),
+        heroCooldowns: b.heroes.map((h) => h.cooldowns),
+        heroSilenced: b.heroes.map((h) => h.statuses.some((st) => st.kind === 'SILENCE')),
+        heroAlive: b.heroes.map((h) => h.alive),
+        enemiesAlive: b.enemies.map((e) => e.alive),
+      };
+    })() : null,
+  }));
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await read();
+    } catch {
+      // A hot reload while another writer saves destroys the context mid-poll: re-attach.
+      await page.waitForFunction(() => typeof window.__eq === 'object' && window.__eq !== null, null, { timeout: 20000 });
+      await wait(page, 600);
+    }
+  }
+  return null;
+}
+
+/** The mutable state one drive carries: what it has shot, what it has already done once, and the battle back-off. */
+function newDriver(o = {}) {
+  return {
+    touch: !!o.touch,
+    phone: !!o.phone,
+    prefix: o.prefix ?? '',
+    ko: !!o.ko,
+    shoot: o.shoot ?? false,
+    shot: new Set(),
+    log: [],
+    shrineTaken: false,
+    vaultPicked: false,
+    koForced: false,
+    skillTurn: 0,
+    /**
+     * The battle back-off, keyed to a TURN and not to an actor. The old version
+     * compared `s.actor` (a hero id) against the last HERO_SKILL poll and never
+     * reset on a committed turn, so several polls inside one slow turn — or two
+     * consecutive turns by the same fast hero — both read as "stuck" and walked
+     * the skill slot down to 0. On a phone (dpr 3, a slower frame) many more
+     * polls fall inside one turn, so the same run played differently there than
+     * on a desktop. `turnSerial` ticks over whenever the battle phase LEAVES the
+     * hero's half of a turn (HERO_SKILL / HERO_TARGET -> anything else), which
+     * is exactly "a turn was committed", and the key is `${turnSerial}:${actor}`.
+     */
+    turnSerial: 0,
+    prevBattlePhase: null,
+    lastSkillKey: '',
+    stuckSkill: 0,
+  };
+}
+
+/** Keeps the turn identity the battle back-off is keyed to. Call once per poll. */
+function noteBattlePhase(d, s) {
+  const inHeroHalf = (ph) => ph === 'HERO_SKILL' || ph === 'HERO_TARGET';
+  if (inHeroHalf(d.prevBattlePhase) && !inHeroHalf(s.battle)) d.turnSerial += 1;
+  d.prevBattlePhase = s.battle;
+}
+
+/** One frame per distinct screen, at most once, after a settle delay. */
+async function once(page, d, name, ms = 0) {
+  if (!d.shoot || d.shot.has(name)) return;
+  d.shot.add(name);
+  if (ms) await wait(page, ms);
+  await frame(page, `${d.prefix}${name}`);
+}
+
+/** The battle half of a step: pick a skill, pick a target, or wait out the playback. */
+async function stepBattle(page, d, s) {
+  if (s.battle === 'HERO_SKILL') {
+    // Cooldown-aware so a tanky boss (Hollow King: ~4-5x a normal enemy's HP) actually gets cleared
+    // within the deadline instead of repeatedly tapping a disabled (on-cooldown) button: prefer the
+    // strongest legal skill (highest index) for every hero except a healer, whose other two slots would
+    // stall the kill. The roster is not fixed any more (you draft it), so a hero's slot in the party
+    // comes from the live battle rather than a hard-coded order.
+    const ids = s.tactics?.heroIds ?? [];
+    const heroIdx = ids.indexOf(s.actor);
+    let slot = d.skillTurn++ % 3; // no tactics this poll (a mid-poll race): fall back to cycling
+    const cds = s.tactics?.heroCooldowns?.[heroIdx];
+    const silenced = s.tactics?.heroSilenced?.[heroIdx] === true;
+    if (cds) {
+      slot = 0;
+      if (!silenced && s.actor !== 'TIDE') for (let k = 2; k >= 0; k--) if (cds[k] === 0) { slot = k; break; }
+    }
+    // ...and a belt to the braces: if THIS TURN has not moved on since the last
+    // poll, step DOWN toward slot 0 (always legal) rather than tapping the same
+    // disabled row until the deadline. It resets the moment a turn commits.
+    const key = `${d.turnSerial}:${s.actor}`;
+    if (key === d.lastSkillKey) d.stuckSkill += 1;
+    else { d.lastSkillKey = key; d.stuckSkill = 0; }
+    if (d.stuckSkill > 0) slot = Math.max(0, slot - d.stuckSkill);
+    await tap(page, ...skillTap(slot, d.phone), d.touch); // an illegal skill is a disabled region: a no-op
+    await wait(page, 220);
+    return;
+  }
+  if (s.battle === 'HERO_TARGET') {
+    // The first LIVING enemy, not a blind cycle — a dead enemy is not a target (a no-op), and with
+    // 1-2 enemies already down a blind 3-way cycle wastes most of its taps on corpses.
+    const alive = s.tactics?.enemiesAlive;
+    const count = alive ? alive.length : 3;
+    const idx = alive ? alive.findIndex((a) => a) : 0;
+    await tapAt(page, enemyTap(count, idx < 0 ? 0 : idx), d.touch);
+    await wait(page, 260);
+    return;
+  }
+  await wait(page, 160);
+}
+
+/**
+ * ONE step of the run, whatever screen is up: read what is standing, answer it
+ * with a tap at the contract's own geometry. Returns the phase it acted on, or
+ * 'END' once the run is over, so a caller can stop where it likes.
+ */
+async function stepOnce(page, d, s) {
+  if (s.scene === 'TITLE') {
+    await once(page, d, 'playfull-title', 300);
+    await tap(page, 640, 400, d.touch); // START (the full-canvas twin)
+    await wait(page, 500);
+    return 'TITLE';
+  }
+  if (s.scene === 'GAME_OVER' || s.scene === 'WIN') {
+    await once(page, d, `playfull-end-${s.scene}`, 600);
+    return 'END';
+  }
+  if (s.scene === 'PAUSED') {
+    await once(page, d, 'playfull-paused', 250);
+    await tapAt(page, PAUSE_BTN_TAP[0], d.touch); // RESUME
+    await wait(page, 300);
+    return 'PAUSED';
+  }
+
+  const phase = s.phase;
+  const p = s.pending ?? {};
+  switch (phase) {
+    case 'PRE_VAULT': {
+      await once(page, d, 'playfull-vault-equip', 400);
+      if (!d.vaultPicked && (p.options ?? 0) > 0 && (p.slots ?? 0) > 0) {
+        d.vaultPicked = true;
+        await tapAt(page, draftSlotTap(0, p.options), d.touch);
+        await wait(page, 220);
+        // One step up the ascension too, so the stepper and its floor are
+        // exercised rather than only drawn (a Vault relic worn IS a floor).
+        await tapAt(page, ASC_UP_TAP, d.touch);
+        await wait(page, 200);
+        await once(page, d, 'playfull-vault-equip-picked', 200);
+      }
+      await tapAt(page, CONTINUE_TAP, d.touch); // BEGIN THE RUN
+      await wait(page, 500);
+      return phase;
+    }
+    case 'DRAFT': {
+      await once(page, d, 'playfull-draft', 400);
+      await tapAt(page, draftSlotTap(0, p.options ?? 6), d.touch);
+      await wait(page, 220);
+      await tapAt(page, CONTINUE_TAP, d.touch);
+      await wait(page, 400);
+      return phase;
+    }
+    case 'SUMMON': {
+      await once(page, d, p.full ? 'playfull-summon-full' : 'playfull-summon', 400);
+      // A full party: TAKE THE EPIC (the seam's own answer 0) — a RELIC card with
+      // source SUMMON follows. Otherwise: recruit the first offer.
+      await tapAt(page, p.full ? EPIC_TAP : draftSlotTap(0, p.options ?? 3), d.touch);
+      await wait(page, 220);
+      await tapAt(page, CONTINUE_TAP, d.touch);
+      await wait(page, 400);
+      return phase;
+    }
+    case 'LEADER': {
+      await once(page, d, 'playfull-leader', 400);
+      await tapAt(page, PARTY_BACK_TAP, d.touch); // KEEP <name> — the seam's own default
+      await wait(page, 350);
+      return phase;
+    }
+    case 'PARTY': {
+      await once(page, d, 'playfull-party', 350);
+      await tapAt(page, PARTY_BACK_TAP, d.touch); // BACK
+      await wait(page, 300);
+      return phase;
+    }
+    case 'ROUTE': {
+      await once(page, d, `playfull-map-act${s.view?.act ?? 1}`, 400);
+      const idxs = p.offeredIdxs ?? [0];
+      await tapAt(page, mapNodeTap(p.stage ?? 0, idxs[0] ?? 0), d.touch);
+      await wait(page, 450);
+      return phase;
+    }
+    case 'ROOM': {
+      await once(page, d, `playfull-room-${s.run?.room ?? 'FIGHT'}`, 350);
+      await tapAt(page, CONTINUE_TAP, d.touch);
+      await wait(page, 450);
+      return phase;
+    }
+    case 'BATTLE': {
+      const boss = p.source === 'BOSS';
+      await once(page, d, boss ? 'playfull-battle-boss' : `playfull-battle-${p.source ?? 'FIGHT'}`, boss ? 1200 : 900);
+      if (d.ko && !d.koForced && (s.tactics?.heroIds?.length ?? 0) > 1) {
+        d.koForced = true;
+        // The LIVE Battle's own Actor, which is what the turn loop reads — the
+        // run view is a per-token clone now, so writing to it would change nothing.
+        await page.evaluate(() => {
+          const b = window.__eq.battleObj();
+          if (b && b.heroes.length) b.heroes[b.heroes.length - 1].hp = 1;
+        });
+        d.log.push('ko=1: the last hero dropped to hp 1 inside the first battle');
+      }
+      if (d.ko && !d.shot.has('playfull-ko-dead-pose') && (s.tactics?.heroAlive ?? []).some((a) => !a)) {
+        await once(page, d, 'playfull-ko-dead-pose');
+      }
+      await stepBattle(page, d, s);
+      return phase;
+    }
+    case 'CARDS': {
+      const src = s.run?.cardSource ?? 'FIGHT';
+      const n = p.cards ?? 1;
+      const first = !d.shot.has(`playfull-cards-${src}`);
+      await once(page, d, `playfull-cards-${src}`, 400);
+      await tap(page, cardCentres(n)[0], CARD_ROW_Y, d.touch); // the first card -> who-wears-it
+      if (first) await once(page, d, `playfull-wear-${src}`, 450);
+      else await wait(page, 250);
+      await tapAt(page, WEAR_TAP[0], d.touch); // wear it on member 0
+      await wait(page, 600);
+      return phase;
+    }
+    case 'SHRINE': {
+      await once(page, d, 'playfull-shrine', 400);
+      // Take the first pact on offer, then walk past every later one — both
+      // answers get exercised, and the run picks up a curse to live with.
+      if (!d.shrineTaken) {
+        d.shrineTaken = true;
+        await tapAt(page, CARD_MID_TAP, d.touch); // the pact card = accept
+      } else {
+        await tapAt(page, CONTINUE_TAP, d.touch); // SKIP = walk past
+      }
+      await wait(page, 450);
+      return phase;
+    }
+    case 'FORGE': {
+      const step = s.node?.step ?? 'MAIN';
+      await once(page, d, 'playfull-forge', 400);
+      if (step === 'MAIN') {
+        const level = (p.options ?? []).find((o) => o.mode === 'LEVEL');
+        const cell = level ? (p.cells ?? [])[level.relic] : null;
+        if (!cell) { await tapAt(page, WEAR_TAP[3], d.touch); await wait(page, 400); return phase; } // WALK PAST
+        await tapAt(page, partyRowTap(cell.m, cell.row), d.touch);
+        await wait(page, 300);
+        await once(page, d, 'playfull-forge-mode', 250);
+        await tapAt(page, WEAR_TAP[0], d.touch); // LEVEL +n
+        await wait(page, 450);
+        return phase;
+      }
+      if (step === 'MODE') { await tapAt(page, WEAR_TAP[0], d.touch); await wait(page, 400); return phase; }
+      await tapAt(page, WEAR_TAP[3], d.touch); // RECAST/REBRAND: walk past rather than commit blind
+      await wait(page, 400);
+      return phase;
+    }
+    case 'ALTAR': {
+      await once(page, d, 'playfull-altar', 400);
+      const m = (p.candidates ?? [0])[0] ?? 0;
+      await tapAt(page, partyColTap(m), d.touch);
+      await wait(page, 250);
+      await once(page, d, 'playfull-altar-picked', 200);
+      await tapAt(page, CONTINUE_TAP, d.touch);
+      await wait(page, 450);
+      return phase;
+    }
+    case 'REST': {
+      await once(page, d, 'playfull-rest', 400);
+      await tapAt(page, CONTINUE_TAP, d.touch); // FULL HEAL — the seam's own default
+      await wait(page, 450);
+      return phase;
+    }
+    case 'LAP': {
+      await once(page, d, 'playfull-doors', 500);
+      await tapAt(page, DOOR_TAP[0], d.touch); // DESCEND
+      await wait(page, 500);
+      return phase;
+    }
+    case 'BANK': {
+      const dropping = s.vault?.step === 'DROP';
+      await once(page, d, dropping ? 'playfull-bank-drop' : 'playfull-bank', 500);
+      if (dropping) {
+        await tapAt(page, draftSlotTap(0, p.vault ?? 1), d.touch); // drop the first Vault chip
+        await wait(page, 250);
+      } else {
+        const cell = (p.cells ?? [])[0];
+        if (cell) {
+          await tapAt(page, partyRowTap(cell.m, cell.row), d.touch);
+          await wait(page, 250);
+          await once(page, d, 'playfull-bank-picked', 200);
+        }
+      }
+      await tapAt(page, CONTINUE_TAP, d.touch);
+      await wait(page, 450);
+      return phase;
+    }
+    default:
+      await wait(page, 200);
+      return phase ?? 'NONE';
+  }
+}
+
+async function openGame(page, seed) {
+  const url = seed ? `${BASE}/?seed=${encodeURIComponent(seed)}` : `${BASE}/`;
+  await page.goto(url, { waitUntil: 'load' });
   await page.waitForSelector('#screen canvas', { state: 'attached', timeout: 15000 });
+  await page.waitForFunction(() => typeof window.__eq === 'object' && window.__eq !== null, null, { timeout: 15000 });
   await wait(page, 600);
+}
+
+// --- battle: the art loop's frames, over the real opening --------------------------
+async function battle(page, prefix, touch, phone = touch) {
+  await openGame(page, opts.seed);
   await frame(page, `${prefix}title`);
-  await tap(page, 640, 400, touch); // START (the full-canvas twin)
-  await wait(page, 400);
-  await frame(page, `${prefix}room-card`);
-  await tap(page, 640, 600, touch); // CONTINUE
-  await wait(page, 900);
+  // The run no longer starts at a room card: drive the real opening (draft ->
+  // summon -> leader -> map -> room card) with the same tap-only driver, then
+  // take this mode's own frames once a fight is on.
+  const d = newDriver({ touch, phone, prefix });
+  for (let i = 0; i < 400; i++) {
+    const s = await eqRead(page);
+    if (!s) break;
+    noteBattlePhase(d, s);
+    if (s.phase === 'ROOM' && !d.shot.has('room-card')) {
+      d.shot.add('room-card');
+      await wait(page, 300);
+      await frame(page, `${prefix}room-card`);
+    }
+    if (s.phase === 'BATTLE') break;
+    if (await stepOnce(page, d, s) === 'END') break;
+  }
+  await wait(page, 500);
   await frame(page, `${prefix}battle-0`);
   await wait(page, 1500);
   await frame(page, `${prefix}battle-1`);
   // A hero's turn may or may not be up: try skill 1 on enemy 0 a few times and
-  // snapshot right after, so at least one frame carries a hit and its VFX. Three
-  // rounds, not five: with the taps landing on the sprites the pack now dies
-  // inside five, and the pause/inspect frames below never got taken.
+  // snapshot right after, so at least one frame carries a hit and its VFX.
   // Timing: the HIT event fires one CAST beat (0.16 s) after the target tap and
   // its effect lives ~0.3-0.5 s, so the burst below samples early, mid and late life.
   const packSize = await page.evaluate(() => {
@@ -193,7 +619,7 @@ async function battle(page, prefix, touch, phone = touch) {
   for (let i = 0; i < 3; i++) {
     await tap(page, ...skillTap(0, phone), touch); // command row 1
     await wait(page, 120);
-    await tap(page, ...enemyTap(packSize, 0), touch); // enemy 0's sprite = target
+    await tapAt(page, enemyTap(packSize, 0), touch); // enemy 0's sprite = target
     await wait(page, 200);
     await frame(page, `${prefix}battle-hit-${i}a`);
     await wait(page, 70);
@@ -203,27 +629,28 @@ async function battle(page, prefix, touch, phone = touch) {
     await wait(page, 800);
   }
   await frame(page, `${prefix}battle-2`);
-  // Pause overlay and the inspect overlay — only while the battle is still on
-  // (a dev build exposes window.__eq; without it the taps are best effort).
+  // Pause overlay and the inspect overlay — only while the battle is still on.
   const stillFighting = async () => page.evaluate(() => {
     const eq = window.__eq;
-    return !eq || (eq.run() && eq.run().phase === 'BATTLE');
+    return !eq || !eq.phase || eq.phase() === 'BATTLE';
   }).catch(() => true);
-  // The taps land on the sprites now, so room 0 can be WON inside the burst
+  // The taps land on the sprites now, so the room can be WON inside the burst
   // above. Walk on to the next room's battle rather than skipping the two
   // overlay frames, which are the whole point of this mode.
   let inBattle = await stillFighting();
-  for (let i = 0; i < 3 && !inBattle; i++) {
-    await tap(page, 640, 600, touch); // CONTINUE / SKIP — whichever card is up
-    await wait(page, 900);
+  for (let i = 0; i < 60 && !inBattle; i++) {
+    const s = await eqRead(page);
+    if (!s) break;
+    noteBattlePhase(d, s);
+    if (await stepOnce(page, d, s) === 'END') break;
     inBattle = await stillFighting();
   }
   if (inBattle) {
     await wait(page, 600);
-    await tap(page, 1224, 48, touch); // pause icon
+    await tapAt(page, PAUSE_TAP, touch); // pause icon
     await wait(page, 300);
     await frame(page, `${prefix}battle-paused`);
-    await tap(page, 640, 264, touch); // RESUME
+    await tapAt(page, PAUSE_BTN_TAP[0], touch); // RESUME
     await wait(page, 300);
     await tap(page, ...heroPanelTap(0), touch); // hero panel 0 -> inspect (outside target mode)
     await wait(page, 300);
@@ -231,7 +658,7 @@ async function battle(page, prefix, touch, phone = touch) {
     await tap(page, 1136, 600, touch); // BACK
     await wait(page, 200);
   } else {
-    console.log('battle ended before the pause/inspect frames; run `play` for the later screens');
+    console.log('battle ended before the pause/inspect frames; run `playfull` for the later screens');
   }
 }
 
@@ -242,7 +669,7 @@ if (modes.has('battle')) {
   await page.close();
 }
 if (modes.has('phone')) {
-  const ctx = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+  const ctx = await browser.newContext(PHONE_VIEWPORT);
   const page = await ctx.newPage();
   watch(page);
   await battle(page, 'phone-', true);
@@ -251,188 +678,105 @@ if (modes.has('phone')) {
   await ctx.close();
 }
 
-// --- a whole slice run, steered by the dev state hook ------------------------------
-// main.ts exposes window.__eq = { scene(), run(), battle() } in dev builds only. The
-// loop below reads it every step and answers with taps at the contract's geometry:
-// CONTINUE (448,552 384x96), the command list (three 320x40 rows bottom-left,
-// skillTap above), the enemies' own SPRITES (enemyTap above — there is no enemy
-// panel column any more), the cards (CARD_X / centred rows), the who-wears-it
-// buttons (WEAR_X 40/344/648/952 at y 552) and SKIP (= CONTINUE).
-async function eqState(page) {
-  const read = () => page.evaluate(() => ({
-    scene: window.__eq.scene(), run: window.__eq.run(), battle: window.__eq.battle(),
-    // Whose turn it is, and just enough of the live sim Battle to act on it (cooldowns, who's still
-    // alive) without shipping the whole heroes/enemies/log payload across the bridge every poll.
-    actor: window.__eq.battleActor ? window.__eq.battleActor() : null,
-    tactics: window.__eq.battleObj ? (() => {
-      const b = window.__eq.battleObj();
-      if (!b) return null;
-      // SILENCE is why cooldowns alone are not legality: sim/battle.ts's
-      // isSkillLegal() blocks every slot ABOVE 0 while a hero is silenced, so a
-      // driver that picks by cooldown taps a disabled row and spins there for
-      // the rest of the run. Slot 0 is always legal, so the flag is enough.
-      return {
-        heroCooldowns: b.heroes.map((h) => h.cooldowns),
-        heroSilenced: b.heroes.map((h) => h.statuses.some((st) => st.kind === 'SILENCE')),
-        enemiesAlive: b.enemies.map((e) => e.alive),
-      };
-    })() : null,
-  }));
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      return await read();
-    } catch (e) {
-      // A hot reload while another writer saves destroys the context mid-poll: re-attach.
-      await page.waitForFunction(() => typeof window.__eq === 'object' && window.__eq !== null, null, { timeout: 20000 });
-      await wait(page, 600);
-    }
-  }
-  return null;
-}
-/** Card centre x for n offered cards — layout.ts's cardXs: 3-up/4-up rows verbatim, 1-2 centred. */
-function cardCentres(n) {
-  if (n >= 4) return [48, 348, 648, 948].map((x) => x + 142);
-  if (n === 3) return [40, 448, 856].map((x) => x + 192);
-  const gap = 24;
-  const total = n * 384 + (n - 1) * gap;
-  const start = 640 - total / 2;
-  return Array.from({ length: n }, (_, i) => Math.round(start + i * (384 + gap) + 192));
-}
-const CARD_COUNT = { FIGHT: 1, ELITE: 3, LOOT: 2, BOSS: 3, SUMMON: 1 };
-
-async function play(page, prefix, touch, phone = touch) {
-  await page.goto(`${BASE}/`, { waitUntil: 'load' });
-  await page.waitForSelector('#screen canvas', { state: 'attached', timeout: 15000 });
-  await page.waitForFunction(() => typeof window.__eq === 'object' && window.__eq !== null, null, { timeout: 15000 });
-  await wait(page, 600);
-  const shot = new Set();
-  let koForced = false;
-  const once = async (name, ms = 0) => {
-    if (shot.has(name)) return;
-    shot.add(name);
-    if (ms) await wait(page, ms);
-    await frame(page, `${prefix}${name}`);
-  };
-  let skillTurn = 0;
-  let targetTurn = 0;
-  /** Whose HERO_SKILL prompt the last tap was aimed at, and how many polls it has failed to clear. */
-  let lastSkillActor = null;
-  let stuckSkill = 0;
-  let cardsSeen = 0;
-  const deadline = Date.now() + 16 * 60 * 1000; // a boss fight is ~45 actor turns of paced playback
-  for (let i = 0; i < 12000 && Date.now() < deadline; i++) {
-    const s = await eqState(page);
+// --- playfull: a whole act, screen by screen ---------------------------------------
+async function playfull(page, prefix, touch, phone, acts) {
+  await openGame(page, opts.seed);
+  const d = newDriver({ touch, phone, prefix, ko: opts.ko === '1', shoot: true });
+  const deadline = Date.now() + acts * 16 * 60 * 1000; // a boss fight is ~45 actor turns of paced playback
+  let ended = false;
+  let cleared = false;
+  // A heartbeat, so a stalled mode says WHERE it stalled while it is stalling
+  // rather than sixteen minutes later: one line per screen the run moves to,
+  // and one a minute if it moves to none.
+  const t0 = Date.now();
+  let lastTag = '';
+  let lastLog = 0;
+  for (let i = 0; i < 40000 && Date.now() < deadline; i++) {
+    const s = await eqRead(page);
     if (!s) break;
-    const phase = s.run?.phase;
-    if (s.scene === 'TITLE') {
-      await once('play-title');
-      await tap(page, 640, 400, touch);
-      await wait(page, 500);
-    } else if (s.scene === 'GAME_OVER' || s.scene === 'WIN') {
-      await once(`play-end-${s.scene}`, 500);
-      break;
-    } else if (phase === 'ROOM') {
-      if (opts.ko === '1' && !koForced && s.run.roomIndex === 0) {
-        koForced = true;
-        // The exact live-object mutation a QA driver uses: run().party is the LIVE Party the next
-        // beginBattle() reads hp from, so this is set once, before the room's own CONTINUE tap.
-        await page.evaluate(() => { window.__eq.run().party.members[2].hp = 1; });
-        console.log('  ko=1: forced party.members[2] (the third slot) to hp=1 before room 0\'s battle');
-      }
-      await once(`play-room-${s.run.roomIndex}-${s.run.room}`, 300);
-      await tap(page, 640, 600, touch);
-      await wait(page, 700);
-    } else if (phase === 'BATTLE') {
-      if (s.run.room === 'BOSS') await once('play-battle-boss', 1400);
-      else await once(`play-battle-${s.run.roomIndex}`, 1000);
-      if (opts.ko === '1' && !shot.has('play-ko-dead-pose')) {
-        const dead = await page.evaluate(() => {
-          const b = window.__eq.battleObj ? window.__eq.battleObj() : null;
-          return !!b && b.heroes.some((h) => !h.alive);
-        }).catch(() => false);
-        if (dead) await once('play-ko-dead-pose');
-      }
-      if (s.battle === 'HERO_SKILL') {
-        // Cooldown-aware so a tanky boss (Hollow King: ~4-5x a normal enemy's HP) actually gets cleared
-        // within this loop's deadline instead of repeatedly tapping a disabled (on-cooldown) button: prefer
-        // the strongest legal skill (highest index) for every hero except the party's healer, who only
-        // has one damaging skill (slot 0) — the two heals/buffs on its other slots would stall the kill.
-        const heroIdx = ['EMBER', 'GALE', 'TIDE'].indexOf(s.actor); // fixed slice roster/slot order
-        let slot = skillTurn++ % 3; // no tactics info this poll (older build, or a mid-poll race): fall back to cycling
-        const cds = s.tactics?.heroCooldowns?.[heroIdx];
-        const silenced = s.tactics?.heroSilenced?.[heroIdx] === true;
-        if (cds) {
-          slot = 0;
-          if (!silenced && s.actor !== 'TIDE') for (let k = 2; k >= 0; k--) if (cds[k] === 0) { slot = k; break; }
-        }
-        // ...and a belt to the braces: if the turn did not move on the last two
-        // polls, step DOWN toward slot 0 (always legal) rather than tapping the
-        // same disabled row for the rest of the deadline.
-        if (s.actor === lastSkillActor) { stuckSkill += 1; slot = Math.max(0, slot - stuckSkill); } else { stuckSkill = 0; }
-        lastSkillActor = s.actor;
-        await tap(page, ...skillTap(slot, phone), touch); // an illegal skill is a disabled region: a no-op
-        await wait(page, 220);
-      } else if (s.battle === 'HERO_TARGET') {
-        // The first LIVING enemy, not a blind cycle — a dead enemy's panel is disabled (a no-op), and with
-        // 1-2 enemies already down a blind 3-way cycle wastes most of its taps on corpses.
-        const alive = s.tactics?.enemiesAlive;
-        const count = alive ? alive.length : 3;
-        const idx = alive ? alive.findIndex((a) => a) : targetTurn++ % count;
-        await tap(page, ...enemyTap(count, idx < 0 ? 0 : idx), touch);
-        await wait(page, 260);
-      } else {
-        await wait(page, 160);
-      }
-    } else if (phase === 'CARDS') {
-      const src = s.run.cardSource ?? 'FIGHT';
-      const n = CARD_COUNT[src] ?? 1;
-      const name = `play-cards-${src}-${n}`;
-      const skip = opts.skip === '1' || (opts.skip === 'alt' && cardsSeen % 2 === 1);
-      cardsSeen += 1;
-      if (!shot.has(name)) {
-        await once(name, 350);
-        if (!skip) {
-          await tap(page, cardCentres(n)[0], 308, touch); // the first card -> who-wears-it
-          await once(`play-wear-${src}`, 450);
-          await tap(page, 180, 600, touch); // wear it on member 0
-        } else {
-          await tap(page, 640, 600, touch); // SKIP
-        }
-        await wait(page, 600);
-      } else {
-        // The same screen again (another FIGHT drop): keep the run moving without re-shooting it.
-        await tap(page, 640, 600, touch);
-        await wait(page, 500);
-      }
-    } else {
-      await wait(page, 200);
+    noteBattlePhase(d, s);
+    const tag = `${s.scene}/${s.phase}${s.phase === 'BATTLE' ? `:${s.battle}` : ''}`;
+    if (tag !== lastTag || Date.now() - lastLog > 60000) {
+      lastTag = tag;
+      lastLog = Date.now();
+      const v = s.view;
+      const at = v ? ` act ${v.act} lap ${v.lap} rooms ${v.rooms.length} score ${v.score} hp ${v.members.map((m) => m.hp).join('/')}` : '';
+      console.log(`  [${String(Math.round((Date.now() - t0) / 1000)).padStart(4)}s] ${tag}${at}`);
     }
+    // The act budget: `acts=1` stops the moment act 1 is behind the party — the
+    // boss is dead, its cards are taken, and the run is standing on act 2's map.
+    if (s.view && s.view.act > acts) {
+      await once(page, d, `playfull-act${acts}-cleared`, 400);
+      cleared = true;
+      break;
+    }
+    if (await stepOnce(page, d, s) === 'END') { ended = true; break; }
   }
-  console.log(`PLAY: ${[...shot].join(', ')}`);
+  const tail = await eqRead(page);
+  const dev = await page.evaluate(() => ({
+    seed: window.__eq.seed(), decisions: window.__eq.decisions(), result: window.__eq.result(),
+  })).catch(() => null);
+  const stalled = !ended && !cleared;
+  const report = {
+    mode: prefix ? 'phone' : 'desktop',
+    acts,
+    ko: opts.ko === '1',
+    seed: dev?.seed ?? null,
+    stopped: ended ? 'the run ended' : cleared ? `act ${acts} cleared` : 'the budget ran out',
+    scene: tail?.scene ?? null,
+    phase: tail?.phase ?? null,
+    act: tail?.view?.act ?? null,
+    lap: tail?.view?.lap ?? null,
+    score: tail?.view?.score ?? null,
+    rooms: tail?.view?.rooms ?? [],
+    party: tail?.view?.members ?? [],
+    pacts: tail?.view?.pactsTaken ?? [],
+    frames: [...d.shot].filter((n) => n.startsWith('playfull')),
+    notes: d.log,
+    decisions: dev?.decisions ?? [],
+    result: dev?.result ?? null,
+  };
+  writeFileSync(`${OUT}/${prefix}playfull-decisions.json`, JSON.stringify(report, null, 2));
+  console.log(`PLAYFULL ${report.mode}: seed ${report.seed} — ${report.stopped}; act ${report.act}, score ${report.score}`);
+  console.log(`  rooms: ${report.rooms.join(' ')}`);
+  console.log(`  party: ${report.party.map((m) => `${m.id} ${m.hp}`).join(' . ')}${report.pacts.length ? `  pacts: ${report.pacts.join(' ')}` : ''}`);
+  console.log(`  frames (${report.frames.length}): ${report.frames.join(', ')}`);
+  for (const n of report.notes) console.log(`  ${n}`);
+  console.log(`  decisions -> ${OUT}/${prefix}playfull-decisions.json (${report.decisions.length} answers, replay with ?seed=${report.seed})`);
+  if (stalled) {
+    console.error(`PLAYFULL STALLED on ${report.phase} after ${acts * 16} minutes`);
+    process.exitCode = 1;
+  } else {
+    console.log('PLAYFULL OK');
+  }
 }
 
-if (modes.has('play')) {
+if (modes.has('playfull')) {
+  const acts = Math.max(1, Number(opts.acts ?? 1) || 1);
   if (opts.phone === '1') {
-    const ctx = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+    const ctx = await browser.newContext(PHONE_VIEWPORT);
     const page = await ctx.newPage();
     watch(page);
-    await play(page, 'phone-', true);
+    await playfull(page, 'phone-', true, true, acts);
     await ctx.close();
   } else {
     const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 1 });
     watch(page);
-    await play(page, '', false);
+    await playfull(page, '', false, false, acts);
     await page.close();
   }
 }
 
 if (modes.has('shot') && opts.url) {
-  const page = await browser.newPage({ viewport: { width: 1600, height: 1200 }, deviceScaleFactor: 1 });
+  const phone = opts.phone === '1';
+  const ctx = phone ? await browser.newContext(PHONE_VIEWPORT) : null;
+  const page = ctx ? await ctx.newPage() : await browser.newPage({ viewport: { width: 1600, height: 1200 }, deviceScaleFactor: 1 });
   watch(page);
   await page.goto(`${BASE}${opts.url}`, { waitUntil: 'load' });
   await page.waitForFunction(() => (window.__lineup && window.__lineup.ready) || window.__ready === true, null, { timeout: 20000 });
   await page.locator(opts.selector || '#sheet').screenshot({ path: `${OUT}/${opts.name || 'shot'}.png` });
-  await page.close();
+  if (ctx) await ctx.close();
+  else await page.close();
 }
 
 await browser.close();
@@ -440,6 +784,8 @@ if (errors.length) {
   console.error('CAPTURE saw page errors:');
   for (const e of errors) console.error('  - ' + e);
   process.exitCode = 1;
+} else if (process.exitCode) {
+  console.error(`CAPTURE finished with failures -> ${OUT}/`);
 } else {
   console.log(`CAPTURE OK -> ${OUT}/`);
 }

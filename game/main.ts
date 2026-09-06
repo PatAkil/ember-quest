@@ -1,24 +1,49 @@
 // Ember Quest v3 — boot, loop, scene routing, input dispatch.
 //
-// Phase 4: the vertical slice is playable end to end. The engine scene
-// machine (TITLE → PLAYING ⇄ PAUSED → (GAME_OVER | WIN) → restart) wraps the
-// run's own finer-grained phase (ROOM → BATTLE ⇄ CARDS, screens/run.ts) — a
-// GAME_OVER/VICTORY there is mirrored onto the engine scene the frame it
-// happens, and every scene entry sends the one runtime message it owns
-// (messaging-game-over). PAUSE outside of battle is this file's own overlay
-// (the region table's generic "pause" row); PAUSE mid-battle is forwarded to
-// the battle screen, which owns its own pause-and-forfeit flow — "a quit
-// surfaces as a forfeit result" needs no special case here: it is just
-// another way battleScreen.result() turns non-null.
+// Phase 6a: the whole run is playable. The engine scene machine stays the
+// enforced five (TITLE → PLAYING ⇄ PAUSED → (GAME_OVER | WIN) → restart) and
+// every scene entry sends the one runtime message it owns (messaging-game-over).
+// The finer phase INSIDE PLAYING is not a machine at all — it is DERIVED from
+// what the run seam is waiting on:
+//
+//     phase = run.pending()?.kind ?? 'ROOM'
+//
+// game/sim/runstep.ts walks game/sim/run.ts's generator and stops on one
+// `RunPending`; screens/run.ts adapts it (and raises the one thing the seam has
+// no pending for, the room card); this file routes that pending to the screen
+// that draws it and hands the screen's answer straight back. No rule, no
+// legality check and no fallback lives here: an illegal answer travels into
+// run.ts untouched and that decision's own documented default decides it.
+//
+//   pending      screen                        answer
+//   ─────────────────────────────────────────────────────────────────────
+//   (pre-run)    vault.ts   EQUIP              {equip, ascension} → RunConfig
+//   DRAFT        draft.ts   DRAFT              index
+//   VAULT_EQUIP  — answered from the pre-run screen's list
+//   SUMMON       draft.ts   SUMMON             index | {swap,out} | null
+//   LEADER       party.ts   leaderEnabled      member index (B keeps the seat)
+//   ROUTE        map.ts                        index into offeredIdxs
+//   (room card)  cards.ts   ROOM               CONTINUE
+//   BATTLE       battle.ts                     {result, forfeit}
+//   RELIC        cards.ts   CARDS + wear row   {card, onto} | null
+//   REST/SHRINE/FORGE/ALTAR   node.ts          per face
+//   LAP          vault.ts   DOORS              'DESCEND' | 'LAP'
+//   BANK         vault.ts   BANK               {take, drop}
+//
+// PAUSE/INSPECT/ARCADE persist exactly as before: PAUSE outside of battle is
+// this file's own overlay (the region table's generic "pause" row) above EVERY
+// non-battle screen — each screen carries its own on-screen pause icon, because
+// a phone has no P key — and PAUSE mid-battle is forwarded to the battle
+// screen, which owns its own pause-and-forfeit flow.
 //
 // ONE SCENE. `engine/light.ts` is created here, once, and handed to every
-// screen: the diorama bakes per (biome, tier) and the title, the room card,
-// the relic offer, the end screens and this file's pause overlay all draw
-// over the same lit crypt the battle does, in the battle's own order
+// screen: the diorama bakes per (biome, tier), and the title, the map, the
+// card, the node screens, the end screens and this file's pause overlay all
+// draw over the same lit biome the battle does, in the battle's own order
 // (renderBackground → world → renderLightPlane → renderPost, HUD last and
-// un-bloomed). ARCADE lives here for the same reason: it swaps the light
-// module to its flat tier AND applies the CRT, and "bloom XOR CRT halation"
-// is a rule about the whole frame, not about one screen.
+// un-bloomed). ARCADE lives here for the same reason: it swaps the light module
+// to its flat tier AND applies the CRT, and "bloom XOR CRT halation" is a rule
+// about the whole frame, not about one screen.
 //
 // STYLE CARD: PALETTE PICO8 for UI, element tints per actor layer (art/).
 // TEXT the HUD face (screens/hud.ts) for everything the player reads as UI;
@@ -34,18 +59,34 @@ import {
 import type { BiomeLook, Light, LightActor, LightTier } from '../engine';
 import type { Battle } from './sim/battle';
 import { forecast } from './sim/battle';
-import type { BattleResult } from './types';
+import { ACTS, SLOTS, VAULT_EQUIP_MAX } from './types';
+import type { RunResult } from './types';
 import {
   CANVAS_W, CANVAS_H, PAUSE_BTN, PAUSE_BTN_X, PAUSE_BTN_Y, PAUSED_TEXT_Y, SAFE_INSET,
 } from './screens/layout';
 import { EDGE_LIT, FOCUS_RING, drawPrimaryButton, hudText, hudTextCentered, hudWidth, plate } from './screens/hud';
-import { RUN_BIOME, createRunScreen } from './screens/run';
-import type { RunPhase, RunScreen } from './screens/run';
+import { createRunScreen, runConfig } from './screens/run';
+import type { RunScreen } from './screens/run';
 import { createCardsScreen } from './screens/cards';
 import { createTitleScreen } from './screens/title';
 import { createEndScreen } from './screens/end';
 import { createBattleScreen } from './screens/battle';
+import { createDraftScreen } from './screens/draft';
+import type { DraftAnswer, DraftProps } from './screens/draft';
+import { createMapScreen } from './screens/map';
+import type { MapProps } from './screens/map';
+import { createPartyScreen } from './screens/party';
+import type { PartyProps } from './screens/party';
+import { createNodeScreen } from './screens/node';
+import type { NodeAnswer, NodeProps } from './screens/node';
+import { ASCENSION_MAX, clampAscension, createVaultScreen, loadVault, saveVault } from './screens/vault';
+import type { VaultAnswer, VaultProps, VaultSave } from './screens/vault';
+import { mulberry32 } from './sim/rng';
 import { backdropFor } from './art/backdrops';
+import { BIOMES } from './data';
+
+/** Dev only — Vite substitutes `false` in the Pages build, so every block guarded by it folds away. */
+const DEV = (import.meta as unknown as { env: { DEV: boolean } }).env.DEV;
 
 // --- Boot --------------------------------------------------------------------
 const W = CANVAS_W;
@@ -140,39 +181,180 @@ function renderScene(drawWorld?: () => void, actors?: readonly LightActor[]): vo
   light.renderPost(ctx, { time: clock });
 }
 
-// --- Screens (created once; each reads screens/run.ts's state on its own) ----
+// --- The run ------------------------------------------------------------------
 let run: RunScreen | null = null;
 let activeBattle: Battle | null = null;
-let lastHeroKillAttacker: string | null = null;
-let lastRunPhase: RunPhase | null = null;
+let lastRunPhase: string | null = null;
 let lastScore = 0;
 let clock = 0;
 
-function startRun(): void {
-  run = createRunScreen(Math.random);
-  activeBattle = null;
-  lastHeroKillAttacker = null;
-  lastRunPhase = null;
-  lastScore = 0;
-  scenes.to('PLAYING');
+/**
+ * The Vault, read once at boot and rewritten the moment a run ends
+ * (screens/vault.ts owns the key and the parsing; a corrupt payload comes back
+ * as an empty Vault rather than throwing). DESIGN.md → The Vault.
+ */
+let vaultSave: VaultSave = loadVault();
+/**
+ * The one screen that cannot be a pending: `RunConfig.ascension` has to be
+ * known before `createRun` draws its first number, and the ascension stepper
+ * sits on the Vault's EQUIP face — so that face is shown BEFORE the run and its
+ * two answers part ways here. The ascension goes into the config; the equip
+ * list is held and handed to the run's own VAULT_EQUIP pending when it arrives
+ * (after the draft, since the starter has to exist before relics can be worn on
+ * them). The player answers it once and sees it once.
+ */
+let preRun: 'VAULT' | null = null;
+let heldEquip: number[] = [];
+let chosenAscension = 0;
+/** The party screen opened over the map (its PARTY button, or B) — not a pending, a look at the party. */
+let partyOpen = false;
+
+/** The run's seed: a dev `?seed=` override (replay), else a fresh draw per run. */
+let runSeed = 0;
+function nextSeed(): number {
+  if (DEV) {
+    const q = new URLSearchParams(window.location.search).get('seed');
+    const n = Number(q);
+    if (q !== null && q !== '' && Number.isFinite(n)) return n >>> 0;
+  }
+  return (Math.random() * 0x100000000) >>> 0;
 }
 
-const titleScreen = createTitleScreen({ pc, input, regions, audio, light, scene: renderScene, onStart: startRun });
-const cardsScreen = createCardsScreen({
-  pc, input, regions, audio, scene: renderScene,
-  // The room card and every relic screen need their own on-screen route to PAUSED — a phone has no P key,
-  // and until now only the battle screen's ribbon carried this icon (DESIGN.md's Input section: "PAUSE ...
-  // have on-screen targets — because a phone has no keys" is a whole-game rule, not a battle-only one).
-  onPause: () => scenes.to('PAUSED'),
+/** TITLE's START, and RETRY/CONTINUE: the Vault face first when there is anything to choose, else straight in. */
+function beginNewRun(): void {
+  partyOpen = false;
+  chosenAscension = clampAscension(chosenAscension, 0, vaultSave.unlockedAscension);
+  if (vaultSave.vault.length > 0 || vaultSave.unlockedAscension > 0) {
+    preRun = 'VAULT';
+    run = null;
+    activeBattle = null;
+    lastRunPhase = null;
+    if (!scenes.is('PLAYING')) scenes.to('PLAYING');
+    return;
+  }
+  heldEquip = [];
+  startRun();
+}
+
+function startRun(): void {
+  preRun = null;
+  partyOpen = false;
+  runSeed = nextSeed();
+  run = createRunScreen(mulberry32(runSeed), runConfig({
+    ascension: chosenAscension,
+    vault: [...vaultSave.vault],
+    vaultSlots: vaultSave.vaultSlots,
+  }));
+  activeBattle = null;
+  lastRunPhase = null;
+  lastScore = 0;
+  useBiome(run.biome().name);
+  if (!scenes.is('PLAYING')) scenes.to('PLAYING');
+}
+
+/**
+ * The run is over: the Vault is what it leaves behind. `RunResult.banked` is
+ * already the WHOLE new Vault (run.ts's resolveBank returns vault − drop +
+ * take, trimmed to VAULT_SIZE), `vaultSlots` is next run's
+ * min(VAULT_EQUIP_MAX, actsCleared), and the ascension unlock is granted on the
+ * run's first act-6 kill (DESIGN.md → Laps, The Vault).
+ */
+function persistVault(result: RunResult): void {
+  const clearedSix = result.actsCleared >= ACTS;
+  vaultSave = {
+    version: vaultSave.version,
+    vault: [...result.banked],
+    vaultSlots: Math.min(VAULT_EQUIP_MAX, result.actsCleared),
+    unlockedAscension: Math.max(
+      vaultSave.unlockedAscension,
+      clearedSix ? Math.min(ASCENSION_MAX, result.ascension + 1) : 0,
+    ),
+  };
+  saveVault(vaultSave);
+}
+
+// --- Answers ------------------------------------------------------------------
+// Each of these is a one-liner on purpose: the screen already drew the
+// enumerated options the pending carried, so the answer is passed through
+// verbatim. Nothing is validated here — run.ts owns every fallback.
+function onDraftAnswer(answer: DraftAnswer): void {
+  if (!run) return;
+  if (answer.kind === 'DRAFT') run.answer(answer.index);
+  else if (answer.kind === 'SUMMON') run.answer(answer.answer);
+  // REBRAND is the node screen's own inner use of the draft grid; it answers there.
+}
+function onNodeAnswer(answer: NodeAnswer): void {
+  if (!run) return;
+  if (answer.kind === 'SHRINE') run.answer(answer.take);
+  else if (answer.kind === 'FORGE') run.answer(answer.answer);
+  else if (answer.kind === 'ALTAR') run.answer(answer.index);
+  else run.answer(answer.answer); // REST
+}
+function onVaultAnswer(answer: VaultAnswer): void {
+  if (answer.kind === 'EQUIP') {
+    // The two halves part ways: the ascension is config, the equip list is the
+    // run's own VAULT_EQUIP answer, held until that pending arrives.
+    heldEquip = [...answer.equip];
+    chosenAscension = answer.ascension;
+    startRun();
+    return;
+  }
+  if (!run) return;
+  if (answer.kind === 'DOORS') run.answer(answer.door);
+  else run.answer({ take: answer.take, drop: answer.drop });
+}
+/** The party screen's BACK. With a LEADER pending open it is not "go away" — it is the seam's own default. */
+function onPartyBack(): void {
+  const p = run?.pending();
+  if (run && p && p.kind === 'LEADER') { run.answer(run.view().party.leader); return; }
+  partyOpen = false;
+}
+function onLeaderPick(member: number): void {
+  const p = run?.pending();
+  if (run && p && p.kind === 'LEADER') { run.answer(member); return; }
+  partyOpen = false;
+}
+
+// --- Screens (created once; each is handed the props its pending carries) -----
+const onPause = (): void => { scenes.to('PAUSED'); };
+
+const titleScreen = createTitleScreen({
+  pc, input, regions, audio, light, scene: renderScene, onStart: beginNewRun,
+  vaultLine: () => {
+    const bits: string[] = [];
+    if (vaultSave.vault.length > 0) bits.push(`VAULT ${vaultSave.vault.length} . ${vaultSave.vaultSlots} TO EQUIP`);
+    if (vaultSave.unlockedAscension > 0) bits.push(`A${vaultSave.unlockedAscension} UNLOCKED`);
+    return bits.join('   .   ');
+  },
 });
-const endScreen = createEndScreen({ pc, input, regions, audio, light, scene: renderScene, onRetry: startRun, onContinue: startRun });
+const cardsScreen = createCardsScreen({ pc, input, regions, audio, scene: renderScene, onPause });
+const endScreen = createEndScreen({
+  pc, input, regions, audio, light, scene: renderScene, onRetry: beginNewRun, onContinue: beginNewRun,
+});
 const battleScreen = createBattleScreen({
   pc, input, regions, audio, juice, particles, crt, light, arcade, setBiome: useBiome,
 });
+const draftScreen = createDraftScreen({
+  pc, input, regions, audio, scene: renderScene, onPause, onAnswer: onDraftAnswer,
+});
+const mapScreen = createMapScreen({
+  pc, input, regions, audio, scene: renderScene, onPause,
+  onRoute: (choice) => run?.route(choice),
+  onParty: () => { partyOpen = true; },
+});
+const partyScreen = createPartyScreen({
+  pc, input, regions, audio, scene: renderScene, onPause,
+  onBack: onPartyBack, onLeader: onLeaderPick, onSwap: () => { partyOpen = false; },
+});
+const nodeScreen = createNodeScreen({
+  pc, input, regions, audio, scene: renderScene, onPause, onAnswer: onNodeAnswer,
+});
+const vaultScreen = createVaultScreen({
+  pc, input, regions, audio, scene: renderScene, onPause, onAnswer: onVaultAnswer,
+});
 
-// The slice never leaves the EMBER CRYPT, so the title already stands in the
-// biome the first battle will use: one bake, and no swap on the way in.
-useBiome(RUN_BIOME.name);
+// The title stands in act 1's biome, so the first act needs no swap on the way in.
+useBiome(BIOMES[0].name);
 
 scenes.onEnter('TITLE', () => runtime.stateChanged('TITLE'));
 scenes.onEnter('PLAYING', () => runtime.stateChanged('PLAYING'));
@@ -187,12 +369,103 @@ scenes.onEnter('WIN', () => {
 });
 runtime.stateChanged('TITLE');
 
-/** Reads the battle's own presentation-event log for the hero-killing hit, ahead of the battle screen
- * draining it for animation — screens/run.ts's GAME_OVER wants a name, and BattleResult carries none. */
-function scanBattleEvents(battle: Battle): void {
-  for (const ev of battle.events) {
-    if (ev.kind === 'HIT' && ev.killed && ev.target.side === 'HERO') lastHeroKillAttacker = ev.attacker.def.name;
+// --- The router ---------------------------------------------------------------
+/**
+ * Which screen owns the frame. Everything but the two pre-run/overlay cases is
+ * `pending()?.kind`; screens/run.ts collapses BATTLE, RELIC and its own room
+ * card into the three phases the phase-4 screens already spoke.
+ */
+type ScreenKey =
+  | 'NONE' | 'PRE_VAULT' | 'PARTY' | 'ROOM' | 'CARDS' | 'BATTLE'
+  | 'DRAFT' | 'VAULT_EQUIP' | 'SUMMON' | 'LEADER' | 'ROUTE' | 'RELIC'
+  | 'REST' | 'SHRINE' | 'FORGE' | 'ALTAR' | 'LAP' | 'BANK';
+
+function screenKey(): ScreenKey {
+  if (preRun === 'VAULT') return 'PRE_VAULT';
+  if (!run) return 'NONE';
+  const phase = run.state().phase;
+  if (phase === 'ROOM') return 'ROOM';
+  if (phase === 'CARDS') return 'CARDS';
+  if (phase === 'BATTLE') return 'BATTLE';
+  const p = run.pending();
+  if (!p) return 'NONE';
+  if (p.kind === 'LEADER') return 'LEADER';
+  if (partyOpen) return 'PARTY';
+  return p.kind;
+}
+
+// The props every screen takes are plain objects that mirror the pending
+// field-for-field, plus the live view. They are rebuilt per tick rather than
+// cached: the run only moves on an answer, and each screen re-syncs off its own
+// payload key, so a fresh object with the same contents changes nothing.
+function draftProps(): DraftProps | null {
+  const p = run?.pending();
+  if (!run || !p) return null;
+  if (p.kind === 'DRAFT') return { kind: 'DRAFT', view: run.view(), roster: p.roster };
+  if (p.kind === 'SUMMON') {
+    // The EPIC a full party is offered is not in this pending: taking it
+    // (answer 0) raises a RELIC pending with source 'SUMMON' right after.
+    return { kind: 'SUMMON', view: run.view(), offers: p.offers, full: p.full, epic: null };
   }
+  return null;
+}
+function mapProps(): MapProps | null {
+  const p = run?.pending();
+  if (!run || !p || p.kind !== 'ROUTE') return null;
+  const v = run.view();
+  return {
+    view: v,
+    map: p.map,
+    // `stage` is where the OFFERED nodes live; the party is standing one stage back.
+    stage: p.stage,
+    nodeIdx: v.nodeIdx,
+    offeredIdxs: p.offeredIdxs,
+    offeredTypes: p.offeredTypes,
+    taken: run.taken(),
+  };
+}
+function partyProps(): PartyProps | null {
+  if (!run) return null;
+  const leader = run.pending()?.kind === 'LEADER';
+  return {
+    view: run.view(),
+    leaderEnabled: leader,
+    swapEnabled: false,
+    title: leader ? 'WHO LEADS' : 'THE PARTY',
+  };
+}
+function nodeProps(): NodeProps | null {
+  const p = run?.pending();
+  if (!run || !p) return null;
+  const view = run.view();
+  if (p.kind === 'SHRINE') return { kind: 'SHRINE', view, pact: p.pact, untakenCount: p.untakenCount };
+  if (p.kind === 'FORGE') {
+    return {
+      kind: 'FORGE', view, worn: p.worn, options: p.options, pool: p.pool, levels: p.levels, rebrand: p.rebrand,
+    };
+  }
+  if (p.kind === 'ALTAR') return { kind: 'ALTAR', view, candidates: p.candidates };
+  if (p.kind === 'REST') return { kind: 'REST', view, candidates: p.candidates };
+  return null;
+}
+function vaultProps(): VaultProps | null {
+  if (preRun === 'VAULT') {
+    return {
+      kind: 'EQUIP',
+      vault: vaultSave.vault,
+      slots: vaultSave.vaultSlots,
+      ascension: chosenAscension,
+      unlockedAscension: vaultSave.unlockedAscension,
+    };
+  }
+  const p = run?.pending();
+  if (!run || !p) return null;
+  const view = run.view();
+  if (p.kind === 'LAP') return { kind: 'DOORS', view, banked: p.banked };
+  if (p.kind === 'BANK') {
+    return { kind: 'BANK', view, worn: p.worn, n: p.n, vault: p.vault, vaultSize: p.vaultSize };
+  }
+  return null;
 }
 
 // A complete tick — begin -> add -> end -> check activation -> endFrame() —
@@ -208,19 +481,27 @@ function updatePauseOverlay(): void {
   const act = regions.activated();
   if (act === 'pause-resume' || resumeKey) { audio.play('blip'); scenes.to('PLAYING'); }
   else if (act === 'pause-arcade') { audio.play('blip'); arcade.toggle(); }
-  else if (act === 'pause-quit') { audio.play('blip'); scenes.to('TITLE'); }
+  else if (act === 'pause-quit') {
+    audio.play('blip');
+    run = null;
+    activeBattle = null;
+    preRun = null;
+    partyOpen = false;
+    lastRunPhase = null;
+    scenes.to('TITLE');
+  }
   input.endFrame();
 }
 
 /**
  * The region table's pause row — dimScene, PAUSED, three buttons — drawn by the
  * battle screen's rules so the two overlays are one object: the LIVE screen
- * stays underneath (the card the player paused on, not an empty crypt), every
- * label reads bright whether or not it holds focus, and the ring is what says
- * "focused". What sits under this overlay is the diorama alone (render()
- * skips the card screen while PAUSED — its text would otherwise land in the
- * gaps between the three PAUSE_BTN plates as a second layer of English), so
- * the dim only has to push scenery back, a step further than the battle's.
+ * stays underneath, every label reads bright whether or not it holds focus, and
+ * the ring is what says "focused". What sits under this overlay is the diorama
+ * alone (render() skips the live screen while PAUSED — its text would otherwise
+ * land in the gaps between the three PAUSE_BTN plates as a second layer of
+ * English), so the dim only has to push scenery back, a step further than the
+ * battle's.
  */
 const PAUSE_DIM = 0.7;
 
@@ -255,12 +536,11 @@ function renderPauseOverlay(): void {
 }
 
 // --- Update -------------------------------------------------------------------
-// Every screen's update() (title/cards/end below, battle.ts's own) is a
-// COMPLETE tick on its own — regions.begin() -> add() -> regions.end() ->
-// check activation -> input.endFrame() — exactly like the pattern in
-// handling-user-input's SKILL.md. Exactly one of them runs per tick, chosen
-// by scene/phase below; this file must never ALSO touch regions or endFrame
-// around the call (a second begin/end would re-resolve this tick's
+// Every screen's update() (title/cards/end, the five phase-5 screens, battle.ts's
+// own) is a COMPLETE tick on its own — regions.begin() -> add() -> regions.end()
+// -> check activation -> input.endFrame(). EXACTLY ONE of them runs per tick,
+// chosen by scene/pending below; this file must never ALSO touch regions or
+// endFrame around the call (a second begin/end would re-resolve this tick's
 // pointer/dirPressed edges; a second endFrame would clear them before the
 // screen's own check ever saw them). juice/particles are the one exception:
 // battle.ts ticks them itself, so this file ticks them only when battle isn't
@@ -270,24 +550,24 @@ function update(dt: number): void {
 
   if (scenes.is('PLAYING') && run && run.state().phase === 'BATTLE') {
     if (!activeBattle) {
+      const p = run.pending();
       activeBattle = run.beginBattle();
-      lastHeroKillAttacker = null;
-      battleScreen.begin(activeBattle, { act: 1, lap: 1, score: run.score, biome: RUN_BIOME.name });
+      battleScreen.begin(activeBattle, {
+        act: p && p.kind === 'BATTLE' ? p.act : run.view().act,
+        lap: p && p.kind === 'BATTLE' ? p.lap : run.view().lap,
+        score: run.score,
+        biome: run.biome().name,
+      });
     }
-    scanBattleEvents(activeBattle);
+    run.armTick();
     battleScreen.update(dt);
     const result = battleScreen.result();
     if (result) {
-      // A quit-to-forfeit (battleScreen's own `forfeit` tag, set the same ad hoc way this file tags
-      // `deathBy`) always outranks an earlier kill this same battle: the run is ending because the
-      // player walked away, not because of a teammate who died and was then fought on past.
-      const forfeited = (result as unknown as { forfeit?: boolean }).forfeit === true;
-      const enriched: BattleResult = forfeited
-        ? { ...result, ...({ deathBy: 'RETREAT' } as Partial<BattleResult>) }
-        : lastHeroKillAttacker
-          ? { ...result, ...({ deathBy: lastHeroKillAttacker } as Partial<BattleResult>) }
-          : result;
-      run.afterBattle(enriched);
+      // A quit-to-forfeit (battleScreen's own `forfeit` tag) rides on the result
+      // itself and run.ts reads it there: a won result comes back a loss, and
+      // screens/run.ts remembers the RETREAT for the end screen's verdict line.
+      // Who landed the killing blow is the seam's own `deathBy` now.
+      run.afterBattle(result);
       activeBattle = null;
     }
     if (run.score !== lastScore) { lastScore = run.score; runtime.scoreChanged(lastScore); }
@@ -299,25 +579,91 @@ function update(dt: number): void {
 
   if (scenes.is('TITLE')) {
     titleScreen.update(dt);
-  } else if (scenes.is('PLAYING') && run) {
+    return;
+  }
+  if (scenes.is('PAUSED')) {
+    updatePauseOverlay();
+    return;
+  }
+  if ((scenes.is('GAME_OVER') || scenes.is('WIN')) && run) {
+    endScreen.update(dt, run);
+    return;
+  }
+  if (!scenes.is('PLAYING')) return;
+
+  if (run) {
+    useBiome(run.biome().name);
     const phase = run.state().phase;
     if (phase !== lastRunPhase) {
       lastRunPhase = phase;
-      if (phase === 'GAME_OVER') scenes.to('GAME_OVER');
-      else if (phase === 'VICTORY') scenes.to('WIN');
+      const result = run.result();
+      if (result) {
+        persistVault(result);
+        scenes.to(result.won ? 'WIN' : 'GAME_OVER');
+      }
     }
-    if (scenes.is('PLAYING')) {
-      // Read the edge BEFORE cardsScreen.update() clears it with its own endFrame().
-      const pausePressed = input.pressed('PAUSE');
-      cardsScreen.update(dt, run);
-      if (pausePressed) scenes.to('PAUSED');
+    if (!scenes.is('PLAYING')) return;
+    // The run's own VAULT_EQUIP: already answered on the pre-run face, so it is
+    // handed the list that face returned instead of asking a second time.
+    if (run.pending()?.kind === 'VAULT_EQUIP') {
+      run.armTick();
+      run.answer(heldEquip);
+      heldEquip = [];
     }
-    if (run.score !== lastScore) { lastScore = run.score; runtime.scoreChanged(lastScore); }
-  } else if (scenes.is('PAUSED')) {
-    updatePauseOverlay();
-  } else if ((scenes.is('GAME_OVER') || scenes.is('WIN')) && run) {
-    endScreen.update(dt, run);
   }
+
+  // Read the PAUSE edge BEFORE the screen's update() clears it with its own endFrame().
+  const pausePressed = input.pressed('PAUSE');
+  // One tick, one answer: the screen about to run answers against the token the
+  // run is standing on NOW, so a second answer inside this same tick (a double
+  // tap, a handler firing after the run already moved) is refused by the seam
+  // instead of landing on the decision behind it.
+  run?.armTick();
+  updateScreen(dt);
+  if (pausePressed) scenes.to('PAUSED');
+  if (run && run.score !== lastScore) { lastScore = run.score; runtime.scoreChanged(lastScore); }
+}
+
+/** The one screen update this tick. Each branch is a complete tick and ends the frame itself. */
+function updateScreen(dt: number): void {
+  switch (screenKey()) {
+    case 'PRE_VAULT': case 'LAP': case 'BANK': {
+      const props = vaultProps();
+      if (props) { vaultScreen.update(dt, props); return; }
+      break;
+    }
+    case 'DRAFT': case 'SUMMON': {
+      const props = draftProps();
+      if (props) { draftScreen.update(dt, props); return; }
+      break;
+    }
+    case 'LEADER': case 'PARTY': {
+      const props = partyProps();
+      if (props) { partyScreen.update(dt, props); return; }
+      break;
+    }
+    case 'ROUTE': {
+      const props = mapProps();
+      if (props) { mapScreen.update(dt, props); return; }
+      break;
+    }
+    case 'SHRINE': case 'FORGE': case 'ALTAR': case 'REST': {
+      const props = nodeProps();
+      if (props) { nodeScreen.update(dt, props); return; }
+      break;
+    }
+    case 'ROOM': case 'CARDS': case 'RELIC':
+      if (run) { cardsScreen.update(dt, run); return; }
+      break;
+    default:
+      break;
+  }
+  // Nothing is standing (a torn frame between two answers, or the pre-run
+  // title): still a complete tick, so this frame's edges are consumed like
+  // every other.
+  regions.begin();
+  regions.end();
+  input.endFrame();
 }
 
 // --- Render ---------------------------------------------------------------------
@@ -328,7 +674,7 @@ function update(dt: number): void {
 // transform opens and closes, then draws its HUD on the restored frame), and
 // the CRT only when ARCADE is on.
 function render(): void {
-  if (run && run.state().phase === 'BATTLE') {
+  if (scenes.is('PLAYING') && run && run.state().phase === 'BATTLE') {
     battleScreen.render(clock);
     return;
   }
@@ -338,18 +684,20 @@ function render(): void {
 
   if (scenes.is('TITLE')) {
     titleScreen.render(clock);
-  } else if (scenes.is('PAUSED') && run) {
-    // PAUSED over a card screen shows the diorama alone: the pause row's contract geometry sits
-    // exactly over the card, so any card text would land between the buttons as a second layer of
-    // English — the battle keeps its live world behind its overlay, and the world here is the scene.
+  } else if (scenes.is('PAUSED')) {
+    // PAUSED over a screen shows the diorama alone: the pause row's contract
+    // geometry sits exactly over the cards and the node columns, so any of their
+    // text would land between the buttons as a second layer of English — the
+    // battle keeps its live world behind its overlay, and the world here is the
+    // scene.
     renderScene();
     renderPauseOverlay();
-  } else if (scenes.is('PLAYING') && run) {
-    cardsScreen.render(clock, run);
   } else if ((scenes.is('GAME_OVER') || scenes.is('WIN')) && run) {
     endScreen.render(clock, run);
+  } else if (scenes.is('PLAYING')) {
+    renderScreen();
   } else {
-    renderScene(); // no run yet: the lit crypt on its own, never a black frame
+    renderScene(); // no run yet: the lit biome on its own, never a black frame
   }
 
   if (arcade.on) crt.render(pc.ctx, W, H, 1 / 60);
@@ -358,19 +706,144 @@ function render(): void {
   light.note(performance.now() - t0);
 }
 
+function renderScreen(): void {
+  switch (screenKey()) {
+    case 'PRE_VAULT': case 'LAP': case 'BANK': {
+      const props = vaultProps();
+      if (props) { vaultScreen.render(clock, props); return; }
+      break;
+    }
+    case 'DRAFT': case 'SUMMON': {
+      const props = draftProps();
+      if (props) { draftScreen.render(clock, props); return; }
+      break;
+    }
+    case 'LEADER': case 'PARTY': {
+      const props = partyProps();
+      if (props) { partyScreen.render(clock, props); return; }
+      break;
+    }
+    case 'ROUTE': {
+      const props = mapProps();
+      if (props) { mapScreen.render(clock, props); return; }
+      break;
+    }
+    case 'SHRINE': case 'FORGE': case 'ALTAR': case 'REST': {
+      const props = nodeProps();
+      if (props) { nodeScreen.render(clock, props); return; }
+      break;
+    }
+    case 'ROOM': case 'CARDS': case 'RELIC':
+      if (run) { cardsScreen.render(clock, run); return; }
+      break;
+    default:
+      break;
+  }
+  renderScene();
+}
+
 createLoop({ update, render }).start();
 
 // --- Dev state hook -------------------------------------------------------------
-// The test driver reads the live scene, run phase and battle phase off the page
-// rather than guessing them from pixels. Dev only: Vite substitutes
+// The test driver reads the live scene, the open decision and the run off the
+// page rather than guessing them from pixels. Dev only: Vite substitutes
 // `import.meta.env.DEV` with `false` in the Pages build, so the whole block is
 // constant-folded away — zero production impact. (The cast is how this file
 // reaches `env` without pulling vite/client's ambient types into tsconfig; it
 // leaves the member expression Vite actually substitutes untouched.)
-if ((import.meta as unknown as { env: { DEV: boolean } }).env.DEV) {
+if (DEV) {
+  /**
+   * The (column, row) each worn relic sits at on the party columns — geometry,
+   * not a rule: `partyWorn` is member-major in SLOTS order, so a driver that
+   * must tap the relic at worn index i taps cells[i]. FORGE and BANK only.
+   */
+  const wornCells = (): { m: number; row: number }[] => {
+    const out: { m: number; row: number }[] = [];
+    const members = run?.view().party.members ?? [];
+    members.forEach((member, m) => {
+      SLOTS.forEach((slot, row) => { if (member.relics[slot]) out.push({ m, row }); });
+    });
+    return out;
+  };
+  /**
+   * The pending, JSON-safe and small: a driver needs to know WHAT is up and how
+   * many options it has, not to carry a live Battle (or a whole RunMap) across
+   * the bridge on every poll.
+   */
+  const pendingSummary = (): unknown => {
+    if (preRun === 'VAULT') {
+      return {
+        kind: 'VAULT_EQUIP', pre: true, options: vaultSave.vault.length,
+        slots: vaultSave.vaultSlots, unlockedAscension: vaultSave.unlockedAscension,
+      };
+    }
+    const p = run?.pending();
+    if (!p) {
+      const done = run?.result();
+      return done ? { kind: 'DONE', won: done.won } : null;
+    }
+    switch (p.kind) {
+      case 'DRAFT': return { kind: p.kind, options: p.roster.length, roster: [...p.roster] };
+      case 'VAULT_EQUIP': return { kind: p.kind, options: p.vault.length, slots: p.slots };
+      case 'SUMMON': return {
+        kind: p.kind, options: p.offers.length, full: p.full, opening: p.opening,
+        offers: p.offers.map((o) => o.def.id),
+      };
+      case 'LEADER': return { kind: p.kind, members: p.party.members.length, leader: p.party.leader };
+      case 'ROUTE': return {
+        kind: p.kind, stage: p.stage, offeredIdxs: [...p.offeredIdxs], offeredTypes: [...p.offeredTypes],
+        sizes: p.map.stages.map((s) => s.length),
+      };
+      case 'RELIC': return { kind: p.kind, cards: p.cards.length, source: p.source };
+      case 'REST': return { kind: p.kind, candidates: [...p.candidates] };
+      case 'SHRINE': return { kind: p.kind, pact: p.pact.id, untakenCount: p.untakenCount };
+      case 'FORGE': return {
+        kind: p.kind, worn: p.worn.length, levels: p.levels,
+        options: p.options.map((o) => ({ relic: o.relic, mode: o.mode })), cells: wornCells(),
+      };
+      case 'ALTAR': return { kind: p.kind, candidates: [...p.candidates] };
+      case 'BATTLE': return {
+        kind: p.kind, source: p.source, act: p.act, lap: p.lap, biome: p.biome.name, packIds: [...p.packIds],
+      };
+      case 'LAP': return { kind: p.kind, banked: p.banked };
+      case 'BANK': return {
+        kind: p.kind, worn: p.worn.length, n: p.n, vault: p.vault.length, vaultSize: p.vaultSize,
+        cells: wornCells(),
+      };
+      default: return null;
+    }
+  };
+
   (window as unknown as { __eq: unknown }).__eq = {
     scene: () => scenes.current,
+    /** Which screen owns the frame — the router's own key, the pre-run face and the party overlay included. */
+    phase: () => screenKey(),
+    /** What the run is waiting on, JSON-safe (see pendingSummary). */
+    pending: pendingSummary,
     run: () => run?.state() ?? null,
+    /** The whole live view: act, lap, ascension, score, where the party stands, who is in it. */
+    view: () => {
+      if (!run) return null;
+      const v = run.view();
+      return {
+        act: v.act, lap: v.lap, ascension: v.ascension, score: v.score, clears: v.clears,
+        stage: v.stage, nodeIdx: v.nodeIdx, rooms: [...v.rooms], roomType: v.roomType,
+        biome: v.biome.name, pactsTaken: [...v.pactsTaken], phase: v.phase, over: v.over,
+        members: v.party.members.map((m) => ({ id: m.def.id, hp: m.hp, awakened: m.awakened })),
+        leader: v.party.leader,
+      };
+    },
+    /** The finished run, if it is finished. */
+    result: () => run?.result() ?? null,
+    /** The seed this run was created with, and every answer given — a headless replay's two inputs. */
+    seed: () => runSeed,
+    decisions: () => run?.decisions() ?? [],
+    /** What each phase-5 screen believes it is showing (its own view(props)) — null when it is not up. */
+    map: () => { const p = mapProps(); return p ? mapScreen.view(p) : null; },
+    party: () => { const p = partyProps(); return p ? partyScreen.view(p) : null; },
+    draft: () => { const p = draftProps(); return p ? draftScreen.view(p) : null; },
+    node: () => { const p = nodeProps(); return p ? nodeScreen.view(p) : null; },
+    vault: () => { const p = vaultProps(); return p ? vaultScreen.view(p) : null; },
     battle: () => battleScreen.phase,
     /** Whose turn it is (def.id), for the dev state hook and nothing else — mirrors `battle()`. */
     battleActor: () => battleScreen.currentActorId,

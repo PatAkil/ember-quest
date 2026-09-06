@@ -31,6 +31,7 @@ import type { ActorDrawState } from '../art/actors';
 import { ACTOR_RECIPES, ACTOR_W, drawActor } from '../art/actors';
 import { compare, isKindled, mainLine, relicTitle, sigilBlurb, substatLine } from '../sim/relics';
 import type { DeriveCtx } from '../sim/relics';
+import { mkDeriveCtx } from '../sim/run';
 import type { RunScreen } from './run';
 
 const hd = { font: FONT_HD };
@@ -222,8 +223,12 @@ function drawRelicCard(pc: PixelCanvas, regions: HitRegions, relic: Relic, x: nu
 }
 
 function ctxFor(run: RunScreen): DeriveCtx {
-  const party = run.state().party;
-  return { leader: party.members[party.leader]?.def.leader ?? null, pacts: [] };
+  // The seam's own context, not a second copy of the rule: the run's pacts
+  // belong in it (SCHISM rewrites what a leader skill is worth, FURY moves ATK),
+  // so a compare() line drawn against an empty pact list would quote a number
+  // the wearer will not actually get.
+  const view = run.view();
+  return mkDeriveCtx(view.party, view.pactsTaken);
 }
 
 /** One draw record for every candidate sprite on the who-wears-it row: the screen allocates nothing per frame. */
@@ -321,7 +326,8 @@ export function createCardsScreen(deps: CardsScreenDeps): CardsScreen {
   function renderOffer(run: RunScreen, offer: readonly Relic[]): void {
     const ctx = pc.ctx;
     const source = run.state().cardSource;
-    const label = source === 'BOSS' ? 'BOSS REWARD' : source === 'LOOT' ? 'TREASURE' : 'FIGHT DROP';
+    const label = source === 'BOSS' ? 'BOSS REWARD' : source === 'ELITE' ? 'ELITE REWARD'
+      : source === 'LOOT' ? 'TREASURE' : source === 'SUMMON' ? 'THE EPIC ON OFFER' : 'FIGHT DROP';
     hudTextCentered(ctx, label, 0, BANNER_Y, CANVAS_W, HUD_LARGE, { px: HUD_LARGE, color: C_ACCENT });
     const { xs, w } = cardXs(offer.length);
     offer.forEach((relic, i) => drawRelicCard(pc, regions, relic, xs[i], w, `card-${i}`));

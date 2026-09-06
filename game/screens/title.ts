@@ -33,6 +33,8 @@ const START_PLATE = { x: START_HIT.x, y: START_HIT.y + 20, w: START_HIT.w, h: 56
 const LOGO_Y = 108;
 const TAGLINE_Y = 214;
 const SUBLINE_Y = 240;
+/** The Vault line, between the sub-line and START — drawn only when the Vault has something in it. */
+const VAULT_Y = 468;
 
 /** Recipes that carry their own light — battle.ts's ACTOR_GLOW for the three the title stands up. */
 const TITLE_GLOW: Record<string, number> = { EMBER: 0.9, TIDE: 0.55 };
@@ -73,6 +75,14 @@ export interface TitleScreenDeps {
   scene(drawWorld: () => void, actors: readonly LightActor[]): void;
   /** Fired once, the frame START is activated (tap anywhere, or A on the focused button). */
   onStart: () => void;
+  /**
+   * What the Vault is carrying into the next run — "VAULT 6 . 3 TO EQUIP .
+   * A2 UNLOCKED", or '' on a first run. It is the one thing the title has to
+   * say that the diorama cannot: START goes to the Vault's EQUIP face when
+   * there is anything there to choose, and straight to the draft when there is
+   * not (main.ts's beginNewRun), so the player is told which one is coming.
+   */
+  vaultLine?: () => string;
 }
 
 export interface TitleScreen {
@@ -81,7 +91,7 @@ export interface TitleScreen {
 }
 
 export function createTitleScreen(deps: TitleScreenDeps): TitleScreen {
-  const { pc, input, regions, audio, light, scene, onStart } = deps;
+  const { pc, input, regions, audio, light, scene, onStart, vaultLine } = deps;
 
   /** The frame's clock, read by the bound callback below — so the scene pass takes no fresh closure per frame. */
   let castTime = 0;
@@ -144,6 +154,15 @@ export function createTitleScreen(deps: TitleScreenDeps): TitleScreen {
       const hot = focused && blink(time, 1.0, 0.6) === 1;
       drawPrimaryButton(ctx, START_PLATE.x, START_PLATE.y - 8, START_PLATE.w, START_PLATE.h + 16,
         'PRESS TO BEGIN', hot || focused, false, C_ACCENT);
+
+      // What the run starts FROM: the Vault line when there is one, so
+      // "PRESS TO BEGIN" is not a promise about a screen the player cannot see.
+      const vault = vaultLine?.() ?? '';
+      if (vault) {
+        hudTextCentered(ctx, vault, 0, VAULT_Y, CANVAS_W, HUD_SMALL, {
+          px: HUD_SMALL, color: C_ACCENT, alpha: 0.6 + 0.4 * pulse(time, 3),
+        });
+      }
 
       const hint = input.pointer.type === 'touch' ? 'tap anywhere to begin' : `${BUTTON_KEY.A.hint} or tap anywhere . arrows move . ${BUTTON_KEY.PAUSE.hint} pauses`;
       hudTextCentered(ctx, hint, 0, CANVAS_H - inset.bottom - 20, CANVAS_W, HUD_SMALL, { px: HUD_SMALL, color: C_DIM });
