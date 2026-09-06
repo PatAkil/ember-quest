@@ -1115,7 +1115,7 @@ at ×2 a hero stands ≈ 13–17 % of the frame's height with a 2-px cell, the
 density of Octopath's sprites on a 720-px frame (×3 read as chunky and was
 retired on 2026-09-05); (4) **light at native resolution** — a per-biome key
 light as radial gradients, rim light along actor silhouettes, embers, dust and
-fog as smooth alpha particles, composited with `'lighter'`. The atmosphere —
+fog as smooth alpha bands composited `'source-over'` and dust motes composited `'lighter'`. The atmosphere —
 the drifting fog bands and the dust motes — sits **behind the actor plane**,
 with the near plane and the light map; only the per-actor light (the
 multiplicative gain, the rim spill, a lit prop's floor pool) is drawn over the

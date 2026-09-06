@@ -15,7 +15,7 @@
 //   juice.preRender(ctx)              // camera shake translate
 //   light.renderBackground(ctx, { time, shakeX, shakeY });   // far·mid·floor·near + the wash
 //   drawActor(...) / light.drawContactShadow(...)            // the sharp plane
-//   light.renderLightPlane(ctx, { time, actors });           // per-actor gain · rim · fog · dust
+//   light.renderLightPlane(ctx, { time, actors });           // per-actor gain · rim · prop glow (fog and dust are drawn by renderBackground, behind the actors)
 //   light.renderPost(ctx, { time, flashAlpha });             // bloom · grade · vignette
 //   juice.postRender(ctx, W, H)
 //   ...panels, ribbon, log, skill bar, text...               // UI is never bloomed
@@ -133,7 +133,7 @@ export interface GradeLook {
   highlightAlpha: number;
 }
 
-/** Slow horizontal fog banks drifting across the stage, composited 'lighter'. */
+/** Slow horizontal fog banks drifting across the stage, composited 'source-over' (the motes are the additive layer). */
 export interface FogLook {
   color: string;
   /** Peak alpha of one band (0.03-0.12). 0 skips fog. */
@@ -309,7 +309,7 @@ export interface Light {
    * see GAIN_FLOOR for why an additive term is the wrong law for a sprite.
    */
   renderBackground(ctx: CanvasRenderingContext2D, frame: BackgroundFrame): void;
-  /** Pass 4, over the actors: the per-actor multiplicative gain, rim spill, prop glow, fog, dust. */
+  /** Pass 4, over the actors: the per-actor multiplicative gain, rim spill, prop glow (fog and dust moved behind the actors in scene round 5). */
   renderLightPlane(ctx: CanvasRenderingContext2D, frame: LightPlaneFrame): void;
   /** Pass 5: bloom, then the grade + vignette. Leaves context state as found. */
   renderPost(ctx: CanvasRenderingContext2D, frame: PostFrame): void;
