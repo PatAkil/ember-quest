@@ -18,7 +18,78 @@
 // about x 640, so the composition keeps its interest OUTSIDE x 330-950 at head
 // height and lets the actor line own the middle.
 
-import type { BiomeLook, BiomeLooks } from '../../engine';
+import type { BiomeLook, BiomeLooks, PoolLight } from '../../engine';
+import { HERO_FEET, ENEMY_FEET } from '../screens/layout';
+
+/**
+ * THE FOOT POOLS ARE DERIVED FROM THE STAGE ANCHORS, not from literals.
+ *
+ * Every biome lights its two foot clusters with a pool, and until round 6 each
+ * one carried hand-typed coordinates that happened to sit near where the ranks
+ * stand. They drifted: the stage moved to `HERO_FEET` (700, 380) · (790, 448) ·
+ * (880, 516) and `ENEMY_FEET` (230, 380) · (330, 448) · (430, 516) and the
+ * pools stayed at y 462 with an ry of 116-120, so the back seat of each rank
+ * sat outside its own pool and the ground at the six seats measured 21.7-38.7
+ * while the EMPTY near band measured 34.4-37.0 — the light was where nobody
+ * stands. Reading the anchors means the composition round's pack-tightening
+ * lands under the pools automatically.
+ *
+ * `padX` / `padY` are how far past the outermost foot the ellipse reaches, so a
+ * rank is lit with a margin rather than clipped at its own boots.
+ */
+const RANK_OVERLAP_MAX = 60;
+
+/** One rank's centre and un-clamped half-extents. */
+function rankGeom(feet: readonly { x: number; y: number }[], padX: number, padY: number) {
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const f of feet) {
+    x0 = Math.min(x0, f.x); x1 = Math.max(x1, f.x);
+    y0 = Math.min(y0, f.y); y1 = Math.max(y1, f.y);
+  }
+  return {
+    cx: (x0 + x1) / 2,
+    cy: (y0 + y1) / 2,
+    rx: (x1 - x0) / 2 + padX,
+    ry: (y1 - y0) / 2 + padY,
+  };
+}
+
+function clusterPool(
+  feet: readonly { x: number; y: number }[],
+  color: string,
+  alpha: number,
+  actorWeight: number,
+  padX = 250,
+  padY = 92,
+): PoolLight {
+  const me = rankGeom(feet, padX, padY);
+  // THE PAD IS CLAMPED AGAINST THE OTHER RANK. `padX` adds to the rank's own
+  // half-width, so at the current anchors it produced rx 350 and rx 340 for
+  // ranks whose centres are only 460 px apart — 230 px of overlap, and the two
+  // ellipses already read as one band across the middle of the stage. The
+  // composition round is tightening the rank gap to <= 12 % of the width; at
+  // that gap an unguarded pad merges them completely and the stage has one
+  // pool again, which is the exact defect the symmetric pair was introduced to
+  // fix. So both radii are scaled by one factor until the pair overlaps by no
+  // more than RANK_OVERLAP_MAX, whatever the anchors say. Proportional, so the
+  // wider rank keeps the wider pool; never scaled UP, so a wide gap is left
+  // alone.
+  const a = rankGeom(ENEMY_FEET, padX, padY);
+  const b = rankGeom(HERO_FEET, padX, padY);
+  const apart = Math.abs(b.cx - a.cx);
+  const allowed = apart + RANK_OVERLAP_MAX;
+  const sum = a.rx + b.rx;
+  const k = sum > allowed ? allowed / sum : 1;
+  return {
+    color,
+    x: Math.round(me.cx),
+    y: Math.round(me.cy),
+    rx: Math.round(me.rx * k),
+    ry: Math.round(me.ry),
+    alpha,
+    actorWeight,
+  };
+}
 
 /**
  * How far ABOVE the wall/floor joint each floor plane starts painting. The
@@ -1191,6 +1262,186 @@ function pixelGround(ctx: CanvasRenderingContext2D, W: number, H: number, o: Pix
 }
 
 /**
+ * A mass that CATCHES the well. Round 3's Scene item 3: every crypt mid mass
+ * sat at p50 14.4-27.1, where `octopath-3`'s neighbouring masses spread 34 to
+ * 79 — a 45 L order between one house and the next against our 13. Nothing in
+ * our mid plane was lit; every one of them was a silhouette at the same value.
+ *
+ * So each biome gets two of these, flanking the centre under its light well:
+ * a tall mass whose UPPER two thirds are painted at the well's own value and
+ * whose base falls away into the plane's ink, with a hard break between them.
+ * The lit half is deliberately above the actors' heads (`litTo` defaults to
+ * y 250, and the tallest head on the stage tops out near 270), so the mid plane
+ * gains its value order without putting a bright patch behind a face.
+ */
+function litPylon(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  baseY: number,
+  w: number,
+  top: number,
+  lit: string,
+  dark: string,
+  rim: string,
+  litTo = 250,
+): void {
+  const hw = w / 2;
+  const pts = [x - hw, baseY, x - hw * 0.88, top, x + hw * 0.88, top, x + hw, baseY];
+  poly(ctx, pts, dark);
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(pts[0], pts[1]);
+  for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]);
+  ctx.closePath();
+  ctx.clip();
+  const g = ctx.createLinearGradient(0, top, 0, litTo + 40);
+  g.addColorStop(0, lit);
+  g.addColorStop(0.62, lit);
+  g.addColorStop(0.88, hexA(lit, 0.35));
+  g.addColorStop(1, hexA(lit, 0));
+  ctx.fillStyle = g;
+  ctx.fillRect(x - hw - 4, top - 4, w + 8, litTo + 44 - top);
+  // the shaded flank: the well is overhead and slightly left of these, so the
+  // right cheek of each falls away.
+  ctx.globalAlpha = 0.42;
+  ctx.fillStyle = dark;
+  ctx.fillRect(x + hw * 0.24, top - 4, hw, baseY - top + 8);
+  ctx.restore();
+  rimEdge(ctx, [x - hw * 0.88, top, x + hw * 0.88, top], rim, 0.5, 2);
+}
+
+/**
+ * Broad, soft mottle across the upper band — cloud, vault haze, smoke.
+ *
+ * It is here for a measurement as much as for the look. A `vgrad` is a
+ * perfectly horizontal ramp: every row differs from the row above it by the
+ * same amount right across 1280 px, which is the definition of a straight
+ * edge, and once round 6 lifted the top band the per-row step crossed the
+ * detector's 1.5-L threshold and the longest straight run went 211 px -> 421.
+ * Ten overlapping ellipses at 2-5 L of contrast break every row without
+ * changing a single percentile: the air stops being a gradient and starts
+ * being weather.
+ */
+function skyMottle(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  bandH: number,
+  light: string,
+  dark: string,
+  alpha: number,
+  seed: number,
+  count = 12,
+  bandY = 0,
+): void {
+  const rand = rng(seed);
+  ctx.save();
+  for (let i = 0; i < count; i++) {
+    const x = -120 + rand() * (W + 240);
+    const y = bandY - 40 + rand() * (bandH + 60);
+    const rx = 130 + rand() * 260;
+    const ry = rx * (0.24 + rand() * 0.3);
+    const up = rand() < 0.5;
+    blobAt(ctx, x, y, rx, ry, up ? light : dark, alpha * (0.5 + rand()), false);
+  }
+  ctx.restore();
+}
+
+/**
+ * A LIGHT WELL — the bright opening every diorama was missing.
+ *
+ * Round 3 of the full-frame review measured the hole precisely: every biome's
+ * top 180 px sat at p50 14.6-22.2 with 76-97 % of it below L 35, where
+ * `octopath-4`'s sky reads 55.5 and `octopath-3`'s 37.4; the frame carried
+ * 0.7 % of its pixels above L 75 against their 31.7 % and 6.8 %; the centre
+ * third led the left by 1.7 L against their +27 and +26; and the largest bright
+ * mass in every battle frame was a patch of EMPTY FOREGROUND FLOOR at
+ * y 610-697, where both references put a lit gap BEHIND the actors. All four
+ * are the same absence: there is nothing in the air for a figure to read
+ * against, so the actors are lit shapes on a dark ground instead of dark
+ * shapes against a bright one.
+ *
+ * So each biome gets one, high and CENTRED — a broken vault, a cloud break, a
+ * roof light, the water's surface. `rx`/`ry` are the hot core; the halo reaches
+ * `spread x` further and carries the glow into the haze. Drawn on the FAR
+ * plane, which keeps its 6-px blur, so it is air and not an object.
+ */
+function lightWell(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  rx: number,
+  ry: number,
+  core: string,
+  halo: string,
+  alpha = 1,
+  spread = 2.4,
+): void {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = alpha;
+  // the reach, first: a wide soft bloom that lifts the whole top band
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx * spread);
+  g.addColorStop(0, hexA(halo, 0.5));
+  g.addColorStop(0.34, hexA(halo, 0.22));
+  g.addColorStop(0.7, hexA(halo, 0.06));
+  g.addColorStop(1, hexA(halo, 0));
+  ctx.translate(x, y);
+  ctx.scale(1, (ry * spread) / (rx * spread));
+  ctx.fillStyle = g;
+  ctx.fillRect(-rx * spread, -rx * spread, rx * spread * 2, rx * spread * 2);
+  ctx.restore();
+  // ...then the core, opaque enough to clear L 75 through the grade's multiply
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  const c = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+  c.addColorStop(0, core);
+  c.addColorStop(0.52, core);
+  c.addColorStop(0.78, hexA(core, 0.55));
+  c.addColorStop(1, hexA(core, 0));
+  ctx.translate(x, y);
+  ctx.scale(1, ry / rx);
+  ctx.fillStyle = c;
+  ctx.fillRect(-rx, -rx, rx * 2, rx * 2);
+  ctx.restore();
+}
+
+/** Straight shafts falling out of a light well, fanning slightly as they drop. */
+function wellShafts(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  count: number,
+  spread: number,
+  len: number,
+  color: string,
+  alpha: number,
+  seed: number,
+): void {
+  const rand = rng(seed);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < count; i++) {
+    const t = count === 1 ? 0.5 : i / (count - 1);
+    const x0 = x + (t - 0.5) * spread;
+    const w0 = 12 + rand() * 26;
+    const lean = (t - 0.5) * 118;
+    const g = ctx.createLinearGradient(0, y, 0, y + len);
+    g.addColorStop(0, hexA(color, alpha));
+    g.addColorStop(0.45, hexA(color, alpha * 0.42));
+    g.addColorStop(1, hexA(color, 0));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(x0 - w0 * 0.4, y);
+    ctx.lineTo(x0 + w0 * 0.4, y);
+    ctx.lineTo(x0 + lean + w0 * 1.5, y + len);
+    ctx.lineTo(x0 + lean - w0 * 1.5, y + len);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/**
  * The dark foreground corner the command list is read against. The skill rows
  * live at x 24-344, y 535-670 and the log at x 360-930, y 545-580; a lit floor
  * running under either makes 18-px vector text fight the ground for the same
@@ -1929,16 +2180,26 @@ const CRYPT: BiomeLook = {
   // ordering without moving one pixel of the wall it rakes.
   // The key moved with the brazier (see mid(), and the far arch below): a
   // source at x 244 justified a fire the frame no longer keeps there.
-  key: { color: '#ff9436', x: 372, y: 168, radius: 430, alpha: 0.21, actorWeight: 0.5 },
+  // THE KEY IS THE WELL. Round 6 put a lit opening high and centred in every
+  // biome (see `lightWell`); the key light is what that opening throws, so it
+  // moved there with it. The wash on the back wall follows the hole in the
+  // ceiling instead of a doorway in the left corner.
+  key: { color: '#ffb066', x: 640, y: 120, radius: 520, alpha: 0.22, actorWeight: 0.5 },
   fill: { color: '#4a63a8', x: 1080, y: 630, radius: 660, alpha: 0.2, actorWeight: 1.4 },
   // A symmetric PAIR, not one centred pool. The stage is a diagonal with the
   // enemies on the left third (layout.ts ENEMY_FEET x 206-452) and the party on
   // the right (HERO_FEET x 700-880); one pool at x 640 peaked between them,
   // where nobody stands, and left the enemy plane unlit.
-  pool: { color: '#ffb15c', x: 336, y: 462, rx: 320, ry: 116, alpha: 0.2, actorWeight: 0.85 },
+  // Derived from ENEMY_FEET / HERO_FEET (see `clusterPool`). The alphas came
+  // UP in round 6: the ground at the six seats measured 21.7-38.7 against an
+  // empty near band at 34.4-37.0, and the front hero's actor-to-ground
+  // contrast was 1.23:1. The lift is on the PARTY's side by design — pool2
+  // is the party's and is the stronger of the two, because the enemy rank was
+  // averaging 8.0 L above the plane the player controls.
+  pool: clusterPool(ENEMY_FEET, '#ffb15c', 0.816, 0.85),
   // Pool2 is the PARTY's ground and it is now the brightest floor in the room:
   // the eye has to land on the half of the stage the player controls.
-  pool2: { color: '#ffb970', x: 798, y: 462, rx: 328, ry: 120, alpha: 0.235, actorWeight: 1.15 },
+  pool2: clusterPool(HERO_FEET, '#ffb970', 0.792, 1.25),
   shafts: { color: '#ffb066', alpha: 0.065, x: 296, y: -90, angle: -0.52, count: 4, width: 52, length: 1050, gap: 152 },
   grade: {
     shadow: '#3a1b2a',
@@ -1957,22 +2218,46 @@ const CRYPT: BiomeLook = {
     // Aerial perspective: the deepest plane is the LIGHTEST and the least
     // contrasty thing in the frame, hazing out toward the wall line.
     vgrad(ctx, 0, 0, W, H, [
-      [0, '#0e0c18'],
-      [0.26, '#1d1726'],
-      [0.48, '#332630'],
+      // The upper band lifts in round 6: the vault/sky above the horizon read
+      // p50 14.6-22.2 against the references' 37.4 and 55.5, so a figure had
+      // nothing to be a silhouette against. The air is hazed and lit now, and
+      // the light well overhead is what is lighting it.
+      [0, '#3a3547'],
+      [0.14, '#4a4152'],
+      [0.3, '#463746'],
+      [0.48, '#3d2e36'],
       [0.56, '#3a2b30'],
       [0.68, '#241c26'],
       [1, '#14101a'],
     ]);
+    skyMottle(ctx, W, 300, '#6d6178', '#17131f', 0.16, CRYPT_SEED ^ 0x71);
+    // THE BROKEN VAULT — the crypt's light well, centred and high (see
+    // `lightWell`). The ceiling has fallen in over the middle of the room and
+    // cold daylight comes down through it: an interior's version of a sky, and
+    // the one thing in the frame the actor rank can be read AGAINST. It is the
+    // opposing accent this room already had (cold against the amber) grown to
+    // the size the reference gives its sky, and it sits above y 240, clear of
+    // every head on the stage.
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    poly(ctx, [478, -20, 812, -20, 800, 92, 742, 140, 690, 118, 604, 152, 540, 120, 486, 66], '#0a0a12');
+    ctx.restore();
+    lightWell(ctx, 646, 62, 232, 132, '#f4f9ff', '#9cc2e6', 1, 2.8);
+    wellShafts(ctx, 646, 120, 5, 300, 300, '#cfe2ff', 0.17, 0xbeef);
     // THE FAR-LEFT DOORWAY, DIMMED. Measured with the critic's own method the
     // largest bright AND largest saturated mass in every crypt frame was this
     // one — x 60-260, opposite the party, the first thing the eye found and
     // nothing the player controls. It stays as architecture (the room needs a
     // way out) at a third of its glow; the FIRE that justified it has moved
     // up-stage behind the enemy rank, and the wall there carries its spill.
-    arch(ctx, 190, 84, 132, FLOOR_Y, '#33201a');
-    arch(ctx, 190, 50, 196, FLOOR_Y, '#452718');
-    softBlob(ctx, 190, 326, 82, 86, '#a1501a', 0.075);
+    // ...and dimmed AGAIN in round 6. Composition item 2: it was still the
+    // largest saturated mass in every crypt frame at 2.4-3.1 % of pixels,
+    // x 87-240, in the left third opposite the party. The doorway stays as a
+    // way out of the room; its warm glow is now a quarter of what it was, and
+    // the room's loudest thing is the vault above the middle of the stage.
+    arch(ctx, 190, 84, 132, FLOOR_Y, '#2a1c1a');
+    arch(ctx, 190, 50, 196, FLOOR_Y, '#33221c');
+    softBlob(ctx, 190, 326, 66, 70, '#7a4420', 0.04);
     // The brazier's own spill on the back wall, at x 452 — up-stage, behind
     // where the enemies stand, so their silhouettes read against it.
     softBlob(ctx, 452, 336, 104, 96, '#c9631f', 0.13);
@@ -2012,11 +2297,11 @@ const CRYPT: BiomeLook = {
     // ...and the COLD window is raised to meet it: with the brazier halved,
     // the room's two loudest sources now sit across the wheel AND across the
     // frame instead of one amber mass owning the left edge.
-    softBlob(ctx, 1092, 96, 146, 132, '#2f7ea8', 0.26);
-    softBlob(ctx, 1068, 84, 17, 17, '#d8f4ff', 0.48);
+    softBlob(ctx, 1092, 96, 118, 106, '#2f7ea8', 0.16);
+    softBlob(ctx, 1068, 84, 14, 14, '#d8f4ff', 0.34);
     softBlob(ctx, 1148, 132, 10, 10, '#cdeeff', 0.3);
     // Dust haze washing the whole far plane down toward the floor.
-    hazeWash(ctx, W, 150, '#927a70', 0.52, CRYPT_SEED);
+    hazeWash(ctx, W, 150, '#927a70', 0.3, CRYPT_SEED);
     // The wall meets the floor on a BROKEN line: a straight 1280-px rule reads
     // as a seam between two offscreens, so the joint steps over nine segments
     // and three masses below stand across it.
@@ -2112,6 +2397,9 @@ const CRYPT: BiomeLook = {
     rimEdge(ctx, [566, FLOOR_Y - 8, 572, FLOOR_Y - 82, 612, FLOOR_Y - 74], RIM, 0.1, 2);
     wedgeBox(ctx, 690, FLOOR_Y + 18, 84, 44, 0.7, 0.06, '#0e0a18', RIM, 0.1, false);
     drum(ctx, 654, FLOOR_Y + 34, 40, 20, '#0f0b1a', RIM, 0.1);
+    // The two masses that catch the broken vault (see `litPylon`).
+    litPylon(ctx, 498, FLOOR_Y + 18, 52, 96, '#c9b49c', '#171225', RIM);
+    litPylon(ctx, 812, FLOOR_Y + 22, 60, 112, '#bda88f', '#151020', RIM);
     jointSpeckle(ctx, W, CRYPT_GROUND, CRYPT_SEED ^ 0x3d);
     horizonGlint(ctx, W, FLOOR_Y - 9, '#ff9646', 0.09, CRYPT_SEED, 9, 17);
   },
@@ -2149,6 +2437,13 @@ const CRYPT: BiomeLook = {
       ink: CRYPT_GROUND,
       pool: [566, 476, 520, 140],
     });
+    // The two foot pools are smooth radial gradients and they now overlap
+    // across the middle of the stage, which put a 421-px straight run at
+    // y ~ 500 into the crisp floor plane — a horizontal band whose vertical
+    // rate of change was identical right across it. Broad, low-contrast
+    // mottle over the same band breaks every row of it and changes no
+    // percentile (see `skyMottle`).
+    skyMottle(ctx, W, 210, CRYPT_GROUND.lit, CRYPT_GROUND.dark, 0.14, CRYPT_SEED ^ 0x5a, 18, FLOOR_Y - 10);
     // ...and the PIXEL ground over it, which is where the value lives: crowns,
     // beds, ruts and a scuffed lane on the actors' own 2-px grid.
     pixelGround(ctx, W, H, {
@@ -2336,13 +2631,19 @@ function hull(
 
 const MARSH: BiomeLook = {
   id: 'FROST MARSH',
-  key: { color: '#7fdcc4', x: 196, y: 126, radius: 440, alpha: 0.22, actorWeight: 0.5 },
+  key: { color: '#a8e6dc', x: 640, y: 110, radius: 520, alpha: 0.22, actorWeight: 0.5 },
   // THE OPPOSING FILL. This room's key is a cold moon; a cold fill under it
   // made every pixel one hue. The fill is now the dusk warmth off the lantern
   // on the far bank, so the two lights sit across the wheel.
   fill: { color: '#8f5c50', x: 1090, y: 620, radius: 660, alpha: 0.16, actorWeight: 1.4 },
-  pool: { color: '#8fe2d0', x: 336, y: 450, rx: 316, ry: 100, alpha: 0.18, actorWeight: 0.85 },
-  pool2: { color: '#9de6d4', x: 798, y: 462, rx: 320, ry: 116, alpha: 0.18, actorWeight: 1.15 },
+  // Derived from ENEMY_FEET / HERO_FEET (see `clusterPool`). The alphas came
+  // UP in round 6: the ground at the six seats measured 21.7-38.7 against an
+  // empty near band at 34.4-37.0, and the front hero's actor-to-ground
+  // contrast was 1.23:1. The lift is on the PARTY's side by design — pool2
+  // is the party's and is the stronger of the two, because the enemy rank was
+  // averaging 8.0 L above the plane the player controls.
+  pool: clusterPool(ENEMY_FEET, '#8fe2d0', 0.504, 0.85),
+  pool2: clusterPool(HERO_FEET, '#9de6d4', 0.576, 1.25),
   shafts: { color: '#a9e8dd', alpha: 0.055, x: 246, y: -80, angle: -0.4, count: 5, width: 42, length: 820, gap: 132 },
   grade: {
     shadow: '#12293c',
@@ -2357,7 +2658,12 @@ const MARSH: BiomeLook = {
   // disc. `engine/light.ts` re-applies this additively after the grade, as a
   // core inside a wide falloff, and a gradient survives a multiply as a
   // gradient. Centred on the same (196, 126) the far plane paints it at.
-  sky: { color: '#dcf4ec', x: 196, y: 126, r: 34, halo: 210, alpha: 0.42 },
+  // Alpha kept LOW on purpose: the far plane already paints this disc as a
+  // gradient, and an additive sprite strong enough to clip all three channels
+  // is exactly what made the dimmed moon a flat grey coin with no chroma in it
+  // (p10 = p50 = p90 = 53.2, satMean 0.0). The sprite's job is to keep the
+  // body reading as a LIGHT through a multiply, not to become one.
+  sky: { color: '#ffd9a8', x: 196, y: 126, r: 34, halo: 210, alpha: 0.2 },
   fog: { color: '#7fa8ad', alpha: 0.095, y: 272, height: 262, speed: 9, bands: 2 },
   motes: { color: '#cdeee4', count: 56, size: 8, rise: 12, drift: 15 },
   rim: '#bff0e2',
@@ -2366,19 +2672,42 @@ const MARSH: BiomeLook = {
 
   far(ctx, W, H) {
     vgrad(ctx, 0, 0, W, H, [
-      [0, '#101b26'],
-      [0.28, '#20364a'],
+      // The upper band lifts in round 6: the vault/sky above the horizon read
+      // p50 14.6-22.2 against the references' 37.4 and 55.5, so a figure had
+      // nothing to be a silhouette against. The air is hazed and lit now, and
+      // the light well overhead is what is lighting it.
+      [0, '#2c4a62'],
+      [0.16, '#38607c'],
+      [0.32, '#2a465c'],
       [0.48, '#3d5c6c'],
       [0.55, '#456471'],
       [0.66, '#223a45'],
       [1, '#13232c'],
     ]);
-    // The cold moon, upper left, where the key light stands.
-    softBlob(ctx, 196, 126, 250, 250, '#2f6f74', 0.32);
-    ctx.beginPath();
-    ctx.arc(196, 126, 32, 0, Math.PI * 2);
-    ctx.fillStyle = '#dcf4ec';
-    ctx.fill();
+    skyMottle(ctx, W, 300, '#6d8ea0', '#132029', 0.17, MARSH_SEED ^ 0x71);
+    // The break in the overcast, centred: the marsh's light well (see
+    // `lightWell`) — the sky the moon is actually lighting, rather than a lamp
+    // on a black field.
+    lightWell(ctx, 640, 70, 262, 140, '#f0fbf8', '#8ecacd', 1, 2.8);
+    wellShafts(ctx, 640, 120, 4, 320, 280, '#bfe6e4', 0.12, 0x3e11);
+    // The cold moon, upper left, where the key light stands. Its disc is a
+    // GRADIENT now, not a flat fill: first-ten-minutes defect 5 measured the
+    // dimmed moon at p10 = p50 = p90 = 53.2, range 0.0, inside a cyan annulus —
+    // and the flat opaque disc painted here is what the terminal overlay was
+    // flattening. A hot core falling across its own limb survives a multiply.
+    softBlob(ctx, 196, 126, 190, 190, '#2f6f74', 0.16);
+    {
+      const mg = ctx.createRadialGradient(196, 120, 0, 196, 126, 34);
+      mg.addColorStop(0, '#ffeec2');
+      mg.addColorStop(0.42, '#f0efd8');
+      mg.addColorStop(0.74, '#d2ece2');
+      mg.addColorStop(0.93, '#a9d4c8');
+      mg.addColorStop(1, 'rgba(169,212,200,0)');
+      ctx.fillStyle = mg;
+      ctx.beginPath();
+      ctx.arc(196, 126, 34, 0, Math.PI * 2);
+      ctx.fill();
+    }
     softBlob(ctx, 196, 126, 70, 70, '#a8e6dc', 0.3);
     for (const [x, h] of [[96, 128], [178, 96], [330, 150], [452, 104], [600, 128], [742, 88], [1046, 116], [1180, 148]] as const) {
       deadTree(ctx, x, FLOOR_Y - 4, h, (x % 7) - 3, MARSH_FAR_INK);
@@ -2394,7 +2723,7 @@ const MARSH: BiomeLook = {
       reeds(ctx, x, FLOOR_Y - 12, h, n, '#3d6070', lean, x);
     }
     // Standing haze — the marsh's aerial perspective, heavier than the crypt's.
-    hazeWash(ctx, W, 130, '#a0c4c6', 0.4, MARSH_SEED);
+    hazeWash(ctx, W, 130, '#a0c4c6', 0.26, MARSH_SEED);
   },
 
   mid(ctx, W) {
@@ -2462,6 +2791,9 @@ const MARSH: BiomeLook = {
     slabProp(ctx, 678, FLOOR_Y + 10, 30, 74, 0.08, '#0b171f', RIM, 0.12);
     poly(ctx, [660, FLOOR_Y - 62, 666, FLOOR_Y - 78, 694, FLOOR_Y - 74, 690, FLOOR_Y - 58], '#0b171f');
     reeds(ctx, 636, FLOOR_Y + 16, 62, 6, '#0c1a21', 16, 29);
+    // Two dead trunks stripped white under the break (see `litPylon`).
+    litPylon(ctx, 486, FLOOR_Y + 16, 34, 74, '#cfe2dc', '#0d1c24', RIM);
+    litPylon(ctx, 828, FLOOR_Y + 20, 40, 92, '#c2d8d4', '#0b1a21', RIM);
     jointSpeckle(ctx, W, MARSH_GROUND, MARSH_SEED ^ 0x3d, 380);
     horizonGlint(ctx, W, FLOOR_Y - 6, '#9fe4d6', 0.07, MARSH_SEED, 8, 14);
   },
@@ -2537,6 +2869,13 @@ const MARSH: BiomeLook = {
       pool: [566, 476, 520, 140],
       alpha: 0.56,
     });
+    // The two foot pools are smooth radial gradients and they now overlap
+    // across the middle of the stage, which put a 421-px straight run at
+    // y ~ 500 into the crisp floor plane — a horizontal band whose vertical
+    // rate of change was identical right across it. Broad, low-contrast
+    // mottle over the same band breaks every row of it and changes no
+    // percentile (see `skyMottle`).
+    skyMottle(ctx, W, 210, MARSH_GROUND.lit, MARSH_GROUND.dark, 0.14, MARSH_SEED ^ 0x5a, 18, FLOOR_Y - 10);
     // ...and the PIXEL ground over it, on the actors' own 2-px grid: crowns,
     // beds, ruts and a scuffed lane, at 25-40 % local contrast. This is where
     // the plane's VALUE lives; the soft scatter above only carries silhouettes.
@@ -2707,12 +3046,18 @@ function stairs(
 
 const RUINS: BiomeLook = {
   id: 'SKY RUINS',
-  key: { color: '#ffc266', x: 220, y: 138, radius: 460, alpha: 0.22, actorWeight: 0.5 },
+  key: { color: '#ffd9a4', x: 632, y: 120, radius: 520, alpha: 0.22, actorWeight: 0.5 },
   // The opposing fill is the risen moon and the night half of the sky, pushed
   // properly blue against the dusk sun rather than sharing its violet.
   fill: { color: '#4e6cc4', x: 1050, y: 560, radius: 680, alpha: 0.19, actorWeight: 1.4 },
-  pool: { color: '#ffd699', x: 336, y: 462, rx: 320, ry: 116, alpha: 0.17, actorWeight: 0.85 },
-  pool2: { color: '#ffdca8', x: 798, y: 462, rx: 320, ry: 116, alpha: 0.17, actorWeight: 1.15 },
+  // Derived from ENEMY_FEET / HERO_FEET (see `clusterPool`). The alphas came
+  // UP in round 6: the ground at the six seats measured 21.7-38.7 against an
+  // empty near band at 34.4-37.0, and the front hero's actor-to-ground
+  // contrast was 1.23:1. The lift is on the PARTY's side by design — pool2
+  // is the party's and is the stronger of the two, because the enemy rank was
+  // averaging 8.0 L above the plane the player controls.
+  pool: clusterPool(ENEMY_FEET, '#ffd699', 0.552, 0.85),
+  pool2: clusterPool(HERO_FEET, '#ffdca8', 0.624, 1.25),
   shafts: { color: '#ffdca0', alpha: 0.06, x: 258, y: -90, angle: -0.42, count: 4, width: 46, length: 830, gap: 140 },
   grade: {
     shadow: '#221a3c',
@@ -2732,8 +3077,13 @@ const RUINS: BiomeLook = {
 
   far(ctx, W, H) {
     vgrad(ctx, 0, 0, W, H, [
-      [0, '#0b0a1c'],
-      [0.22, '#171438'],
+      // The upper band lifts in round 6: the vault/sky above the horizon read
+      // p50 14.6-22.2 against the references' 37.4 and 55.5, so a figure had
+      // nothing to be a silhouette against. The air is hazed and lit now, and
+      // the light well overhead is what is lighting it.
+      [0, '#2a2650'],
+      [0.14, '#3a3468'],
+      [0.26, '#2b2554'],
       [0.34, '#252150'],
       [0.46, '#3e3763'],
       [0.56, '#5a4a6e'],
@@ -2741,6 +3091,10 @@ const RUINS: BiomeLook = {
       [0.72, '#7a5a5c'],
       [1, '#16142a'],
     ]);
+    skyMottle(ctx, W, 380, '#7a6ea6', '#100d24', 0.3, RUINS_SEED ^ 0x71, 20);
+    // The break the low sun is coming through, centred (see `lightWell`).
+    lightWell(ctx, 632, 78, 276, 146, '#fff8ea', '#eab98a', 1, 2.9);
+    wellShafts(ctx, 632, 126, 5, 340, 300, '#ffe6bd', 0.14, 0x5c99);
     // A scatter of faint stars, well above head height, dim enough to never outshine the sun.
     ctx.save();
     ctx.fillStyle = '#f2eaff';
@@ -2783,7 +3137,7 @@ const RUINS: BiomeLook = {
     ctx.restore();
     windStreak(ctx, -20, 150, 340, -26, '#dcd6ff', 0.14, 3);
     windStreak(ctx, 900, 220, 320, -18, '#dcd6ff', 0.12, 2);
-    hazeWash(ctx, W, 150, '#aa96aa', 0.42, RUINS_SEED);
+    hazeWash(ctx, W, 150, '#aa96aa', 0.28, RUINS_SEED);
     // A broken skyline where the platform meets the air, not a 1280-px rule.
     // TWELVE segments at a 30-px step, not nine at 19. The joint carried a
     // 316-px straight rule at y 394, x 717-1033 at LOW and ARCADE (306 px even
@@ -2858,6 +3212,9 @@ const RUINS: BiomeLook = {
     faceShade(ctx, [566, FLOOR_Y - 14, 574, FLOOR_Y - 86, 626, FLOOR_Y - 78, 638, FLOOR_Y - 10], FLOOR_Y - 86, FLOOR_Y - 10, RIM, 0.13);
     rimEdge(ctx, [566, FLOOR_Y - 14, 574, FLOOR_Y - 86, 626, FLOOR_Y - 78], RIM, 0.1, 2);
     drum(ctx, 686, FLOOR_Y + 22, 52, 30, '#1b1734', RIM, 0.1);
+    // Two standing stones taking the low sun (see `litPylon`).
+    litPylon(ctx, 494, FLOOR_Y + 18, 50, 88, '#e2c49c', '#1c1838', RIM);
+    litPylon(ctx, 820, FLOOR_Y + 22, 56, 104, '#d6b891', '#191534', RIM);
     jointSpeckle(ctx, W, RUINS_GROUND, RUINS_SEED ^ 0x3d, 700);
     horizonGlint(ctx, W, FLOOR_Y - 10, '#ffc888', 0.08, RUINS_SEED, 9, 19);
   },
@@ -2894,6 +3251,13 @@ const RUINS: BiomeLook = {
       pool: [566, 476, 520, 140],
       alpha: 0.5,
     });
+    // The two foot pools are smooth radial gradients and they now overlap
+    // across the middle of the stage, which put a 421-px straight run at
+    // y ~ 500 into the crisp floor plane — a horizontal band whose vertical
+    // rate of change was identical right across it. Broad, low-contrast
+    // mottle over the same band breaks every row of it and changes no
+    // percentile (see `skyMottle`).
+    skyMottle(ctx, W, 230, '#8f7b9e', '#120f22', 0.26, RUINS_SEED ^ 0x5a, 22, FLOOR_Y - 14);
     // ...and the PIXEL ground over it, on the actors' own 2-px grid: crowns,
     // beds, ruts and a scuffed lane, at 25-40 % local contrast. This is where
     // the plane's VALUE lives; the soft scatter above only carries silhouettes.
@@ -2961,8 +3325,8 @@ const RUINS: BiomeLook = {
 // and anvils sit at the edges. The actor row stays dark iron and soot; the
 // glow lives at the margins, the same discipline as the crypt's brazier.
 
-const FORGE_FAR_INK = '#3a1e1a';
-const FORGE_MID_INK = '#171313';
+const FORGE_FAR_INK = '#4a2a22';
+const FORGE_MID_INK = '#241d1a';
 const FORGE_NEAR_INK = '#090504';
 /** Slag, cinder and scale over a soot floor. */
 const FORGE_GROUND: GroundInk = { lit: '#5b4438', dark: '#0a0706', seam: '#070403' };
@@ -3019,12 +3383,18 @@ function chainLine(ctx: CanvasRenderingContext2D, x: number, topY: number, botY:
 
 const FORGE: BiomeLook = {
   id: 'ASHEN FORGE',
-  key: { color: '#ff5a2e', x: 210, y: 168, radius: 460, alpha: 0.24, actorWeight: 0.5 },
+  key: { color: '#ffb478', x: 646, y: 100, radius: 520, alpha: 0.24, actorWeight: 0.5 },
   // The cold half of the room: daylight and steam falling through the roof
   // vents on the far right, opposite the furnace mouth.
   fill: { color: '#5a76b8', x: 1085, y: 560, radius: 680, alpha: 0.22, actorWeight: 1.4 },
-  pool: { color: '#ff8a4a', x: 336, y: 464, rx: 320, ry: 118, alpha: 0.22, actorWeight: 0.85 },
-  pool2: { color: '#ff9a5e', x: 798, y: 464, rx: 320, ry: 118, alpha: 0.22, actorWeight: 1.15 },
+  // Derived from ENEMY_FEET / HERO_FEET (see `clusterPool`). The alphas came
+  // UP in round 6: the ground at the six seats measured 21.7-38.7 against an
+  // empty near band at 34.4-37.0, and the front hero's actor-to-ground
+  // contrast was 1.23:1. The lift is on the PARTY's side by design — pool2
+  // is the party's and is the stronger of the two, because the enemy rank was
+  // averaging 8.0 L above the plane the player controls.
+  pool: clusterPool(ENEMY_FEET, '#ff8a4a', 0.912, 0.85),
+  pool2: clusterPool(HERO_FEET, '#ff9a5e', 0.84, 1.25),
   shafts: { color: '#ff8552', alpha: 0.07, x: 140, y: -80, angle: -0.5, count: 4, width: 50, length: 1040, gap: 150 },
   grade: {
     shadow: '#2a1210',
@@ -3041,19 +3411,41 @@ const FORGE: BiomeLook = {
 
   far(ctx, W, H) {
     vgrad(ctx, 0, 0, W, H, [
-      [0, '#0a0806'],
-      [0.24, '#1c110c'],
+      // The upper band lifts in round 6: the vault/sky above the horizon read
+      // p50 14.6-22.2 against the references' 37.4 and 55.5, so a figure had
+      // nothing to be a silhouette against. The air is hazed and lit now, and
+      // the light well overhead is what is lighting it.
+      [0, '#3a2c22'],
+      [0.14, '#4a382a'],
+      [0.3, '#3c261a'],
       [0.46, '#341c14'],
       [0.56, '#3e2216'],
       [0.68, '#241410'],
       [1, '#120a08'],
     ]);
+    skyMottle(ctx, W, 300, '#6b5442', '#150e0a', 0.17, FORGE_SEED ^ 0x71);
+    // THE ROOF LIGHT, centred. The forge measured 89.3 % of its frame below
+    // L 35 — the darkest of the six by 24 points — and its whole top band at
+    // p50 15.0. A furnace hall has a louvred roof over the hearth for the heat
+    // to leave by, and that is where the daylight comes in: a cold shaft down
+    // the middle of a room that is otherwise all fire, which is the opposing
+    // accent this biome already keeps at its right-hand vent, moved to where
+    // the eye should be.
+    ctx.save();
+    ctx.globalAlpha = 0.8;
+    poly(ctx, [486, -20, 806, -20, 792, 74, 660, 112, 520, 78], '#120c0a');
+    ctx.restore();
+    lightWell(ctx, 646, 46, 206, 106, '#ffeacd', '#c99a6e', 0.92, 2.7);
+    wellShafts(ctx, 646, 92, 5, 300, 320, '#ffd7a8', 0.12, 0xf01e);
     // The great furnace mouth, hard left — the room's one true light source.
     arch(ctx, 200, 100, 118, FLOOR_Y, '#2a1208');
     arch(ctx, 200, 62, 168, FLOOR_Y, '#5c2408');
     // The saturated core stays left of x 330 — the actor band's own edge.
-    softBlob(ctx, 192, 320, 112, 122, '#ff5a1c', 0.22);
-    softBlob(ctx, 192, 300, 44, 42, '#ffd27a', 0.3);
+    // Down hard (composition item 2): at 0.22 over a 112-px radius this was a
+    // 7.99 %-of-frame saturated mass in the left third. The hearth is still a
+    // hearth; the room's brightest thing is the roof light over the middle.
+    softBlob(ctx, 192, 320, 78, 86, '#c2481a', 0.1);
+    softBlob(ctx, 192, 302, 30, 28, '#e8b070', 0.16);
     // THE OPPOSING ACCENT: a barred roof vent at the far right, throwing a
     // COLD daylight wash and a plume of steam down the other end of the hall.
     // Every other pixel in this room is a shade of fire; without a cold half
@@ -3075,7 +3467,7 @@ const FORGE: BiomeLook = {
     for (const x of [380, 460, 940, 1080]) {
       pillar(ctx, x, 60, FLOOR_Y, 17, FORGE_FAR_INK, '#4a2418');
     }
-    hazeWash(ctx, W, 150, '#965a3c', 0.5, FORGE_SEED);
+    hazeWash(ctx, W, 150, '#965a3c', 0.3, FORGE_SEED);
     // The vent's light and its steam go on AFTER the warm haze: painted under
     // it they were tinted straight back into the fire, and the room lost its
     // cold half again.
@@ -3152,6 +3544,9 @@ const FORGE: BiomeLook = {
     faceShade(ctx, [560, FLOOR_Y - 24, 566, FLOOR_Y - 88, 606, FLOOR_Y - 84, 602, FLOOR_Y - 20], FLOOR_Y - 88, FLOOR_Y - 20, RIM, 0.13);
     rimEdge(ctx, [560, FLOOR_Y - 24, 566, FLOOR_Y - 88, 606, FLOOR_Y - 84], RIM, 0.1, 2);
     drum(ctx, 694, FLOOR_Y + 16, 46, 34, '#141010', RIM, 0.1);
+    // Two flue stacks under the roof light (see `litPylon`).
+    litPylon(ctx, 492, FLOOR_Y + 16, 46, 84, '#e0c096', '#151110', RIM);
+    litPylon(ctx, 824, FLOOR_Y + 20, 54, 100, '#d3b087', '#141010', RIM);
     jointSpeckle(ctx, W, FORGE_GROUND, FORGE_SEED ^ 0x3d, 500);
     horizonGlint(ctx, W, FLOOR_Y - 11, '#ff7c34', 0.09, FORGE_SEED, 8, 20);
   },
@@ -3162,11 +3557,11 @@ const FORGE: BiomeLook = {
     // Lit from the front (see MARSH.floor): swept ash over hot brick, brightest
     // in the rows the camera stands in.
     vgrad(ctx, 0, FLOOR_Y - JOINT_LIFT, W, H - FLOOR_Y + JOINT_LIFT, [
-      [0, '#1e1713'],
-      [0.18, '#2b211b'],
-      [0.48, '#3f2e23'],
-      [0.8, '#7d573d'],
-      [1, '#734e36'],
+      [0, '#2a201a'],
+      [0.18, '#3a2b22'],
+      [0.48, '#4d3829'],
+      [0.8, '#8d6344'],
+      [1, '#84593d'],
     ]);
     // Where the barrows ran between furnace and anvil, and the swept ash banks.
     scuffBand(ctx, 260, FLOOR_Y + 30, 700, H - 20, 96, 210, '#4b382c', 0.05, true);
@@ -3206,6 +3601,13 @@ const FORGE: BiomeLook = {
       pool: [566, 478, 520, 142],
       alpha: 0.6,
     });
+    // The two foot pools are smooth radial gradients and they now overlap
+    // across the middle of the stage, which put a 421-px straight run at
+    // y ~ 500 into the crisp floor plane — a horizontal band whose vertical
+    // rate of change was identical right across it. Broad, low-contrast
+    // mottle over the same band breaks every row of it and changes no
+    // percentile (see `skyMottle`).
+    skyMottle(ctx, W, 210, FORGE_GROUND.lit, FORGE_GROUND.dark, 0.14, FORGE_SEED ^ 0x5a, 18, FLOOR_Y - 10);
     // ...and the PIXEL ground over it, on the actors' own 2-px grid: crowns,
     // beds, ruts and a scuffed lane, at 25-40 % local contrast. This is where
     // the plane's VALUE lives; the soft scatter above only carries silhouettes.
@@ -3322,12 +3724,18 @@ function frond(
 
 const VAULT: BiomeLook = {
   id: 'SUNKEN VAULT',
-  key: { color: '#6fd8ff', x: 210, y: 132, radius: 460, alpha: 0.2, actorWeight: 0.5 },
+  key: { color: '#9fe4ff', x: 636, y: 100, radius: 520, alpha: 0.22, actorWeight: 0.5 },
   // Warm against the cold: the drowned lantern still burning on the far bank
   // is what the fill answers with, so the room is not one blue.
   fill: { color: '#a86a44', x: 1085, y: 580, radius: 660, alpha: 0.17, actorWeight: 1.4 },
-  pool: { color: '#7fe2ff', x: 336, y: 462, rx: 320, ry: 116, alpha: 0.18, actorWeight: 0.85 },
-  pool2: { color: '#8ce6ff', x: 798, y: 462, rx: 320, ry: 116, alpha: 0.18, actorWeight: 1.15 },
+  // Derived from ENEMY_FEET / HERO_FEET (see `clusterPool`). The alphas came
+  // UP in round 6: the ground at the six seats measured 21.7-38.7 against an
+  // empty near band at 34.4-37.0, and the front hero's actor-to-ground
+  // contrast was 1.23:1. The lift is on the PARTY's side by design — pool2
+  // is the party's and is the stronger of the two, because the enemy rank was
+  // averaging 8.0 L above the plane the player controls.
+  pool: clusterPool(ENEMY_FEET, '#7fe2ff', 0.504, 0.85),
+  pool2: clusterPool(HERO_FEET, '#8ce6ff', 0.576, 1.25),
   shafts: { color: '#a6ecff', alpha: 0.075, x: 160, y: -90, angle: -0.48, count: 5, width: 46, length: 1040, gap: 138 },
   grade: {
     shadow: '#08202c',
@@ -3344,18 +3752,29 @@ const VAULT: BiomeLook = {
 
   far(ctx, W, H) {
     vgrad(ctx, 0, 0, W, H, [
-      [0, '#040f16'],
-      [0.24, '#0c2432'],
-      [0.4, '#123a4c'],
+      // The upper band lifts in round 6: the vault/sky above the horizon read
+      // p50 14.6-22.2 against the references' 37.4 and 55.5, so a figure had
+      // nothing to be a silhouette against. The air is hazed and lit now, and
+      // the light well overhead is what is lighting it.
+      [0, '#1d4d61'],
+      [0.14, '#286478'],
+      [0.28, '#1e5468'],
+      [0.4, '#194a5c'],
       [0.46, '#164358'],
       [0.56, '#1b4d5e'],
       [0.64, '#15404e'],
       [0.72, '#0f2e38'],
       [1, '#081a22'],
     ]);
+    skyMottle(ctx, W, 300, '#3f7f96', '#08181f', 0.17, VAULT_SEED ^ 0x71);
+    // THE SURFACE, centred and overhead — this room's light well. A drowned
+    // reliquary has daylight on the water above it, and that is the bright
+    // thing the actors read against.
+    lightWell(ctx, 636, 50, 268, 132, '#effcff', '#78c6dd', 1, 2.9);
+    wellShafts(ctx, 636, 92, 6, 340, 330, '#b6ecff', 0.15, 0x7a1e);
     // The surface light column, hard left, feeding the key.
-    softBlob(ctx, 210, 100, 230, 260, '#2f97b8', 0.3);
-    softBlob(ctx, 210, 132, 60, 60, '#cdf3ff', 0.3);
+    softBlob(ctx, 210, 100, 168, 190, '#2f97b8', 0.15);
+    softBlob(ctx, 210, 132, 42, 42, '#cdf3ff', 0.16);
     // The vault door itself, held off to one side — the crypt's own brazier
     // discipline — with flanking columns past the actor band on both edges.
     arch(ctx, 980, 108, 118, FLOOR_Y, VAULT_FAR_INK);
@@ -3367,7 +3786,7 @@ const VAULT: BiomeLook = {
     for (const x of [180, 260]) pillar(ctx, x, 130, FLOOR_Y, 18, VAULT_FAR_INK, '#2c5262');
     for (const x of [1060, 1180]) pillar(ctx, x, 170, FLOOR_Y, 16, VAULT_FAR_INK, '#264854');
     causticBand(ctx, 190, W, '#9fe2f2', 0.1, 0);
-    hazeWash(ctx, W, 150, '#78bec6', 0.4, VAULT_SEED);
+    hazeWash(ctx, W, 150, '#78bec6', 0.26, VAULT_SEED);
     horizonBand(ctx, W, FLOOR_Y - 10, 24, '#0e222c', VAULT_SEED, 9, 18);
   },
 
@@ -3423,6 +3842,9 @@ const VAULT: BiomeLook = {
     rimEdge(ctx, [572, FLOOR_Y - 10, 578, FLOOR_Y - 80, 620, FLOOR_Y - 72], RIM, 0.1, 2);
     drum(ctx, 684, FLOOR_Y + 20, 44, 40, '#0b1e27', RIM, 0.1);
     frond(ctx, 660, FLOOR_Y + 12, 46, 4, 20, '#0a1b23', 57);
+    // Two columns taking the surface light (see `litPylon`).
+    litPylon(ctx, 490, FLOOR_Y + 18, 48, 86, '#bfe4ee', '#0a1c25', RIM);
+    litPylon(ctx, 826, FLOOR_Y + 22, 56, 102, '#aed6e4', '#091a22', RIM);
     jointSpeckle(ctx, W, VAULT_GROUND, VAULT_SEED ^ 0x3d, 540);
     horizonGlint(ctx, W, FLOOR_Y - 10, '#96dcee', 0.08, VAULT_SEED, 9, 18);
   },
@@ -3452,6 +3874,13 @@ const VAULT: BiomeLook = {
       pool: [566, 476, 520, 140],
       alpha: 0.5,
     });
+    // The two foot pools are smooth radial gradients and they now overlap
+    // across the middle of the stage, which put a 421-px straight run at
+    // y ~ 500 into the crisp floor plane — a horizontal band whose vertical
+    // rate of change was identical right across it. Broad, low-contrast
+    // mottle over the same band breaks every row of it and changes no
+    // percentile (see `skyMottle`).
+    skyMottle(ctx, W, 210, VAULT_GROUND.lit, VAULT_GROUND.dark, 0.14, VAULT_SEED ^ 0x5a, 18, FLOOR_Y - 10);
     // ...and the PIXEL ground over it, on the actors' own 2-px grid: crowns,
     // beds, ruts and a scuffed lane, at 25-40 % local contrast. This is where
     // the plane's VALUE lives; the soft scatter above only carries silhouettes.
@@ -3601,12 +4030,18 @@ function spireTower(ctx: CanvasRenderingContext2D, x: number, base: number, top:
 
 const SPIRE: BiomeLook = {
   id: 'STORM SPIRE',
-  key: { color: '#cfe0ff', x: 220, y: 150, radius: 470, alpha: 0.22, actorWeight: 0.5 },
+  key: { color: '#dbe8ff', x: 636, y: 116, radius: 520, alpha: 0.22, actorWeight: 0.5 },
   // The brazier on the far parapet: the one warm thing above the weather, and
   // the reason this room's fill is not a third shade of storm blue.
   fill: { color: '#9c5f44', x: 1050, y: 560, radius: 660, alpha: 0.17, actorWeight: 1.4 },
-  pool: { color: '#d8ecff', x: 336, y: 462, rx: 320, ry: 116, alpha: 0.16, actorWeight: 0.85 },
-  pool2: { color: '#e2f0ff', x: 798, y: 462, rx: 320, ry: 116, alpha: 0.16, actorWeight: 1.15 },
+  // Derived from ENEMY_FEET / HERO_FEET (see `clusterPool`). The alphas came
+  // UP in round 6: the ground at the six seats measured 21.7-38.7 against an
+  // empty near band at 34.4-37.0, and the front hero's actor-to-ground
+  // contrast was 1.23:1. The lift is on the PARTY's side by design — pool2
+  // is the party's and is the stronger of the two, because the enemy rank was
+  // averaging 8.0 L above the plane the player controls.
+  pool: clusterPool(ENEMY_FEET, '#d8ecff', 0.48, 0.85),
+  pool2: clusterPool(HERO_FEET, '#e2f0ff', 0.552, 1.25),
   shafts: { color: '#dfeaff', alpha: 0.065, x: 180, y: -90, angle: -0.5, count: 4, width: 46, length: 1030, gap: 150 },
   grade: {
     shadow: '#1a1a30',
@@ -3631,16 +4066,26 @@ const SPIRE: BiomeLook = {
 
   far(ctx, W, H) {
     vgrad(ctx, 0, 0, W, H, [
-      [0, '#07070f'],
-      [0.24, '#12142a'],
+      // The upper band lifts in round 6: the vault/sky above the horizon read
+      // p50 14.6-22.2 against the references' 37.4 and 55.5, so a figure had
+      // nothing to be a silhouette against. The air is hazed and lit now, and
+      // the light well overhead is what is lighting it.
+      [0, '#2b3050'],
+      [0.14, '#3a4066'],
+      [0.3, '#2c3054'],
       [0.44, '#232748'],
       [0.56, '#343458'],
       [0.68, '#22233c'],
       [1, '#131424'],
     ]);
+    skyMottle(ctx, W, 300, '#59628c', '#0d0f1a', 0.17, SPIRE_SEED ^ 0x71);
+    // The break in the storm, centred — the spire's light well: the one patch
+    // of lit cloud the tower top is silhouetted against.
+    lightWell(ctx, 636, 66, 264, 138, '#f2f7ff', '#a3b6e8', 1, 2.8);
+    wellShafts(ctx, 636, 110, 4, 320, 290, '#cfdcff', 0.13, 0x5117);
     // The afterglow of the last strike, hard left, feeding the key light.
-    softBlob(ctx, 220, 150, 240, 240, '#a8c8ff', 0.3);
-    softBlob(ctx, 224, 40, 46, 46, '#f2f8ff', 0.4);
+    softBlob(ctx, 220, 150, 176, 176, '#a8c8ff', 0.15);
+    softBlob(ctx, 224, 40, 34, 34, '#f2f8ff', 0.22);
     boltStreak(ctx, 224, 40, 220, '#eaf2ff', 0.75);
     boltStreak(ctx, 980, 20, 150, '#dbe8ff', 0.28);
     // A sea of storm cloud sitting right at the horizon, held past x < 330 /
@@ -3656,7 +4101,7 @@ const SPIRE: BiomeLook = {
     // Drawn LAST (opaque fills), over the additive cloud glow, so it stays a
     // crisp silhouette instead of washing out under it.
     spireTower(ctx, 1150, FLOOR_Y, 26, 58, SPIRE_NEAR_INK, '#c9d6ff');
-    hazeWash(ctx, W, 150, '#aab4d2', 0.34, SPIRE_SEED);
+    hazeWash(ctx, W, 150, '#aab4d2', 0.24, SPIRE_SEED);
     horizonBand(ctx, W, FLOOR_Y - 10, 24, '#171930', SPIRE_SEED, 9, 18);
   },
 
@@ -3766,6 +4211,9 @@ const SPIRE: BiomeLook = {
     faceShade(ctx, [626, FLOOR_Y - 6, 632, FLOOR_Y - 74, 674, FLOOR_Y - 66, 678, FLOOR_Y - 2], FLOOR_Y - 74, FLOOR_Y - 2, RIM, 0.13);
     rimEdge(ctx, [626, FLOOR_Y - 6, 632, FLOOR_Y - 74, 674, FLOOR_Y - 66], RIM, 0.1, 2);
     drum(ctx, 716, FLOOR_Y + 30, 48, 24, '#111527', RIM, 0.1);
+    // Two merlon stacks against the storm break (see `litPylon`).
+    litPylon(ctx, 492, FLOOR_Y + 14, 46, 80, '#c6d2ee', '#10131f', RIM);
+    litPylon(ctx, 822, FLOOR_Y + 18, 52, 96, '#b8c6e6', '#0f1220', RIM);
     jointSpeckle(ctx, W, SPIRE_GROUND, SPIRE_SEED ^ 0x3d);
     horizonGlint(ctx, W, FLOOR_Y - 10, '#c4d4ff', 0.09, SPIRE_SEED, 9, 18);
   },
@@ -3795,6 +4243,13 @@ const SPIRE: BiomeLook = {
       pool: [566, 476, 520, 140],
       alpha: 0.44,
     });
+    // The two foot pools are smooth radial gradients and they now overlap
+    // across the middle of the stage, which put a 421-px straight run at
+    // y ~ 500 into the crisp floor plane — a horizontal band whose vertical
+    // rate of change was identical right across it. Broad, low-contrast
+    // mottle over the same band breaks every row of it and changes no
+    // percentile (see `skyMottle`).
+    skyMottle(ctx, W, 210, SPIRE_GROUND.lit, SPIRE_GROUND.dark, 0.14, SPIRE_SEED ^ 0x5a, 18, FLOOR_Y - 10);
     // ...and the PIXEL ground over it, on the actors' own 2-px grid: crowns,
     // beds, ruts and a scuffed lane, at 25-40 % local contrast. This is where
     // the plane's VALUE lives; the soft scatter above only carries silhouettes.

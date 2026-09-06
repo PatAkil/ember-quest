@@ -365,7 +365,15 @@ const DEPTH_NEAR = 1.35;
  * 1280x720 frame).
  */
 const BLUR_FAR = 6;
-const BLUR_MID = 2.6;
+// MID drops to 1.2 in round 6. At 2.6 the plane the diorama's ARCHITECTURE
+// lives on — arches, hanging chains, lamps, the lit doorway, the brick coursing
+// — was erased: `r3-bd-CRYPT-ARCADE.png` (the flat ARCADE bake, no plane blur)
+// shows all of it drawn and the HIGH tier showing none of it. The
+// depth-of-field split is still honest: FAR keeps 6 and NEAR keeps 8, so the
+// two planes the camera is NOT focused on stay soft, and the mid plane — one
+// step behind the actors, not a horizon away — now reads as structure. See
+// tools/out/CONTRACT-EDITS-5.md for DESIGN.md's own sentence.
+const BLUR_MID = 1.2;
 const BLUR_FLOOR = 0;
 const BLUR_NEAR = 8;
 /** MED flattens mid+floor into one layer and blurs the lot a little less. */
@@ -471,8 +479,8 @@ const RIM_PUSH_Y = 0.22;
  * neutral, at 1 it carries the rim colour's own channel ratio, which over-warms
  * a garment the biome has already tinted.
  */
-const GAIN_FLOOR = 0.14;
-const GAIN_LIFT = 0.32;
+const GAIN_FLOOR = 0.06;
+const GAIN_LIFT = 0.24;
 const GAIN_TINT = 0.45;
 /**
  * The gain's footprint, as fractions of the actor's box. Deliberately TIGHTER
@@ -535,7 +543,7 @@ const GLOW_POOL_SQUASH = 0.24;
 const SHADOW_INK = '#05060b';
 /** The cast lobe's peak alpha and its foreshortening (see drawContactShadow). */
 const SHADOW_CAST_ALPHA = 0.82;
-const SHADOW_CAST_SQUASH = 0.42;
+const SHADOW_CAST_SQUASH = 0.5;
 
 /** note(): the contract's one-way quality drop. */
 const SLOW_FRAME_MS = 20;
@@ -965,10 +973,18 @@ function skySprite(look: SkyLight): HTMLCanvasElement {
   const c = ctx2d(cv);
   const R = size / 2;
   const core = Math.max(0.02, Math.min(0.9, look.r / look.halo));
-  const g = c.createRadialGradient(R, R, 0, R, R, R);
+  // THE CORE FALLS ACROSS ITSELF. Holding 0.92 alpha out to 72 % of the disc
+  // made the sprite flatten the very body it exists to keep: measured under a
+  // terminal dim the marsh moon read p10 = p50 = p90 = 53.2 with a range of
+  // 0.0 L and satMean 0.0 — a grey coin, the round-2 defect, drawn by the fix
+  // for it. A real body is brightest at one point and falls off from there, and
+  // an additive sprite that ramps lets the FAR plane's own painted disc (which
+  // is a gradient too now) show through the middle of it.
+  const g = c.createRadialGradient(R * 0.94, R * 0.9, 0, R, R, R);
   g.addColorStop(0, withAlpha(look.color, 1));
-  g.addColorStop(core * 0.72, withAlpha(look.color, 0.92));
-  g.addColorStop(core, withAlpha(look.color, 0.5));
+  g.addColorStop(core * 0.3, withAlpha(look.color, 0.86));
+  g.addColorStop(core * 0.66, withAlpha(look.color, 0.62));
+  g.addColorStop(core, withAlpha(look.color, 0.36));
   g.addColorStop(core + (1 - core) * 0.24, withAlpha(look.color, 0.17));
   g.addColorStop(core + (1 - core) * 0.6, withAlpha(look.color, 0.045));
   g.addColorStop(1, withAlpha(look.color, 0));
@@ -1798,9 +1814,15 @@ export function createLight(opts: CreateLightOptions): Light {
       const rx = w * 0.4;
       const ry = Math.max(2, rx * 0.2);
       ctx.save();
-      const lx = x + rx * 0.55;
-      const ly = y + ry * 1.7;
-      const lr = rx * 2.3;
+      // Round 6 lengthens it. The foot pools came up hard this round — the
+      // ground inside each cluster went from p50 21.7-38.7 to 43.7-59.4 — and
+      // on a floor that bright a five-px smear under the boots is not a
+      // shadow. The lobe now reaches about 40 px past the feet, which is where
+      // the review's second ground strip is measured and where a figure lit
+      // from a hole in the ceiling actually throws one.
+      const lx = x + rx * 0.62;
+      const ly = y + ry * 3.4;
+      const lr = rx * 3.0;
       ctx.save();
       ctx.globalAlpha = SHADOW_CAST_ALPHA;
       ctx.translate(lx, ly);

@@ -51,8 +51,18 @@ export interface CrtOptions {
   lift?: string;
 }
 
-/** Default additive phosphor floor: what an "unlit but powered" tube reads as. */
-const PHOSPHOR_LIFT = 'rgb(15,17,28)';
+/**
+ * Default additive phosphor floor: what an "unlit but powered" tube reads as.
+ *
+ * It came down and warmed up in scene round 6. At `rgb(15,17,28)` it was a
+ * blue-grey +28 on the blue channel and +15 on the red, which on a dark game
+ * was invisible and on round 6's lit dioramas was a hue flip: the same crypt
+ * measured p50 24.7 with mean rgb (80, 58, 60) at HIGH and **32.4 with
+ * (91, 75, 90) at ARCADE** — 7.7 L brighter and neutral-lavender where HIGH is
+ * warm, so the ARCADE toggle changed what biome you were in. A phosphor floor
+ * only has to keep black off zero; it must not carry a colour of its own.
+ */
+const PHOSPHOR_LIFT = 'rgb(9,9,11)';
 /** Default per-side halation alpha (two draws, so the total bloom is 2x this). */
 const HALATION_ALPHA = 0.09;
 
