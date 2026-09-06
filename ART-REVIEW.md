@@ -1082,6 +1082,53 @@ Frames viewed: the two references, `tools/ref/octopath-1-job-lineup.jpg` and `oc
 
 What the sheet still owes after round 13, for a bounded round 14 (artist A's file unless noted): DUST_WRAITH's shroud ramp so its torso reads ≤ 50 in scene (sheet ≈ 48); LUMEN's cream-gold ramp so its torso reads ≤ 55 at every named seat (sheet ≈ 50.5 under a +4.2 lift); CRYPT_WARDEN's helm top quarter lit so top − bottom ≥ 8 unrounded; SILT_CRAB's new major claw modelled (edge back ≥ 72). Everything else the critic lists is taste (ASH_HOUND's cow read, MARSH_HAG's blob, LIGHTNING_HAWK's interior, the seraph's face, LEVIATHAN's outline at game scale) or decision 5.
 
+### Round 14 (2026-09-06): what artist A changed
+
+Files: `game/art/actors.ts` (+48 / −7), `game/art/parts.ts` (+47 / −6). Four actors, nothing else. Bounded round: DUST_WRAITH ≤ 50 on the fractional band, LUMEN ≤ 55 on the recorded instrument, CRYPT_WARDEN lit-from-above ≥ 8 unrounded, SILT_CRAB's claw.
+
+**The instrument first.** I rebuilt decision 4's rig before touching anything and it reproduces every number in the round-13 verdict to the decimal: LUMEN **56.1** at hero1 (seeds 1, 2, 11) and **55.2** at hero2 (seed 20) with <L35 24.3/24.9; DUST_WRAITH **52.9** at enemy1 (seeds 3, 11) and enemy0 (seed 20); CRYPT_WARDEN **37.4** band / **49.3** whole; CINDER_IMP 48.8–49.9; and on the sheet LUMEN torso **51.9**, DUST_WRAITH **51.2**, CRYPT_WARDEN top/bottom **51.13 / 43.44 = 7.68**. Masks are the zoom-1 lineup cell's silhouette at `(px−54, py−98)`, `dx → −dx−1` for heroes, planted at layout.ts's anchors at ACTOR_SCALE 2; the idle cycles three shapes, so each seat is read on whichever of nine sampled frames maximises the Pearson r between the bake's own L* and the sampled L* — i.e. the idle-0 frame the mask was baked from. `ov-A20.png` paints the band back onto the frame and it lands on every torso, heroes mirrored.
+
+**1 — DUST_WRAITH: improved by 2.5, target not reached, and the reason is arithmetic.**
+
+| | before | after | target |
+|---|---|---|---|
+| in-scene torso p50, band 0.33–0.72 — seed 3 / 11 (enemy1) | 55.6 | **53.1** | ≤50 |
+| — seed 20 (enemy0) | 55.0 | **52.8** | ≤50 |
+| in-scene, rows 18–40 (the critic's band) — seeds 3/11 · 20 | 52.9 · 52.9 | **51.0 · 51.2** | |
+| in-scene **whole figure** — seeds 3/11 · 20 | 51.4 · 50.5 | **49.1 · 48.5** | |
+| sheet torso p50, new band / rows 18–40 | 53.8 / 51.2 | **50.1 / 50.1** | ≈48 |
+| >L 75 · mean contrast · sub-3:1 · blob | 9.5 · 3.34 · 39.9 · 7.8 | **9.5 · 3.24 · 39.9 · 7.8** | ≥8 · ≥3.2 · ≤45 · ≤12 |
+
+The shroud is off `DUSK_CLOTH` (which is also EMBER's trousers and SABLE's cloak, so nothing could come off it) onto its own `WRAITH_SHROUD`, and both it and `ASH_HIDE` are authored on a new opt-in `RampTune.min` of **3.01** instead of `legal()`'s default 3.2.
+
+**Why ≈48 is unreachable.** 3:1 against the stage navy is CIE L* **49.30**; `legal()`'s 3.2:1 default is L* **51.11**. Steps 2–5 all sit on or above that floor, and the only tones a ramp owns below it (DEEP, DARK, PLANE) are all under L* 38 — between L* 38 and 49 a garment has nothing. So the band's median can only go under 49.3 by putting cells there, and every such cell counts against criterion 6. The wraith is 902 cells; the eroded band is **421**, so p50 ≤ 48 needs **211** of them below 3:1 (it has 104). Outside the band it already carries **256** below 3:1, **129 of which are the shared INK keyline** no ramp can move. 211 + 256 = **467 = 51.8 %** against the 45 % cap (405 cells) — over by 62, with **45 cells** of budget in hand. The only sub-3:1 cells I could lift to buy those back are the wraith's own plane and dark steps, i.e. its anchor mass and its plane-blob region. So I put every step that could move onto the 3.01 floor and stopped: sheet 50.1 is the nearest tone above L* 49.30 the HSL grid offers. **This is a rule question, not a ramp question** — decision 2's ≤ 50 and criterion 6's ≤ 45 % cannot both hold for this actor. Note the whole figure is now **48.5–49.1**, under 50 at every seat.
+
+**2 — LUMEN: delivered, at every named seat, on both bands.**
+
+| | before | after | bar |
+|---|---|---|---|
+| hero1 (seeds 1, 2, 11) — new band | 55.9 | **53.6 / 53.6 / 53.9** | ≤55 |
+| hero1 — rows 18–40 | 56.1 | **54.0** | ≤55 |
+| hero2 (seed 20) — new band · rows 18–40 | 54.8 · 55.2 | **52.4 · 53.2** | ≤55 |
+| <L 35 in the band (new · old) | 27.9 · 24.3 | **27.9 · 24.3** | ≥12 |
+| whole figure in scene | 58.9–59.2 · 57.5 | **56.3–56.5 · 55.0** | |
+| sheet torso p50 | 51.9 | **49.9** | ≈50.5 |
+| mean contrast · >L 75 · sub-3:1 · lit Δ | 4.17 · 16 · 40.4 · 21 | **4.05 · 16 · 40.4 · 22** | ≥3 · ≥8 · ≤45 · ≥8 |
+
+51.9 *was* `legal()`'s own floor, so no `shadow` offset could have moved it; `WHITE_CLOTH` (LUMEN's alone — PALE_SAINT is on `SAINT_ROBE`/`SAINT_GOLD`) goes onto the 3.01 floor and its midtone comes down six. The halo, the hair (`GOLD_HAIR`) and the bow are untouched. **Across all eight driven seeds there is now no hero seat over 55 on either band.**
+
+**3 — CRYPT_WARDEN: delivered.** Lit-from-above **51.13 − 43.44 = 7.68 → 51.97 − 43.44 = 8.53** unrounded (metrics.md 51/43 (8) → **52 / 43 (9)**). Two changes, both in the top quarter: the horns' top rows go from authored bone LIT to `B`, so `autoShade` gives the two highest things on the sprite the bone's **specular** rim; and the wrap band's top row — 15 cells of the hide's DARK step at L* 29 lying inside the quarter criterion 1 reads as "above" — comes onto the shadow step, the row the light actually reaches. The eye row and the row under it stay dark, so the slot still reads as a slot. Ceiling kept exactly: in-scene band **35.1**, rows 18–40 **37.4**, whole **49.2–49.3** (was 49.0–49.3). Mean contrast 3.32 → **3.33**; sub-3:1 **44.6 → 43.7**, so the one-cell margin is now ten; >L 75 9.9 → 9.6 (≥8).
+
+**4 — SILT_CRAB: delivered.** Interior edge density **69.3 → 75.1** (bar ≥72), mirror IoU **66.2 → 66.2** (≤80). The major claw is modelled as a palm and two fingers: the dactyl takes the key along its top edge and carries its own shadow underneath, the **gape** between the fingers is the accent's deep step, the palm's upper plate is lit with its own lower edge, the lower half turns into the PLANE step, and a knuckle and a wrist band mark where it meets the arm. Largest single-colour blob 10.8 → **10.7**; interior <L 35 28.8 → **33.1**; sub-3:1 39.9 → **42.7** (≤45); mean contrast 3.74 → 3.62. One thing the plate lines cost and I fixed: a static set of lines over a claw that rears on the third idle shape took the idle's own frame-to-frame change **17.9 → 16.8**, under the review's floor of 17 — the lines now travel with the rear (`crabDetail(rows, phase)`), and **only** the third shape moves, for the reason `houndFlank` records: breathing frame 1 as well put the settle at **41.6** against the 20–39 band. Final: idle change **24.8**, settle **34.7**.
+
+**Everything else byte-identical.** 645 bakes hashed against d294b75: **54 moved, and every one is LUMEN, CRYPT_WARDEN, DUST_WRAITH or SILT_CRAB.** The other 39 actors — EMBER and SABLE on `DUSK_CLOTH`, PALE_SAINT, MARSH_HAG on `SILT`, and artist B's 24 — are unchanged to the byte. All 516 non-dead bakes remain one 8-connected component; settles **20.4–38.8**, idle change **20.4–55.8**, crownDy −1 to −3, dead height 25–56 %, all 43 in band; mirror max TIDE_ORACLE 80.2, nearest max TIDE↔LUMEN 76.7, plane blob unchanged on all four (5.99 / 21.16 / 23.68 / 7.15).
+
+**Gates** (the artist's worktree of d294b75 + the two files, `CAPTURE_URL=http://localhost:5188`): `npm run check` clean; `npm run build` green; `npm run smoke` OK; `capture.mjs sheets` 43 PASS · 0 FAIL. The coordinator's gate on HEAD ea1645c + the two files (worktree, :5199): tsc, build, smoke green, sheets 43 PASS · 0 FAIL.
+
+**Left undone**: item 1 only — DUST_WRAITH sits at 53.1 / 52.8 on the new band (51.0 / 51.2 on rows 18–40, 48.5–49.1 whole) against ≤ 50, at the arithmetic floor set out above. Also noted for the record: **CINDER_IMP reads 50.2–50.3 on the new band** at enemy0/enemy2 on seeds 1, 16 and 20 — inside the ceiling on rows 18–40, marginally over it on the fraction band; it was not in this round's brief and I did not touch it.
+
+**Frames viewed**: `ov-B20.png` and `ov-A20.png` (the torso band painted back onto the seed-20 frame, before and after — the instrument proof, heroes mirrored); `A20-battle.png` (the 1× battle frame); `r14-four-x6.png` (the four together on the stage navy); `r14-wraith-lumen-x10.png` and `r14-crab-warden-x10.png`. All measurement scripts and captures are in the session scratchpad's `art-r14a/`.
+
 ## The full-frame critic (step 6 of the plan)
 
 ### Full-frame verdict, round 1: ONE MORE ROUND — sprites 8 · scene 6 · UI 5 · VFX 7 · composition 5

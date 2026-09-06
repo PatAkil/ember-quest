@@ -3329,8 +3329,15 @@ const bruteHeadRows = [
   // bucket is what makes it interchangeable with a hood or a hair mass. Two bone
   // horns sweep out past the helm's own width, so the warden's head is the one
   // shape in the crypt that is wider than its shoulders' line at the crown.
-  sym(HLH, '%%.......' + '**', '*'),
-  sym(HLH, '%%%......' + '**', '*'),
+  // ROUND 14 — and the horns are AUTO, not authored LIT. Criterion 1 reads the
+  // silhouette's top quarter against its bottom UNROUNDED (coordinator decision
+  // 3), and this figure was the cast's only miss at 51.13 - 43.44 = **7.68**:
+  // the horned helm became the new top quarter and every cell in it was flat
+  // LIT. On `B` the top row of each horn is an upper silhouette edge, so
+  // `autoShade` gives it the bone's SPECULAR — a lit rim on the two highest
+  // things on the sprite, which is what "lit from above" means.
+  sym(HLH, 'BB.......' + '**', '*'),
+  sym(HLH, 'B%%......' + '**', '*'),
   // ROUND 9 — the crown is the LIT step, not the specular. Cutting the bronze
   // thirteen L took the helm's own two top rows from L* 79.6 to 67.9, and with
   // the crown left on the ramp's auto shading the whole head fell to the mid
@@ -3348,7 +3355,13 @@ const bruteHeadRows = [
   // cells that come off take the warden's below-3:1 share off the 45 % cap it
   // was one cell from.
   sym(HLH, hb(HLH, 4, ']'), ']'), // THE BROW LIP, deep — the wrap's own shadow over the slot, two thirds wide
-  sym(HLH, 'CCc2222222', '2'),
+  // ROUND 14 — the slot's TOP LIP catches the key. Three rows of the hide's dark
+  // step ran across the widest part of the head, inside the quarter criterion 1
+  // reads as "above": forty-five cells at CIE L* 29 under a crown at 65-71 is
+  // what held the top quarter down. The row the light actually reaches — the
+  // upper edge of the wrap band, facing up — comes onto the shadow step; the eye
+  // row and the row under it stay dark, so the slot still reads as a slot.
+  sym(HLH, 'CCcccccccc', 'c'),
   stamp(sym(HLH, 'CCc2222222', '2'), [HLH - 6, 'GGG'], [HLH + 4, 'GGG']),
   sym(HLH, 'CCc2222222', '2'),
   sym(HLH, hb(HLH, 1, 'D'), 'D'),
@@ -5632,7 +5645,7 @@ const cgx = (x: number): number => growAt(x, CRAB_GX);
  * actually made of — and each leg gets a dark KNUCKLE band where the two new
  * shank rows meet the old ones.
  */
-function crabDetail(rows: readonly string[]): string[] {
+function crabDetail(rows: readonly string[], phase = 0): string[] {
   let out = rows.slice();
   for (let i = 0; i < 9; i++) {
     out = shadeRegion(out, cgy(12) + i, cgy(12) + i, [cgx(12) - i, 'a'], [cgx(28) + i, 'a']);
@@ -5652,13 +5665,38 @@ function crabDetail(rows: readonly string[]): string[] {
     out = castPlane(out, seam(x) + 1, cgy(18), x, x);
     out = shadeRegion(out, seam(x), seam(x), [x, '<']);
   }
+  // ROUND 14 — THE MAJOR CLAW, MODELLED. Round 13's fiddler asymmetry closed the
+  // full-frame critic's mirror item (91.6 -> 66.2) and paid for it in the
+  // interior: edge density 72.6 -> **69.3**, back onto the round-13 verdict's
+  // flattest five, because the new claw arrived as one solid block of the
+  // shell's auto step. A claw is a PALM and two fingers: the dactyl above takes
+  // the key along its top edge and carries its own shadow underneath, the GAPE
+  // between the two fingers is the deepest line on the animal, the palm's upper
+  // plate is lit and its lower half turns away into the plane step, and a
+  // knuckle band marks where the palm meets the arm.
+  // (and it TRAVELS with the rear: the third idle shape lifts the claw a row and
+  // gapes the jaws, and a static set of plate lines over a moving claw took the
+  // idle's own frame-to-frame change 17.9 -> 16.8, under the review's floor of 17.
+  // Only the THIRD shape moves, for the reason `houndFlank` records: the rig's
+  // settle is the SECOND idle shape carried forward and the review measures it
+  // against idle 0, so breathing frame 1 as well put the settle at 41.6 against
+  // the 20-39 band.)
+  const k = phase === 2 ? -1 : 0;
+  out = shadeRegion(out, cgy(0) + k, cgy(0) + k, [cgx(0), '!'.repeat(cgx(9) - cgx(0) + 1)]); // the dactyl's lit top edge
+  out = shadeRegion(out, cgy(2) + k, cgy(2) + k, [cgx(0), 'a'.repeat(cgx(9) - cgx(0) + 1)]); // and its own shadow beneath
+  out = shadeRegion(out, cgy(3) + k, cgy(3) + k, [cgx(3), '<'.repeat(cgx(9) - cgx(3) + 1)]); // THE GAPE
+  out = shadeRegion(out, cgy(4) + k, cgy(4) + k, [cgx(0), '!'.repeat(cgx(10) - cgx(0) + 1)]); // the palm's lit upper plate
+  out = shadeRegion(out, cgy(6) + k, cgy(6) + k, [cgx(1), 'a'.repeat(cgx(11) - cgx(1) + 1)]); // the plate's own lower edge
+  for (let i = 0; i < 4; i++) out = castPlane(out, cgy(7) + i + k, cgy(7) + i + k, cgx(6) + i, cgx(11)); // the palm turns away
+  out = shadeRegion(out, cgy(9) + k, cgy(9) + k, [cgx(4), '6'.repeat(4)]); // the knuckle
+  out = shadeRegion(out, cgy(11) + k, cgy(11) + k, [cgx(6), '6'.repeat(4)]); // and the wrist behind it
   return out;
 }
 /** Grow, detail and anchor one of the crab's grids. */
-function crabPart(rows: readonly string[], hitY: number, detail = true, rise = false): PartDef {
+function crabPart(rows: readonly string[], hitY: number, detail = true, rise = false, phase = 0): PartDef {
   const cx = (CRAB_W - 1) >> 1;
   let grown = growCols(growRows(rows, CRAB_GY), CRAB_GX);
-  if (detail) grown = crabDetail(grown);
+  if (detail) grown = crabDetail(grown, phase);
   if (rise) grown = raiseFront(grown, 0, CRAB_W - 1, cgy(12));
   return part(fit(grown, CRAB_W, CRAB_H + HEAD_RISE), { feet: { x: cx, y: CRAB_H + HEAD_RISE - 1 }, hit: { x: cx, y: cgy(hitY) + HEAD_RISE } });
 }
@@ -5804,6 +5842,9 @@ const CRAB_BODY_C = crabPart(
     -2, // and the dome turns with it — two cells, not four: round 6 slid the whole shadow wedge across the shell and left the CLAWS carrying only a third of the frame's change
   ),
   17,
+  true,
+  false,
+  2,
 );
 /** The crab cocks: both arms folded back over the shell, the pincers shut. */
 const CRAB_WIND = crabPart(

@@ -324,9 +324,24 @@ export interface RampTune {
    * L 35 and EMBER's reading 19.4 % on the same frame.
    */
   plane?: number;
+  /**
+   * ROUND 14 — THE LEGALITY FLOOR ITSELF. `legal()`'s default 3.2:1 against the
+   * stage navy is CIE L\* **51.0**, and steps 2-5 all sit on it or above; the
+   * only tones a ramp owns below it are DEEP, DARK and PLANE, which are all
+   * under L\* 38. So between L\* 38 and L\* 51 a garment has NOTHING, and a
+   * torso median can only be moved below 51 by spending area on the sub-3:1
+   * darks — which criterion 6 caps at 45 % of the figure. Criterion 6's own
+   * line is **3:1**, not 3.2:1, and 3:1 against this navy is L\* **49.15**: a
+   * step authored at 3.02:1 sits at L\* 49.3, under the ceiling's reach and
+   * still counted as clearing 3:1. This is the only lever that lowers a
+   * garment's midtone without buying it out of the sub-3:1 budget, and it is
+   * opt-in: every other ramp in the file keeps the 3.2 default.
+   */
+  min?: number;
 }
 
 export function ramp(h: number, s: number, l: number, tune: RampTune = {}): Ramp {
+  const floor = tune.min ?? 3.2;
   const mid = clamp(56 + 0.5 * (clamp(l, 38, 78) - 44), 56, 74);
   // A colour lifted toward the light end loses chroma as fast as it gains
   // value, so a crimson asked to clear 3:1 arrives as dusty pink. Give back
@@ -345,10 +360,10 @@ export function ramp(h: number, s: number, l: number, tune: RampTune = {}): Ramp
     // was cut. The floor is 9 now, so a garment authored quiet is quiet all the
     // way through — `legal` still lifts every one of these until it clears
     // 3.2:1 against the stage, so nothing here can cost the contrast criterion.
-    legal(towards(h, COOL, 10), Math.max(9, sat - 4), mid - 13 + (tune.shadow ?? 0)), // 2 shadow
-    legal(h, sat, mid + (tune.mid ?? 0)), // 3 mid
-    legal(towards(h, WARM, 12), Math.max(12, sat - 14), clamp(mid + 14, 76, 84) + (tune.lit ?? 0)), // 4 lit
-    legal(towards(h, WARM, 20), Math.max(8, sat - 30), clamp(mid + 24, 85, 93) + (tune.spec ?? 0)), // 5 spec
+    legal(towards(h, COOL, 10), Math.max(9, sat - 4), mid - 13 + (tune.shadow ?? 0), floor), // 2 shadow
+    legal(h, sat, mid + (tune.mid ?? 0), floor), // 3 mid
+    legal(towards(h, WARM, 12), Math.max(12, sat - 14), clamp(mid + 14, 76, 84) + (tune.lit ?? 0), floor), // 4 lit
+    legal(towards(h, WARM, 20), Math.max(8, sat - 30), clamp(mid + 24, 85, 93) + (tune.spec ?? 0), floor), // 5 spec
     // 6 PLANE — the one step the lift never touches. `legal` raises every step
     // from 2 up until it clears 3.2:1 against the sheet's navy, and 3.2:1
     // against #1d2b53 is L 51: four of the six steps above could never sit
@@ -457,7 +472,18 @@ const OLIVE: Ramp = ramp(96, 16, 50);
  * different name in it. Steps 2-4 come down nine L each; the mantle is a third
  * of the figure, so this is the whole read.
  */
-const WHITE_CLOTH: Ramp = ramp(228, 12, 70, { shadow: -9, mid: -9, lit: -9 });
+/**
+ * ROUND 14 — LUMEN'S OWN LINEN, ON THE 3.01 FLOOR. The round-13 verdict measured
+ * this hero at torso p50 **56.1** at hero1 (seeds 1, 2 and 11) and **55.2** at
+ * hero2 (seed 20) against decision 2's ≤ 55 hero bar, whole-figure 57.3-58.9 —
+ * the brightest actor in the party by 3-5 L — on a sheet torso of 51.9 that the
+ * rig lifts +4.2. That 51.9 is `legal()`'s own 3.2:1 floor, so no `shadow`
+ * offset could move it; on the 3.01 floor (see `RampTune.min`) the same step
+ * lands at CIE L\* 50.1, still clear of criterion 6's 3:1 line. The midtone
+ * comes down six with it so the robe's broad plane is not the party's brightest
+ * mass either. The halo, the hair and the bow are untouched.
+ */
+const WHITE_CLOTH: Ramp = ramp(228, 12, 70, { shadow: -9, mid: -15, lit: -9, min: 3.01 });
 const BLOOD_TABARD: Ramp = ramp(352, 21, 42); // round 7: another fifth off — it is BASALT's kite and the Pyre Knight's tabard, the two garments behind CINDER_IMP
 /** ROUND 9 — ten L off the shroud's midtone: the wraith's body was the second-brightest actor in the frame (in-scene p50 56.8 over the whole figure) and its midtone is two thirds of what is painted. Only step 3 moves, so round 8's hue separation from the hound stands. */
 // ROUND 10 — and its LIT step comes down eight. The round-9 verdict measured
@@ -471,7 +497,22 @@ const BLOOD_TABARD: Ramp = ramp(352, 21, 42); // round 7: another fifth off — 
 // the game and above the party median + 5 on thirteen of them. The lit third of
 // the shroud IS this figure — the shade side is already on `legal()`'s floor —
 // so the only tone left that can move the frame is the one carrying its light.
-const ASH_HIDE: Ramp = ramp(246, 8, 58, { mid: -10, lit: -17 });
+const ASH_HIDE: Ramp = ramp(246, 8, 58, { mid: -16, lit: -17, min: 3.01 });
+/**
+ * ROUND 14 — THE SHROUD, OFF `DUSK_CLOTH`. The round-13 verdict measured this
+ * actor at torso p50 **52.9 in scene at every seat it is drawn** — the only
+ * standard enemy over decision 2's ≤ 50 ceiling — and the sheet said why: the
+ * shroud is `DUSK_CLOTH`, which is also EMBER's trousers and SABLE's cloak, so
+ * nothing could be taken off it without moving two heroes. This is the wraith's
+ * own copy, and it is the only ramp in the file authored on `legal()`'s **3.02**
+ * floor (`min`, above): its shadow and mid land at CIE L\* 49.3 instead of 51.2,
+ * which is under the ceiling and still over criterion 6's 3:1 line. Its LIT and
+ * SPECULAR steps are left alone: they are where the figure's 9.5 % above L 75
+ * lives and criterion 1 wants 8 — the mass the ceiling reads is the shade side
+ * and the hide (`ASH_HIDE`, whose lit step is 32.5 % of the torso band on its
+ * own), not the highlight.
+ */
+const WRAITH_SHROUD: Ramp = ramp(268, 12, 56, { mid: -16, shadow: -6, min: 3.01 });
 /**
  * ROUND 8 — HUE SEPARATION, not another chroma cut. Measured over the top ten
  * colours of the idle-0 bake, ASH_HOUND and DUST_WRAITH overlapped 71 % (they
@@ -2020,7 +2061,7 @@ export const ACTOR_RECIPES: Record<string, ActorRecipe> = {
     hurt: 'wraith_hurt',
     dead: ['wraith_dead'],
     settle: { part: 'wraith_body', dy: -1 },
-    palette: { cloth: DUSK_CLOTH, accent: ASH_HIDE },
+    palette: { cloth: WRAITH_SHROUD, accent: ASH_HIDE },
   }),
   PYRE_KNIGHT: humanoid({
     id: 'PYRE_KNIGHT',
