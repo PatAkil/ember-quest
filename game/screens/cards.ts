@@ -13,17 +13,17 @@
 // TEXT_LABEL. Everything else the player reads is HUD text at HUD_PX /
 // HUD_SMALL, and the focused plate carries the focus ring.
 
-import type { Audio, HitRegions, Input, PixelCanvas, TextOptions } from '../../engine';
-import { FONT_HD, PICO8, drawText, textWidth } from '../../engine';
+import type { Audio, HitRegions, Input, PixelCanvas } from '../../engine';
+import { PICO8 } from '../../engine';
 import {
   BLURB_LINES_MAX, CANVAS_W, CARD_PAD, CARD_W, CARD_W_FOUR, CARD_X, CARD_X_FOUR, CARD_Y, CARD_H,
   CONTINUE, HUD_LARGE, HUD_PX, HUD_SMALL, NAME_MAX_CHARACTER, PAUSE_ICON, PAUSE_ICON_HIT, PORTRAIT, SKIP,
-  TEXT_LABEL, WEAR_BTN, WEAR_X, WEAR_Y,
+  HUD_TITLE, HUD_TITLE_H, WEAR_BTN, WEAR_X, WEAR_Y,
 } from './layout';
 import {
   ACCENT, ACCENT_COOL, C_GOLD, C_MUTED, C_VIOLET, EDGE_SOFT, SLOT_ICON_NAME, drawFocusablePlate, drawIcon,
   drawPrimaryButton, drawSecondaryButton, formatSetBonus, gradientPlate, hudFit, hudText, hudTextCentered,
-  plate, portraitFor, roundRectPath, titleBand,
+  plate, portraitFor, roundRectPath, titleBand, hudWidth, PLATE_RADIUS, focusGlow,
 } from './hud';
 import type { PartyMember, Rarity, Relic, Slot } from '../types';
 import { SETS } from '../data/sets';
@@ -34,7 +34,6 @@ import type { DeriveCtx } from '../sim/relics';
 import { mkDeriveCtx } from '../sim/run';
 import type { RunScreen } from './run';
 
-const hd = { font: FONT_HD };
 const C_TEXT = PICO8[7];
 const C_DIM = PICO8[6];
 /** Every accent on this screen comes out of hud.ts's three: the pure yellow and the pure cyan are gone. */
@@ -50,12 +49,21 @@ const RARITY_COLOR: Record<Rarity, string> = {
   COMMON: C_MUTED, RARE: ACCENT_COOL, EPIC: C_VIOLET, LEGENDARY: ACCENT,
 };
 /** A card's plate is a shade denser than a bare panel: it carries five rows of small text. */
-const CARD_ALPHA = 0.58;
+const CARD_ALPHA = 0.66;
+/** The room card's own floor and how far below centre it sits — see renderRoomCard. */
+const ROOM_CARD_MIN_H = 300;
+const ROOM_CARD_DROP = 24;
 /** The slot glyph beside a relic's slot name, and the portrait chip on a candidate column. */
 const SLOT_CHIP = 32;
 
-/** The one bitmap line on a card: its title, at TEXT_LABEL (FONT_HD is 11 rows tall). */
-const TITLE_H = FONT_HD.glyphH * TEXT_LABEL;
+/**
+ * A card's title line. Round 4 moved it off the bitmap face onto the HUD stack
+ * (UI round-4 item 5) — the 3x5 face now appears only where it is alone, on the
+ * logo and the damage pops — so this is `HUD_TITLE_H`, not `FONT_HD.glyphH x
+ * TEXT_LABEL`. The title band survives: it is the card's HEAD, and a card wants
+ * one whether or not two faces are meeting in it.
+ */
+const TITLE_H = HUD_TITLE_H;
 /** Row pitch for HUD lines — body and small. */
 const ROW = 26;
 const ROW_SMALL = 21;
@@ -85,10 +93,6 @@ export interface CardsScreen {
 }
 
 /** Bitmap, centred — card titles only. */
-function centerText(ctx: CanvasRenderingContext2D, text: string, x: number, w: number, y: number, opts: TextOptions): void {
-  const tw = textWidth(text, opts.scale ?? 1, opts.spacing ?? 1, opts.font);
-  drawText(ctx, text, Math.round(x + (w - tw) / 2), y, opts);
-}
 
 /** The hairline under a card title: the rarity's colour, the width of the card's inner box. */
 function titleRule(ctx: CanvasRenderingContext2D, x: number, w: number, y: number, color: string): void {
@@ -125,7 +129,8 @@ function drawSecondary(ctx: CanvasRenderingContext2D, rect: { x: number; y: numb
  * screen too, per addPauseIcon()'s own hit region: a phone has no P key. */
 function drawPauseIcon(ctx: CanvasRenderingContext2D, regions: HitRegions): void {
   const focused = regions.focused() === 'pause-icon';
-  plate(ctx, PAUSE_ICON.x, PAUSE_ICON.y, PAUSE_ICON.w, PAUSE_ICON.h, { alpha: 0.5, border: focused ? PICO8[7] : EDGE_SOFT });
+  if (focused) focusGlow(ctx, PAUSE_ICON.x, PAUSE_ICON.y, PAUSE_ICON.w, PAUSE_ICON.h, PLATE_RADIUS, ACCENT);
+  plate(ctx, PAUSE_ICON.x, PAUSE_ICON.y, PAUSE_ICON.w, PAUSE_ICON.h, { alpha: focused ? 0.66 : 0.5, border: EDGE_SOFT });
   ctx.fillStyle = focused ? PICO8[7] : PICO8[6];
   ctx.fillRect(PAUSE_ICON.x + 22, PAUSE_ICON.y + 20, 6, 24);
   ctx.fillRect(PAUSE_ICON.x + 36, PAUSE_ICON.y + 20, 6, 24);
@@ -207,13 +212,17 @@ function drawRelicCard(
   const color = RARITY_COLOR[relic.rarity];
   const set = SETS[relic.set];
   const { blurbLines } = parts;
-  drawFocusablePlate(ctx, x, cardY, w, cardH, regions.focused() === id, color, CARD_ALPHA, color);
+  // NO RARITY STROKE (round-4 item 3): the cyan edge on a RARE card was the
+  // highest-chroma line on any screen, and it said what the title's own colour
+  // and the word RARE under it already say. Rarity is a colour ON TYPE now, not
+  // a frame round a box; the focus glow still takes the rarity's hue.
+  drawFocusablePlate(ctx, x, cardY, w, cardH, regions.focused() === id, undefined, CARD_ALPHA, color);
 
   // The bitmap title in a band of its own — the two type voices in two boxes,
   // never one (UI item 9; the contract keeps card titles bitmap).
   titleBand(ctx, x, cardY, w, TITLE_BAND_H, color);
   let y = cardY + CARD_PAD;
-  centerText(ctx, relicTitle(relic), x, w, y, { ...hd, color, scale: TEXT_LABEL });
+  hudTextCentered(ctx, relicTitle(relic), x, y, w, TITLE_H, { px: HUD_TITLE, color });
   y = cardY + TITLE_BAND_H + 12;
   // Rarity as a word, not only as a colour — and KINDLED rides the same line.
   const rarity = isKindled(relic) ? `${relic.rarity} . KINDLED` : relic.rarity;
@@ -224,7 +233,11 @@ function drawRelicCard(
   hudText(ctx, relic.slot, x + CARD_PAD + SLOT_CHIP + 12, y + (SLOT_CHIP - HUD_PX) / 2 - 1, { color: C_TEXT });
   y += SLOT_CHIP + 12;
 
-  drawRelicStats(ctx, relic, x, w, y, HUD_PX);
+  // The slack a short card carries in a filled row is SPLIT, not left in one
+  // lump: half above the stat block and half under it, so the card reads as
+  // airy rather than as a plate with a hole between its stats and its set line.
+  const slack = Math.max(0, cardH - parts.h);
+  drawRelicStats(ctx, relic, x, w, y + Math.round(slack / 2), HUD_PX);
 
   // The set block and the sigil are the card's FOOT group, anchored to the
   // bottom edge: with the row sharing one height, that is what makes the set
@@ -360,14 +373,16 @@ export function createCardsScreen(deps: CardsScreenDeps): CardsScreen {
     const { xs, w } = cardXs(offer.length);
     // ONE height for the row: measured from every card, taken from the tallest,
     // centred in the contract's 440-px band once.
+    // THE ROW FILLS THE BAND (UI round-4 item 4). Round 3 sized the row to its
+    // tallest card and centred it, which left 174 px of bare floor under it.
+    // The row is the band now: the head group sits at the top and the set and
+    // sigil groups stay anchored to the foot, so a short card carries its slack
+    // as air between its own blocks instead of as a dead strip under all three.
     const parts = offer.map((relic) => relicCardParts(ctx, relic, w));
-    let cardH = 0;
     let rowSigilH = 0;
-    for (const p of parts) {
-      if (p.h > cardH) cardH = p.h;
-      if (p.sigilH > rowSigilH) rowSigilH = p.sigilH;
-    }
-    const cardY = Math.round(CARD_Y + (CARD_H - cardH) / 2);
+    for (const p of parts) if (p.sigilH > rowSigilH) rowSigilH = p.sigilH;
+    const cardH = CARD_H;
+    const cardY = CARD_Y;
     offer.forEach((relic, i) => drawRelicCard(pc, regions, relic, xs[i], w, `card-${i}`, cardY, cardH, parts[i], rowSigilH));
     drawSecondary(ctx, SKIP, 'SKIP', regions.focused() === 'skip');
     drawPauseIcon(ctx, regions);
@@ -379,12 +394,12 @@ export function createCardsScreen(deps: CardsScreenDeps): CardsScreen {
     // The relic being placed, as its own card title (bitmap) + its main line
     // (HUD) — and the bitmap gets a band of its own so the two voices are not
     // stacked bare on the diorama.
-    const headW = Math.max(360, textWidth(relicTitle(relic), TEXT_LABEL, 1, FONT_HD) + 120);
+    const headW = Math.max(360, hudWidth(ctx, relicTitle(relic), HUD_TITLE) + 120);
     // y 24, not 14: a DRAWN panel may not bleed into the safe inset (the hit
     // rects are what are allowed to).
     const headH = 14 + TITLE_H + 8;
     titleBand(ctx, (CANVAS_W - headW) / 2, 24, headW, headH, color);
-    centerText(ctx, relicTitle(relic), 0, CANVAS_W, 38, { ...hd, color, scale: TEXT_LABEL });
+    hudTextCentered(ctx, relicTitle(relic), 0, 36, CANVAS_W, TITLE_H, { px: HUD_TITLE, color });
     hudTextCentered(ctx, mainLine(relic), 0, 24 + headH + 6, CANVAS_W, HUD_SMALL, { px: HUD_SMALL, color: C_DIM });
 
     const { xs, w } = cardXs(3);
@@ -406,10 +421,9 @@ export function createCardsScreen(deps: CardsScreenDeps): CardsScreen {
         h: CARD_PAD * 2 + PORTRAIT + 10 + 14 + ROW + relicBlockH + 12 + spriteH + 14 + ROW_SMALL,
       };
     });
-    let cardH = 0;
-    for (const c of cols) if (c.h > cardH) cardH = c.h;
     const relicBlockMax = cols.reduce((m, c) => Math.max(m, c.relicBlockH), 0);
-    const cardY = Math.round(CARD_Y + Math.max(0, (CARD_H - cardH) / 2));
+    const cardH = CARD_H;
+    const cardY = CARD_Y;
 
     party.members.forEach((member, i) => {
       const focused = regions.focused() === `wear-${i}`;
@@ -436,7 +450,7 @@ export function createCardsScreen(deps: CardsScreenDeps): CardsScreen {
       if (current) {
         const cc = RARITY_COLOR[current.rarity];
         titleBand(ctx, xs[i] + CARD_PAD, y - 6, w - 2 * CARD_PAD, TITLE_H + 12, cc, 3, 0.34);
-        centerText(ctx, relicTitle(current), xs[i], w, y, { ...hd, color: cc, scale: TEXT_LABEL });
+        hudTextCentered(ctx, relicTitle(current), xs[i], y, w, TITLE_H, { px: HUD_TITLE, color: cc });
         drawRelicStats(ctx, current, xs[i], w, y + TITLE_H + 16, HUD_SMALL);
       } else {
         hudTextCentered(ctx, 'nothing worn', xs[i], y, w, ROW_SMALL, { px: HUD_SMALL, color: C_DIM });
@@ -489,14 +503,18 @@ export function createCardsScreen(deps: CardsScreenDeps): CardsScreen {
     // contract's 440-px band — the room card used to be 62 % empty.
     const blurb = hudFit(ctx, s.roomCard.blurb, w - 2 * CARD_PAD, HUD_PX, BLURB_LINES_MAX);
     const blockH = TITLE_H + 20 + HUD_SMALL + 14 + blurb.length * ROW;
-    const cardH = blockH + CARD_PAD * 3;
-    const cardY = Math.round(CARD_Y + (CARD_H - cardH) / 2);
-    gradientPlate(ctx, x, cardY, w, cardH, { topAlpha: 0.6, floorAlpha: 0.44, border: C_ACCENT });
+    // A FLOOR under the measured height (UI round-4 item 4): a two-line blurb
+    // gave a 190-px plate in a 472-px band, which put a 140-px strip of bare
+    // floor between the card and the CONTINUE seat. 300 is the height at which
+    // the gap under it lands inside the 100-px bar on every blurb length.
+    const cardH = Math.max(ROOM_CARD_MIN_H, blockH + CARD_PAD * 3);
+    const cardY = Math.round(CARD_Y + (CARD_H - cardH) / 2) + ROOM_CARD_DROP;
+    gradientPlate(ctx, x, cardY, w, cardH, { base: 0.5, topAlpha: 0.5, floorAlpha: 0.36 });
     // The room's name is a card title: bitmap, per the contract — in a band of
     // its own, so the bitmap word and the vector blurb are not in one box.
     titleBand(ctx, x, cardY, w, TITLE_BAND_H, C_ACCENT);
     let y = cardY + CARD_PAD;
-    centerText(ctx, s.roomCard.title, x, w, y, { ...hd, color: C_ACCENT, scale: TEXT_LABEL });
+    hudTextCentered(ctx, s.roomCard.title, x, y, w, TITLE_H, { px: HUD_TITLE, color: C_ACCENT });
     y = cardY + TITLE_BAND_H + 12;
     hudTextCentered(ctx, s.roomCard.biome, x, y, w, HUD_SMALL, { px: HUD_SMALL, color: C_DIM });
     y += HUD_SMALL + 14;

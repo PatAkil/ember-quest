@@ -36,12 +36,13 @@ import type { RunPending, RunPendingKind } from '../sim/run';
  * five (main.ts); this is the finer phase inside PLAYING, and it is DERIVED —
  * `pending()?.kind` decides it, never a variable this file advances.
  *
- * ROOM   the room card (this file's own, above the room's real pending)
+ * ROOM       the room card (this file's own, above the room's real pending)
+ * ACT_CLEAR  the act-clear beat (this file's own, above the next act's ROUTE)
  * CARDS  a RELIC pending — screens/cards.ts's offer + who-wears-it flow
  * BATTLE a BATTLE pending, card dismissed — screens/battle.ts owns the frame
  * SCREEN any other pending — main.ts routes it to draft/map/party/node/vault
  */
-export type RunPhase = 'ROOM' | 'BATTLE' | 'CARDS' | 'SCREEN' | 'GAME_OVER' | 'VICTORY';
+export type RunPhase = 'ROOM' | 'ACT_CLEAR' | 'BATTLE' | 'CARDS' | 'SCREEN' | 'GAME_OVER' | 'VICTORY';
 
 /** What the room-to-room card (screens/cards.ts) shows before a room resolves. */
 export interface RoomCard {
@@ -85,6 +86,14 @@ export interface RunState {
   cardSource: LootSource | null;
   /** GAME_OVER only: who landed the killing blow (or RETREAT for a forfeit). */
   deathBy: string;
+  /**
+   * ACT_CLEAR only: the act that was just finished, and the biome it was fought
+   * in. Clearing an act used to cut straight from the boss's reward card to the
+   * next act's map with nothing in between — the one moment in the first ten
+   * minutes that earns a held frame and did not get one.
+   */
+  actCleared: number;
+  actClearedBiome: string;
 }
 
 export interface RunScreen {
@@ -95,6 +104,8 @@ export interface RunScreen {
   readonly score: number;
   /** Dismisses the room card: the room's own pending takes the frame. */
   enterRoom(): void;
+  /** Dismisses the act-clear beat: the next act's ROUTE takes the frame. */
+  clearAct(): void;
   /** FIGHT/ELITE/BOSS only: the seam's already-built Battle, for the battle screen's begin(). */
   beginBattle(): Battle;
   /**
@@ -194,6 +205,20 @@ export function createRunScreen(rng: Rng, config: RunConfig = runConfig()): RunS
   const decisions: RunDecision[] = [];
   /** The room card is up: raised by route(), dropped by enterRoom(). */
   let roomCardUp = false;
+  /**
+   * The act-clear beat is up: raised by `answer()` the moment the seam's own
+   * `act` steps forward with the run still going, dropped by `clearAct()`. Like
+   * the room card it is PRESENTATION over a pending the seam already holds (the
+   * next act's ROUTE), never a decision of its own — nothing is asked and
+   * nothing is answered, so a driver that does not know the beat only has to
+   * wait it out.
+   */
+  let actClearUp = false;
+  let actCleared = 1;
+  let actClearedBiome = '';
+  let lastAct = run.state().act;
+  /** The biome the act was fought in — read before the seam moves on to the next one. */
+  let biomeAtClear = run.state().biome.name;
   let roomCard: RoomCard = roomCardFor(null, '', null);
   /** The token every answer this tick is answering against — see `armTick`. */
   let armedToken: number | null = null;
@@ -247,12 +272,24 @@ export function createRunScreen(rng: Rng, config: RunConfig = runConfig()): RunS
     if (!p) return false;
     const landed = run.decide(a, armedToken ?? run.token());
     if (landed && DEV) decisions.push({ kind: p.kind, answer: loggable(p.kind, a) });
+    if (landed) {
+      // The act stepped forward and the run is still going: raise the beat.
+      const v = run.state();
+      if (v.act > lastAct && !run.result()) {
+        actClearUp = true;
+        actCleared = lastAct;
+        actClearedBiome = biomeAtClear;
+      }
+      if (v.act === lastAct) biomeAtClear = v.biome.name;
+      lastAct = v.act;
+    }
     return landed;
   }
 
   function phase(): RunPhase {
     const done = run.result();
     if (done) return done.won ? 'VICTORY' : 'GAME_OVER';
+    if (actClearUp) return 'ACT_CLEAR';
     if (roomCardUp) return 'ROOM';
     const p = run.pending();
     if (!p) return 'SCREEN';
@@ -289,6 +326,8 @@ export function createRunScreen(rng: Rng, config: RunConfig = runConfig()): RunS
         roomsCleared: done && !done.won ? Math.max(0, rooms.length - 1) : rooms.length,
         cardSource: relicPending()?.source ?? null,
         deathBy: forfeited ? 'RETREAT' : killerName(v.deathBy, lastPack),
+        actCleared,
+        actClearedBiome,
       };
     },
     get rooms() { return run.state().rooms; },
@@ -311,6 +350,10 @@ export function createRunScreen(rng: Rng, config: RunConfig = runConfig()): RunS
 
     enterRoom() {
       roomCardUp = false;
+    },
+
+    clearAct() {
+      actClearUp = false;
     },
 
     beginBattle(): Battle {

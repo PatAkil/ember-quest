@@ -24,15 +24,15 @@
 // falls to the seam's own default.
 
 import type { Audio, HitRegions, Input, PixelCanvas } from '../../engine';
-import { FONT_HD, PICO8, drawText, textWidth } from '../../engine';
+import { PICO8 } from '../../engine';
 import {
   BLURB_LINES_MAX, CANVAS_W, CARD_H, CARD_PAD, CARD_W, CARD_X, CARD_Y, CONTINUE, HUD_PX,
-  HUD_SMALL, NAME_MAX_PACT, SKIP, TEXT_LABEL, WEAR_BTN, WEAR_X, WEAR_Y, safeInsetFor,
+  HUD_SMALL, HUD_TITLE, HUD_TITLE_H, NAME_MAX_PACT, SKIP, WEAR_BTN, WEAR_X, WEAR_Y, safeInsetFor,
 } from './layout';
 import {
   ACCENT_HP, C_DEBUFF, C_GOLD, C_MUTED, C_VIOLET, drawFocusablePlate,
   drawPendingButton, drawPrimaryButton, drawSecondaryButton, gradientPlate, hudFit, hudText, hudTextCentered,
-  hudWidth, plate, textWash, titleBand,
+  hudWidth, plate, textWash, titleBand, footHint,
 } from './hud';
 import type { CharacterDef, Modifier, Pact, PactId, PartyMember, Relic, SetId, Slot } from '../types';
 import { SHARPEN_RELICS, SLOTS } from '../types';
@@ -47,10 +47,9 @@ import {
 import { createDraftScreen } from './draft';
 import type { DraftScreen } from './draft';
 
-const hd = { font: FONT_HD };
 const C_TEXT = PICO8[7];
 const C_DIM = PICO8[6];
-const TITLE_H = FONT_HD.glyphH * TEXT_LABEL;
+const TITLE_H = HUD_TITLE_H;
 
 // ------------------------------------------------------------- geometry ---
 /** HUD row pitches, cards.ts's own two. */
@@ -67,6 +66,9 @@ export const SUB_ROW = { x: CARD_X[1], y: 200, w: CARD_W, h: 64, pitch: 72 } as 
 /** One line under the columns, above the button row: the focused column's detail. */
 // promote to layout.ts
 export const FOOT_NOTE_Y = 516;
+/** The pact card's own floor, and how far below the band's centre it sits. */
+const PACT_CARD_MIN_H = 300;
+const PACT_CARD_DROP = 24;
 
 // ================================================================= text ====
 /**
@@ -222,8 +224,14 @@ export function createNodeScreen(deps: NodeScreenDeps): NodeScreen {
   function shrineCard(props: Extract<NodeProps, { kind: 'SHRINE' }>): { lines: string[]; rect: { x: number; y: number; w: number; h: number } } {
     if (shrineFit && shrineFit.id === props.pact.id) return shrineFit;
     const lines = hudFit(pc.ctx, props.pact.blurb, CARD_W - 2 * CARD_PAD, HUD_SMALL, BLURB_LINES_MAX);
-    const h = CARD_PAD * 2 + TITLE_H + 8 + 12 + (ROW_SMALL + ROW) * 2 + 16 + 14 + lines.length * ROW_SMALL;
-    const rect = { x: CARD_X[1], y: Math.round(CARD_Y + (CARD_H - h) / 2), w: CARD_W, h };
+    // A FLOOR under the measured height and a drop below centre (UI round-4
+    // item 4): a one-line blurb gave a 227-px plate in the 472-px band, and the
+    // 131 px of bare floor left between its foot and WALK PAST was the dead
+    // strip this round is closing. The pact card is still height-FITTED — the
+    // contract's own exception on this screen — it just is not allowed to be
+    // shorter than the room card.
+    const h = Math.max(PACT_CARD_MIN_H, CARD_PAD * 2 + TITLE_H + 8 + 12 + (ROW_SMALL + ROW) * 2 + 16 + 14 + lines.length * ROW_SMALL);
+    const rect = { x: CARD_X[1], y: Math.round(CARD_Y + (CARD_H - h) / 2) + PACT_CARD_DROP, w: CARD_W, h };
     shrineFit = { id: props.pact.id, lines, rect };
     return shrineFit;
   }
@@ -395,9 +403,9 @@ export function createNodeScreen(deps: NodeScreenDeps): NodeScreen {
   }
 
   // ------------------------------------------------------------ render ----
+  /** A card title — the HUD face at `HUD_TITLE` since round 4, not the bitmap 3x5. */
   function centerBitmap(text: string, x: number, w: number, y: number, color: string): void {
-    const tw = textWidth(text, TEXT_LABEL, 1, FONT_HD);
-    drawText(pc.ctx, text, Math.round(x + (w - tw) / 2), y, { ...hd, color, scale: TEXT_LABEL });
+    hudTextCentered(pc.ctx, text, x, y, w, TITLE_H, { px: HUD_TITLE, color });
   }
   function rule(x: number, w: number, y: number, color: string): void {
     const ctx = pc.ctx;
@@ -420,7 +428,8 @@ export function createNodeScreen(deps: NodeScreenDeps): NodeScreen {
     const focused = regions.focused() === 'shrine-take';
 
     drawBanner(ctx, 'A SHRINE . THE PACT ON OFFER', 'SHRINE', C_VIOLET);
-    drawFocusablePlate(ctx, x, cardY, w, cardH, focused, C_VIOLET, 0.6, C_VIOLET);
+    // The pact's violet lives in its title and its band's rule, not in a stroke.
+    drawFocusablePlate(ctx, x, cardY, w, cardH, focused, undefined, 0.66, C_VIOLET);
     // The pact's name is a card title (bitmap, per the contract) and gets the
     // band the relic cards get — the two type voices in two boxes.
     titleBand(ctx, x, cardY, w, CARD_PAD + TITLE_H + 8, C_VIOLET);
@@ -473,13 +482,11 @@ export function createNodeScreen(deps: NodeScreenDeps): NodeScreen {
       CANVAS_W - inset.right, PACT_CHIP.y - 26, true, C_MUTED);
 
     drawSecondaryButton(ctx, SKIP.x, SKIP.y, SKIP.w, SKIP.h, 'WALK PAST', regions.focused() === 'shrine-skip');
-    hudTextCentered(ctx, 'both halves last the rest of the run . walking past mends nothing', 0,
-      pc.height - inset.bottom - 18, CANVAS_W, HUD_SMALL, { px: HUD_SMALL, color: C_DIM });
+    footHint(pc, 'both halves last the rest of the run . walking past mends nothing');
   }
 
   function renderForge(props: Extract<NodeProps, { kind: 'FORGE' }>): void {
     const ctx = pc.ctx;
-    const inset = safeInsetFor(pc);
     const relic = relicIdx !== null ? props.worn[relicIdx] : null;
 
     if (step === 'RECAST' && relic) {
@@ -491,7 +498,7 @@ export function createNodeScreen(deps: NodeScreenDeps): NodeScreen {
         const y = SUB_ROW.y + i * SUB_ROW.pitch;
         const line = substatLine(relic, i);
         const focused = regions.focused() === `forge-sub-${i}`;
-        drawFocusablePlate(ctx, SUB_ROW.x, y, SUB_ROW.w, SUB_ROW.h, focused, line ? color : undefined, 0.55);
+        drawFocusablePlate(ctx, SUB_ROW.x, y, SUB_ROW.w, SUB_ROW.h, focused, undefined, 0.6, color);
         ctx.save();
         if (!line) ctx.globalAlpha *= 0.45;
         hudText(ctx, line || 'no substat here', SUB_ROW.x + CARD_PAD, y + 20, { color: line ? C_TEXT : C_MUTED });
@@ -499,7 +506,7 @@ export function createNodeScreen(deps: NodeScreenDeps): NodeScreen {
       }
       hudTextCentered(ctx, 'the key is redrawn and every roll is taken again', 0, 496, CANVAS_W, HUD_SMALL, { px: HUD_SMALL, color: C_MUTED });
       drawSecondaryButton(ctx, WEAR_X[3], WEAR_Y, WEAR_BTN.w, WEAR_BTN.h, 'WALK PAST', regions.focused() === 'forge-walk');
-      hudTextCentered(ctx, 'B steps back', 0, pc.height - inset.bottom - 18, CANVAS_W, HUD_SMALL, { px: HUD_SMALL, color: C_DIM });
+      footHint(pc, 'B steps back');
       return;
     }
 
@@ -542,9 +549,7 @@ export function createNodeScreen(deps: NodeScreenDeps): NodeScreen {
       hudTextCentered(ctx, 'A picks the relic . B walks past', 0, FOOT_NOTE_Y, CANVAS_W, HUD_PX, { color: C_DIM });
     }
     drawSecondaryButton(ctx, WEAR_X[3], WEAR_Y, WEAR_BTN.w, WEAR_BTN.h, 'WALK PAST', regions.focused() === 'forge-walk');
-    hudTextCentered(ctx, 'walking past is legal — the forge keeps nothing', 0, pc.height - inset.bottom - 18, CANVAS_W, HUD_SMALL, {
-      px: HUD_SMALL, color: C_DIM,
-    });
+    footHint(pc, 'walking past is legal — the forge keeps nothing');
   }
 
   /** The REST's foot line — one sharpenPreview call, not one per interpolation. */
@@ -556,7 +561,6 @@ export function createNodeScreen(deps: NodeScreenDeps): NodeScreen {
 
   function renderAltarOrRest(props: Extract<NodeProps, { kind: 'ALTAR' | 'REST' }>): void {
     const ctx = pc.ctx;
-    const inset = safeInsetFor(pc);
     const o = columns(props);
     const altar = props.kind === 'ALTAR';
     drawBanner(ctx, altar ? 'THE ALTAR . ONE AWAKENS' : 'A REST . HEAL, OR SHARPEN', altar ? 'ALTAR' : 'HEAL', altar ? C_GOLD : ACCENT_HP);
@@ -589,14 +593,12 @@ export function createNodeScreen(deps: NodeScreenDeps): NodeScreen {
         // focused one).
         drawPendingButton(ctx, CONTINUE.x, CONTINUE.y, CONTINUE.w, CONTINUE.h, 'CHOOSE WHO AWAKENS');
       }
-      hudTextCentered(ctx, 'the altar cannot be declined . once per lap, one member', 0, pc.height - inset.bottom - 18, CANVAS_W, HUD_SMALL,
-        { px: HUD_SMALL, color: C_DIM });
+      footHint(pc, 'the altar cannot be declined . once per lap, one member');
       return;
     }
     drawPrimaryButton(ctx, CONTINUE.x, CONTINUE.y, CONTINUE.w, CONTINUE.h, 'FULL HEAL',
       regions.focused() === 'rest-heal', regions.pressing() === 'rest-heal');
-    hudTextCentered(ctx, 'A on a column sharpens that member . FULL HEAL is also on B', 0, pc.height - inset.bottom - 18, CANVAS_W, HUD_SMALL,
-      { px: HUD_SMALL, color: C_DIM });
+    footHint(pc, 'A on a column sharpens that member . FULL HEAL is also on B');
   }
 
   function render(time: number, props: NodeProps): void {

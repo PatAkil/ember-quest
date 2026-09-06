@@ -20,7 +20,7 @@
 
 import type { Audio, HitRegions, Input, Light, LightActor, PixelCanvas } from '../../engine';
 import { PICO8, dimScene } from '../../engine';
-import { CANVAS_W, CANVAS_H, CONTINUE, HUD_LARGE, HUD_PX, HUD_SMALL } from './layout';
+import { CANVAS_W, CANVAS_H, CONTINUE, HUD_LARGE, HUD_PX, HUD_SMALL, safeInsetFor } from './layout';
 import { ACTS, VAULT_SIZE } from '../types';
 import { ACCENT, C_DEBUFF, KEY_LIGHT, drawPrimaryButton, hudText, hudTextCentered, hudWidth, withAlpha } from './hud';
 import type { ActorDrawState, ActorRecipe } from '../art/actors';
@@ -46,6 +46,8 @@ const CAST_FEET = [
   { x: 1076, y: 560 },
 ] as const;
 const CAST_DIM = 0.5;
+/** The act-clear beat's dim: lighter than a terminal screen's, because the run goes on. */
+const BEAT_DIM = 0.38;
 const POOL = { x: 986, y: 470, r: 300 };
 const castPose: ActorDrawState = { pose: 'idle', time: 0, element: 'FIRE', facing: -1, x: 0, y: 0 };
 /**
@@ -84,7 +86,22 @@ export interface EndScreenDeps {
 export interface EndScreen {
   update(dt: number, run: RunScreen): void;
   render(time: number, run: RunScreen): void;
+  /**
+   * THE ACT-CLEAR BEAT (composition round-4 item 6). Clearing an act cut
+   * straight from the boss's reward card to the next act's map; this is the
+   * held frame in between — the party standing in the biome they just took,
+   * under the same warm pool the end screens use, over a lighter dim. It asks
+   * nothing: A, B or a tap anywhere goes on, and it goes on by itself after
+   * `ACT_CLEAR_HOLD` so no screen can swallow a run.
+   */
+  updateActClear(dt: number, run: RunScreen): void;
+  renderActClear(time: number, run: RunScreen): void;
 }
+
+/** How long the act-clear beat holds before it walks on by itself. */
+export const ACT_CLEAR_HOLD = 3.4;
+/** How much of the beat's length is the read-in fade — the rest is the held frame. */
+const ACT_CLEAR_FADE = 0.35;
 
 export function createEndScreen(deps: EndScreenDeps): EndScreen {
   const { pc, input, regions, audio, light, scene, onRetry, onContinue } = deps;
@@ -93,8 +110,11 @@ export function createEndScreen(deps: EndScreenDeps): EndScreen {
    * frame — `castN` is how many of them are live this frame — so the end screen
    * allocates nothing per frame, exactly like the battle's light-actor pool.
    */
-  interface CastMember { recipe: ActorRecipe; element: ActorDrawState['element']; x: number; y: number; span: number }
-  const cast: CastMember[] = CAST_FEET.map((f) => ({ recipe: ACTOR_RECIPES.EMBER, element: 'FIRE', x: f.x, y: f.y, span: 0 }));
+  interface CastMember {
+    recipe: ActorRecipe; element: ActorDrawState['element']; x: number; y: number; span: number;
+    pose: ActorDrawState['pose'];
+  }
+  const cast: CastMember[] = CAST_FEET.map((f) => ({ recipe: ACTOR_RECIPES.EMBER, element: 'FIRE', x: f.x, y: f.y, span: 0, pose: 'idle' }));
   let castN = 0;
   let castTime = 0;
 
@@ -104,6 +124,7 @@ export function createEndScreen(deps: EndScreenDeps): EndScreen {
     for (let i = 0; i < castN; i++) {
       const c = cast[i];
       castPose.time = castTime;
+      castPose.pose = c.pose;
       castPose.element = c.element;
       castPose.x = c.x;
       castPose.y = c.y;
@@ -111,7 +132,92 @@ export function createEndScreen(deps: EndScreenDeps): EndScreen {
     }
   };
 
+  /** Seconds the act-clear beat has been on screen; -1 while it is not up. */
+  let beatAge = -1;
+
+  /** Fill the cast records from the party — survivors idling, the fallen in their dead pose. */
+  function buildCast(s: { party: { members: readonly { hp: number; def: { id: string; element: string } }[] } }): void {
+    castN = 0;
+    for (const m of s.party.members) {
+      if (castN >= CAST_FEET.length) continue;
+      const recipe = ACTOR_RECIPES[m.def.id];
+      if (!recipe) continue;
+      const f = CAST_FEET[castN];
+      const c = cast[castN];
+      c.recipe = recipe;
+      c.element = m.def.element as ActorDrawState['element'];
+      c.pose = m.hp <= 0 ? 'dead' : 'idle';
+      c.x = f.x;
+      c.y = f.y;
+      c.span = actorHitRect(recipe, f.x, f.y).w;
+      castLightPool[castN].x = f.x - ACTOR_W / 2;
+      castLightPool[castN].y = f.y - ACTOR_W * 0.88;
+      castLights[castN] = castLightPool[castN];
+      castN += 1;
+    }
+    castLights.length = castN;
+  }
+
+  /** The warm pool laid back over the dim so the party reads as lit under it. */
+  function layKeyPool(ctx: CanvasRenderingContext2D): void {
+    if (!castN) return;
+    if (!keyPool) {
+      keyPool = ctx.createRadialGradient(POOL.x, POOL.y, 0, POOL.x, POOL.y, POOL.r);
+      keyPool.addColorStop(0, withAlpha(ACCENT, 0.2));
+      keyPool.addColorStop(0.55, withAlpha(KEY_LIGHT, 0.09));
+      keyPool.addColorStop(1, withAlpha(KEY_LIGHT, 0));
+    }
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = keyPool;
+    ctx.fillRect(POOL.x - POOL.r, Math.max(0, POOL.y - POOL.r), POOL.r * 2, Math.min(CANVAS_H, POOL.r * 2));
+    ctx.restore();
+  }
+
   return {
+    updateActClear(dt, run) {
+      if (beatAge < 0) beatAge = 0;
+      beatAge += dt;
+      regions.begin();
+      // ONE full-canvas target: the beat is a frame to look at, not a choice, so
+      // there is nowhere on it that does not go on. Keyboard parity comes free —
+      // it is the only region, so it holds focus and A activates it.
+      regions.add('act-clear', 0, 0, CANVAS_W, CANVAS_H, { index: 0 });
+      regions.end();
+      const skipped = regions.activated() === 'act-clear' || input.pressed('B');
+      if (skipped || beatAge >= ACT_CLEAR_HOLD) {
+        if (skipped) audio.play('blip');
+        beatAge = -1;
+        run.clearAct();
+      }
+      input.endFrame();
+    },
+
+    renderActClear(time, run) {
+      const ctx = pc.ctx;
+      const s = run.state();
+      castTime = time;
+      buildCast(s);
+      scene(castN ? drawCast : undefined, castLights);
+      // A LIGHTER dim than a terminal screen's: the act is over, the run is not.
+      dimScene(pc, BEAT_DIM);
+      layKeyPool(ctx);
+
+      const t = beatAge < 0 ? 1 : Math.min(1, beatAge / ACT_CLEAR_FADE);
+      ctx.save();
+      ctx.globalAlpha = t;
+      hudTextCentered(ctx, `ACT ${s.actCleared} CLEARED`, 0, VERDICT_Y - 40, CANVAS_W, VERDICT_PX,
+        { px: VERDICT_PX, weight: 200, color: ACCENT });
+      hudTextCentered(ctx, s.actClearedBiome.toUpperCase(), 0, VERDICT_Y + 34, CANVAS_W, HUD_LARGE,
+        { px: HUD_LARGE, color: C_TEXT });
+      hudTextCentered(ctx, `SCORE ${Math.round(s.score)}   .   ${s.roomsCleared} ROOMS`, 0, VERDICT_Y + 74, CANVAS_W, HUD_PX,
+        { color: C_DIM });
+      ctx.restore();
+      const inset = safeInsetFor(pc);
+      hudTextCentered(ctx, 'A or a tap goes on', 0, pc.height - inset.bottom - 18, CANVAS_W, HUD_SMALL,
+        { px: HUD_SMALL, color: C_DIM });
+    },
+
     // A complete tick — begin -> add -> end -> check activation -> endFrame() —
     // the same shape battle.ts uses: end() is what resolves this tick's
     // activation, so it must run before (not after) the check below.
@@ -134,45 +240,20 @@ export function createEndScreen(deps: EndScreenDeps): EndScreen {
       const won = s.phase === 'VICTORY';
       const accent = won ? C_VICTORY : C_DEATH;
 
-      // Whoever walked out of the run stands in the frame, lit by the crypt.
+      // THE WHOLE PARTY IS IN THE FRAME, however the run ended (composition
+      // round-4 item 5). The screen used to draw only survivors, so a GAME OVER
+      // — which by definition has none — was four centred lines and a button
+      // over bare ground measuring p50 15.8 at the seats where the party would
+      // stand. The fallen take the same three seats in their DEAD pose, under
+      // the same warm pool the win screen lays back over the dim, so the last
+      // frame of a run is the party that lost it rather than an empty stage.
       castTime = time;
-      castN = 0;
-      for (const m of s.party.members) {
-        if (m.hp <= 0 || castN >= CAST_FEET.length) continue;
-        const recipe = ACTOR_RECIPES[m.def.id];
-        if (!recipe) continue;
-        const f = CAST_FEET[castN];
-        const c = cast[castN];
-        c.recipe = recipe;
-        c.element = m.def.element;
-        c.x = f.x;
-        c.y = f.y;
-        c.span = actorHitRect(recipe, f.x, f.y).w;
-        castLightPool[castN].x = f.x - ACTOR_W / 2;
-        castLightPool[castN].y = f.y - ACTOR_W * 0.88;
-        castLights[castN] = castLightPool[castN];
-        castN += 1;
-      }
-      castLights.length = castN;
+      buildCast(s);
       scene(castN ? drawCast : undefined, castLights);
 
       // The terminal-screen overlay: the crypt stays visible under it.
       dimScene(pc, CAST_DIM);
-      if (castN) {
-        // A warm pool laid back over the dim, so the survivors read as standing
-        // in the key light instead of behind a grey sheet. Built once.
-        if (!keyPool) {
-          keyPool = ctx.createRadialGradient(POOL.x, POOL.y, 0, POOL.x, POOL.y, POOL.r);
-          keyPool.addColorStop(0, withAlpha(ACCENT, 0.2));
-          keyPool.addColorStop(0.55, withAlpha(KEY_LIGHT, 0.09));
-          keyPool.addColorStop(1, withAlpha(KEY_LIGHT, 0));
-        }
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.fillStyle = keyPool;
-        ctx.fillRect(POOL.x - POOL.r, Math.max(0, POOL.y - POOL.r), POOL.r * 2, Math.min(CANVAS_H, POOL.r * 2));
-        ctx.restore();
-      }
+      layKeyPool(ctx);
 
       // The run's own report, not a second count of it.
       const res = run.result();

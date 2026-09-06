@@ -15,7 +15,8 @@ import { PICO8 } from '../../engine';
 import type { Element, SetBonus, Slot, StatusKind } from '../types';
 import type { ActorRecipe } from '../art/actors';
 import { bakePose } from '../art/actors';
-import { HUD_FONT, HUD_LETTER_SPACING, HUD_PX, PORTRAIT } from './layout';
+import type { PixelCanvas } from '../../engine';
+import { CANVAS_W, HUD_FONT, HUD_LETTER_SPACING, HUD_PX, HUD_SMALL, PORTRAIT, safeInsetFor } from './layout';
 
 // ============================================================ the accents ===
 /**
@@ -367,6 +368,20 @@ export const FOCUS_BODY_ALPHA = 0.07;
  * states in one vocabulary, told apart by how lit they are.
  */
 export const FOCUS_CHOSEN = 0.55;
+
+/**
+ * A thing that has been PICKED but does not hold the keyboard — a banked chip,
+ * a chosen set, the EPIC seat on a full SUMMON. The same light as focus at
+ * `FOCUS_CHOSEN`, never a stroke: round 4 retired the last rest-state keylines,
+ * so "picked" and "focused" differ by how lit they are and by nothing else.
+ */
+export function drawChosen(
+  ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number,
+  radius: number = PLATE_RADIUS, color: string = ACCENT,
+): void {
+  focusGlow(ctx, x, y, w, h, radius, color, FOCUS_CHOSEN);
+  focusLift(ctx, x, y, w, h, radius, color, FOCUS_CHOSEN);
+}
 export function focusLift(
   ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number,
   radius: number = PLATE_RADIUS, color: string = ACCENT, strength = 1,
@@ -581,10 +596,36 @@ function hWash(ctx: CanvasRenderingContext2D, w: number, alpha: number): CanvasG
   return g;
 }
 
-/** The gradient plate: ink at the top fading to nothing, and a border ONLY when it is focused or targeted. */
+/**
+ * The gradient plate: ink at the top fading toward the foot, and a border ONLY
+ * when it is focused or targeted.
+ *
+ * `base` is a FLAT ink fill laid under that gradient, and it is what makes a
+ * plate HOLD. A gradient alone is a wash: however high its top alpha, the value
+ * it reaches at the foot is the value the diorama comes back at, and the party
+ * columns measured p10→p90 21.0–23.5 L at satMean 30–33 with the marsh's trees,
+ * boat and lantern legible straight through six rows of text. The card plates
+ * that work are not gradients at all — they are `plate()`'s flat fill at
+ * `CARD_ALPHA`, and they measure 12.2–13.4 L at satMean 8–9. A base plus a
+ * gradient is both: a floor no lower than the card's, with the top-down fall
+ * that keeps a plate from reading as a box.
+ */
+export const COLUMN_BASE_ALPHA = 0.86;
+/**
+ * The base's own ink, and it is NOT `INK`. `INK` is `6,8,16` — a blue-leaning
+ * ink that is right for a wash over a warm crypt and wrong as the thing a
+ * column's colour is measured on: a plate built from it carries its own chroma
+ * into the measurement on top of whatever the diorama leaks through. The base
+ * is the same value at a neutral hue, so raising it buys density without buying
+ * saturation.
+ */
+export const BASE_INK = '10,10,12';
 export function gradientPlate(
   ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number,
-  o: { topAlpha?: number; floorAlpha?: number; border?: string; radius?: number; focused?: boolean; accent?: string } = {},
+  o: {
+    topAlpha?: number; floorAlpha?: number; base?: number; border?: string;
+    radius?: number; focused?: boolean; accent?: string;
+  } = {},
 ): void {
   const px = Math.round(x);
   const py = Math.round(y);
@@ -595,6 +636,10 @@ export function gradientPlate(
   ctx.save();
   ctx.translate(px, py);
   roundRectPath(ctx, 0, 0, pw, ph, r);
+  if (o.base) {
+    ctx.fillStyle = `rgba(${BASE_INK},${o.base})`;
+    ctx.fill();
+  }
   ctx.fillStyle = vGrad(ctx, ph, o.topAlpha ?? PANEL_TOP_ALPHA, o.floorAlpha ?? 0);
   ctx.fill();
   ctx.restore();
@@ -645,6 +690,25 @@ export function titleBand(
   ctx.fillStyle = color;
   ctx.fillRect(px, py + ph - 1, pw, 1);
   ctx.restore();
+}
+
+/**
+ * THE CONTROLS HINT every run screen closes with, on its own wash. Round 4's
+ * scene pass lifted the ground under it to p50 34-37, and a `C_DIM` line at
+ * HUD_SMALL over lit stones is a line you have to hunt for. Same treatment as
+ * the log: a short local wash the width of the words, faded out at both ends,
+ * inside the safe inset — never a full-width plate.
+ */
+export function footHint(pc: PixelCanvas, text: string, color: string = PICO8[6]): void {
+  const ctx = pc.ctx;
+  const inset = safeInsetFor(pc);
+  const y = pc.height - inset.bottom - 18;
+  const w = hudWidth(ctx, text, HUD_SMALL);
+  // The wash is a DRAWN element, so it stops at the safe inset — on a phone the
+  // inset is 40 and its full height would put 4 px of ink into the margin.
+  const wh = Math.min(HUD_SMALL + 14, pc.height - inset.bottom - (y - 7));
+  textWash(ctx, (CANVAS_W - w) / 2 - 26, y - 7, w + 52, wh, 0.6);
+  hudTextCentered(ctx, text, 0, y, CANVAS_W, HUD_SMALL, { px: HUD_SMALL, color });
 }
 
 /** A short local wash under one line of text — the log line's whole background: no rule, no box. */
@@ -867,39 +931,85 @@ export function drawPrimaryButton(
   ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, label: string,
   focused: boolean, pressed = false, accent: string = ACCENT,
 ): void {
-  // The plate is drawn shorter than its hit rect: a lit slab, never a full-height slab.
+  // THE PRIMARY IS A POOL OF LIGHT, NOT A ROUNDED RECT (round-4 defect 7). The
+  // same 384x56 gradient rounded rectangle with an outer glow and a centred
+  // sans-serif word appeared on seven screens in the first ten minutes, and at
+  // x3 it is the anatomy of a web CTA whatever colour it is painted. What
+  // replaces it keeps every affordance and drops the box:
+  //
+  //   * the ends FEATHER. The ink is a horizontal gradient that reaches zero
+  //     `PRIMARY_FEATHER` of the way in from each edge, so the slab has no left
+  //     or right edge at all — it is a lit patch of the floor with a word in it,
+  //     the way the log line already sits on its own wash.
+  //   * the light comes from ABOVE and lands where the diorama's key does: the
+  //     accent wash peaks on the top edge and falls through the body, and the
+  //     1-px lip along the top is that light meeting the slab, not a rule.
+  //   * FOCUS is the same glow-and-lift the rest of the game uses, and it is the
+  //     only state that adds an outer bleed. At rest there is none.
   const ph = Math.min(h, 56);
   const py = Math.round(y + (h - ph) / 2) + (pressed ? 1 : 0);
   const px = Math.round(x);
   const pw = Math.round(w);
+  if (focused) focusGlow(ctx, px + Math.round(pw * 0.12), py + 4, Math.round(pw * 0.76), ph - 8, ph / 2, accent, 0.9);
   ctx.save();
-  // The glow: the accent bled around the plate, strongest when focused.
-  ctx.shadowColor = accent;
-  ctx.shadowBlur = focused ? 26 : 16;
-  ctx.globalAlpha = focused ? 0.5 : 0.32;
-  roundRectPath(ctx, px, py, pw, ph, 6);
-  ctx.fillStyle = accent;
+  ctx.translate(px + pw / 2, py + ph / 2);
+  // THE INK IS A LOW ELLIPSE, not a rectangle with feathered ends. Feathering
+  // only the left and right left the top and bottom as hard horizontal lines,
+  // so what the player saw was a lit BAND with a word in it. An elliptical
+  // radial — a circular gradient under a vertical squash — has no straight edge
+  // anywhere: it is a patch of the floor that happens to be lit, which is what
+  // an HD-2D primary is.
+  ctx.scale(1, ph / pw);
+  ctx.fillStyle = primaryInk(ctx, pw, focused ? 0.9 : 0.84);
+  ctx.beginPath();
+  ctx.arc(0, 0, pw / 2, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
-  // The body: ink under a top-lit accent wash, no border at all.
+  // The key's own light landing on it from above, ADDED rather than painted: a
+  // radial centred on the patch's crown falls off downward and outward, so the
+  // light has no edge either, and it is what says "light lands here" now that
+  // the straight 2-px lip is gone.
   ctx.save();
   ctx.translate(px, py);
-  roundRectPath(ctx, 0, 0, pw, ph, 6);
-  ctx.fillStyle = `rgba(${INK},0.86)`;
-  ctx.fill();
-  // Lit from above in the key's own colour. NO hard bright rule along the top:
-  // a 2-px 0.9-alpha accent bar is the anatomy of a web CTA, not of a lit slab,
-  // and it was the loudest edge on every screen that carried a primary. What is
-  // left is the wash itself plus a 1-px lip at a third of that alpha — enough
-  // to say "light lands here", not enough to draw a frame.
-  ctx.clip();
-  ctx.fillStyle = tintGrad(ctx, ph, accent, focused ? 0.4 : 0.24);
-  ctx.fillRect(0, 0, pw, ph);
-  ctx.globalAlpha = focused ? 0.34 : 0.22;
-  ctx.fillStyle = accent;
-  ctx.fillRect(0, 0, pw, 1);
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = focused ? 1 : 0.82;
+  ctx.fillStyle = primaryPool(ctx, pw, ph, accent);
+  ctx.fillRect(-pw * 0.1, -ph * 0.3, pw * 1.2, ph * 1.6);
   ctx.restore();
   hudTextCentered(ctx, label, px, py, pw, ph, { color: focused ? PICO8[7] : C_CREAM });
+}
+
+/**
+ * Where the patch's ink stops being solid, as a fraction of its radius — the
+ * outer 24 % is the feather, and because the shape is a squashed circle that
+ * feather is on all four sides at once.
+ */
+export const PRIMARY_FEATHER = 0.62;
+const PRIMARY_INKS = new Map<string, CanvasGradient>();
+function primaryInk(ctx: CanvasRenderingContext2D, w: number, alpha: number): CanvasGradient {
+  const key = `${w}|${alpha}`;
+  let g = PRIMARY_INKS.get(key);
+  if (!g) {
+    g = ctx.createRadialGradient(0, 0, 0, 0, 0, w / 2);
+    g.addColorStop(0, `rgba(${INK},${alpha})`);
+    g.addColorStop(PRIMARY_FEATHER, `rgba(${INK},${alpha})`);
+    g.addColorStop(1, `rgba(${INK},0)`);
+    PRIMARY_INKS.set(key, g);
+  }
+  return g;
+}
+const PRIMARY_POOLS = new Map<string, CanvasGradient>();
+function primaryPool(ctx: CanvasRenderingContext2D, w: number, h: number, color: string): CanvasGradient {
+  const key = `${w}|${h}|${color}`;
+  let g = PRIMARY_POOLS.get(key);
+  if (!g) {
+    g = ctx.createRadialGradient(w / 2, h * 0.16, 0, w / 2, h * 0.16, Math.max(w * 0.5, h * 1.4));
+    g.addColorStop(0, withAlpha(color, 0.7));
+    g.addColorStop(0.42, withAlpha(color, 0.38));
+    g.addColorStop(1, withAlpha(color, 0));
+    PRIMARY_POOLS.set(key, g);
+  }
+  return g;
 }
 
 /**

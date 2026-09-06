@@ -30,14 +30,14 @@ import { PICO8 } from '../../engine';
 import {
   CANVAS_W, CARD_X, CARD_W, HUD_LARGE, HUD_PX, HUD_SMALL, NAME_MAX_CHARACTER,
   PARTY_BACK, PARTY_LEADER, PARTY_ROW, PARTY_ROW_Y0, PARTY_SWAP, PAUSE_ICON, PAUSE_ICON_HIT,
-  PORTRAIT, RELIC_TITLE_MAX, SET_LINE_Y, safeInsetFor,
+  PORTRAIT, RELIC_TITLE_MAX,
 } from './layout';
 import {
   ACCENT, ACCENT_COOL, ACCENT_HP, C_GOLD, C_MUTED, C_VIOLET, EDGE_SOFT, ELEMENT_COLOR, HP_RULE_H,
-  FOCUS_CHOSEN, INK_TROUGH, PLATE_RADIUS, focusGlow, focusLift,
+  COLUMN_BASE_ALPHA, FOCUS_CHOSEN, INK_TROUGH, PLATE_RADIUS, focusGlow, focusLift,
   ELEMENT_ICON_NAME, SLOT_ICON_NAME, drawFocusablePlate, drawHpRule, drawIcon, drawPrimaryButton,
   drawSecondaryButton, formatSetBonus, gradientPlate, hudText, hudTextCentered, hudWidth, plate,
-  portraitFor, roundRectPath, textWash,
+  portraitFor, roundRectPath, textWash, footHint,
 } from './hud';
 import type { PactId, Party, PartyMember, Rarity, Relic, RoomType, Slot } from '../types';
 import { SLOTS } from '../types';
@@ -75,14 +75,22 @@ export const PARTY_HEAD = { y: 56, h: 68 } as const;
 // promote to layout.ts
 export const PARTY_ROWS_BOTTOM = PARTY_ROW_Y0 + 6 * PARTY_ROW;
 /**
- * The set-bonus band. hud.ts's SET_LINE_Y is reused verbatim, but the inspect
+ * The set-bonus band, on its own line positions (see PARTY_SET_LINE_Y). The inspect
  * overlay's SET_BAND (x 48, w 968) would run straight through PARTY_SWAP and
  * PARTY_LEADER on this screen, so the band takes the clear gutter between
  * PARTY_LEADER's right edge (624) and PARTY_BACK's left (952).
  */
 // promote to layout.ts
 export const PARTY_SET_BAND = { x: 640, y: 512, w: 304, h: 136 } as const;
-/** The band's own label row, clear of SET_LINE_Y[0] = 540 (it used to sit on it). */
+/**
+ * This band's OWN line positions. It used to borrow the inspect overlay's
+ * `SET_LINE_Y`; round 4 shrank the inspect panel and moved those lines to
+ * 472/494/516, which printed the party's first set line ABOVE its own label.
+ * The two bands are different screens and now say so.
+ */
+// promote to layout.ts
+export const PARTY_SET_LINE_Y = [540, 576, 612] as const;
+/** The band's own label row, clear of PARTY_SET_LINE_Y[0] = 540 (it used to sit on it). */
 // promote to layout.ts
 export const PARTY_SET_LABEL_Y = 512;
 /** Pad inside a column plate, and the pitch of the two head lines. */
@@ -153,7 +161,8 @@ export function addPauseIcon(regions: HitRegions): void {
 }
 export function drawPauseIcon(ctx: CanvasRenderingContext2D, regions: HitRegions): void {
   const focused = regions.focused() === 'pause-icon';
-  plate(ctx, PAUSE_ICON.x, PAUSE_ICON.y, PAUSE_ICON.w, PAUSE_ICON.h, { alpha: 0.5, border: focused ? PICO8[7] : EDGE_SOFT });
+  if (focused) focusGlow(ctx, PAUSE_ICON.x, PAUSE_ICON.y, PAUSE_ICON.w, PAUSE_ICON.h, PLATE_RADIUS, ACCENT);
+  plate(ctx, PAUSE_ICON.x, PAUSE_ICON.y, PAUSE_ICON.w, PAUSE_ICON.h, { alpha: focused ? 0.66 : 0.5, border: EDGE_SOFT });
   ctx.fillStyle = focused ? PICO8[7] : PICO8[6];
   ctx.fillRect(PAUSE_ICON.x + 22, PAUSE_ICON.y + 20, 6, 24);
   ctx.fillRect(PAUSE_ICON.x + 36, PAUSE_ICON.y + 20, 6, 24);
@@ -412,11 +421,17 @@ export function drawPartyColumns(pc: PixelCanvas, regions: HitRegions, party: Pa
     // CHOSEN is the same light at `FOCUS_CHOSEN` strength, never a border: an
     // amber keyline round the chosen column was the loudest edge on the party
     // screen and told the player "focused" in the very shape round 3 retired.
+    // A BASE under the gradient (UI round-4 item 1): six rows of small text over
+    // a lit diorama need the card plates' own floor, not a wash. Measured on
+    // bank/rest the interiors were 21.0-23.5 L at satMean 30-33 with the marsh's
+    // trees and boat legible through them; the cards that work read 12.2-13.4 L
+    // at satMean 8-9, and they are a flat fill.
     const lit = colFocused || colChosen;
     if (lit) focusGlow(ctx, rect.x, rect.y, rect.w, rect.h, PLATE_RADIUS, ACCENT, colFocused ? 1 : FOCUS_CHOSEN);
     gradientPlate(ctx, rect.x, rect.y, rect.w, rect.h, {
-      topAlpha: lit ? 0.66 : 0.5,
-      floorAlpha: lit ? 0.5 : 0.38,
+      base: COLUMN_BASE_ALPHA,
+      topAlpha: lit ? 0.42 : 0.3,
+      floorAlpha: lit ? 0.3 : 0.2,
     });
     if (lit) focusLift(ctx, rect.x, rect.y, rect.w, rect.h, PLATE_RADIUS, ACCENT, colFocused ? 1 : FOCUS_CHOSEN);
     ctx.save();
@@ -445,16 +460,16 @@ export function drawSetBand(pc: PixelCanvas, party: Party): void {
   };
   washed('SETS IN PLAY', PARTY_SET_LABEL_Y, C_MUTED);
   if (counts.size === 0) {
-    washed('none yet', SET_LINE_Y[0], C_DIM);
+    washed('none yet', PARTY_SET_LINE_Y[0], C_DIM);
     return;
   }
   let line = 0;
   for (const [id, n] of counts) {
-    if (line >= SET_LINE_Y.length) break;
+    if (line >= PARTY_SET_LINE_Y.length) break;
     const def = SETS[id as keyof typeof SETS];
     if (!def) continue;
     const stack = n > 1 ? ` x${n}` : '';
-    washed(`${def.name}${stack}  ${formatSetBonus(def.bonus)}`, SET_LINE_Y[line], C_TEXT);
+    washed(`${def.name}${stack}  ${formatSetBonus(def.bonus)}`, PARTY_SET_LINE_Y[line], C_TEXT);
     line += 1;
   }
 }
@@ -577,11 +592,8 @@ export function createPartyScreen(deps: PartyScreenDeps): PartyScreen {
     const backLabel = props.leaderEnabled && leaderNow ? `KEEP ${leaderNow.def.name.toUpperCase()}` : 'BACK';
     drawSecondaryButton(ctx, PARTY_BACK.x, PARTY_BACK.y, PARTY_BACK.w, PARTY_BACK.h, backLabel, regions.focused() === 'party-back');
 
-    const inset = safeInsetFor(pc);
-    hudTextCentered(ctx, props.leaderEnabled ? 'arrows move . A selects a column . B keeps the seat as it is'
-      : 'arrows move . A selects a column . B goes back', 0, pc.height - inset.bottom - 18, CANVAS_W, HUD_SMALL, {
-      px: HUD_SMALL, color: C_DIM,
-    });
+    footHint(pc, props.leaderEnabled ? 'arrows move . A selects a column . B keeps the seat as it is'
+      : 'arrows move . A selects a column . B goes back');
     drawPauseIcon(ctx, regions);
   }
 
@@ -619,7 +631,7 @@ export function createPartyScreen(deps: PartyScreenDeps): PartyScreen {
 export function drawDisabled(
   ctx: CanvasRenderingContext2D, rect: { x: number; y: number; w: number; h: number }, label: string, why: string,
 ): void {
-  gradientPlate(ctx, rect.x, rect.y + 12, rect.w, rect.h - 24, { topAlpha: 0.34, floorAlpha: 0.22 });
+  gradientPlate(ctx, rect.x, rect.y + 12, rect.w, rect.h - 24, { base: 0.46, topAlpha: 0.2, floorAlpha: 0.14 });
   hudTextCentered(ctx, label, rect.x, rect.y + 22, rect.w, HUD_PX, { color: C_MUTED, alpha: 0.75 });
   hudTextCentered(ctx, why, rect.x, rect.y + 48, rect.w, HUD_SMALL, { px: HUD_SMALL, color: C_MUTED, alpha: 0.6 });
 }

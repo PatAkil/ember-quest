@@ -396,7 +396,7 @@ runtime.stateChanged('TITLE');
  * card into the three phases the phase-4 screens already spoke.
  */
 type ScreenKey =
-  | 'NONE' | 'PRE_VAULT' | 'PARTY' | 'ROOM' | 'CARDS' | 'BATTLE'
+  | 'NONE' | 'PRE_VAULT' | 'PARTY' | 'ROOM' | 'ACT_CLEAR' | 'CARDS' | 'BATTLE'
   | 'DRAFT' | 'VAULT_EQUIP' | 'SUMMON' | 'LEADER' | 'ROUTE' | 'RELIC'
   | 'REST' | 'SHRINE' | 'FORGE' | 'ALTAR' | 'LAP' | 'BANK';
 
@@ -418,6 +418,7 @@ function screenKey(): ScreenKey {
   if (preRun === 'VAULT') return 'PRE_VAULT';
   if (!run) return 'NONE';
   const phase = run.state().phase;
+  if (phase === 'ACT_CLEAR') return 'ACT_CLEAR';
   if (phase === 'ROOM') return 'ROOM';
   if (phase === 'CARDS') return 'CARDS';
   if (phase === 'BATTLE') return 'BATTLE';
@@ -654,8 +655,16 @@ function update(dt: number): void {
   if (!scenes.is('PLAYING')) return;
 
   if (run) {
-    useBiome(run.biome().name);
-    const phase = run.state().phase;
+    // THE ACT-CLEAR BEAT HOLDS THE OUTGOING BIOME. The seam advances its act —
+    // and with it `run.biome()` — the moment the boss's last reward is answered,
+    // which is the same moment the beat is raised, so drawing `run.biome()`
+    // under it printed "ACT 1 CLEARED / EMBER CRYPT" over the frost marsh: the
+    // caption naming what you beat, the diorama showing where you are going.
+    // `actClearedBiome` is the name recorded BEFORE the step, so the tableau
+    // shows the crypt until the beat is dismissed and the map takes the frame.
+    const st = run.state();
+    useBiome(st.phase === 'ACT_CLEAR' ? st.actClearedBiome : run.biome().name);
+    const phase = st.phase;
     if (phase !== lastRunPhase) {
       lastRunPhase = phase;
       const result = run.result();
@@ -732,6 +741,9 @@ function updateScreen(dt: number): void {
       if (props) { nodeScreen.update(dt, props); return; }
       break;
     }
+    case 'ACT_CLEAR':
+      if (run) { endScreen.updateActClear(dt, run); return; }
+      break;
     case 'ROOM': case 'CARDS': case 'RELIC':
       if (run) { cardsScreen.update(dt, run); return; }
       break;
@@ -811,6 +823,9 @@ function renderScreen(): void {
       if (props) { nodeScreen.render(clock, props); return; }
       break;
     }
+    case 'ACT_CLEAR':
+      if (run) { endScreen.renderActClear(clock, run); return; }
+      break;
     case 'ROOM': case 'CARDS': case 'RELIC':
       if (run) { cardsScreen.render(clock, run); return; }
       break;

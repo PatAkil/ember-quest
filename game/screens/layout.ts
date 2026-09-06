@@ -115,29 +115,65 @@ export const ELEMENT_GLYPH = 20;
 /** The stage owns the frame now: x 24-1160, one panel column instead of two walls. */
 export const STAGE_X0 = 24;
 export const STAGE_X1 = 1160;
-/** The diagonal's step. 90 (was 56) so the three ranks read as depth instead of a stack. */
-export const DIAG_DX = 90;
+/** The PARTY's diagonal step. 90 (was 56) so the three ranks read as depth instead of a stack. */
+export const DIAG_DX = 100;
 export const DIAG_DY = 68;
+/**
+ * The PACK's own step, and it is deliberately shorter than the party's.
+ * `octopath-4`'s six lizardmen overlap into one mass with depth; ours stood as
+ * three evenly-spaced singles at a 100-px pitch with 22-30 px of floor between
+ * them and never touched. A 68-px hurtbox (HERO_HIT_SIZE 34 x 50 at
+ * ACTOR_SCALE 2) is the TAP box, not the drawn shape: measured by per-column
+ * edge energy the crypt pack draws 50 / 61 / ~55 px wide, so the arithmetic
+ * round 4 first ran — "a 70-78 px actor" — set the pitch 12 px too wide and the
+ * packmates never touched. At 46 the neighbours' half-sums (55.5 and 58) leave
+ * 9.5 and 12 px of overlap, 17 % and 21 % of the actors' own width, the band
+ * `octopath-4`'s lizardmen read at; the 68-px vertical step still keeps the
+ * three on three distinct ground rows.
+ */
+export const PACK_DX = 46;
+export const PACK_DY = 68;
 
-/** The party faces LEFT on a back-to-front diagonal at right-centre — octopath-4's spread. */
+/**
+ * THE TWO RANKS, AND THE GAP BETWEEN THEM. Round 3 left the ranks 270 px apart
+ * — 21 % of the frame, against the reference's 8 % — with the enemies pinned in
+ * the left third and the party under its own panel column. Round 4 walks both
+ * toward the centre: the pack's leader stays far enough left that a tap at the
+ * old anchor still lands in its own Voronoi cell (`spriteCellX`), and the party
+ * comes left until the anchor-to-anchor gap is 150 px, 11.7 % of the width.
+ *
+ * The scene's light pools derive their centres from these arrays, so the shape
+ * (three `{x, y}` for the party, three for a full pack, two for a pair, one
+ * boss) is part of the contract even though the numbers moved.
+ */
 export const HERO_FEET = [
-  { x: 700, y: 380 },
-  { x: 700 + DIAG_DX, y: 380 + DIAG_DY },
-  { x: 700 + 2 * DIAG_DX, y: 380 + 2 * DIAG_DY },
+  { x: 532, y: 380 },
+  { x: 532 + DIAG_DX, y: 380 + DIAG_DY },
+  { x: 532 + 2 * DIAG_DX, y: 380 + 2 * DIAG_DY },
 ] as const;
-/** Enemies own the left third on the same three ground rows — not a mirror of the party any more. */
+/** Enemies own the left-centre on the same three ground rows, packed into one mass. */
 export const ENEMY_FEET = [
-  { x: 230, y: 380 },
-  { x: 330, y: 448 },
-  { x: 430, y: 516 },
+  { x: 290, y: 380 },
+  { x: 290 + PACK_DX, y: 380 + PACK_DY },
+  { x: 290 + 2 * PACK_DX, y: 380 + 2 * PACK_DY },
 ] as const;
-/** Two enemies FAN instead of stacking on the diagonal's far end, so the left half carries mass. */
+/** Two enemies FAN a little instead of stacking, but they still read as one group. */
 export const ENEMY_FEET_PAIR: readonly { x: number; y: number }[] = [
-  { x: 206, y: 400 },
-  { x: 452, y: 504 },
+  { x: 352, y: 404 },
+  { x: 398, y: 472 },
 ];
-/** A lone boss stands centred on its own side. */
-export const BOSS_FEET = { x: 322, y: 490 } as const;
+/** A lone boss stands on its own side, at the pack's own remove from the party. */
+export const BOSS_FEET = { x: 410, y: 490 } as const;
+/**
+ * Where the enemy half of the stage ends and the party's begins: the midpoint
+ * between the pack's last foot and the party's first. `spriteCellX` uses it as
+ * the outer bound of the two ranks' cells so they TILE — no strip of the stage
+ * belongs to nobody, and none belongs to two actors.
+ */
+export function rankFrontier(enemyFeet: readonly { x: number }[]): number {
+  const last = enemyFeet[enemyFeet.length - 1]?.x ?? ENEMY_FEET[2].x;
+  return (last + HERO_FEET[0].x) / 2;
+}
 
 /**
  * No gauge slabs on the ground. An actor carries a 3-px HP hairline tucked into
@@ -176,10 +212,13 @@ export const POP_PLATE_CLEAR = 8;
  * point in the band belongs to the actor it is nearest, resolved in the
  * first pass, with no ambiguous strip left over.
  */
-export function spriteCellX(feet: readonly { x: number }[], i: number, halfW: number): { x: number; w: number } {
+export function spriteCellX(
+  feet: readonly { x: number }[], i: number, halfW: number,
+  bounds?: { left?: number; right?: number },
+): { x: number; w: number } {
   const c = feet[i].x;
-  const left = i > 0 ? (feet[i - 1].x + c) / 2 : c - halfW;
-  const right = i < feet.length - 1 ? (c + feet[i + 1].x) / 2 : c + halfW;
+  const left = i > 0 ? (feet[i - 1].x + c) / 2 : (bounds?.left ?? c - halfW);
+  const right = i < feet.length - 1 ? (c + feet[i + 1].x) / 2 : (bounds?.right ?? c + halfW);
   return { x: left, w: right - left };
 }
 
@@ -255,7 +294,16 @@ export function skillTailRect(phone: boolean): { x: number; y: number; w: number
 
 // ================================================================== cards ==
 export const CARD_Y = 88;
-export const CARD_H = 440;
+/**
+ * 472, up from 440 (UI round-4 item 4). Round 3 measured every card down to the
+ * rows it holds and centred it in this band, which fixed the ragged row and
+ * left a 174-px strip of bare floor — 24 % of the frame's height — between the
+ * card foot at y 493 and the button row at 572. The band now runs 88..560 and a
+ * card ROW fills it: the head group sits at the top, the set and sigil groups
+ * stay anchored to the foot, and the slack a short card has goes between them
+ * as air INSIDE the card rather than under it.
+ */
+export const CARD_H = 472;
 export const CARD_W = 384;
 export const CARD_X = [40, 448, 856] as const;
 /** Four-up layout, under a HASTE-style extra-cards modifier. */
@@ -264,29 +312,57 @@ export const CARD_X_FOUR = [48, 348, 648, 948] as const;
 export const CARD_PAD = 16;
 export const BLURB_LINES_MAX = 3;
 
+/**
+ * THE FOOT ROW, at y 568 instead of 552 (UI round-4 item 4). Sixteen pixels
+ * looks like nothing and is not: with the card band grown to 560 the content
+ * foot and the button head are 8 px apart, so the dead strip that ran a quarter
+ * of the frame's height is gone on every card, wear, shrine, draft, rest and
+ * bank face at once. The row still ends at 664, clear of the controls hint the
+ * safe inset puts at 678, and the driver's own foot taps (y 600) stay inside it.
+ */
+export const FOOT_ROW_Y = 568;
 /** The room-to-room continue prompt, and every end screen's RETRY/CONTINUE. */
-export const CONTINUE = { x: 448, y: 552, w: 384, h: 96 } as const;
+export const CONTINUE = { x: 448, y: FOOT_ROW_Y, w: 384, h: 96 } as const;
 export const WEAR_BTN = { w: 280, h: 96 } as const;
 /** Three candidates, the fourth slot is decline. */
 export const WEAR_X = [40, 344, 648, 952] as const;
-export const WEAR_Y = 552;
+export const WEAR_Y = FOOT_ROW_Y;
 
 // ================================================================== doors ==
 export const DOOR_W = 520;
-export const DOOR_H = 200;
+/**
+ * 260 tall at y 340, from 200 at 320 (round-4 fix, item 3). The doors are their
+ * own foot row — nothing stands under them but the controls hint — so a
+ * 520 x 200 pair at 320 left 152 px of bare floor under their feet, the worst
+ * dead band left on any run screen. Taller and lower puts their feet at 600, 72
+ * px above the hint's wash, and gives the two lines under each title the air
+ * they were cramped for. The driver's own door tap (y 420) is inside either.
+ */
+export const DOOR_H = 260;
 export const DOOR_X = [96, 664] as const;
-export const DOOR_Y = 320;
+export const DOOR_Y = 340;
 
 // ================================================================ inspect ==
-export const INSPECT = { x: 24, y: 24, w: 1232, h: 648 } as const;
-export const INSPECT_NAME = { x: 48, y: 40 } as const;
+/**
+ * SIZED TO ITS ROWS (UI round-4 item 5), the way the cards were in round 3. The
+ * panel was the whole frame — 1232 x 648, 798 k px — carrying a name, six slot
+ * rows, a portrait column and two foot bands, and reading as "a near-black
+ * dialog of dashes" because its ink was a fraction of its area. 960 x 480 is
+ * what the content actually occupies: 58 % of the area for the same rows, so
+ * the dim crypt around it does the framing instead of more black.
+ *
+ * `BACK` stays on its own seat below the panel's right end — a secondary over
+ * the dim, the same shape the pause overlay's buttons take.
+ */
+export const INSPECT = { x: 160, y: 56, w: 960, h: 480 } as const;
+export const INSPECT_NAME = { x: 184, y: 72 } as const;
 export const INSPECT_ROW_ICON = 32;
-/** Six relic rows, i = 0..5. */
+/** Six relic rows, i = 0..5 — a 58-px pitch inside the smaller panel. */
 export function inspectRowY(i: number): number {
-  return 96 + 72 * i;
+  return 120 + 58 * i;
 }
-export const SET_BAND = { x: 48, y: 536, w: 968, h: 112 } as const;
-export const SET_LINE_Y = [540, 576, 612] as const;
+export const SET_BAND = { x: 184, y: 468, w: 880, h: 62 } as const;
+export const SET_LINE_Y = [472, 494, 516] as const;
 export const BACK = { x: 1040, y: 552, w: 192, h: 96 } as const;
 
 // ================================================================== pause ==
@@ -311,9 +387,9 @@ export const MAP_BAND_BOTTOM = 120;
 export const PARTY_ROW = 64;
 export const PARTY_ROW_Y0 = 128;
 /** Disabled outside the draft, a SUMMON, a REST and the ALTAR. */
-export const PARTY_SWAP = { x: 40, y: 552, w: 280, h: 96 } as const;
-export const PARTY_LEADER = { x: 344, y: 552, w: 280, h: 96 } as const;
-export const PARTY_BACK = { x: 952, y: 552, w: 280, h: 96 } as const;
+export const PARTY_SWAP = { x: 40, y: FOOT_ROW_Y, w: 280, h: 96 } as const;
+export const PARTY_LEADER = { x: 344, y: FOOT_ROW_Y, w: 280, h: 96 } as const;
+export const PARTY_BACK = { x: 952, y: FOOT_ROW_Y, w: 280, h: 96 } as const;
 
 // ================================================================== draft ==
 export const DRAFT_CARD = { w: 284, h: 136 } as const;
@@ -338,6 +414,19 @@ export const HUD_FONT = '"Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif
 export const HUD_PX = 18;
 /** Numbers, hints, secondary lines (ACT/LAP, SCORE, cooldown keys). */
 export const HUD_SMALL = 15;
+/**
+ * A CARD, DOOR or ROOM title. Round 4 moved these off the bitmap 3x5 face and
+ * onto the HUD stack (UI round-4 item 5): "ENDURE +2" in the bitmap face 40 px
+ * above "EPIC" in the vector face, inside one card, was the two type voices
+ * sharing a box, and round 3's title band separated the boxes without making
+ * the pairing read. The bitmap face is now only ever ALONE — the logo and the
+ * damage pops — which is the rule the two-font paragraph was reaching for.
+ * 28 px, light weight like every other HUD line, sized so an 11-character
+ * relic title still clears CARD_W - 2 x CARD_PAD.
+ */
+export const HUD_TITLE = 28;
+/** The drawn height of one HUD_TITLE line — what a title band and a card's rows are measured from. */
+export const HUD_TITLE_H = 33;
 /** The one large UI line per screen — in battle, the current actor's name. */
 export const HUD_LARGE = 24;
 /** Tracking in px, applied through `ctx.letterSpacing` (manual fallback where unsupported). */

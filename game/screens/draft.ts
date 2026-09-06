@@ -20,13 +20,13 @@ import type { Audio, HitRegions, Input, PixelCanvas } from '../../engine';
 import { PICO8 } from '../../engine';
 import {
   CANVAS_W, CONTINUE, DRAFT_CARD, DRAFT_X, DRAFT_Y, HUD_LARGE, HUD_SMALL, NAME_MAX_CHARACTER,
-  NAME_MAX_SKILL, PARTY_BACK, PORTRAIT, WEAR_BTN, WEAR_X, WEAR_Y, safeInsetFor,
+  NAME_MAX_SKILL, PARTY_BACK, PORTRAIT, WEAR_BTN, WEAR_X, WEAR_Y,
 } from './layout';
 import {
   ACCENT, ACCENT_COOL, ACCENT_HP, C_GOLD, C_MUTED, C_VIOLET, ELEMENT_COLOR, ELEMENT_ICON_NAME,
-  FOCUS_CHOSEN, PLATE_RADIUS, focusGlow, focusLift,
+  FOCUS_CHOSEN, PLATE_RADIUS, drawChosen, focusGlow, focusLift,
   drawFocusablePlate, drawIcon, drawPendingButton, drawPrimaryButton, drawSecondaryButton, formatSetBonus,
-  gradientPlate, hudText, hudTextCentered, plate, portraitFor, roundRectPath,
+  gradientPlate, hudText, hudTextCentered, plate, portraitFor, roundRectPath, footHint,
 } from './hud';
 import type { CharacterDef, Element, LeaderSkill, Relic, SetId, Stat, SummonOffer } from '../types';
 import { CHARACTERS } from '../data/characters';
@@ -57,7 +57,17 @@ export const DRAFT_DETAIL_X = DRAFT_X[0];
 export const DRAFT_DETAIL_W = DRAFT_X[3] + DRAFT_CARD.w - DRAFT_X[0];
 export function draftDetailRect(count: number): { x: number; y: number; w: number; h: number } {
   const rows = Math.max(1, Math.min(2, Math.ceil(count / 4)));
-  const y = DRAFT_Y[rows];
+  // A ONE-ROW face (a 3-offer SUMMON) centres its strip in the space between
+  // the card row's foot and the foot row instead of sitting straight under the
+  // cards: parked at DRAFT_Y[1] it left 160 px of bare floor below it, and the
+  // same air split above and below is 88 and 88 (UI round-4 item 4).
+  // Centred on the DRAWN seat, not on CONTINUE's hit rect: the primary's slab is
+  // 56 tall inside a 96-px rect, so its visible top is `CONTINUE.y + 20` and
+  // splitting the space to 568 left 108 px of bare floor under the strip against
+  // 88 above it. Splitting to 588 makes both halves 98.
+  const y = rows === 1
+    ? Math.round((DRAFT_Y[0] + DRAFT_CARD.h + CONTINUE.y + PRIMARY_SEAT_INSET - (DETAIL_BLOCK_H + 2 * DETAIL_PAD)) / 2)
+    : DRAFT_Y[rows];
   // SIZED TO ITS CONTENT, not to the grid rows the cards left over. A 3-offer
   // SUMMON fills one card row and used to hand the strip BOTH remaining rows —
   // a 1184 x 288 plate carrying a 120-px block, 78 % of it empty, the largest
@@ -75,6 +85,9 @@ export const DETAIL_BLOCK_H = 128;
 /** Air above and below that block inside the strip. */
 // promote to layout.ts
 export const DETAIL_PAD = 20;
+/** How far below its hit rect's top the primary's slab actually starts drawing. */
+// promote to layout.ts
+export const PRIMARY_SEAT_INSET = 20;
 /** And the air the strip leaves between its own foot and the CONTINUE row. */
 // promote to layout.ts
 export const DETAIL_FOOT_GAP = 12;
@@ -360,7 +373,8 @@ export function createDraftScreen(deps: DraftScreenDeps): DraftScreen {
     const def = SETS[id];
     const focused = regions.focused() === `${FACE_ID.REBRAND}-${k}`;
     const picked = chosen === k;
-    drawFocusablePlate(ctx, r.x, r.y, r.w, r.h, focused, picked ? ACCENT : undefined, picked ? 0.68 : 0.55);
+    if (!focused && picked) drawChosen(ctx, r.x, r.y, r.w, r.h, PLATE_RADIUS, ACCENT);
+    drawFocusablePlate(ctx, r.x, r.y, r.w, r.h, focused, undefined, picked ? 0.72 : 0.6, ACCENT);
     hudText(ctx, def.name, r.x + DRAFT_PAD, r.y + 12, { px: HUD_LARGE, color: picked ? ACCENT : C_TEXT });
     hudText(ctx, `${def.pieces}-PIECE SET`, r.x + DRAFT_PAD, r.y + 46, { px: HUD_SMALL, color: C_MUTED });
     hudText(ctx, formatSetBonus(def.bonus), r.x + DRAFT_PAD, r.y + 70, { px: HUD_SMALL, color: C_TEXT });
@@ -375,7 +389,8 @@ export function createDraftScreen(deps: DraftScreenDeps): DraftScreen {
     const picked = chosen === -1;
     const relic = props.epic ?? null;
     const color = relic ? RARITY_COLOR[relic.rarity] : C_VIOLET;
-    drawFocusablePlate(ctx, r.x, r.y, r.w, r.h, focused, picked ? ACCENT : color, picked ? 0.68 : 0.55);
+    if (!focused && picked) drawChosen(ctx, r.x, r.y, r.w, r.h, PLATE_RADIUS, ACCENT);
+    drawFocusablePlate(ctx, r.x, r.y, r.w, r.h, focused, undefined, picked ? 0.72 : 0.6, color);
     hudText(ctx, 'TAKE THE EPIC', r.x + DRAFT_PAD, r.y + 12, { color: C_TEXT });
     if (relic) {
       hudText(ctx, relicTitle(relic), r.x + DRAFT_PAD, r.y + 40, { px: HUD_LARGE, color });
@@ -399,7 +414,7 @@ export function createDraftScreen(deps: DraftScreenDeps): DraftScreen {
     // A FLOOR under the whole strip: the old wash reached zero at 62 % of its
     // height, which is where the "cd 5 . all enemies" line sits, so the crypt's
     // brazier ran straight through the skill column.
-    gradientPlate(ctx, strip.x, strip.y, strip.w, strip.h, { topAlpha: 0.62, floorAlpha: 0.5 });
+    gradientPlate(ctx, strip.x, strip.y, strip.w, strip.h, { base: 0.5, topAlpha: 0.4, floorAlpha: 0.34 });
 
     if (props.kind === 'REBRAND') {
       const target = props.sets[k];
@@ -453,7 +468,6 @@ export function createDraftScreen(deps: DraftScreenDeps): DraftScreen {
   function render(_time: number, props: DraftProps): void {
     sync(props);
     const ctx = pc.ctx;
-    const inset = safeInsetFor(pc);
     const options = optionsOf(props);
     scene();
 
@@ -463,8 +477,7 @@ export function createDraftScreen(deps: DraftScreenDeps): DraftScreen {
       drawBanner(ctx, `WHO STEPS ASIDE FOR ${name.toUpperCase()}?`, name.toUpperCase(), ACCENT_COOL);
       drawPartyColumns(pc, regions, props.view.party, o);
       drawSecondaryButton(ctx, PARTY_BACK.x, PARTY_BACK.y, PARTY_BACK.w, PARTY_BACK.h, 'BACK', regions.focused() === 'swap-back');
-      hudTextCentered(ctx, 'they hand over their relics, their HP fraction, the seat and the awakening', 0,
-        pc.height - inset.bottom - 18, CANVAS_W, HUD_SMALL, { px: HUD_SMALL, color: C_DIM });
+      footHint(pc, 'they hand over their relics, their HP fraction, the seat and the awakening');
       drawPauseIcon(ctx, regions);
       return;
     }
@@ -499,8 +512,7 @@ export function createDraftScreen(deps: DraftScreenDeps): DraftScreen {
         px: HUD_SMALL, color: C_MUTED, alpha: 0.6,
       });
     }
-    hudTextCentered(ctx, props.kind === 'SUMMON' ? 'declining a SUMMON mends nothing' : 'arrows move . A picks . CONTINUE confirms', 0,
-      pc.height - inset.bottom - 18, CANVAS_W, HUD_SMALL, { px: HUD_SMALL, color: C_DIM });
+    footHint(pc, props.kind === 'SUMMON' ? 'declining a SUMMON mends nothing' : 'arrows move . A picks . CONTINUE confirms');
     drawPauseIcon(ctx, regions);
   }
 

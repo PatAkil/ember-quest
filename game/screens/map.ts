@@ -25,9 +25,18 @@ import {
 } from './layout';
 import {
   ACCENT, ACCENT_COOL, ACCENT_HP, C_CREAM, C_DEBUFF, C_GOLD, C_MUTED, C_VIOLET, PLATE_RADIUS,
-  drawFocusablePlate, drawHpRule, drawIcon, drawSecondaryButton, focusGlow, focusLift, gradientPlate,
-  hudText, hudTextCentered, plate,
+  drawHpRule, drawIcon, drawSecondaryButton, focusGlow, focusLift, gradientPlate,
+  hudText, hudTextCentered, plate, footHint,
 } from './hud';
+
+/**
+ * How much flat ink a node that is NOT on offer carries under its wash. A room
+ * two stages ahead is what a route is planned against, so its label has to be
+ * legible over whatever the biome is doing behind it — the marsh's moon and the
+ * crypt's brazier both sit right under the node grid.
+ */
+const NODE_BASE_WALKED = 0.6;
+const NODE_BASE_AHEAD = 0.52;
 import type { IconName } from './hud';
 import type { RoomType } from '../types';
 import { LANDMARK_STAGE, STAGE_SIZES } from '../types';
@@ -213,36 +222,40 @@ export function createMapScreen(deps: MapScreenDeps): MapScreen {
     // drawn UNDER the plate in the node's own colour and the body is lifted, so
     // the focused node is the brightest thing in its column instead of the
     // outlined one.
+    // NO KEYLINE ANYWHERE ON THIS SCREEN (round-4 item 2). Every node used to
+    // wear one: the offered ones a border in the room's colour, the one you are
+    // standing on a cream one, the landmark a second ACCENT rectangle inset 3 px
+    // inside its plate. Three lines saying three different things, in the shape
+    // round 3 retired for focus — and on a map the FOCUSED node wore the same
+    // shape as the rest. All of it is light and value now: an offered node is
+    // the densest plate with its colour in the icon and lit text, the one you
+    // stand on adds the HERE caption, the landmark takes the accent LIFT along
+    // its head, and focus is the glow plus the lift as everywhere else.
+    //
+    // Every node also takes a flat BASE (round-4 item 6): the labels on the
+    // rooms you are not being offered measured under 2:1 against the lit ground,
+    // because a 0.26-alpha wash is not a background — it is the ground. With a
+    // base under them the label reads against INK at its own alpha instead.
     if (focused) focusGlow(ctx, r.x, r.y, r.w, r.h, PLATE_RADIUS, offered || here ? color : C_MUTED);
     if (offered || here) {
-      drawFocusablePlate(ctx, r.x, r.y, r.w, r.h, false, here ? C_CREAM : color, focused ? 0.8 : 0.6);
+      plate(ctx, r.x, r.y, r.w, r.h, { alpha: focused ? 0.86 : 0.78 });
     } else {
       gradientPlate(ctx, r.x, r.y, r.w, r.h, {
-        topAlpha: focused ? 0.6 : walked ? 0.4 : 0.26,
-        floorAlpha: focused ? 0.4 : 0,
-        border: landmark ? ACCENT : undefined,
+        base: walked ? NODE_BASE_WALKED : NODE_BASE_AHEAD,
+        topAlpha: focused ? 0.4 : 0.24,
+        floorAlpha: focused ? 0.3 : 0.14,
       });
     }
+    if (landmark) focusLift(ctx, r.x, r.y, r.w, r.h, PLATE_RADIUS, ACCENT, offered || here ? 0.9 : 0.55);
     if (focused) focusLift(ctx, r.x, r.y, r.w, r.h, PLATE_RADIUS, offered || here ? color : C_MUTED);
-    // The landmark's ACCENT ring sits INSIDE its plate and the focus ring
-    // OUTSIDE it: a FIGHT node's own colour is the cream the focus ring is made
-    // of, so on the map the ring cannot be a border on the plate — it has to be
-    // a second, separated line, and the landmark needs its own lane.
-    if (landmark) {
-      ctx.save();
-      ctx.strokeStyle = ACCENT;
-      ctx.lineWidth = 1;
-      ctx.globalAlpha = offered || here ? 1 : 0.55;
-      ctx.strokeRect(Math.round(r.x) + 3.5, Math.round(r.y) + 3.5, r.w - 7, r.h - 7);
-      ctx.restore();
-    }
     ctx.save();
-    // 0.62, not 0.5: the rooms two stages ahead are what a route is planned
-    // against, and at half alpha their pictograms stopped being readable.
-    if (!offered && !here && !walked) ctx.globalAlpha *= 0.62;
-    drawIcon(ctx, ROOM_ICON_NAME[type], r.x + (MAP_NODE - 36) / 2, r.y + 14, 36, offered || here ? color : C_MUTED);
+    // The icon dims on a room you are not being offered; the LABEL does not.
+    // Contrast is measured on the word, and a 0.62 multiplier on C_MUTED over a
+    // lit marsh is what put SUMMON, ELITE and the grey FIGHTs under 2:1.
+    drawIcon(ctx, ROOM_ICON_NAME[type], r.x + (MAP_NODE - 36) / 2, r.y + 14, 36,
+      offered || here ? color : C_MUTED, offered || here || walked ? 1 : 0.72);
     hudTextCentered(ctx, type, r.x, r.y + 58, r.w, HUD_SMALL, {
-      px: HUD_SMALL, color: offered || here ? C_TEXT : C_MUTED,
+      px: HUD_SMALL, color: offered || here ? C_TEXT : C_CREAM,
     });
     ctx.restore();
     if (here) hudTextCentered(ctx, 'HERE', r.x, r.y + MAP_NODE + 4, r.w, HUD_SMALL, { px: HUD_SMALL, color: C_CREAM });
@@ -307,8 +320,7 @@ export function createMapScreen(deps: MapScreenDeps): MapScreen {
     drawSecondaryButton(ctx, MAP_PARTY.x, MAP_PARTY.y, MAP_PARTY.w, MAP_PARTY.h, 'PARTY', regions.focused() === 'map-party');
     drawPauseIcon(ctx, regions);
     const choices = props.offeredTypes.length;
-    hudTextCentered(ctx, `${choices} way${choices === 1 ? '' : 's'} on  .  A takes the lit room  .  B opens the party`, 0,
-      pc.height - inset.bottom - 18, CANVAS_W, HUD_SMALL, { px: HUD_SMALL, color: C_DIM });
+    footHint(pc, `${choices} way${choices === 1 ? '' : 's'} on  .  A takes the lit room  .  B opens the party`);
   }
 
   return {

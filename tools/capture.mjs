@@ -514,6 +514,17 @@ async function stepOnce(page, d, s) {
       await wait(page, 450);
       return phase;
     }
+    case 'ACT_CLEAR': {
+      // The act-clear beat (screens/run.ts's own phase, raised over the next
+      // act's ROUTE): a held tableau that asks nothing and dismisses itself.
+      // Without this case the driver's `default:` waited it out and no repo tool
+      // ever wrote the frame, so the one screen whose whole job is to be looked
+      // at was the one screen the art loop could not see.
+      await once(page, d, 'playfull-act-clear', 700);
+      await page.keyboard.press('Space'); // A — the beat's own "go on"
+      await wait(page, 400);
+      return phase;
+    }
     case 'ROOM': {
       await once(page, d, `playfull-room-${s.run?.room ?? 'FIGHT'}`, 350);
       await tapAt(page, CONTINUE_TAP, d.touch);

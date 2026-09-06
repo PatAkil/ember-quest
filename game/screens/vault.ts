@@ -22,14 +22,14 @@
 // must never be able to stop the game booting.
 
 import type { Audio, HitRegions, Input, PixelCanvas } from '../../engine';
-import { FONT_HD, PICO8, drawText, textWidth } from '../../engine';
+import { PICO8 } from '../../engine';
 import {
   CANVAS_W, CONTINUE, DOOR_H, DOOR_W, DOOR_X, DOOR_Y, HUD_LARGE, HUD_PX, HUD_SMALL, PAUSE_ICON,
-  RELIC_TITLE_MAX, TEXT_LABEL, WEAR_X, WEAR_Y, safeInsetFor,
+  HUD_TITLE, HUD_TITLE_H, RELIC_TITLE_MAX, WEAR_X, WEAR_Y,
 } from './layout';
 import {
-  ACCENT, ACCENT_COOL, C_GOLD, C_MUTED, drawFocusablePlate, drawIcon, drawPrimaryButton, titleBand,
-  gradientPlate, hudText, hudTextCentered, plate,
+  ACCENT, ACCENT_COOL, C_GOLD, C_MUTED, PLATE_RADIUS, drawChosen, drawFocusablePlate, drawIcon,
+  drawPrimaryButton, titleBand, gradientPlate, hudText, hudTextCentered, plate, footHint,
 } from './hud';
 import { SLOT_ICON_NAME } from './hud';
 import type { Relic, Slot } from '../types';
@@ -47,8 +47,7 @@ import { draftSlotRect } from './draft';
 
 const C_TEXT = PICO8[7];
 const C_DIM = PICO8[6];
-const hd = { font: FONT_HD };
-const TITLE_H = FONT_HD.glyphH * TEXT_LABEL;
+const TITLE_H = HUD_TITLE_H;
 
 // ------------------------------------------------------------- geometry ---
 /** The band over the grid: what this screen is, and where the ascension stands. */
@@ -66,7 +65,7 @@ export const CHIP_PAD = 12;
 // promote to layout.ts
 export const ASC_DOWN = { x: WEAR_X[0], y: WEAR_Y, w: 96, h: 96 } as const;
 // promote to layout.ts
-export const ASC_PLATE = { x: 144, y: 568, w: 200, h: 64 } as const;
+export const ASC_PLATE = { x: 144, y: WEAR_Y + 16, w: 200, h: 64 } as const;
 // promote to layout.ts
 export const ASC_UP = { x: 352, y: WEAR_Y, w: 96, h: 96 } as const;
 
@@ -402,8 +401,10 @@ export function createVaultScreen(deps: VaultScreenDeps): VaultScreen {
     const r = draftSlotRect(i, count);
     const focused = regions.focused() === id;
     const color = RARITY_COLOR[relic.rarity];
-    const accent = state === 'PICKED' ? ACCENT : state === 'DROPPED' ? C_MUTED : color;
-    drawFocusablePlate(ctx, r.x, r.y, r.w, r.h, focused, accent, state === 'PICKED' ? 0.7 : 0.55);
+    // PICKED is the chosen LIGHT and rarity is the title's own colour — round 4
+    // retired both strokes (items 2 and 3).
+    if (!focused && state === 'PICKED') drawChosen(ctx, r.x, r.y, r.w, r.h, PLATE_RADIUS, ACCENT);
+    drawFocusablePlate(ctx, r.x, r.y, r.w, r.h, focused, undefined, state === 'PICKED' ? 0.72 : 0.6, color);
     ctx.save();
     if (state === 'BLOCKED' || state === 'DROPPED') ctx.globalAlpha *= 0.45;
     drawIcon(ctx, SLOT_ICON_NAME[relic.slot], r.x + CHIP_PAD, r.y + 14, 28, color);
@@ -450,7 +451,6 @@ export function createVaultScreen(deps: VaultScreenDeps): VaultScreen {
 
   function renderEquip(props: Extract<VaultProps, { kind: 'EQUIP' }>): void {
     const ctx = pc.ctx;
-    const inset = safeInsetFor(pc);
     const taken = takenSlots(props.vault);
     const asc = ascensionNow(props);
     const floor = asc.floor;
@@ -480,18 +480,16 @@ export function createVaultScreen(deps: VaultScreenDeps): VaultScreen {
     // of it, each seat still the contract's WEAR_BTN so a thumb has its 96 px.
     drawStepperSeat(ASC_DOWN, 'vault-asc-down', -1, asc.level > floor, asc.level - 1);
     drawStepperSeat(ASC_UP, 'vault-asc-up', 1, asc.level < asc.ceil, asc.level + 1);
-    plate(ctx, ASC_PLATE.x, ASC_PLATE.y, ASC_PLATE.w, ASC_PLATE.h, { alpha: 0.6, border: ACCENT_COOL });
+    plate(ctx, ASC_PLATE.x, ASC_PLATE.y, ASC_PLATE.w, ASC_PLATE.h, { alpha: 0.7 });
     hudTextCentered(ctx, 'ASCENSION', ASC_PLATE.x, ASC_PLATE.y + 6, ASC_PLATE.w, HUD_SMALL, { px: HUD_SMALL, color: C_MUTED });
     hudTextCentered(ctx, `A${asc.level}`, ASC_PLATE.x, ASC_PLATE.y + 26, ASC_PLATE.w, HUD_LARGE, { px: HUD_LARGE, color: ACCENT_COOL });
     drawPrimaryButton(ctx, CONTINUE.x, CONTINUE.y, CONTINUE.w, CONTINUE.h, 'BEGIN THE RUN',
       regions.focused() === 'vault-continue', regions.pressing() === 'vault-continue');
-    hudTextCentered(ctx, 'one relic per slot . withdrawing takes it out of the Vault . B clears the picks', 0,
-      pc.height - inset.bottom - 18, CANVAS_W, HUD_SMALL, { px: HUD_SMALL, color: C_DIM });
+    footHint(pc, 'one relic per slot . withdrawing takes it out of the Vault . B clears the picks');
   }
 
   function renderDoors(props: Extract<VaultProps, { kind: 'DOORS' }>): void {
     const ctx = pc.ctx;
-    const inset = safeInsetFor(pc);
     const lap = props.view.lap ?? 1;
     drawBanner(ctx, 'THE SIXTH BOSS IS DOWN', 'DOWN', C_GOLD);
 
@@ -514,23 +512,23 @@ export function createVaultScreen(deps: VaultScreenDeps): VaultScreen {
     doors.forEach(([id, title, lines, color], i) => {
       const x = DOOR_X[i];
       const focused = regions.focused() === id;
-      drawFocusablePlate(ctx, x, DOOR_Y, DOOR_W, DOOR_H, focused, color, focused ? 0.72 : 0.55, color);
+      drawFocusablePlate(ctx, x, DOOR_Y, DOOR_W, DOOR_H, focused, undefined, focused ? 0.78 : 0.66, color);
       // A door LABEL is bitmap by the contract, so it gets the same band a card
       // title does rather than sitting bare over the two HUD lines under it.
       titleBand(ctx, x, DOOR_Y, DOOR_W, 28 + TITLE_H + 10, color);
-      const tw = textWidth(title, TEXT_LABEL, 1, FONT_HD);
-      drawText(ctx, title, Math.round(x + (DOOR_W - tw) / 2), DOOR_Y + 28, { ...hd, color, scale: TEXT_LABEL });
+      hudTextCentered(ctx, title, x, DOOR_Y + 26, DOOR_W, TITLE_H, { px: HUD_TITLE, color });
       lines.forEach((ln, k) => {
-        hudTextCentered(ctx, ln, x, DOOR_Y + 60 + TITLE_H + k * 30, DOOR_W, HUD_PX, { color: k === 0 ? C_TEXT : C_MUTED });
+        // Centred in the space under the title band rather than stacked against
+        // it: the door grew to 260 to close the dead strip under the row, and
+        // two lines pinned to the top would have moved that strip inside it.
+        hudTextCentered(ctx, ln, x, DOOR_Y + 26 + TITLE_H + 78 + k * 40, DOOR_W, HUD_PX, { color: k === 0 ? C_TEXT : C_MUTED });
       });
     });
-    hudTextCentered(ctx, 'the ascension unlock is already yours — the doors only decide the relics', 0,
-      pc.height - inset.bottom - 18, CANVAS_W, HUD_SMALL, { px: HUD_SMALL, color: C_DIM });
+    footHint(pc, 'the ascension unlock is already yours — the doors only decide the relics');
   }
 
   function renderBank(props: Extract<VaultProps, { kind: 'BANK' }>): void {
     const ctx = pc.ctx;
-    const inset = safeInsetFor(pc);
     const size = props.vaultSize ?? VAULT_SIZE;
     const over = props.vault.length + Math.min(chosen.length, props.n) - size;
 
@@ -543,8 +541,7 @@ export function createVaultScreen(deps: VaultScreenDeps): VaultScreen {
       { px: HUD_SMALL, color: short > 0 ? ACCENT : C_MUTED });
       drawPrimaryButton(ctx, CONTINUE.x, CONTINUE.y, CONTINUE.w, CONTINUE.h, 'CLOSE THE VAULT',
         regions.focused() === 'bank-continue', regions.pressing() === 'bank-continue');
-      hudTextCentered(ctx, 'drop too few and the lowest levels go first', 0, pc.height - inset.bottom - 18, CANVAS_W, HUD_SMALL,
-        { px: HUD_SMALL, color: C_DIM });
+      footHint(pc, 'drop too few and the lowest levels go first');
       return;
     }
 
@@ -556,8 +553,7 @@ export function createVaultScreen(deps: VaultScreenDeps): VaultScreen {
     });
     drawPrimaryButton(ctx, CONTINUE.x, CONTINUE.y, CONTINUE.w, CONTINUE.h, over > 0 ? 'NEXT . MAKE ROOM' : 'BANK THEM',
       regions.focused() === 'bank-continue', regions.pressing() === 'bank-continue');
-    hudTextCentered(ctx, 'level, sigil and kindling all survive the run . B banks nothing', 0, pc.height - inset.bottom - 18, CANVAS_W, HUD_SMALL,
-      { px: HUD_SMALL, color: C_DIM });
+    footHint(pc, 'level, sigil and kindling all survive the run . B banks nothing');
   }
 
   function render(_time: number, props: VaultProps): void {
