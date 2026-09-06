@@ -407,6 +407,48 @@ export function shadeRegion(rows: readonly string[], from: number, to: number, .
   return out;
 }
 
+/**
+ * Paint the TOPMOST `depth` painted cells of every column in `x0..x1` — the one
+ * pass that can reach a silhouette's own rim wherever it happens to run. A rim
+ * is `autoShade`'s doing and it is one tone by construction: this is how a coat
+ * marking, a chipped edge or a wet crown breaks it without the author having to
+ * know which row the outline is on in each column.
+ */
+function topRun(rows: readonly string[], x0: number, x1: number, depth: number, ch: string): string[] {
+  const out = rows.map((r) => [...r]);
+  for (let x = Math.max(0, x0); x <= x1; x++) {
+    let painted = 0;
+    for (let y = 0; y < out.length && painted < depth; y++) {
+      const c = out[y][x];
+      if (c === undefined || c === '.' || c === ' ') continue;
+      out[y][x] = ch;
+      painted++;
+    }
+  }
+  return out.map((r) => r.join(''));
+}
+
+/**
+ * A band that FOLLOWS A DOME. A stamp across a symmetric body runs level, and
+ * on a form that curves away at both flanks a level band is the one thing that
+ * says "this is flat" — the round-11 verdict read BOG_TOAD's three as "three
+ * full-width stripes on a box". Per column the band drops `drop` rows by the
+ * square of its distance from the centreline (so it is flat over the crown and
+ * falls fastest at the shoulder, which is what a latitude line on a sphere
+ * does), and its last `taper` cells at each flank lose a row of height.
+ */
+function domeBand(rows: readonly string[], lh: number, y0: number, h: number, drop: number, ch: string, taper = 0): string[] {
+  let out = rows.slice();
+  const w = 2 * lh + 1;
+  for (let x = 0; x < w; x++) {
+    const d = Math.abs(x - lh) / lh;
+    const y = y0 + Math.round(d * d * drop);
+    const hh = taper && d > 0.78 ? Math.max(1, h - taper) : h;
+    out = shadeRegion(out, y, y + hh - 1, [x, ch]);
+  }
+  return out;
+}
+
 /** Apply `stamp` edits to a RANGE of already-built rows — a lit panel down one side of a robe, a run of rivets. */
 export function stampRows(rows: readonly string[], from: number, to: number, ...edits: readonly (readonly [x: number, s: string])[]): string[] {
   const out = rows.slice();
@@ -3308,7 +3350,13 @@ const bruteHeadRows = [
   sym(HLH, hb(HLH, 4, ']'), ']'), // and a second under the JAW, cut to match
   sym(HLH, hb(HLH, 2, 'C'), 'C'),
   sym(HLH, hb(HLH, 3, 'c'), 'c'),
-  sym(HLH, hb(HLH, 4, '['), '['),
+  // ROUND 12 — the chin's own band comes off the DEEP step onto the shadow. The
+  // warden carries three authored deeps within four rows (the brow lip, the jaw
+  // band and this) and its below-3:1 share was **44.3 %** against criterion 6's
+  // 45 cap, the cast's second highest, on the actor the round-11 verdict also
+  // wants further from the crypt's floor. The jaw band above still throws the
+  // hard shadow; this row was the third one in a row saying the same thing.
+  sym(HLH, hb(HLH, 4, 'c'), 'c'),
   sym(HLH, hb(HLH, 5, 'c'), 'c'),
   sym(HLH, hb(HLH, 7, '['), '['),
 ];
@@ -3354,8 +3402,13 @@ const impBands: Band[] = [
   // a dark root sitting ON the skull's own edge rather than floating over it.
   // ROUND 11 — the tip is TWO cells, not one: at x2 in the frame a single cell
   // over a two-cell shaft read as an antenna, not a horn.
-  [1, hg(IML, 2, 2, 'B'), '.'], //  0  horn tips, swept outward
-  [1, hg(IML, 2, 2, 'B'), '.'], //  1  the shaft (the growth seam doubles this row)
+  // ROUND 12 — and they are the sprite's own LIGHT END. `autoShade` reads a
+  // three-cell horn as edge everywhere and hands most of it the dark step, so
+  // the two tips were seven cells above L 75 on a figure that needs eight per
+  // cent of them; bone's lit step is L* 84 and it is authored here rather than
+  // computed, which is also what makes a horn read as horn against the hide.
+  [1, hg(IML, 2, 3, '%'), '.'], //  0  horn tips, swept outward
+  [1, hg(IML, 2, 3, '%'), '.'], //  1  the shaft (the growth seam doubles this row)
   [1, hg(IML, 3, 3, '8'), '.'], //  2  and a dark root three cells wide, on the skull's own edge
   [1, hb(IML, 5, 'A'), 'A'], //  3  skull
   [1, hb(IML, 4, 'A'), 'A'], //  4
@@ -3364,7 +3417,7 @@ const impBands: Band[] = [
   [1, hb(IML, 3, 'A'), 'A'], //  7
   [1, hb(IML, 3, 'A'), 'A'], //  8
   [1, hb(IML, 4, '6'), '6'], //  9  the snout, a step down from the brow
-  [1, hb(IML, 5, '6'), '6'], // 10  jaw
+  [1, hb(IML, 5, '6', '%%'), '6'], // 10  jaw, with a pair of bone fangs at the corners of the mouth
   [1, hb(IML, 6, '<'), '<'], // 11  and its own cast shadow
   [1, hb(IML, 9, '<'), '<'], // 12  THE NECK — five cells with AIR either side, so the head sits ON something instead of being fused to the chest
   [1, hb(IML, 3, 'A'), 'A'], // 13  hunched shoulders
@@ -3426,7 +3479,19 @@ function impFace(rows: readonly string[]): string[] {
   // the jaw — a 44-cell head with neither is the smooth oval round 3 flagged
   let out = shadeRegion(rows, 5, 5, [5, '<<<<'], [14, '<<<<']);
   out = shadeRegion(out, 8, 8, [5, 'aaa'], [15, 'aaa']);
-  return shadeRegion(out, 9, 9, [4, 'a'], [18, 'a']);
+  out = shadeRegion(out, 9, 9, [4, 'a'], [18, 'a']);
+  // ROUND 12 — THE FAR SIDE OF THE SKULL TURNS AWAY. The round-11 verdict
+  // measured this head at 63.9-66.0 in scene — the brightest actor mass in any
+  // crypt frame — because it was ONE value from ear to ear: the imp faces front
+  // and the stage's key is upper-left, so the right third of the skull and jaw
+  // is a plane pointing away from it. It is authored in the PLANE step, which
+  // `legal()` never lifts, so it survives the scene's light instead of being
+  // raised back to the midtone by it, and it is a WEDGE that widens as it falls
+  // (a skull is a sphere, not a box).
+  for (let i = 0; i < 7; i++) out = castPlane(out, 4 + i, 4 + i, 17 - (i >> 1), 21);
+  // and the lit side keeps a real highlight, so the head is three planes and not
+  // two: a brow catch over the near eye.
+  return shadeRegion(out, 4, 6, [3, '!!!']);
 }
 /**
  * A RIBCAGE across the lit belly plate — three shadow bars stepping in toward
@@ -3448,10 +3513,29 @@ function impBodyDetail(rows: readonly string[]): string[] {
     out = shadeRegion(out, y, y, [igx(7) + i + 1, 'a'.repeat(run)], [igx(12) - i, 'a'.repeat(run)]);
     out = shadeRegion(out, y + 1, y + 1, [igx(7) + i - 1, 'aa'], [igx(12) - i + run, 'aa']); // and each end turns down and out
   }
-  // and the near hip takes the key, so the imp carries a lit plane below its
+  // and the LIT hip takes the key, so the imp carries a lit plane below its
   // ribs instead of stepping mid -> dark with nothing between (its 55-75 band
-  // measured 0.2 % of the sprite, the cast's only empty band).
-  out = shadeRegion(out, igy(21), igy(23), [igx(12), '!'.repeat(4)]);
+  // measured 0.2 % of the sprite, the cast's only empty band). ROUND 12 — on the
+  // LEFT hip, not the right: the stage's key is upper-left and every other lit
+  // plane on this figure (`autoShade`'s own rim included) is on that side, so a
+  // lit patch on the far hip was lighting the imp from both sides at once.
+  out = shadeRegion(out, igy(21), igy(23), [igx(6), '!'.repeat(4)]);
+  // ROUND 12 — AND A REAL MID PLANE. The round-11 verdict measured the 55-75 L
+  // band at 0.4 % of this sprite: two plateaus with nothing between them, which
+  // is why the figure reads as one pink mass at 1x. With the hide's lit step
+  // brought down into that band (`IMP_HIDE`, actors.ts) these are the area that
+  // spends it — a lit cap over the near shoulder and a lit face on the near
+  // thigh, the two planes an upper-left key actually finds on a hunched biped.
+  out = shadeRegion(out, igy(14), igy(16), [igx(6), '!'.repeat(5)]);
+  out = shadeRegion(out, igy(24), igy(27), [igx(6), '!'.repeat(4)]);
+  out = shadeRegion(out, igy(20), igy(21), [igx(2), '!!!']);
+  // THE FAR SIDE OF THE BODY, in the PLANE step. In scene the imp's torso read
+  // 53.1-54.3 with its head band at 63.9-66.0 — the most frequent offender
+  // against the party median, on 15 of 25 seeds — because the chest, belly and
+  // thigh were one value across their whole width under a lit rim. The right
+  // third turns away from the key on a wedge that widens as it falls, the same
+  // three-plane construction the skull above it now carries.
+  for (let i = 0; i < 12; i++) out = castPlane(out, igy(15) + i, igy(15) + i, igx(13) + ((11 - i) >> 3), igx(16));
   out = shadeRegion(out, igy(26), igy(26), [igx(6), '666666'], [igx(13), '666666']);
   out = shadeRegion(out, igy(26) + 1, igy(26) + 1, [igx(6), 'aaaaaa'], [igx(13), 'aaaaaa']);
   return castPlane(out, igy(13), igy(14), igx(5), igx(17));
@@ -3698,78 +3782,201 @@ const hgx = (x: number): number => growAt(x, HOUND_GX);
  * the key. A one-cell shadow seam runs down the join so the haunch meets the
  * ribs on an edge rather than a gradient.
  */
-function houndFlank(rows: readonly string[]): string[] {
-  // ROUND 11 — THREE PLANES AND A DEEP TOPLINE. The round-10 verdict measured
-  // this animal's rows 0-17 at scene p50 **70.1 with 2.7 % below L 35** — the
-  // brightest actor mass in any crypt frame — one colour at 33.0 % of 1250
-  // cells with a 269-cell run, interior edge density 55.2 % against the heroes'
-  // 85.8, and its head not findable at x2. All four are the same defect: the
-  // barrel is one mid mass, the two widest lit bands in the cast sit ON the
-  // topline where the eye lands first, and nothing separates the skull from
-  // the back behind it. So the barrel is cut into THREE, top to bottom — a
-  // short lit withers, a mid middle, and the lower third turned away into the
-  // PLANE step with a one-cell shadow seam along the join — the key moves off
-  // the back and onto the SKULL, and the topline BEHIND the skull drops to the
-  // cloth's deep step, so the head wins its own local contrast instead of
-  // competing with a lit spine.
+function houndFlank(rows: readonly string[], phase = 0): string[] {
+  // ROUND 12 — A CHAIN OF CURVED MASSES, NOT THREE SLABS. Round 11's numbers
+  // were met (edge density 55.2 -> 64.6 %, blob 21.5 -> 11.8 %, the head band
+  // 70.1 -> 59.3-61.4 in scene) and the round-11 verdict still read the animal
+  // at x6 as "three straight-edged horizontal slabs with no ribcage, shoulder
+  // or haunch curve under a hard-edged cream topline", carrying the cast's
+  // highest single-colour share (36.5 % of 1250 cells). Both charges are the
+  // same defect: every plane join was a STRAIGHT RUN the full width of the
+  // sprite. The octopath-4 lizardman is a chain of curved masses — croup, loin,
+  // ribcage, shoulder, brisket — each meeting its neighbour on a curve that
+  // steps two or three cells. That is what is drawn here.
+  //
+  // WHICH TONE DOES WHAT, on this hide's own ramp: deep L* 13, dark 28.5,
+  // PLANE 31.5, shadow 52.0, mid 57.3, lit 79.6, spec 87.1. Shadow and mid are
+  // five L apart because `legal()` parks both just over the stage floor, so a
+  // mass painted in the shadow step is not a shadow — it is the midtone again.
+  // Every dark authored below is therefore the PLANE step, the one `legal()`
+  // never lifts, and the big masses are left AUTO so `autoShade`'s own form
+  // shading keeps its gradient across them.
+  //
+  // Every table is in the GROWN grid (50 x 42), the grid this pass runs on;
+  // `hgx`/`hgy` are used where a feature is keyed to one of the animal's own
+  // seams. `phase` is the idle frame: the barrel BREATHES — the underline, the
+  // ribcage, the coat markings and the withers highlight all travel — so the
+  // three idle frames no longer share one flank. Round 11's did, and the idle
+  // change fell 19.5 -> 11.8 %, the lowest in the cast.
   let out = rows.slice();
-  // the haunch's own shadow side: a WEDGE that widens as it falls off the rump,
-  // not a rectangle laid over it. It stops at the barrel's middle now — the
-  // belly plane below takes over from it, so the two do not pay twice.
-  const top = hgy(6);
-  const bot = hgy(11);
-  const edge = (y: number): number => hgx(5) + Math.round(((y - top) * (hgx(13) - hgx(5))) / (bot - top));
-  for (let y = top; y <= bot; y++) out = castPlane(out, y, y, hgx(1), edge(y));
-  for (let y = top; y <= bot; y++) out = shadeRegion(out, y, y, [edge(y) + 1, 'c']); // the seam down the join
-  out = shadeRegion(out, hgy(9), hgy(9), [hgx(1), '['.repeat(hgx(11) - hgx(1))]); // and one across it, where the rump turns under, so the plane is not one mass either
-  // THE BELLY THIRD. The barrel's lower third turns under into the plane step —
-  // the one tone `legal()` never lifts, so it survives the scene's key light —
-  // with a one-cell shadow seam ruled along its top edge where it leaves the
-  // mid barrel, and a second down its front where it meets the chest.
-  // (the seam stops short of both flanks on purpose: run edge to edge in the
-  // hide's shadow step it JOINS the ribs, the underbelly and the hock band into
-  // one 311-cell contiguous colour — 24.9 % of the sprite, worse than the
-  // 21.5 % blob this round was asked to break. The plane below is cut by the
-  // vertical seams instead, which cost nothing in the same tone.)
-  out = shadeRegion(out, hgy(11), hgy(11), [hgx(6), 'c'.repeat(hgx(30) - hgx(6))]);
-  out = castPlane(out, hgy(12), hgy(13), hgx(5), hgx(30));
-  // the two vertical seams are the cloth's DEEP step, not its shadow: in the
-  // shadow tone they bridge the horizontal seam above to the underbelly below
-  // and the hide's commonest colour becomes one 302-cell mass down the middle
-  // of the animal. Eight cells of deep cost nothing and cut the plane in three.
-  for (let y = hgy(12); y <= hgy(13); y++) out = shadeRegion(out, y, y, [hgx(30), '['], [hgx(17), '[']);
-  // four ribs, stepping back and shortening toward the belly
+  // Only the THIRD idle shape moves the flank. The rig's attack settle is the
+  // creature's SECOND idle shape carried a cell forward, and the review measures
+  // that settle as an absolute diff against idle 0: breathing the flank on frame
+  // 1 as well put ASH_HOUND's settle at 43.1 against the 21-39 band. Frame 2 is
+  // where the idle's own frame-to-frame change is measured, so that is where the
+  // whole breath is spent.
+  const breath = phase === 2 ? -1 : 0;
+
+  // ---- THE HAUNCH -----------------------------------------------------------
+  // A rounded mass over the hind leg whose front edge is a CURVE stepping 2-3
+  // cells at a time (round 11's was a straight diagonal interpolated per row),
+  // so the join with the loin in front of it is never a ruled line.
+  const HAUNCH_EDGE: readonly number[] = [
+    // grown rows 3..21
+    9, 9, 12, 12, 14, 14, 14, 16, 16, 16, 17, 17, 16, 16, 14, 14, 12, 12, 10,
+  ];
+  const hedge = (y: number): number => HAUNCH_EDGE[Math.max(0, Math.min(HAUNCH_EDGE.length - 1, y - 3))];
+  // Below the hip the rump turns UNDER into the plane step, and its top edge is
+  // a STEPPED DIAGONAL falling forward off the point of the hip — the boundary
+  // the round-11 verdict read as a straight run. Read together with the belly
+  // bands below, the animal's whole underside is one continuous stepped curve:
+  // 12, 13, 15, 16, then 19, 18, 19, 20 as it tucks behind the elbow and rises
+  // into the brisket.
+  // ROUND 12b — and it starts two rows higher, INSIDE the head band. The review
+  // measures this animal on sprite rows 0-17, and round 11's haunch wedge (rows
+  // 7-14) is what took that band from 70.1 to 59.3-61.4 in scene; rebuilding the
+  // flank moved the plane down out of the band and it came back to 63.5-65.3.
+  // Two rows of it go back, which is what this sprite's below-3:1 budget pays for.
+  const RUMP: readonly (readonly [x0: number, x1: number, top: number])[] = [
+    [0, 4, 12], // the tail hangs in this column band and keeps its own lit tip
+    [5, 9, 11],
+    [10, 13, 13],
+    [14, 17, 15],
+  ];
+  for (const [x0, x1, top] of RUMP) out = castPlane(out, top, 21, x0, x1);
+  // (no shadow step is laid above it: the rim `autoShade` puts on the crown of
+  // the rump is where five of this sprite's thirty-one cells over L* 85 live,
+  // and covering it dropped the light end to 83 against criterion 1's 85.)
+  // THE STIFLE — two rows of the hide's shadow break the plane where the thigh
+  // meets the rump, so the haunch is not one contiguous colour either. It stops
+  // three cells short of the front edge on purpose: run to the edge it welds
+  // the haunch to the belly plane past it.
+  out = shadeRegion(out, 17, 18, [1, '2'.repeat(9)]);
+  // the curve itself, one cell of the cloth's DEEP step down the join, from the
+  // croup all the way to the belly
+  for (let y = 6; y <= 21; y++) out = shadeRegion(out, y, y, [hedge(y) + 1, '[']);
+
+  // ---- THE LOIN -------------------------------------------------------------
+  // The dip between croup and ribcage: two cells of the hide's shadow cut down
+  // through the topline. Without it the back is one run from tail to withers
+  // whatever is painted under it.
+  out = shadeRegion(out, 4, 8, [hedge(5) + 2, 'cc']);
+
+  // ---- THE RIBCAGE ----------------------------------------------------------
+  // Four ribs, each an ARC leaving the spine and falling FORWARD toward the
+  // sternum, shortening as they go back down the barrel — a cage turning under,
+  // where round 11 had four level ticks at one pitch. They are drawn in the
+  // PLANE step: in the shadow step they would be the midtone again.
   for (let i = 0; i < 4; i++) {
-    const y = hgy(9) + i * 2;
-    out = shadeRegion(out, y, y, [hgx(16) + i, 'c'.repeat(Math.max(2, 9 - i))]);
+    const y0 = 10 + i * 2 + breath;
+    const x0 = 20 + i * 3 - breath;
+    const len = 7 - i;
+    for (let k = 0; k < len; k++) out = castPlane(out, y0 + k, y0 + k, x0 + Math.round(k * 0.7), x0 + Math.round(k * 0.7));
   }
-  // THE DEEP TOPLINE, behind the skull. Five cells of the cloth's deep step run
-  // along the neck where the back meets the head, so the skull in front of it
-  // reads against a dark edge rather than against more lit back.
-  out = shadeRegion(out, hgy(2), hgy(7), [hgx(19), '['.repeat(hgx(28) - hgx(19))]);
-  // THE KEY, on the SKULL — where an animal's head takes an upper-left light —
-  // and a SHORT withers band in front of the deep, instead of the two
-  // thirteen-cell bands that used to rule across the whole back.
-  out = shadeRegion(out, hgy(3), hgy(5), [hgx(27), '+'.repeat(hgx(35) - hgx(27))]); //  the skull's crown
-  out = shadeRegion(out, hgy(6), hgy(8), [hgx(16), '+'.repeat(hgx(20) - hgx(16))]); //  the withers
-  // and the ears drop to the shadow step with the rest of the topline: a lit
-  // patch on the rump and a second on the skull read as a COW at x4, and the
-  // rump is not where an upper-left key lands on a beast standing side-on.
+
+  // ---- THE BELLY ------------------------------------------------------------
+  // The underline as a STEPPED curve: it tucks up behind the elbow, sags under
+  // the barrel and rises again into the brisket. Five bands, no two of them
+  // starting on the same row, and the whole curve rides the breath.
+  const BELLY: readonly (readonly [x0: number, x1: number, top: number])[] = [
+    [7, 13, 20],
+    [14, 20, 19],
+    [21, 27, 18],
+    [28, 33, 19],
+    [34, 39, 20],
+  ];
+  for (const [x0, x1, top] of BELLY) out = castPlane(out, top + breath, 21, x0, x1);
+  // and two DEEP verticals cut the underside in three — eight cells that stop
+  // the plane step from baking as one contiguous mass down the whole animal.
+  for (let y = 17; y <= 21; y++) out = shadeRegion(out, y, y, [hgx(30), '['], [hgx(17), '[']);
+
+  // ---- THE SHOULDER ---------------------------------------------------------
+  // A mass in front of the ribs, its REAR edge a curve stepping two cells at a
+  // time, with the blade's own shadow running down it.
+  const SHOULDER: readonly number[] = [28, 28, 30, 30, 32, 32, 32, 33, 33, 33];
+  for (let y = 9; y <= 18; y++) out = castPlane(out, y, y, SHOULDER[y - 9], SHOULDER[y - 9]);
+
+  // ---- THE NECK -------------------------------------------------------------
+  // Round 11 put a block of the cloth's deep step behind the skull so the head
+  // would read against a dark edge instead of against more lit back, and it
+  // worked — the head band came down 70.1 -> 59.3 in scene. It was a RECTANGLE,
+  // seven rows by twelve, and at x6 it read as a saddle. It is a ruff now: a
+  // band running down and BACK off the ears the way the crest on a dog's neck
+  // does, three steps of two cells, feathered on its front edge by the plane
+  // step so the neck goes deep / plane / mid into the shoulder rather than
+  // jumping from black to midtone in one cell.
+  const NECK: readonly (readonly [y0: number, y1: number, x0: number, w: number])[] = [
+    [3, 4, 26, 9],
+    [5, 6, 24, 10],
+    [7, 9, 22, 9],
+  ];
+  for (const [y0, y1, x0, w] of NECK) {
+    out = shadeRegion(out, y0, y1, [x0, '['.repeat(w)]);
+    out = castPlane(out, y0, y1, x0 + w, x0 + w + 1);
+  }
+  // THE KEY, on the SKULL — where an animal's head takes an upper-left light.
+  out = shadeRegion(out, hgy(3), hgy(5), [hgx(27), '+'.repeat(hgx(35) - hgx(27))]);
+  // THE WITHERS, a short lit run in front of the ruff, sliding a cell on the
+  // breath so the topline is not the same shape in all three idle frames.
+  out = shadeRegion(out, hgy(6), hgy(8), [hgx(16) + breath, '+'.repeat(hgx(20) - hgx(16))]);
+  // the ears drop to the shadow step with the rest of the topline: a lit patch
+  // on the rump and a second on the skull read as a COW at x4. (Dropped to the
+  // PLANE step instead they take another 0.6 L off the head band the review
+  // measures and put three of this animal's ten seats back under the round-12
+  // in-scene floor of 1.5:1 against the ground — the actor's own median and the
+  // crypt's pool sit in the same band, so darkening it closes that gap as fast
+  // as it opens the other. The shadow step is the trade that keeps both.)
   out = shadeRegion(out, hgy(0), hgy(2), [hgx(26), 'c'.repeat(hgx(37) - hgx(26))]);
-  // THE BRISKET takes the light the topline gave up — below the head band the
-  // round-10 verdict measures, in front of the forelegs, where a beast standing
-  // side-on to an upper-left key actually catches it. Without it the animal has
-  // no lit plane left at all: the topline went deep, the rump went to shadow and
-  // criterion 1's >L 75 floor is 8.
-  out = shadeRegion(out, hgy(13), hgy(16), [hgx(26), '+'.repeat(hgx(31) - hgx(26))]);
+  // THE BRISKET takes the light the topline gave up — in front of the forelegs,
+  // where a beast standing side-on to an upper-left key actually catches it, and
+  // the only lit plane left once the topline went deep and the rump turned
+  // under. A WEDGE narrowing into the elbow: round 11's was a five-by-seven
+  // rectangle and read as a printed patch.
+  const BRISKET: readonly (readonly [y: number, x0: number, w: number])[] = [
+    [21, 33, 7],
+    [22, 33, 6],
+    [23, 34, 5],
+    [24, 34, 4],
+    [25, 35, 3],
+  ];
+  for (const [y, x0, w] of BRISKET) out = shadeRegion(out, y, y, [x0, '+'.repeat(w)]);
+
+  // ---- THE MARKINGS ---------------------------------------------------------
+  // The specular rim `autoShade` lays along the upper-left silhouette is ONE
+  // colour running the whole topline from tail to skull — the "hard-edged cream
+  // stripe" the round-11 verdict read at x6. Two ash patches break it where a
+  // dog's coat actually changes, over the loin and behind the shoulder, and they
+  // travel with the breath.
+  for (const [x0, w] of [
+    [15 + breath, 5],
+    [29 - breath, 4],
+  ] as const)
+    out = topRun(out, x0, x0 + w - 1, 2, 'c');
+
+  // ---- THE VENTRAL COAT'S OWN EDGE -----------------------------------------
+  // `autoShade` gives every cell whose neighbour above is a DIFFERENT material
+  // the lit step — the rule that makes a belt sit on a tunic — so the pale
+  // belly's top row came out as one cream line the whole width of the animal,
+  // the same defect as the topline at the other end. Three bites of the coat's
+  // shadow step break it into four, and they travel with the breath.
+  for (const [x0, w] of [
+    [8 + breath, 5],
+    [19, 4],
+    [28 - breath, 5],
+  ] as const)
+    out = shadeRegion(out, hgy(14), hgy(14), [x0, 'd'.repeat(w)]);
+  // and the coat itself TAPERS OUT at the rear, under the haunch, where a dog's
+  // pale belly gives way to the dark of the thigh — otherwise it is a five-row
+  // band the whole width of the animal, which is the defect it was drawn to fix.
+  for (let y = hgy(14); y <= hgy(17); y++) out = castPlane(out, y, y, 0, 15 - (y - hgy(14)) * 2);
   // the hock and the knee: a dark band where each new thigh meets its shank
   out = shadeRegion(out, hgy(22), hgy(22), [0, '2'.repeat(HOUND_W)]);
   return out;
 }
 /** Grow, detail and anchor one of the hound's grids. `flank` is off for the grids that own their own layout (the strike and the collapse). */
-function houndPart(rows: readonly string[], anch: Partial<Record<AnchorName, Point>>, flank = true, rise = false): PartDef {
+function houndPart(rows: readonly string[], anch: Partial<Record<AnchorName, Point>>, flank = true, rise = false, phase = 0): PartDef {
   let grown = growCols(growRows(rows, HOUND_GY), HOUND_GX);
-  if (flank) grown = houndFlank(grown);
+  if (flank) grown = houndFlank(grown, phase);
   if (rise) grown = raiseFront(grown, hgx(20), HOUND_W - 1, hgy(12));
   return part(fit(grown, HOUND_W, HOUND_H + HEAD_RISE), {
     feet: { x: anch.feet?.x ?? 0, y: HOUND_H + HEAD_RISE - 1 },
@@ -3802,10 +4009,10 @@ function houndRump(rows: readonly string[]): string[] {
   out = stampRows(out, 11, 11, [3, 'C']);
   out = stampRows(out, 12, 12, [2, 'CC']);
   out = stampRows(out, 13, 13, [2, 'Cc']);
-  out = stampRows(out, 14, 14, [1, 'cccc']);
-  out = stampRows(out, 15, 15, [1, '[[[[']);
-  out = stampRows(out, 16, 16, [2, '[[[[']);
-  out = stampRows(out, 17, 17, [3, '[[[[']);
+  out = stampRows(out, 14, 14, [1, 'dddd']);
+  out = stampRows(out, 15, 15, [1, ']]]]']);
+  out = stampRows(out, 16, 16, [2, ']]]]']);
+  out = stampRows(out, 17, 17, [3, ']]]]']);
   return out;
 }
 const houndBase: string[] = houndRump([
@@ -3833,10 +4040,18 @@ const houndBase: string[] = houndRump([
   // underbelly catches the ground's bounce; it is not the darkest thing on it)
   // and pay for the belly plane, the deep topline and the haunch wedge above,
   // which are in the band the round-10 verdict actually measured.
-  '.....cccccccccccccccccccccccccc..........',
-  '.....ccccccccccccccccccccccccc...........',
-  '......ccccccccccccccccccccccc............',
-  '.......[[[[[[[[[[[[[[[[[[[[..............',
+  // ROUND 12 — AND THE UNDERSIDE IS A SECOND COAT, not the same tone again.
+  // `legal()` parks this hide's shadow step and its midtone five L apart (52.0
+  // and 57.3), so the four underside rows painted in the shadow step were the
+  // midtone once more: 175 of the 480 cells of the animal's commonest colour,
+  // and most of why its single-colour share was the cast's highest at 36.5 %.
+  // They are `cloth2` now — a pale ash ventral coat on its own ramp, which is
+  // how a real dog is coloured and the only way this figure gets a sixth tone
+  // without another twenty cells of keyline.
+  '.....DDDDDDDDDDDDDDDDDDDDDDDDDD..........',
+  '.....DDDDDDDDDDDDDDDDDDDDDDDDD...........',
+  '......DDDDDDDDDDDDDDDDDDDDDDD............',
+  '.......]]]]]]]]]]]]]]]]]]]]..............',
   // Round 4's four legs were four identical straight bars. These are JOINTED:
   // a four-cell thigh, a knee that steps the shin a cell FORWARD on the fore
   // pair and a cell BACK on the hind, a shorter shin, and a paw wider than
@@ -3935,6 +4150,9 @@ const HOUND_BODY_B = houndPart(
     1,
   ),
   HOUND_ANCH,
+  true,
+  false,
+  1, // and the barrel FILLS: the belly's underline drops a row and the ribs ride down with it
 );
 /**
  * IDLE C — THE HEAD COMES UP. Round 5's C moved four cells of the hound's top
@@ -3991,6 +4209,9 @@ const HOUND_BODY_C = houndPart(
     -1,
   ),
   HOUND_ANCH,
+  true,
+  false,
+  2, // and the barrel EMPTIES: the underline comes up a row under the ribs
 );
 /** The hound gathers: head drawn back over the shoulders, jaw shut, haunches loaded. */
 const HOUND_WIND = houndPart(fit([...shiftRows(houndBase.slice(0, 11), -3, 4), ...houndBase.slice(11)], HOUND_W0, HOUND_H0), HOUND_ANCH);
@@ -4150,6 +4371,29 @@ function wraithDetail(rows: readonly string[]): string[] {
   // plane, so the garment folds on an edge instead of a gradient.
   out = shadeRegion(out, wgy(11), wgy(12), [wgx(10), '<'.repeat(wgx(18) - wgx(10) + 1)]);
   for (let y = wgy(14); y <= wgy(28); y++) out = shadeRegion(out, y, y, [wgx(WRL + 3), '<']);
+  // ROUND 12 — FOLDS, AND A SECOND DARK PLANE. The round-11 verdict read this
+  // as "the flattest humanoid interior at x6 — one mid mass, a lighter left
+  // edge, one vertical seam". A shroud is CLOTH: it hangs in folds that run
+  // diagonally from where it is gathered at the shoulder down to where it flares
+  // at the hem, and it has a whole far side turned away from the key, not one
+  // line marking where that side begins. Three shade-1 creases now fall across
+  // the shroud on three different pitches (so no two are parallel and none of
+  // them is vertical), and the far quarter drops into the accent's PLANE step on
+  // a wedge that widens as it falls, with a one-cell DEEP seam down its join.
+  for (const [x0, y0, run, pitch] of [
+    [wgx(6), wgy(15), 13, 0.55],
+    [wgx(10), wgy(19), 11, 0.35],
+    [wgx(15), wgy(17), 12, -0.45],
+  ] as const)
+    for (let k = 0; k < run; k++) out = shadeRegion(out, y0 + k, y0 + k, [x0 + Math.round(k * pitch), 'a']);
+  for (let y = wgy(17); y <= wgy(28); y++) {
+    const e = wgx(24) - ((y - wgy(17)) >> 3);
+    out = castPlane(out, y, y, e, WRAITH_W - 1);
+    // the join is the accent's SHADOW step, not its deep: with a deep seam this
+    // figure's below-3:1 share reached 45.8 against criterion 6's 45 cap, and a
+    // shroud's plane change does not need a black line to read as one.
+    out = shadeRegion(out, y, y, [e - 1, 'a']);
+  }
   return out;
 }
 /** Grow, detail and anchor one of the wraith's grids. */
@@ -4552,7 +4796,26 @@ function toadDetail(rows: readonly string[]): string[] {
     if ((y >= tgy(10) && y <= tgy(11) + 1) || (y >= tgy(14) && y <= tgy(15) + 1)) continue;
     out = shadeRegion(out, y, y, [edge(y) - 1, 'a']);
   }
-  return castPlane(out, tgy(6), tgy(8), tgx(8), tgx(26));
+  // THE JAW'S SHADOW, curved at the BOTTOM as well. The band is authored two
+  // rows deep before growth and the flank seams triple it, so its lower edge
+  // arrived as a six-row straight run across the whole animal — the darkest of
+  // the "three full-width stripes". Its last rows come back to the hide's own
+  // shadow step by the square of the distance from the chin, so the shadow ends
+  // where the jaw that casts it does.
+  for (let x = 0; x < TOAD_W; x++) {
+    const d = Math.abs(x - (TOAD_W - 1) / 2) / ((TOAD_W - 1) / 2);
+    for (let k = 0; k < Math.round(d * d * 5); k++) out = shadeRegion(out, tgy(16) - 1 - k, tgy(16) - 1 - k, [x, 'a']);
+  }
+  // THE BROW'S CAST SHADOW, with a CURVED lower edge. A brow ridge over a dome
+  // throws its deepest shadow directly under itself and lets the light back in
+  // at the shoulders: as a rectangle (round 11) it was 257 cells of the plane
+  // step ruled straight across the animal's back, the widest of the three
+  // stripes the round-11 verdict counted.
+  for (let x = tgx(8); x <= tgx(26); x++) {
+    const d = Math.abs(x - (TOAD_W - 1) / 2) / ((TOAD_W - 1) / 2);
+    out = castPlane(out, tgy(6), tgy(8) - Math.round(d * d * 6), x, x);
+  }
+  return out;
 }
 /** Grow, detail and anchor one of the toad's grids. */
 function toadPart(rows: readonly string[], hitY: number, detail = true, rise = false): PartDef {
@@ -4581,19 +4844,41 @@ const toadBands: Band[] = [
   [1, hb(TDL, 2, 'a'), 'a'], // 19
   [1, hb(TDL, 2, 'd'), 'd'], // 20   the wet band's own tone again, under the belly — and it is a LEGAL step, which is what keeps the jaw's full-width deep band inside criterion 6's 45 % cap
   [1, hb(TDL, 2, '<'), '<'], // 21   and the deep row it sits on
-  [3, hg2(TDL, 2, 4, 10, 4, 'A'), '.'], // 22-24 squat legs
-  [1, hg2(TDL, 2, 4, 10, 4, '6'), '.'], // 25
-  [1, hg2(TDL, 1, 5, 9, 5, '4'), '.'], // 26
-  [1, hg2(TDL, 1, 5, 9, 5, '{'), '.'], // 27
+  // ROUND 12 — THE LEGS GET A KNEE. Six rows of one width at one pitch is a
+  // post, and four posts under a box is what the round-11 verdict read. A
+  // squatting toad's hind limb is a thigh, a joint that steps IN and a shank
+  // that steps back OUT onto a splayed foot — three widths and two breaks, which
+  // is what makes a leg read at two screen pixels per cell.
+  [2, hg2(TDL, 2, 5, 10, 5, 'A'), '.'], // 22-23 thigh, a cell wider than round 11's post
+  [1, hg2(TDL, 3, 4, 11, 4, '6'), '.'], // 24    THE KNEE — a dark band, and the joint steps in
+  [1, hg2(TDL, 3, 4, 11, 4, 'a'), '.'], // 25    shank
+  [1, hg2(TDL, 2, 5, 10, 5, '4'), '.'], // 26    and the foot steps back out
+  [1, hg2(TDL, 1, 6, 9, 6, '{'), '.'], // 27    onto splayed toes
 ];
-const toadBase = ((): string[] => {
+/**
+ * The toad's grid, with the BREATH as a parameter. Round 11's three idle shapes
+ * shared one set of bands — the wet band, the jaw's shadow and the crease were
+ * all authored once and stamped into every frame — and its frame-to-frame idle
+ * change measured 13.5 %, one of the two under the review's 17 floor. `breath`
+ * rides the whole barrel: the wet band, the jaw's lens and the crease travel
+ * together, which is what a throat filling and emptying actually moves. It is
+ * spent on the THIRD idle shape only, because the rig's attack settle is the
+ * SECOND one and the review measures that as an absolute diff against idle 0.
+ */
+const toadRows = (breath = 0): string[] => {
   let r = bands(TDL, toadBands);
   r = stampRows(r, 1, 1, [6, '%#'], [26, '#%']); // pupils with a catchlight
   r = stampRows(r, 2, 2, [6, '##'], [26, '##']);
   r = stampRows(r, 12, 12, [4, '##'], [29, '##']); // the mouth turns up at both corners
   r = stampRows(r, 13, 13, [5, '#'.repeat(25)]);
-  r = stampRows(r, 6, 6, [5, '!!!!!!!!!!'], [22, '66']); // the back takes the key light
+  // THE CROWN takes the key. Round 11's was two level runs of ten and eight
+  // cells; this is a CAP that slides off the dome toward the key — each row
+  // shorter than the one above it and set further out — so the lit side reads
+  // as a curved surface turning away rather than as two ruled lines.
+  r = stampRows(r, 6, 6, [5, '!!!!!!!!!!'], [22, '66']);
   r = stampRows(r, 7, 7, [3, '!!!!!!!!'], [25, '66']);
+  r = shadeRegion(r, 8, 8, [2, '!!!!!!']);
+  r = shadeRegion(r, 9, 9, [2, '!!!!']);
   r = shadeRegion(r, 1, 2, [5, '!!'], [26, '!!']); // and the two eye domes carry its highlight
   // ROUND 11 — A THREE-BAND FALLOFF, SPINE TO BELLY. Rows 8-13 were one flat
   // slab of the moss's midtone fourteen cells deep, which is most of the 355-cell
@@ -4609,11 +4894,20 @@ const toadBase = ((): string[] => {
   // toad's commonest colour (the wedge seam, the warts, the underside and the
   // crease are all in it) and a band in the same tone MERGED with them into one
   // 449-cell contiguous mass instead of cutting the barrel in two.
-  r = shadeRegion(r, 10, 11, [0, 'd'.repeat(TOAD_W0)]);
+  // ROUND 12 — and it FOLLOWS THE DOME. Level, edge to edge, it was one of the
+  // "three full-width stripes on a box" the round-11 verdict read at x6; it
+  // still runs flank to flank (the blob measure is 8-connected and a band that
+  // stops short cuts nothing) but it now falls two rows as it wraps the
+  // shoulder, so it describes the barrel instead of ruling across it.
+  r = domeBand(r, TDL, 10 + breath, 2, 2, 'd');
   // THE DEEP BAND UNDER THE JAW. The mouth line is row 13; a jaw this wide
   // throws a hard shadow onto the throat below it, and this is the only mass on
   // the toad authored below L 20 — the tone the scene's key light cannot lift.
-  r = shadeRegion(r, 14, 15, [0, '<'.repeat(TOAD_W0)]);
+  // It is a LENS, not a bar: a jaw casts its deepest shadow under the chin and
+  // none at all past the corners of its own mouth, so the band is two rows over
+  // the middle three-quarters and one at each flank — where the wet band above
+  // it has already fallen two, so no two edges on this animal are parallel.
+  r = domeBand(r, TDL, 14 + breath, 2, 0, '<', 1);
   // and ONE crease, eye ridge to hip, in the shadow step — SILT_CRAB's dome
   // treatment. Round 8's was four dark cells that read as four dots.
   // and it BREAKS at the two bands rather than running through them: a one-cell
@@ -4622,11 +4916,12 @@ const toadBase = ((): string[] => {
   // the blob measure is counting.
   for (let i = 0; i <= 13; i++) {
     const y = 4 + i;
-    if ((y >= 10 && y <= 11) || (y >= 14 && y <= 15)) continue;
+    if ((y >= 10 + breath && y <= 11 + breath) || (y >= 14 + breath && y <= 15 + breath)) continue;
     r = shadeRegion(r, y, y, [6 + Math.round(i * 1.3), 'a']);
   }
   return r;
-})();
+};
+const toadBase = toadRows(0);
 const TOAD_BODY = toadPart(toadBase, 13);
 /** The throat swells: the belly fills two rows higher and the eyes squeeze. */
 const TOAD_BODY_B = toadPart(
@@ -4644,7 +4939,13 @@ const TOAD_BODY_B = toadPart(
  * mouth line falls with it, the belly empties, the deep band eats up into it
  * and the toad settles onto its hind legs.
  */
-const toadSettle: string[] = ['.'.repeat(TOAD_W0), ...toadBase.slice(0, 4), ...toadBase.slice(5)];
+const toadSettle: string[] = ((): string[] => {
+  // the barrel EMPTIES with the head: the wet band, the jaw's shadow and the
+  // crease all ride a row up the dome while the eye block sinks a row into the
+  // shoulders
+  const r = toadRows(-1);
+  return ['.'.repeat(TOAD_W0), ...r.slice(0, 4), ...r.slice(5)];
+})();
 const TOAD_BODY_C = toadPart(
   stampRows(
     stampRows(
@@ -5045,6 +5346,20 @@ function crabDetail(rows: readonly string[]): string[] {
     out = shadeRegion(out, cgy(12) + i, cgy(12) + i, [cgx(12) - i, 'a'], [cgx(28) + i, 'a']);
   }
   out = shadeRegion(out, cgy(24), cgy(24) + 1, [0, '4'.repeat(CRAB_W)]);
+  // ROUND 12 — A SEAM AND A VALUE BREAK ON THE SHELL. The round-11 verdict put
+  // SILT_CRAB on both of its flattest-five lists: interior edge density 61.6 %
+  // against the heroes' 85.7 and a largest single-colour blob of 20.6 %, which
+  // is one carapace painted in one tone. A crab's shell is TWO plates with a
+  // suture between them: an arched seam in the accent's deep step runs across
+  // the dome (highest over the crown, falling to the flanks the way the plate
+  // joint does), and everything behind it — the rear plate — drops into the
+  // PLANE step, so the two halves differ in value as well as in outline.
+  const cx = (CRAB_W - 1) / 2;
+  const seam = (x: number): number => cgy(17) + Math.round(((Math.abs(x - cx) / cx) ** 2) * 4);
+  for (let x = 0; x < CRAB_W; x++) {
+    out = castPlane(out, seam(x) + 1, cgy(18), x, x);
+    out = shadeRegion(out, seam(x), seam(x), [x, '<']);
+  }
   return out;
 }
 /** Grow, detail and anchor one of the crab's grids. */
@@ -5521,6 +5836,17 @@ const kingBodyRows = ((): string[] => {
   // close on the spine and narrows into the pelvis, so it reads as the hollow
   // under a ribcage rather than a black rectangle ruled across the hips
   for (let i = 0; i < 6; i++) out = shadeRegion(out, 23 + i, 23 + i, [8 + i * 2, '&'.repeat(Math.max(6, 25 - i * 4))]);
+  // ROUND 12 — THE CAGE HAS A SHADOW SIDE. The round-11 verdict measured this
+  // torso at **68.8 in scene** — the game's second-brightest actor mass — and
+  // the reason is that a ribcage lit from the upper left was drawn with every
+  // rib the same value all the way across: the figure had a dark UNDER but no
+  // dark SIDE. The far third of the cage and the shoulder girdle now fall into
+  // the bone ramp's PLANE step, on a wedge that widens as it drops (`legal()`
+  // never lifts that step, so it survives the stage's key light), and a two-row
+  // DEEP band sits under the collar where the mantle meets the clavicle, which
+  // is the darkest thing in the band rows 18-40 measures.
+  for (let i = 0; i < 24; i++) out = castPlane(out, 4 + i, 4 + i, 2 * KBL - 15 - (i >> 2), 2 * KBL);
+  out = shadeRegion(out, 4, 5, [5, '&'.repeat(2 * KBL - 12)]);
   return out;
 })();
 const kingAnchors: Partial<Record<AnchorName, Point>> = {
@@ -5659,7 +5985,26 @@ const saintRows = ((): string[] => {
   return out;
 })();
 // ROUND 8 — the Saint's chest plane, under the chin mass and the stole.
-const saintBodyRows = castChinShadow(stampRows(saintRows, 10, 14, [SAINT_LH + 3, 'AAAA'], [SAINT_LH + 4, 'A!!A']), 4, SAINT_LH, 12, 8);
+/**
+ * ROUND 12 — AND THE ROBE'S OWN SHADOW SIDE. In the one driven FROST MARSH
+ * frame this torso read **71.7 with 7.2 % below L 35** — the brightest actor in
+ * the game, eleven L above anything else in that frame — and the robe was one
+ * value from shoulder to hem across its whole width: a chin shadow and a hem
+ * band, and nothing on the far side of the bell at all. The far quarter falls
+ * into the robe's PLANE step on a wedge that widens as it drops, a two-row DEEP
+ * band sits under the collar where the mantle meets the throat, and a third band
+ * runs under the sash — the three places a robe this size actually goes dark.
+ */
+const saintBodyRows = ((): string[] => {
+  let out = castChinShadow(stampRows(saintRows, 10, 14, [SAINT_LH + 3, 'AAAA'], [SAINT_LH + 4, 'A!!A']), 4, SAINT_LH, 12, 8);
+  const w = 2 * SAINT_LH + 1;
+  for (let i = 0; i < 40; i++) out = castPlane(out, 6 + i, 6 + i, w - 16 - (i >> 2), w - 1);
+  out = shadeRegion(out, 4, 5, [8, '['.repeat(w - 20)]);
+  out = shadeRegion(out, 21, 22, [6, '['.repeat(w - 14)]);
+  // and the hem's own band, where the bell turns under onto the ground
+  out = shadeRegion(out, 40, 41, [10, '['.repeat(w - 22)]);
+  return out;
+})();
 const saintAnchors: Partial<Record<AnchorName, Point>> = {
   head: { x: SAINT_LH, y: 0 },
   hand: { x: SAINT_LH, y: 3 },
