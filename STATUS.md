@@ -116,21 +116,40 @@ fixture, `?phone=1`).
   punched out of the bloom, a cast lobe on the contact shadow) is committed (1033d0d) and blind-verified: the motes and fog no longer move a body's
   value with the clock (0.00 at 168 readings, from +3.4), the hero bar holds at 205 of
   216 seat readings (from 85), the mean rig lift on a torso fell +10.5 → +1.5 L, and
-  every figure has a cast shadow that anchors it. Its honest residual: the down-stage
-  ground strip lost contrast where the actors dropped and the ground did not (under 2:1
-  at both strips 115 → 102 readings; 97 of 216 reach 1.5:1 at both).
+  every figure has a cast shadow that anchors it; round 6 (b06a309, blind-verified) put a
+  lit thing above every horizon (light wells and shafts, the ruins' sun, the marsh's moon
+  under the dim), lit mid masses, MID's blur down to 1.2 so the architecture reads, and the
+  two foot pools derived from `layout.ts`'s anchors with a 60-px overlap clamp. Its honest
+  residuals, per the round-4 full-frame critic: the wells are value plateaus (8.1 L and
+  3.5 L of internal range against the reference shaft's 30.1), the bright mass sits in the
+  ceiling, the FAR plane's arches are blurred away at HIGH, the pool under the party is
+  eaten by the cast lobe in play, every biome is one hue, and the crypt reads 4 L brighter
+  at ARCADE than at HIGH.
 - **VFX**: round 3 (scale, the pool as light, family pool hues, the annulus front,
   the draw-order split, the `kind: 'vfx'` light feed) is committed (363eaac) and blind-verified twice: the hit target's own pixels above L 75 at
   the hit 69 → 26 % and at +360 ms 32 → 9 %, bystanders back to HEAD, the pool a soft
   glow the ground reads through, every pool ≥ 24° off the crypt key, 0.64 ms worst
-  family at peak. What is short is presence: the biggest hit is a ~300×170 px pool with
-  a four-point flash — beside octopath-2 it reads as a well-behaved hit, not a moment.
+  family at peak. Round 4 (27200de, blind-verified) gave the hit presence: a sixteen-shard
+  upward fan of white-cored spindles 2.6× the target's height, a contact flash lifted off
+  the contact line and held 120 ms, an airborne bloom, the ground pool +23.6 L brighter
+  than the floor around it, a heal and a ward that can be seen (12.9 % and 11.8 % above
+  L 75 in their bounds), and a guard that shortens the shards heading down the stage
+  diagonal. The round-4 critic's residual: at the peak frame ten of thirteen families are
+  the same fan in ten hues, and the hit adds only +1.7 points of frame-wide light over a
+  resting frame (3.7× inside the stage band).
 - **UI**: round 3 is committed and verified in isolation (cards aligned, INSPECT
   filled, one accent, one HP colour, light-not-line focus, resting plates, the detail
   strip, plates over the diorama, bitmap title bands, pops de-collided, the shrine's
-  biome). Residuals the verifier listed: the marsh trees still read through the bank
-  columns, map focus is the weakest in the game, and the rest-state 1-px accent
-  borders on the Vault chips, doors and room card are the loudest edges left.
+  biome); round 4 (1df532b, blind-verified twice) made the plates hold the diorama out
+  (bank / rest / party columns 4.1–6.0 L of range, from 21–23), removed every focus and
+  rarity keyline, put the dead band under 100 px on every run screen, sized INSPECT to
+  its rows, moved card and door titles into the HUD face, packed the enemy ranks into one
+  mass 11.7 % of the width from the party, made GAME OVER a tableau of the whole party
+  and added the act-clear beat, and drew the primary as a lit patch of floor (its light
+  confined to the patch in ea1645c after the critic found the rectangle). Residuals per
+  the round-4 critic: the room card, the draft strip and the middle relic card still leak
+  the diorama (13–20 L), three plates draw full-width rules of 955–1182 px, the damage pops
+  read 1.04:1 on the new sky, and the map is eleven identical squares under a header.
 - **Balance is closed on the sim** (three blind PASSes): the ladder within 2.5 points
   of every act target on four seeds, act 6 ≈ 15 %, lap-2 ≈ 10 %, random < 1 %,
   stall ≈ 0.1 %. Two rule decisions are still open (below). Nothing about balance
@@ -151,18 +170,21 @@ fixture, `?phone=1`).
 - **`__eq` and `__screens` are DEV-only** hooks (tree-shaken from dist, verified by
   grep); `tools/out/` is gitignored and holds the contract ledgers
   (`CONTRACT-EDITS*.md`), which are folded into DESIGN.md by a fold agent after each
-  verifier confirms them (the scene and UI ledgers of this session are folded: b42ff83).
+  verifier confirms them (the scene and UI ledgers of this session are folded: b42ff83, 6fe27e4, 0abf19b, f74b807).
 
 ## Verification findings not fixed, and why
 
 Each of these was found by a blind verifier or critic and left as is, with the reason.
 
-- **Sprites (round-11 critic, pinned by rules rather than skill)**: DUST_WRAITH's torso
-  p50 55.9–57.2 in scene against a ≤ 52 ask — `legal()`'s 3.2:1 floor (L* ≈ 51) and
-  criterion 6's 45 % cap together make it unreachable from `parts.ts`; ASH_HOUND's
-  upper band ≤ 60 on 2 of 7 slot-rows (58.8–62.9); the ≤ 45 %-under-3:1 reading over
-  lit floors is withdrawn (over an L* 36 floor only pixels above L* 68 clear 3:1 at
-  all); EMBER_ELEMENTAL's chroma 27.4 (a licensed light source, but it moved up).
+- **Sprites (round-14 critic, pinned by the palette rather than skill)**: the absolute
+  enemy ceiling (torso p50 ≤ 50 on rows 0.33–0.72 of the silhouette) at four of thirteen
+  enemy seats on the named references — DUST_WRAITH 53.0–53.3, CINDER_IMP 50.8–53.6 —
+  because `legal()`'s 3.2:1 floor against the navy leaves the cast no tone between L 38
+  and 49 (Next, item 2); SILT_CRAB's gape a dark line inside the silhouette rather than a
+  notch in it (a ten-cell edit to `crabDetail`, queued); the ≤ 45 %-under-3:1 reading over
+  lit floors is withdrawn (over an L* 36 floor only pixels above L* 68 clear 3:1 at all);
+  the taste items the loop declined twice (ASH_HOUND's cow read, MARSH_HAG's blob,
+  LIGHTNING_HAWK's interior, the seraph's faceless drum) are not criteria.
 - **Scene**: ASHEN_FORGE's mid-band p10→p90 17.1 against 20 (the two foot pools'
   additive wash is the ceiling); the marsh moon's interior is still fairly flat under
   the dim (the far plane paints an opaque disc under the sky body); the floor plane
