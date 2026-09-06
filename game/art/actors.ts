@@ -603,7 +603,18 @@ const IMP_HIDE: Ramp = ramp(358, 22, 38, { shadow: -4, mid: -5, lit: -9 });
 const IMP_WING: Ramp = ramp(340, 12, 34);
 /** ROUND 12 — a ninth off the moss. Breaking the toad's three stripes into curved bands spent more of its area on the accent's mid and lit steps, which took its mean CIELAB chroma 14.93 -> 15.31, over the reference line-up's own p98 of 14.5 and the highest garment in the cast. */
 const TOAD_MOSS: Ramp = ramp(104, 16, 46);
+/**
+ * ROUND 13 — THE TOAD'S THIRD MATERIAL. Fourteen colours over 1709 cells —
+ * **8.2 per 1000**, the emptiest silhouette in the cast — because the animal was
+ * built from one hide ramp, one belly ramp and a pair of feet. A vocal sac is
+ * the one part of a toad that is neither: pale, warm and nearly neutral against
+ * the moss, so it reads as skin stretched thin rather than as another patch of
+ * the same animal.
+ */
+const TOAD_SAC: Ramp = ramp(46, 13, 58);
 const WISP_CORE: Ramp = glowRamp(192, 26, 90);
+/** ROUND 13 — the shard's own ice, the one non-glowing material on the wisp: its PLANE step is the authored dark the size-scaled plane-blob rule asks of every actor, and `glowRamp` has no tone in that band by construction. */
+const WISP_ICE: Ramp = ramp(198, 12, 44);
 /**
  * ROUND 12 — THE KING'S OWN BONE. HOLLOW_KING is a skeleton painted in
  * `NEUTRAL.bone`, a ramp built from l 64: its midtone cleared `legal()` on its
@@ -2071,7 +2082,7 @@ export const ACTOR_RECIPES: Record<string, ActorRecipe> = {
     strike: 'toad_strike',
     hurt: 'toad_hurt',
     dead: ['toad_dead'],
-    palette: { accent: TOAD_MOSS, cloth2: DEEP_TEAL },
+    palette: { accent: TOAD_MOSS, cloth2: DEEP_TEAL, cloth: TOAD_SAC },
   }),
   FROST_WISP: creature({
     id: 'FROST_WISP',
@@ -2086,8 +2097,11 @@ export const ACTOR_RECIPES: Record<string, ActorRecipe> = {
     // with this one, against the humanoids' 22-39 ease-out band. A thirteen-cell
     // core changes most of its pixels on any one-cell move, so a shape change at
     // rest height is the only settle this actor can make that is small enough.
+    // ROUND 13 — a cell of carry (dy:-1) was tried here and measured 50.5 %
+    // different from idle: on a thirteen-cell core a one-cell offset moves nearly
+    // every pixel, so the carry costs the 20-39 band. Left as the bare part swap.
     settle: { part: 'wisp_body_c' },
-    palette: { glow: WISP_CORE, accent: PALE_ROBE },
+    palette: { glow: WISP_CORE, accent: PALE_ROBE, cloth: WISP_ICE },
   }),
   MARSH_HAG: humanoid({
     id: 'MARSH_HAG',

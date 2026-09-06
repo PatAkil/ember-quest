@@ -958,6 +958,34 @@ Files: `game/art/parts-late.ts`, `game/art/actors-late.ts`. `tools/lineup.ts` ne
 
 **Frames viewed** — the two references; `scratchpad/art-r13b/sheets/` (`base/`, `r13/`): `late-x2.png`, `late-x2-grey.png`, `late-x2-sil.png`; the four `late-*-x4-floor.png`; `beasts-x6.png`, `weapons-x6.png`, `bosses-x4.png`; `t13.png` (CINDER_WOLF / STEAM_WRAITH / VAULT_JELLY / DROWNED_CLOUD / EMBER_ELEMENTAL / SPIRE_SERAPH ×6, before and after); `s13.png` (CINDER_WOLF, LEVIATHAN_SPAWN in mode=sil ×6); `h13.png` (the four hero-body humanoids beside CRYPT_WARDEN / MARSH_HAG / SABLE / TIDE); `poses-CINDER_WOLF.png` with its dead row at ×1.8; per-actor ×5–×8 crops through eleven iterations of the wolf, four of the wraith, five of the jelly, four of the ember.
 
+### Round 13 (2026-09-06): what artist A changed
+
+Files: `game/art/parts.ts` (+426/−92), `game/art/actors.ts` (+15/−3).
+
+**1 — BOG_TOAD as a drawing.** Longest single-colour horizontal run 47 cells = 96 % of the width → 26 = 53 %; rows over 60 % 8 of 42 → 0. Single-colour share 26.4 → 19.4 %; largest blob 11.1 → 6.9 %. Third material `TOAD_SAC = ramp(46, 13, 58)` — a vocal-sac teardrop under the jaw with a catchlight; colours 14 → 19 (8.2 → 11.4 per 1000). The body re-cut as an egg, the crown/brow/neck lean 4 cells, the near legs braced wider (the knee steps at ×2). Mirror 100 → 77.3; edge 77.7; < L 35 38.8; contrast 3.52; chroma 13.41.
+
+**2 — Interior flatness.** PALE_SAINT edge 67.9 → 72.3 (seven robe folds broken at the sash); HOLLOW_KING 74.3 → 77.1 (six rib seams + two mantle creases); CINDER_IMP 73.3 → 77.1 (three creases through the body plane, two across the skull's, sternum ticks). DUST_WRAITH blob 15.8 → 7.8 %, mean contrast 3.16 → 3.34. In-scene values held.
+
+**3 — ASH_HOUND.** The ventral coat's straight edge 29 cells (58 %) → 20 (40 %), a two-row fur comb that travels with the breath (idle change 20.5). Attack 1 keeps the coat via `houndStrikeCoat`: attack-1 interior edge 58.2 → 69.6, largest blob 25.0 → 11.3 %, colours 17 → 20.
+
+**4 — The absolute ceiling, in scene** (crypt seeds 1, 2, 3, 4, 5, 8, 9, 11, 12, 16, 20 + the marsh frame): CRYPT_WARDEN 49.0–49.8 (≤ 50 ✓, was 51.2–52.2), CINDER_IMP 46.9–48.8, ASH_HOUND 31.5–40.7, DUST_WRAITH 48.8–49.3, HOLLOW_KING 54.8 (≤ 55), PALE_SAINT 54.7. CRYPT_WARDEN keeps contrast 3.32 and sub-3:1 44.6. The trade: the warden under 50 puts it under the 1.5:1 ground ruler at the far strip (u+30 1.44–1.46 on 5/5 seats; u+6 2.52–2.55) — the ceiling and the far-strip ruler pull opposite ways on any actor whose ground sits at 30–36 L (coordinator decision 3 measures the u+6 strip only, so it passes as written).
+
+**5 — Thin margins.** > L 75: CINDER_IMP 8.3 → 10.4, CRYPT_WARDEN 8.4 → 9.9, DUST_WRAITH 8.9 → 9.53; DUST_WRAITH contrast 3.34; HOLLOW_KING top − bottom 11.
+
+**6 — Plane blob ≥ 2 % of cells.** ASH_HOUND 16.64, BOG_TOAD 20.95, SILT_CRAB 7.15, CINDER_IMP 2.16, FROST_WISP 0 → 8.04 (a second material `WISP_ICE = ramp(198, 12, 44)` on the shard's lower-right facets — `glowRamp` has no tone in the 28–38 band by construction), FEN_FIRE 14.26, MARSH_HAG 16.64 — all pass.
+
+**7 — Sprites round 4, items 1–2.** Part 2 done: mirror BOG_TOAD 100 → 77.3, CINDER_IMP 97.1 → 66.6, DUST_WRAITH 94.3 → 63.0, SILT_CRAB 91.6 → 66.2 (a turned head + braced legs + sac; one wing spread and one folded; one sleeve out and one tucked; a fiddler's major/minor claw). Part 1 NOT done: 15 → 14 of 66 pairs over 65 %, max 76.7 (TIDE↔LUMEN) unchanged; the < 78 bar holds. CRYPT_WARDEN got a horned helm (EMBER↔CW 66.6 → 64.9, four more pairs down). The other three garments the item names were built and REVERTED because they measure worse: four cape layers (EMBER a coat with tails, TIDE a one-shoulder mantle, LUMEN a half-cape, PYRE_KNIGHT a torn cloak) → 17 of 66 over 65, max 80.0 (TIDE↔SABLE) and TIDE's mirror 80.9; EMBER + PYRE only → 15 of 66, max 78.0. `r13-lineup-sil.png` shows why: the twelve are the same head-on-a-column mass at the same height; a drape makes each a wider copy of the same trapezoid. Getting to 65 needs different heights and different leg/arm negative space — a decision bigger than two files.
+
+**8 — FROST_WISP's settle** 20.8 → 20.4, inside the widened band; the `dy: −1` carry measured 50.5 (a one-cell offset on a thirteen-cell core moves nearly every pixel) and was reverted; recorded at `actors.ts:2100`.
+
+**9 — Keeps, all held.** metrics.md 43/43; one component in all 516 non-dead bakes; the hero criterion zero failures across all 17 named seats at round 12's values; the edge flash unchanged; crownDy −3 to −1 on all 43; settles 20.4–38.8; idle 17.9–56.9; top-third 30.1–96.6; chroma mean 12.55, GALE 14.49; dead height 25–56 %, max dead IoU 74.5; 645 bakes hashed, 110 moved, all in my nine actors — B's 24 and the six heroes byte-identical.
+
+**10 — Gates** (worktree of HEAD 29db414 with my two files): `npm run check` clean; `npm run build` ✓ 50 modules, `index-C78WgJuE.js 489.37 kB`; `npm run smoke` SMOKE OK; `sheets` 43 PASS · 0 FAIL.
+
+**Left undone.** Item 7 part 1 (14 of 66 over 65, max 76.7; needs hero heights/negative space, not cloth). Item 4 coverage: BOG_TOAD, FROST_WISP, MARSH_HAG, SILT_CRAB, FEN_FIRE, PYRE_KNIGHT, DROWNED_KNIGHT are never placed in a frame the driver reaches (their sheet torso p50 51.1 / 22.8 / 51.7 / 51.7 / 70.0 / 51.3 / 53.3). DUST_WRAITH's > L 75 on the bar (9.53). CINDER_IMP's largest single-colour region 3.7 → 10.5 % (a 102-cell lattice of one-cell creases in the shadow step, not a slab). The warden ceiling-vs-far-strip conflict.
+
+**Frames viewed** — `r13-poses-BOG_TOAD/ASH_HOUND/CINDER_IMP/DUST_WRAITH/CRYPT_WARDEN/SILT_CRAB.png` (five pose rows at ×6); `r13-nineteen-x4.png`; `r13-lineup-sil.png` (all 43 in mode=sil at ×3). Measurements: sheet/anim/detail/frame/planeblob/runs/sil2/pairs/l75/dead/flash/chroma/comp/hashes/overlap/blobwhere .mjs off the zoom-1 bake, sweep.mjs over eleven crypt seeds (52 actor seats), marsh.mjs / marshmeas.mjs for the driven FROST MARSH boss frame.
+
 ## The full-frame critic (step 6 of the plan)
 
 ### Full-frame verdict, round 1: ONE MORE ROUND — sprites 8 · scene 6 · UI 5 · VFX 7 · composition 5
