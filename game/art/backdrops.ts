@@ -1464,14 +1464,27 @@ const CRYPT_SEED = 0xc1a7;
 
 const CRYPT: BiomeLook = {
   id: 'EMBER CRYPT',
-  key: { color: '#ff9436', x: 244, y: 158, radius: 430, alpha: 0.21 },
-  fill: { color: '#4a63a8', x: 1080, y: 630, radius: 660, alpha: 0.2 },
+  // ACTOR WEIGHTS (`actorWeight`, on every source in every biome below). The
+  // alphas are the DIORAMA's and are untouched — the light map bakes from them
+  // and the backdrop captures are byte for byte what they were. The weight is
+  // the second question: how much of this source lands on a BODY.
+  //
+  // They are not the same answer here. The key is high, up-stage and on the
+  // left, which is where the enemies stand; the fill and the party's own floor
+  // pool are on the right. Weighted 1:1 the rig lit the enemy rank harder than
+  // the party at every seat (source reach at the six feet anchors measured
+  // 0.143 / 0.107 / 0.119 on the left against 0.050 / 0.080 / 0.125 on the
+  // right), which is half of why three critics in a row read the frame
+  // left-first. Halving the key and lifting the fill and pool2 inverts that
+  // ordering without moving one pixel of the wall it rakes.
+  key: { color: '#ff9436', x: 244, y: 158, radius: 430, alpha: 0.21, actorWeight: 0.5 },
+  fill: { color: '#4a63a8', x: 1080, y: 630, radius: 660, alpha: 0.2, actorWeight: 1.4 },
   // A symmetric PAIR, not one centred pool. The stage is a diagonal with the
   // enemies on the left third (layout.ts ENEMY_FEET x 206-452) and the party on
   // the right (HERO_FEET x 700-880); one pool at x 640 peaked between them,
   // where nobody stands, and left the enemy plane unlit.
-  pool: { color: '#ffb15c', x: 336, y: 462, rx: 320, ry: 116, alpha: 0.2 },
-  pool2: { color: '#ffb970', x: 798, y: 462, rx: 320, ry: 116, alpha: 0.2 },
+  pool: { color: '#ffb15c', x: 336, y: 462, rx: 320, ry: 116, alpha: 0.2, actorWeight: 0.85 },
+  pool2: { color: '#ffb970', x: 798, y: 462, rx: 320, ry: 116, alpha: 0.2, actorWeight: 1.15 },
   shafts: { color: '#ffb066', alpha: 0.065, x: 150, y: -90, angle: -0.52, count: 4, width: 52, length: 1050, gap: 152 },
   grade: {
     shadow: '#3a1b2a',
@@ -1798,13 +1811,13 @@ function hull(
 
 const MARSH: BiomeLook = {
   id: 'FROST MARSH',
-  key: { color: '#7fdcc4', x: 196, y: 126, radius: 440, alpha: 0.22 },
+  key: { color: '#7fdcc4', x: 196, y: 126, radius: 440, alpha: 0.22, actorWeight: 0.5 },
   // THE OPPOSING FILL. This room's key is a cold moon; a cold fill under it
   // made every pixel one hue. The fill is now the dusk warmth off the lantern
   // on the far bank, so the two lights sit across the wheel.
-  fill: { color: '#8f5c50', x: 1090, y: 620, radius: 660, alpha: 0.16 },
-  pool: { color: '#8fe2d0', x: 336, y: 450, rx: 316, ry: 100, alpha: 0.18 },
-  pool2: { color: '#9de6d4', x: 798, y: 462, rx: 320, ry: 116, alpha: 0.18 },
+  fill: { color: '#8f5c50', x: 1090, y: 620, radius: 660, alpha: 0.16, actorWeight: 1.4 },
+  pool: { color: '#8fe2d0', x: 336, y: 450, rx: 316, ry: 100, alpha: 0.18, actorWeight: 0.85 },
+  pool2: { color: '#9de6d4', x: 798, y: 462, rx: 320, ry: 116, alpha: 0.18, actorWeight: 1.15 },
   shafts: { color: '#a9e8dd', alpha: 0.055, x: 246, y: -80, angle: -0.4, count: 5, width: 42, length: 820, gap: 132 },
   grade: {
     shadow: '#12293c',
@@ -2078,12 +2091,12 @@ function stairs(
 
 const RUINS: BiomeLook = {
   id: 'SKY RUINS',
-  key: { color: '#ffc266', x: 220, y: 138, radius: 460, alpha: 0.22 },
+  key: { color: '#ffc266', x: 220, y: 138, radius: 460, alpha: 0.22, actorWeight: 0.5 },
   // The opposing fill is the risen moon and the night half of the sky, pushed
   // properly blue against the dusk sun rather than sharing its violet.
-  fill: { color: '#4e6cc4', x: 1050, y: 560, radius: 680, alpha: 0.19 },
-  pool: { color: '#ffd699', x: 336, y: 462, rx: 320, ry: 116, alpha: 0.17 },
-  pool2: { color: '#ffdca8', x: 798, y: 462, rx: 320, ry: 116, alpha: 0.17 },
+  fill: { color: '#4e6cc4', x: 1050, y: 560, radius: 680, alpha: 0.19, actorWeight: 1.4 },
+  pool: { color: '#ffd699', x: 336, y: 462, rx: 320, ry: 116, alpha: 0.17, actorWeight: 0.85 },
+  pool2: { color: '#ffdca8', x: 798, y: 462, rx: 320, ry: 116, alpha: 0.17, actorWeight: 1.15 },
   shafts: { color: '#ffdca0', alpha: 0.06, x: 258, y: -90, angle: -0.42, count: 4, width: 46, length: 830, gap: 140 },
   grade: {
     shadow: '#221a3c',
@@ -2321,12 +2334,12 @@ function chainLine(ctx: CanvasRenderingContext2D, x: number, topY: number, botY:
 
 const FORGE: BiomeLook = {
   id: 'ASHEN FORGE',
-  key: { color: '#ff5a2e', x: 210, y: 168, radius: 460, alpha: 0.24 },
+  key: { color: '#ff5a2e', x: 210, y: 168, radius: 460, alpha: 0.24, actorWeight: 0.5 },
   // The cold half of the room: daylight and steam falling through the roof
   // vents on the far right, opposite the furnace mouth.
-  fill: { color: '#5a76b8', x: 1085, y: 560, radius: 680, alpha: 0.22 },
-  pool: { color: '#ff8a4a', x: 336, y: 464, rx: 320, ry: 118, alpha: 0.22 },
-  pool2: { color: '#ff9a5e', x: 798, y: 464, rx: 320, ry: 118, alpha: 0.22 },
+  fill: { color: '#5a76b8', x: 1085, y: 560, radius: 680, alpha: 0.22, actorWeight: 1.4 },
+  pool: { color: '#ff8a4a', x: 336, y: 464, rx: 320, ry: 118, alpha: 0.22, actorWeight: 0.85 },
+  pool2: { color: '#ff9a5e', x: 798, y: 464, rx: 320, ry: 118, alpha: 0.22, actorWeight: 1.15 },
   shafts: { color: '#ff8552', alpha: 0.07, x: 140, y: -80, angle: -0.5, count: 4, width: 50, length: 1040, gap: 150 },
   grade: {
     shadow: '#2a1210',
@@ -2585,12 +2598,12 @@ function frond(
 
 const VAULT: BiomeLook = {
   id: 'SUNKEN VAULT',
-  key: { color: '#6fd8ff', x: 210, y: 132, radius: 460, alpha: 0.2 },
+  key: { color: '#6fd8ff', x: 210, y: 132, radius: 460, alpha: 0.2, actorWeight: 0.5 },
   // Warm against the cold: the drowned lantern still burning on the far bank
   // is what the fill answers with, so the room is not one blue.
-  fill: { color: '#a86a44', x: 1085, y: 580, radius: 660, alpha: 0.17 },
-  pool: { color: '#7fe2ff', x: 336, y: 462, rx: 320, ry: 116, alpha: 0.18 },
-  pool2: { color: '#8ce6ff', x: 798, y: 462, rx: 320, ry: 116, alpha: 0.18 },
+  fill: { color: '#a86a44', x: 1085, y: 580, radius: 660, alpha: 0.17, actorWeight: 1.4 },
+  pool: { color: '#7fe2ff', x: 336, y: 462, rx: 320, ry: 116, alpha: 0.18, actorWeight: 0.85 },
+  pool2: { color: '#8ce6ff', x: 798, y: 462, rx: 320, ry: 116, alpha: 0.18, actorWeight: 1.15 },
   shafts: { color: '#a6ecff', alpha: 0.075, x: 160, y: -90, angle: -0.48, count: 5, width: 46, length: 1040, gap: 138 },
   grade: {
     shadow: '#08202c',
@@ -2828,12 +2841,12 @@ function spireTower(ctx: CanvasRenderingContext2D, x: number, base: number, top:
 
 const SPIRE: BiomeLook = {
   id: 'STORM SPIRE',
-  key: { color: '#cfe0ff', x: 220, y: 150, radius: 470, alpha: 0.22 },
+  key: { color: '#cfe0ff', x: 220, y: 150, radius: 470, alpha: 0.22, actorWeight: 0.5 },
   // The brazier on the far parapet: the one warm thing above the weather, and
   // the reason this room's fill is not a third shade of storm blue.
-  fill: { color: '#9c5f44', x: 1050, y: 560, radius: 660, alpha: 0.17 },
-  pool: { color: '#d8ecff', x: 336, y: 462, rx: 320, ry: 116, alpha: 0.16 },
-  pool2: { color: '#e2f0ff', x: 798, y: 462, rx: 320, ry: 116, alpha: 0.16 },
+  fill: { color: '#9c5f44', x: 1050, y: 560, radius: 660, alpha: 0.17, actorWeight: 1.4 },
+  pool: { color: '#d8ecff', x: 336, y: 462, rx: 320, ry: 116, alpha: 0.16, actorWeight: 0.85 },
+  pool2: { color: '#e2f0ff', x: 798, y: 462, rx: 320, ry: 116, alpha: 0.16, actorWeight: 1.15 },
   shafts: { color: '#dfeaff', alpha: 0.065, x: 180, y: -90, angle: -0.5, count: 4, width: 46, length: 1030, gap: 150 },
   grade: {
     shadow: '#1a1a30',

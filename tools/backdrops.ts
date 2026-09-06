@@ -8,6 +8,12 @@
 // without a battle in that act (phase 6b's SKY RUINS / ASHEN FORGE / SUNKEN
 // VAULT / STORM SPIRE have no playable battle reaching them yet).
 //
+//   actors=6                   feed renderLightPlane N ACTOR BOXES at layout.ts's own
+//                              feet anchors (default 0). The picture is nonsense — light
+//                              on an empty floor — but the TIMING is the stage's real
+//                              per-actor cost: the actor plane's multiplicative gain, the
+//                              rim spill and a prop's floor pool. A backdrop capture must
+//                              stay at actors=0, where it is byte-identical.
 //   biome=SKY_RUINS            which BACKDROPS entry to draw (default EMBER_CRYPT;
 //                              accepts either the spaced or underscored form)
 //   tier=HIGH|MED|LOW|ARCADE   light quality tier (default HIGH, the desktop default).
@@ -29,8 +35,8 @@
 // capture: node tools/capture.mjs shot url=/tools/backdrops.html?biome=SKY_RUINS name=backdrop-SKY_RUINS
 
 import { createLight, createCrt } from '../engine';
-import type { BiomeLook, LightTier } from '../engine';
-import { CANVAS_W, CANVAS_H } from '../game/screens/layout';
+import type { BiomeLook, LightActor, LightTier } from '../engine';
+import { CANVAS_W, CANVAS_H, HERO_FEET, ENEMY_FEET } from '../game/screens/layout';
 import { BACKDROPS, backdropFor } from '../game/art/backdrops';
 
 const params = new URLSearchParams(location.search);
@@ -43,6 +49,35 @@ function parseTier(s: string): LightTier {
   return 'HIGH';
 }
 const TIER = parseTier(params.get('tier') ?? 'HIGH');
+
+/**
+ * How many ACTOR BOXES to hand renderLightPlane. Default 0 — a backdrop is
+ * judged with nobody on the stage, and that capture must stay byte-identical
+ * whatever the actor plane's light law is doing.
+ *
+ * It is not 0 for the PERF question, though: the actor plane's light (the
+ * multiplicative gain, the rim spill, a prop's floor pool) is per-actor work
+ * that a no-actor frame never pays, so `actors=6` puts the full six-body stage
+ * on the timing without drawing a single sprite. The boxes are the real ones —
+ * layout.ts's three hero and three enemy feet anchors, ACTOR_W wide and as tall
+ * as a hero stands — so the number is the stage's own cost, not a synthetic
+ * one. The frame it screenshots is nonsense (light on an empty floor); read the
+ * timing, not the picture.
+ */
+const ACTOR_N = Math.max(0, Math.min(8, Number(params.get('actors') ?? 0)));
+const ACTOR_BOX_W = 128;
+const ACTOR_BOX_H = 112;
+const actorBoxes: LightActor[] = [];
+for (let i = 0; i < ACTOR_N; i++) {
+  const f = i < 3 ? HERO_FEET[i] : ENEMY_FEET[i - 3];
+  actorBoxes.push({
+    x: f.x - ACTOR_BOX_W / 2,
+    y: f.y - ACTOR_BOX_H,
+    w: ACTOR_BOX_W,
+    h: ACTOR_BOX_H,
+    glow: i === 0 ? 0.8 : 0,
+  });
+}
 
 const canvas = document.getElementById('sheet') as HTMLCanvasElement;
 const out = document.getElementById('metrics') as HTMLPreElement;
@@ -81,7 +116,7 @@ const crt = TIER === 'ARCADE' ? createCrt() : null;
 function frame(t: number): void {
   g2d.clearRect(0, 0, CANVAS_W, CANVAS_H);
   light.renderBackground(g2d, { time: t, shakeX: 0, shakeY: 0 });
-  light.renderLightPlane(g2d, { time: t });
+  light.renderLightPlane(g2d, ACTOR_N > 0 ? { time: t, actors: actorBoxes } : { time: t });
   light.renderPost(g2d, { time: t });
   if (crt) crt.render(g2d, CANVAS_W, CANVAS_H, 1 / 60);
 }
@@ -119,7 +154,7 @@ frame(TIME);
 const known = Object.keys(BACKDROPS).filter((k) => k.includes(' '));
 const timing = `bake ${bakeMs.toFixed(1)} ms · frame ${frameMs.toFixed(2)} ms (best of ${BATCHES}x${RUNS}; mean ${meanMs.toFixed(2)}; tier ${TIER})`;
 out.textContent = [
-  `backdrop · biome=${biomeParam} -> ${look.id} · tier=${TIER} · t=${TIME}`,
+  `backdrop · biome=${biomeParam} -> ${look.id} · tier=${TIER} · t=${TIME} · actors=${ACTOR_N}`,
   timing,
   `known biomes: ${known.join(', ')}`,
 ].join('\n');

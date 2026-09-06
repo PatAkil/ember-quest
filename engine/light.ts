@@ -13,9 +13,9 @@
 //
 //   pc.clear(...)                     // unshaken
 //   juice.preRender(ctx)              // camera shake translate
-//   light.renderBackground(ctx, { time, shakeX, shakeY });   // far · mid · floor
+//   light.renderBackground(ctx, { time, shakeX, shakeY });   // far·mid·floor·near + the wash
 //   drawActor(...) / light.drawContactShadow(...)            // the sharp plane
-//   light.renderLightPlane(ctx, { time, actors });           // near · key · rim · dust
+//   light.renderLightPlane(ctx, { time, actors });           // per-actor gain · rim · fog · dust
 //   light.renderPost(ctx, { time, flashAlpha });             // bloom · grade · vignette
 //   juice.postRender(ctx, W, H)
 //   ...panels, ribbon, log, skill bar, text...               // UI is never bloomed
@@ -49,8 +49,27 @@ export type LightTier = 'HIGH' | 'MED' | 'LOW' | 'ARCADE';
  */
 export type PlanePainter = (ctx: CanvasRenderingContext2D, width: number, height: number) => void;
 
+/**
+ * How much of a source counts as light ON THE ACTOR PLANE, as a multiplier on
+ * its alpha (default 1). The DIORAMA always gets the source at its full alpha —
+ * this scales nothing that is baked into the light map, so a biome's backdrop
+ * is bit for bit what it was whatever this says.
+ *
+ * It exists because the two are not the same job. A crypt's warm key is
+ * architecture light: it rakes the far wall from high up on the left and it is
+ * the reason that side of the room glows, but the party stands three ranks away
+ * from it on the right and should not be lit by it as hard as the enemies
+ * standing under it. With one weight per source the frame's own hierarchy — who
+ * the eye lands on first — is a number in game/art/backdrops.ts rather than a
+ * consequence of where the wall happens to be.
+ */
+type ActorWeight = {
+  /** 0..2, default 1. Scales this source's contribution to the per-actor gain and rim ONLY. */
+  actorWeight?: number;
+};
+
 /** A radial light source: colour, centre and reach, in logical px. */
-export interface KeyLight {
+export interface KeyLight extends ActorWeight {
   color: string;
   x: number;
   y: number;
@@ -60,7 +79,7 @@ export interface KeyLight {
 }
 
 /** The pool of light on the stage floor where the actors stand — a squashed radial. */
-export interface PoolLight {
+export interface PoolLight extends ActorWeight {
   color: string;
   x: number;
   y: number;
@@ -226,9 +245,14 @@ export interface Light {
   setTier(tier: LightTier): void;
   tier(): LightTier;
   setBiome(look: BiomeLook): void;
-  /** Passes 1-2: far, mid and floor planes at their parallax offsets. */
+  /**
+   * Passes 1-2 and the whole additive wash: far, mid, floor and near planes at
+   * their parallax offsets, then the baked light map. The wash is here and not
+   * in renderLightPlane so that it lands on the DIORAMA and never on an actor —
+   * see GAIN_FLOOR for why an additive term is the wrong law for a sprite.
+   */
   renderBackground(ctx: CanvasRenderingContext2D, frame: BackgroundFrame): void;
-  /** Pass 4: the near plane over the actors, then key, fill, pool, rim, fog, dust. */
+  /** Pass 4, over the actors: the per-actor multiplicative gain, rim spill, prop glow, fog, dust. */
   renderLightPlane(ctx: CanvasRenderingContext2D, frame: LightPlaneFrame): void;
   /** Pass 5: bloom, then the grade + vignette. Leaves context state as found. */
   renderPost(ctx: CanvasRenderingContext2D, frame: PostFrame): void;
@@ -291,13 +315,62 @@ const VIGNETTE_RY = 0.78;
  * dim, never black) and the lift a fully-lit actor gets on top of it. The
  * reference weight is the alpha at which a source counts as "full" — the top
  * of KeyLight.alpha's documented band.
+ *
+ * These are HALF what they were before the actor plane went proportional: the
+ * spill is now the small ADDITIVE half of an actor's light (the air around a
+ * silhouette catching the beam) and the gain below is the large half.
  */
-const RIM_FLOOR = 0.10;
-const RIM_LIFT = 0.14;
+const RIM_FLOOR = 0.04;
+const RIM_LIFT = 0.06;
 const RIM_REF = 0.24;
 /** How far along the light direction the spill is pushed, as fractions of the box. */
 const RIM_PUSH_X = 0.3;
 const RIM_PUSH_Y = 0.22;
+
+/**
+ * THE ACTOR PLANE'S LIGHT IS A GAIN, NOT A WASH.
+ *
+ * The rig used to light the actors the way it lights the diorama: one additive
+ * full-screen blit of the baked light map, over the top of them. An additive
+ * term is a constant in sRGB and sRGB is very nearly linear in L*, so it moves
+ * every cell by the SAME number of L — which on a garment authored at L 28-36
+ * is +15 to +36. Measured per component on CRYPT_WARDEN's own masked cells, the
+ * map alone put +19.5 L on cells authored below L 35 and +11.7 on cells above
+ * L 65, and the grade's multiply then took -10.0 off the darks and -16.6 off
+ * the lights: an authored range of 25 -> 74 came out of the frame as 46 -> 76.
+ *
+ * The law here is multiplicative instead. `'color-dodge'` with a flat source is
+ * exactly `dest / (1 - src)` — a per-channel GAIN — and with a flat colour and
+ * a feathered alpha the compositing formula collapses to
+ *
+ *     out = dest * (1 + a * (G - 1))
+ *
+ * EXACTLY linear in the source alpha `a`, so one baked soft sprite plus
+ * `globalAlpha` covers the whole strength range with no per-frame gradient, no
+ * readback and no allocation. A cell's own value survives: the dark plane moves
+ * a few L, the mid-tones take 10-15, the highlights keep and gain their
+ * sparkle, and the ratio between an actor and the floor it stands on — the one
+ * an additive wash drives towards 1:1 — is preserved, because a common gain
+ * cancels out of a ratio.
+ *
+ * GAIN_FLOOR is what an actor standing outside every pool gets; it is not zero
+ * because the grade is about a x0.80 multiply and an unlit actor would land
+ * BELOW its own sheet. GAIN_LIFT is what a fully-lit one gets on top of that.
+ * GAIN_TINT mixes the biome's rim colour toward white — at 0 the gain is
+ * neutral, at 1 it carries the rim colour's own channel ratio, which over-warms
+ * a garment the biome has already tinted.
+ */
+const GAIN_FLOOR = 0.30;
+const GAIN_LIFT = 0.28;
+const GAIN_TINT = 0.45;
+/**
+ * The gain's footprint, as fractions of the actor's box. Deliberately TIGHTER
+ * than the rim spill's: the party stands on a 90-px diagonal carrying 128-px
+ * boxes, so two neighbours overlap by a third, and two gains MULTIPLY where two
+ * washes only added. At 0.66 x 0.98 the ellipses meet instead of stacking.
+ */
+const GAIN_RX = 0.66;
+const GAIN_RY = 0.98;
 
 /**
  * The lit prop. Two pieces, and neither of them is a disc over the torso:
@@ -530,11 +603,14 @@ interface Baked {
   /** Soft round sprites for the per-actor rim spill and prop glow. */
   rimSprite: HTMLCanvasElement | null;
   glowSprite: HTMLCanvasElement | null;
+  /** The actor plane's multiplicative light, drawn 'color-dodge' (see GAIN_FLOOR). */
+  gainSprite: HTMLCanvasElement | null;
   /**
-   * Key, fill and both floor pools flattened to four parallel arrays — centre,
-   * elliptical reach and peak alpha. renderLightPlane walks them per actor to
-   * find the NEAREST source, which is what decides how hard that actor's rim
-   * spills and which way it leans. Built once; the loop reads, never writes.
+   * Key, fill and both floor pools flattened to five parallel arrays — centre,
+   * elliptical reach and ACTOR-PLANE weight (alpha x KeyLight.actorWeight).
+   * renderLightPlane walks them per actor to find the strongest source at that
+   * point, which decides how hard the gain and the rim spill are and which way
+   * the spill leans. Built once; the loop reads, never writes.
    */
   srcX: number[];
   srcY: number[];
@@ -697,6 +773,47 @@ function softSprite(color: string, size: number): HTMLCanvasElement {
 }
 
 /**
+ * The actor plane's GAIN sprite: a flat colour whose value is the dodge amount
+ * `1 - 1/G` per channel, under an alpha profile that holds most of its strength
+ * over the silhouette and lets go before the box edge.
+ *
+ * The profile matters more here than it does for a spill. `softSprite`'s ramp
+ * is down to 0.4 by 42 % of the radius, which on a 128-px box puts a quarter of
+ * the peak gain on a shoulder — the limbs would model darker than the chest for
+ * no reason in the art. This holds ~0.9 out to half the radius and then falls,
+ * so the gain reads as a light on the figure rather than a spot on its middle,
+ * and still reaches zero at the ellipse so nothing edges.
+ */
+function gainSprite(rim: string, size: number, gain: number, tint: number): HTMLCanvasElement {
+  const t = Math.max(0, Math.min(0.92, 1 - 1 / Math.max(1, gain)));
+  let h = rim.trim();
+  if (h[0] === '#') h = h.slice(1);
+  if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+  const n = parseInt(h, 16);
+  const peak = Math.max(1, (n >> 16) & 255, (n >> 8) & 255, n & 255);
+  const chan = (v: number): number => {
+    // The rim colour's channel ratio, mixed `tint` of the way from neutral.
+    const k = 1 - tint + tint * (v / peak);
+    return Math.round(255 * Math.max(0, Math.min(0.92, t * k)));
+  };
+  const col = `rgb(${chan((n >> 16) & 255)},${chan((n >> 8) & 255)},${chan(n & 255)})`;
+  const cv = makeCanvas(size, size);
+  const c = ctx2d(cv);
+  const r = size / 2;
+  const g = c.createRadialGradient(r, r, 0, r, r, r);
+  const stop = (at: number, a: number): void => {
+    g.addColorStop(at, col.replace('rgb(', 'rgba(').replace(')', `,${a})`));
+  };
+  stop(0, 1);
+  stop(0.5, 0.9);
+  stop(0.78, 0.44);
+  stop(1, 0);
+  c.fillStyle = g;
+  c.fillRect(0, 0, size, size);
+  return cv;
+}
+
+/**
  * Flatten every plane plus the key light and the colour grade into one opaque
  * bitmap — the LOW tier's whole background pass.
  *
@@ -792,17 +909,22 @@ function bakeBiome(look: BiomeLook, tier: LightTier, width: number, height: numb
     gradeMap: null,
     rimSprite: null,
     glowSprite: null,
+    gainSprite: null,
     srcX: [],
     srcY: [],
     srcRX: [],
     srcRY: [],
     srcW: [],
   };
-  pushSource(baked, look.key.x, look.key.y, look.key.radius, look.key.radius, look.key.alpha);
-  pushSource(baked, look.fill.x, look.fill.y, look.fill.radius, look.fill.radius, look.fill.alpha);
-  pushSource(baked, look.pool.x, look.pool.y, look.pool.rx, look.pool.ry, look.pool.alpha);
+  // The weights below are the ACTOR PLANE's, not the diorama's: the light map
+  // above is baked from the same records at their full alpha, so nothing here
+  // can move a backdrop pixel.
+  const aw = (src: { alpha: number; actorWeight?: number }): number => src.alpha * (src.actorWeight ?? 1);
+  pushSource(baked, look.key.x, look.key.y, look.key.radius, look.key.radius, aw(look.key));
+  pushSource(baked, look.fill.x, look.fill.y, look.fill.radius, look.fill.radius, aw(look.fill));
+  pushSource(baked, look.pool.x, look.pool.y, look.pool.rx, look.pool.ry, aw(look.pool));
   if (look.pool2) {
-    pushSource(baked, look.pool2.x, look.pool2.y, look.pool2.rx, look.pool2.ry, look.pool2.alpha);
+    pushSource(baked, look.pool2.x, look.pool2.y, look.pool2.rx, look.pool2.ry, aw(look.pool2));
   }
   baked.gradeMap = bakeGradeMap(look, width, height, low);
   if (low) {
@@ -812,6 +934,7 @@ function bakeBiome(look: BiomeLook, tier: LightTier, width: number, height: numb
   baked.lightMap = bakeLightMap(look, width, height, !med);
   baked.rimSprite = softSprite(look.rim, 96);
   baked.glowSprite = softSprite(look.key.color, 96);
+  baked.gainSprite = gainSprite(look.rim, 96, 1 + GAIN_FLOOR + GAIN_LIFT, GAIN_TINT);
   baked.far = bakePlane(look.far, width, height, BLUR_FAR, '#000000');
   if (med) {
     // MED folds mid and floor into one plane: one fewer full-screen draw, and
@@ -952,6 +1075,31 @@ export function createLight(opts: CreateLightOptions): Light {
       drawPlane(ctx, b.far, DEPTH_FAR, sway * 0.3);
       drawPlane(ctx, b.mid, DEPTH_MID, sway * 0.7);
       drawPlane(ctx, b.floor, DEPTH_FLOOR, sway);
+      // The NEAR plane and the light rig both moved up here, out of
+      // renderLightPlane, so that the additive wash lands on the DIORAMA and
+      // never on an actor (see GAIN_FLOOR). Their order relative to each other
+      // and to the three planes above is untouched — far, mid, floor, near,
+      // light — so a frame with no actors in it is pixel for pixel the frame
+      // this rig drew before, which is what tools/backdrops.html captures.
+      //
+      // The near plane is now UNDER the actors rather than over them. It is the
+      // foreground, so that is a real reordering, and it is safe only because
+      // this diorama's foreground never touches an actor: the side curtains
+      // ramp out by x 150-186 and the front rank's sprite starts at x 174, and
+      // floorLip is authored to start below the front rank's feet at y 516 (its
+      // own comment says so). A biome that paints near-plane matter across the
+      // stage would occlude actors before this change and would not after it.
+      drawPlane(ctx, b.near, DEPTH_NEAR, sway * 1.4);
+      // The whole light rig in one 1:1 additive blit — key, fill, floor pools
+      // and shafts, baked. It breathes on ALPHA only, never on geometry, so the
+      // bitmap stays valid for the life of the biome.
+      if (b.lightMap) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 0.94 + 0.06 * Math.sin(frame.time * 0.6);
+        ctx.drawImage(b.lightMap, 0, 0);
+        ctx.restore();
+      }
     },
 
     renderLightPlane(ctx, frame) {
@@ -962,27 +1110,16 @@ export function createLight(opts: CreateLightOptions): Light {
       const dt = lastTime < 0 ? 0 : Math.max(0, Math.min(0.1, frame.time - lastTime));
       lastTime = frame.time;
 
-      // 1. The foreground plane, over the actors, leading the camera.
-      drawPlane(ctx, b.near, DEPTH_NEAR, Math.sin(frame.time * SWAY_RATE) * SWAY_PX * 1.4);
-
-      // 2. The whole light rig in one 1:1 additive blit — key, fill, floor pool
-      //    and shafts, baked. It breathes on ALPHA only, never on geometry, so
-      //    the bitmap stays valid for the life of the biome.
-      if (b.lightMap) {
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha = 0.94 + 0.06 * Math.sin(frame.time * 0.6);
-        ctx.drawImage(b.lightMap, 0, 0);
-        ctx.restore();
-      }
-
-      // 3. Rim light and prop glow, per actor. The crisp per-pixel rim is baked
-      //    into the sprite by the actor pipeline; this is the spill around it —
-      //    the part the bloom is supposed to catch.
+      // 3. The actor plane's own light, per actor: first the multiplicative
+      //    GAIN that replaced the additive wash (see GAIN_FLOOR), then the
+      //    additive rim spill around the silhouette and the prop's floor pool.
+      //    The crisp per-pixel rim is baked into the sprite by the actor
+      //    pipeline; this is the spill around it, the part the bloom catches.
       const actors = frame.actors;
       if (actors && actors.length && b.rimSprite && b.glowSprite) {
         const rimS = b.rimSprite;
         const glowS = b.glowSprite;
+        const gainS = b.gainSprite;
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
         const srcN = b.srcX.length;
@@ -993,10 +1130,13 @@ export function createLight(opts: CreateLightOptions): Light {
           // Which light is actually on this actor? A single centred pool peaks
           // where nobody stands, so a flat rim alpha left one whole half of the
           // stage diagonal reading as unlit. Walk the sources, keep the
-          // strongest at this point, and drive BOTH the spill's strength and
-          // its lean off it — blended halfway back toward the key, because the
-          // sprites' own baked rim is upper-left in every biome and the spill
-          // must not fight it.
+          // strongest at this point, and drive the GAIN's strength, the spill's
+          // strength and the spill's lean off it — the lean blended halfway
+          // back toward the key, because the sprites' own baked rim is
+          // upper-left in every biome and the spill must not fight it.
+          //
+          // srcW is alpha x actorWeight, so a source can be worth more or less
+          // to a BODY than it is to the wall behind it (see ActorWeight).
           let best = 0;
           let bx = 0;
           let by = 0;
@@ -1024,7 +1164,26 @@ export function createLight(opts: CreateLightOptions): Light {
             dx /= bn;
             dy /= bn;
           }
-          // The spill around the silhouette. Its geometry is deliberately
+          const reach = Math.min(1, best / RIM_REF);
+          // 3a. THE GAIN. `'color-dodge'` with this sprite's flat colour is a
+          //     per-channel multiply, and with a flat colour under a feathered
+          //     alpha the compositing formula is exactly
+          //     out = dest * (1 + a * (G - 1)) — linear in globalAlpha, so one
+          //     baked sprite covers the whole strength band. Drawn BEFORE the
+          //     spill on purpose: multiply the sprite's own value first, then
+          //     add the floor, which is the "multiply-then-add" the actor plane
+          //     needs. Centred on the box and NOT pushed toward the light: the
+          //     sprite's own baked rim already carries the direction, and a
+          //     pushed gain lights the air on one side instead of the figure.
+          if (gainS) {
+            const gw = a.w * GAIN_RX;
+            const gh = a.h * GAIN_RY;
+            ctx.globalCompositeOperation = 'color-dodge';
+            ctx.globalAlpha = (GAIN_FLOOR + GAIN_LIFT * reach) / (GAIN_FLOOR + GAIN_LIFT);
+            ctx.drawImage(gainS, cx - gw / 2, cy - gh / 2, gw, gh);
+            ctx.globalCompositeOperation = 'lighter';
+          }
+          // 3b. The spill around the silhouette. Its geometry is deliberately
           // UNCHANGED: pushing it out onto the lit edge (push 0.62, a
           // 0.92 x 0.74 disc) was tried against the torso measurements and
           // rejected — it moves EMBER's torso from 25.4 % below L 35 to 47.4 %,
@@ -1033,7 +1192,7 @@ export function createLight(opts: CreateLightOptions): Light {
           // orb in the middle of it, not a garment plane.
           const rw = a.w * 1.15;
           const rh = a.h * 0.95;
-          ctx.globalAlpha = RIM_FLOOR + RIM_LIFT * Math.min(1, best / RIM_REF);
+          ctx.globalAlpha = RIM_FLOOR + RIM_LIFT * reach;
           ctx.drawImage(rimS, cx + dx * a.w * RIM_PUSH_X - rw / 2, cy + dy * a.h * RIM_PUSH_Y - rh / 2, rw, rh);
           const glow = a.glow ?? 0;
           if (glow > 0) {
@@ -1218,17 +1377,27 @@ export function createLight(opts: CreateLightOptions): Light {
 
     drawContactShadow(ctx, x, y, w) {
       // Hard-edged, not a soft blob: a sprite standing on a soft smudge floats.
-      // Outer ellipse at 0.8x the foot span and 40% alpha, an inner core over
-      // the middle 60% that doubles the density right under the feet.
+      // Outer ellipse at 0.8x the foot span, an inner core over the middle 60 %
+      // that thickens the density right under the feet.
+      //
+      // The two alphas came DOWN (0.46/0.50 -> 0.34/0.30) when the additive
+      // wash moved off the actor plane, and it is the same edit, not a second
+      // one. This is drawn between renderBackground and renderLightPlane, so it
+      // used to land on an UNLIT floor and then take the whole light map on top
+      // of it; now the floor beneath it is already lit and nothing lifts it
+      // afterwards. At the old numbers the same ellipse fell from about L 33 to
+      // L 19 and read as a black sticker under every actor. These land it back
+      // at L 29-30 — a shade heavier than it used to read, which is the right
+      // side to err on for contact.
       const rx = w * 0.4;
       const ry = Math.max(2, rx * 0.2);
       ctx.save();
       ctx.fillStyle = SHADOW_INK;
-      ctx.globalAlpha = 0.46;
+      ctx.globalAlpha = 0.34;
       ctx.beginPath();
       ctx.ellipse(x, y - 1, rx, ry, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.globalAlpha = 0.5;
+      ctx.globalAlpha = 0.30;
       ctx.beginPath();
       ctx.ellipse(x, y - 1, rx * 0.6, Math.max(1.5, ry * 0.78), 0, 0, Math.PI * 2);
       ctx.fill();
