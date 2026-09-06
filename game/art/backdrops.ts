@@ -95,6 +95,32 @@ function clusterPool(
 }
 
 /**
+ * The pixel ground's two lit patches FOLLOW THE LIGHT POOLS. `pixelGround`
+ * decides which stones are warm and bright by `poolAt` depth inside these
+ * ellipses, and until UI round 4 they were hand-typed at round 6's rank
+ * centres (x 336 / 798, rx 340): when that round packed the party to
+ * HERO_FEET x 532-732 the light pools moved with the anchors (see
+ * `clusterPool`) and the ground's warmth did not, so the party stood 166 px
+ * left of its own lit stones. Each patch is now the rank's derived light pool
+ * with its rx widened by GROUND_POOL_RX — the ratio the literals had to round
+ * 6's rx 264 / 256 pools, so a stone midway between the ranks lands at the same
+ * depth (~0.3) it was tuned at — dropped `dy` px below the pool's centre line,
+ * plus the third, wide, anchor-independent patch across the near ground: the
+ * brief's "near plane lit MORE than the mid", and the reference's own habit of
+ * putting its warmest, busiest ground right under the camera.
+ */
+const GROUND_POOL_RX = 1.29;
+function groundPools(dy: number): readonly (readonly [number, number, number, number])[] {
+  const a = clusterPool(ENEMY_FEET, '', 0, 0);
+  const b = clusterPool(HERO_FEET, '', 0, 0);
+  return [
+    [a.x, a.y + dy, Math.round(a.rx * GROUND_POOL_RX), 128],
+    [b.x, b.y + dy, Math.round(b.rx * GROUND_POOL_RX), 128],
+    [620, 706, 660, 168],
+  ];
+}
+
+/**
  * How far ABOVE the wall/floor joint each floor plane starts painting. The
  * ground gradient used to begin exactly at FLOOR_Y, so it appeared at full
  * strength on one row and the joint feather had nothing to ramp: a 24-L step
@@ -2453,10 +2479,9 @@ const CRYPT: BiomeLook = {
       seed: CRYPT_SEED ^ 0xa3,
       ink: CRYPT_PIX,
       count: 980,
-      // The two foot pools, plus a THIRD wide one across the near ground: the
-      // brief's "near plane lit MORE than the mid", and the reference's own
-      // habit of putting its warmest, busiest ground right under the camera.
-      pools: [[336, 470, 340, 128], [798, 470, 340, 128], [620, 706, 660, 168]],
+      // The two foot patches under the ranks (derived from the anchors) plus the
+      // wide one across the near ground — see `groundPools`.
+      pools: groundPools(22),
       coolShare: 0.5,
       tufts: 46,
     });
@@ -2890,7 +2915,7 @@ const MARSH: BiomeLook = {
       seed: MARSH_SEED ^ 0xa7,
       ink: MARSH_PIX,
       count: 760,
-      pools: [[336, 462, 340, 128], [798, 462, 340, 128], [620, 706, 660, 168]],
+      pools: groundPools(14),
       coolShare: 0.58,
       tufts: 64,
     });
@@ -3272,7 +3297,7 @@ const RUINS: BiomeLook = {
       seed: RUINS_SEED ^ 0xa7,
       ink: RUINS_PIX,
       count: 800,
-      pools: [[336, 462, 340, 128], [798, 462, 340, 128], [620, 706, 660, 168]],
+      pools: groundPools(14),
       coolShare: 0.5,
       tufts: 52,
     });
@@ -3622,7 +3647,7 @@ const FORGE: BiomeLook = {
       seed: FORGE_SEED ^ 0xa7,
       ink: FORGE_PIX,
       count: 1120,
-      pools: [[336, 462, 340, 128], [798, 462, 340, 128], [620, 706, 660, 168]],
+      pools: groundPools(14),
       coolShare: 0.46,
       tufts: 18,
     });
@@ -3895,7 +3920,7 @@ const VAULT: BiomeLook = {
       seed: VAULT_SEED ^ 0xa7,
       ink: VAULT_PIX,
       count: 780,
-      pools: [[336, 462, 340, 128], [798, 462, 340, 128], [620, 706, 660, 168]],
+      pools: groundPools(14),
       coolShare: 0.56,
       tufts: 40,
     });
@@ -4264,7 +4289,7 @@ const SPIRE: BiomeLook = {
       seed: SPIRE_SEED ^ 0xa7,
       ink: SPIRE_PIX,
       count: 800,
-      pools: [[336, 462, 340, 128], [798, 462, 340, 128], [620, 706, 660, 168]],
+      pools: groundPools(14),
       coolShare: 0.44,
       tufts: 24,
     });
