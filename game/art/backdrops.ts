@@ -27,7 +27,9 @@ import { HERO_FEET, ENEMY_FEET } from '../screens/layout';
  * Every biome lights its two foot clusters with a pool, and until round 6 each
  * one carried hand-typed coordinates that happened to sit near where the ranks
  * stand. They drifted: the stage moved to `HERO_FEET` (700, 380) · (790, 448) ·
- * (880, 516) and `ENEMY_FEET` (230, 380) · (330, 448) · (430, 516) and the
+ * (880, 516) and `ENEMY_FEET` (230, 380) · (330, 448) · (430, 516) (round 6's
+ * anchors; UI round 4 has since packed them to ENEMY_FEET x 290-382 and
+ * HERO_FEET x 532-732, and the pools followed without an edit here) and the
  * pools stayed at y 462 with an ry of 116-120, so the back seat of each rank
  * sat outside its own pool and the ground at the six seats measured 21.7-38.7
  * while the EMPTY near band measured 34.4-37.0 — the light was where nobody
@@ -64,13 +66,14 @@ function clusterPool(
 ): PoolLight {
   const me = rankGeom(feet, padX, padY);
   // THE PAD IS CLAMPED AGAINST THE OTHER RANK. `padX` adds to the rank's own
-  // half-width, so at the current anchors it produced rx 350 and rx 340 for
-  // ranks whose centres are only 460 px apart — 230 px of overlap, and the two
-  // ellipses already read as one band across the middle of the stage. The
-  // composition round is tightening the rank gap to <= 12 % of the width; at
-  // that gap an unguarded pad merges them completely and the stage has one
-  // pool again, which is the exact defect the symmetric pair was introduced to
-  // fix. So both radii are scaled by one factor until the pair overlaps by no
+  // half-width, so at round 6's anchors it produced rx 350 and rx 340 for
+  // ranks whose centres were only 460 px apart — 230 px of overlap, and the two
+  // ellipses already read as one band across the middle of the stage. UI
+  // round 4 then tightened the rank gap to 11.7 % of the width (centres 296 px
+  // apart, un-clamped rx 296 / 350 — 350 px of overlap); at that gap an
+  // unguarded pad merges them completely and the stage has one pool again,
+  // which is the exact defect the symmetric pair was introduced to fix. Today
+  // the clamp is active (k ~ 0.55): enemy rx 163, party rx 193, 60 px shared. So both radii are scaled by one factor until the pair overlaps by no
   // more than RANK_OVERLAP_MAX, whatever the anchors say. Proportional, so the
   // wider rank keeps the wider pool; never scaled UP, so a wide gap is left
   // alone.
@@ -2187,9 +2190,9 @@ const CRYPT: BiomeLook = {
   key: { color: '#ffb066', x: 640, y: 120, radius: 520, alpha: 0.22, actorWeight: 0.5 },
   fill: { color: '#4a63a8', x: 1080, y: 630, radius: 660, alpha: 0.2, actorWeight: 1.4 },
   // A symmetric PAIR, not one centred pool. The stage is a diagonal with the
-  // enemies on the left third (layout.ts ENEMY_FEET x 206-452) and the party on
-  // the right (HERO_FEET x 700-880); one pool at x 640 peaked between them,
-  // where nobody stands, and left the enemy plane unlit.
+  // enemies on the left-centre (layout.ts ENEMY_FEET x 290-382) and the party
+  // on the right (HERO_FEET x 532-732); one pool at x 640 peaked between them,
+  // where nobody stood at round 6's anchors, and left the enemy plane unlit.
   // Derived from ENEMY_FEET / HERO_FEET (see `clusterPool`). The alphas came
   // UP in round 6: the ground at the six seats measured 21.7-38.7 against an
   // empty near band at 34.4-37.0, and the front hero's actor-to-ground
@@ -2463,9 +2466,11 @@ const CRYPT: BiomeLook = {
     // from FLOOR_Y down, so a prop drawn on the mid plane below the joint is
     // simply painted over.
     //
-    // PLACEMENT. layout.ts puts the enemies at x 206-452 and the party at
-    // x 700-880, both on foot rows y 380/448/516, so the free ground is the
-    // corridor around x 500-660. Below that corridor is not free either: the
+    // PLACEMENT. layout.ts put the enemies at x 206-452 and the party at
+    // x 700-880 when this was authored, both on foot rows y 380/448/516, so
+    // the free ground was the corridor around x 500-660. (UI round 4 packed
+    // the ranks to ENEMY_FEET x 290-382 and HERO_FEET x 532-732; the corridor
+    // between them is now x ~400-510 and the party's back seat stands at 532.) Below that corridor is not free either: the
     // battle log renders at x 360-930, y 545-580 and the skill list at
     // x 24-344, y 535-670, so a mass parked in the near ground sits behind
     // running text. The corridor at foot depth is the one place that is clear

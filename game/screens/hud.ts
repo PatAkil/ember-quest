@@ -937,13 +937,14 @@ export function drawPrimaryButton(
   // x3 it is the anatomy of a web CTA whatever colour it is painted. What
   // replaces it keeps every affordance and drops the box:
   //
-  //   * the ends FEATHER. The ink is a horizontal gradient that reaches zero
-  //     `PRIMARY_FEATHER` of the way in from each edge, so the slab has no left
-  //     or right edge at all — it is a lit patch of the floor with a word in it,
-  //     the way the log line already sits on its own wash.
-  //   * the light comes from ABOVE and lands where the diorama's key does: the
-  //     accent wash peaks on the top edge and falls through the body, and the
-  //     1-px lip along the top is that light meeting the slab, not a rule.
+  //   * the ink is a LOW ELLIPSE that FEATHERS on all four sides: a radial
+  //     gradient under a vertical squash, solid to `PRIMARY_FEATHER` of its
+  //     radius and gone at the rim, so the patch has no straight edge anywhere
+  //     — it is a lit patch of the floor with a word in it, the way the log
+  //     line already sits on its own wash.
+  //   * the light comes from ABOVE and lands where the diorama's key does: an
+  //     additive radial centred on the patch's crown falls off downward and
+  //     outward. There is no lip and no rule; the light has no edge either.
   //   * FOCUS is the same glow-and-lift the rest of the game uses, and it is the
   //     only state that adds an outer bleed. At rest there is none.
   const ph = Math.min(h, 56);
