@@ -232,9 +232,9 @@ const vaultScreen = createVaultScreen({ ...deps, onAnswer });
 
 type Tick = { update(dt: number): void; render(t: number): void; dev(): unknown };
 
-function buildTick(fixture?: string): Tick {
+function buildTick(fixture?: string, screen?: string): Tick {
   const fx = fixture ?? FIXTURE ?? '';
-  switch (SCREEN) {
+  switch (screen ?? SCREEN) {
     case 'party': {
       const party = fx === 'full' ? P_FULL : fx === 'empty' ? P_FRESH : P_MIXED;
       const props = {
@@ -425,12 +425,12 @@ out.textContent = [
   answers: () => answers,
   dev: () => tick.dev(),
   /**
-   * Hand the LIVE screen a different fixture — the same screen instance, a new
-   * payload. This is how "a second decision at a second node must not inherit
-   * the first one's answer" is provable at all: the screens are created once
-   * per page, exactly as main.ts creates them once per run.
+   * Hand the LIVE screen a different fixture — and, with `screen`, a different
+   * FACE of the same screen file (draft -> summon is one DraftScreen instance,
+   * exactly as main.ts creates it once per run). This is how "a second decision
+   * must not inherit the first one's answer or its focus" is provable at all.
    */
-  use: (fixture: string) => { tick = buildTick(fixture); frame(1 / 60); return tick.dev(); },
+  use: (fixture: string, screen?: string) => { tick = buildTick(fixture, screen); frame(1 / 60); return tick.dev(); },
 };
 (window as unknown as { __lineup: unknown }).__lineup = {
   ready: true, screen: SCREEN, fixture: FIXTURE, phone: PHONE, regions: dump.length,

@@ -469,13 +469,17 @@ export function createPartyScreen(deps: PartyScreenDeps): PartyScreen {
     regions.begin();
     addPauseIcon(regions);
     addPartyColumns(regions, party, o);
+    // 8 / 9 / 10, not 0 / 1 / 2: the six slot rows already own 0-5 in this
+    // group, so the contract's button indices put three regions on each of 0, 1
+    // and 2 and every tie fell to registration order. The rows keep 0-5 and the
+    // buttons sit after them (altar-continue 8, vault-continue 19 do the same).
     regions.add('party-swap', PARTY_SWAP.x, PARTY_SWAP.y, PARTY_SWAP.w, PARTY_SWAP.h, {
-      index: 0, group: 'party', disabled: !props.swapEnabled,
+      index: 8, group: 'party', disabled: !props.swapEnabled,
     });
     regions.add('party-leader', PARTY_LEADER.x, PARTY_LEADER.y, PARTY_LEADER.w, PARTY_LEADER.h, {
-      index: 1, group: 'party', disabled: !props.leaderEnabled,
+      index: 9, group: 'party', disabled: !props.leaderEnabled,
     });
-    regions.add('party-back', PARTY_BACK.x, PARTY_BACK.y, PARTY_BACK.w, PARTY_BACK.h, { index: 2, group: 'party' });
+    regions.add('party-back', PARTY_BACK.x, PARTY_BACK.y, PARTY_BACK.w, PARTY_BACK.h, { index: 10, group: 'party' });
     regions.end();
 
     const inColumn = focusedColumn(regions, o);

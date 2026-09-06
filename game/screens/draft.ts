@@ -175,6 +175,17 @@ export function draftSlotRect(k: number, count: number): { x: number; y: number;
 /** The EPIC's own seat when the party is full: the fourth column of the top row. */
 export const EPIC_SLOT = { x: DRAFT_X[3], y: DRAFT_Y[0], w: DRAFT_CARD.w, h: DRAFT_CARD.h } as const;
 
+/**
+ * One id namespace per FACE. All three faces share this grid, and they used to
+ * share its ids too: the registry keeps focus across a transition, so after the
+ * draft's CONTINUE the opening SUMMON came up with the very same
+ * `draft-continue` focused — and on a SUMMON that seat is disabled until a pick,
+ * so the run opened on a dead button reading "pick one". Separate ids mean a
+ * stale focus cannot resolve at all; sync() also drops focus on a new payload,
+ * so the first option takes it (the registry's `first()` = lowest index).
+ */
+export const FACE_ID: Record<DraftProps['kind'], string> = { DRAFT: 'draft', SUMMON: 'summon', REBRAND: 'rebrand' };
+
 export function createDraftScreen(deps: DraftScreenDeps): DraftScreen {
   const { pc, input, regions, audio, scene, onPause, onAnswer } = deps;
   /** The picked option, confirmed by CONTINUE. −1 is "the EPIC" on a full SUMMON. */
@@ -199,6 +210,9 @@ export function createDraftScreen(deps: DraftScreenDeps): DraftScreen {
     lastKey = key;
     chosen = props.kind === 'DRAFT' ? 0 : null;
     step = 'PICK';
+    // A new decision starts on its own first option, never on whatever the last
+    // one left focused: null lets the next end() pick the lowest index.
+    regions.focus(null);
   }
 
   function swapColumns(props: DraftProps): ColumnOptions {
@@ -235,26 +249,27 @@ export function createDraftScreen(deps: DraftScreenDeps): DraftScreen {
     // With the EPIC in the fourth seat the offers are a row of FOUR, so they
     // sit on the contract's own columns instead of being centred under it.
     const layout = full ? 4 : count;
+    const p = FACE_ID[props.kind];
     for (let k = 0; k < count; k++) {
       const r = draftSlotRect(k, layout);
-      regions.add(`draft-${k}`, r.x, r.y, r.w, r.h, { index: k, group: 'draft' });
+      regions.add(`${p}-${k}`, r.x, r.y, r.w, r.h, { index: k, group: 'draft' });
     }
-    if (full) regions.add('draft-epic', EPIC_SLOT.x, EPIC_SLOT.y, EPIC_SLOT.w, EPIC_SLOT.h, { index: count, group: 'draft' });
-    regions.add('draft-continue', CONTINUE.x, CONTINUE.y, CONTINUE.w, CONTINUE.h, {
+    if (full) regions.add(`${p}-epic`, EPIC_SLOT.x, EPIC_SLOT.y, EPIC_SLOT.w, EPIC_SLOT.h, { index: count, group: 'draft' });
+    regions.add(`${p}-continue`, CONTINUE.x, CONTINUE.y, CONTINUE.w, CONTINUE.h, {
       index: 10, group: 'draft', disabled: chosen === null,
     });
     const canDecline = props.kind !== 'DRAFT';
-    if (canDecline) regions.add('draft-decline', WEAR_X[3], WEAR_Y, WEAR_BTN.w, WEAR_BTN.h, { index: 11, group: 'draft' });
+    if (canDecline) regions.add(`${p}-decline`, WEAR_X[3], WEAR_Y, WEAR_BTN.w, WEAR_BTN.h, { index: 11, group: 'draft' });
     regions.end();
 
     const act = regions.activated();
     if (canDecline && input.pressed('B')) { audio.play('cancel'); decline(props); }
-    else if (act === 'draft-decline') { audio.play('cancel'); decline(props); }
-    else if (act === 'draft-epic') { audio.play('card'); chosen = -1; }
-    else if (act === 'draft-continue') confirm(props);
+    else if (act === `${p}-decline`) { audio.play('cancel'); decline(props); }
+    else if (act === `${p}-epic`) { audio.play('card'); chosen = -1; }
+    else if (act === `${p}-continue`) confirm(props);
     else if (act === 'pause-icon') { audio.play('ui'); onPause(); }
-    else if (act && act.startsWith('draft-')) {
-      const k = Number(act.slice(6));
+    else if (act && act.startsWith(`${p}-`)) {
+      const k = Number(act.slice(p.length + 1));
       if (Number.isInteger(k)) {
         audio.play('card');
         chosen = k;
@@ -327,7 +342,7 @@ export function createDraftScreen(deps: DraftScreenDeps): DraftScreen {
     const ctx = pc.ctx;
     const id = props.sets[k];
     const def = SETS[id];
-    const focused = regions.focused() === `draft-${k}`;
+    const focused = regions.focused() === `${FACE_ID.REBRAND}-${k}`;
     const picked = chosen === k;
     drawFocusablePlate(ctx, r.x, r.y, r.w, r.h, focused, picked ? ACCENT : undefined, picked ? 0.68 : 0.55);
     hudText(ctx, def.name, r.x + DRAFT_PAD, r.y + 12, { px: HUD_LARGE, color: picked ? ACCENT : C_TEXT });
@@ -340,7 +355,7 @@ export function createDraftScreen(deps: DraftScreenDeps): DraftScreen {
   function drawEpicCard(props: Extract<DraftProps, { kind: 'SUMMON' }>): void {
     const ctx = pc.ctx;
     const r = EPIC_SLOT;
-    const focused = regions.focused() === 'draft-epic';
+    const focused = regions.focused() === `${FACE_ID.SUMMON}-epic`;
     const picked = chosen === -1;
     const relic = props.epic ?? null;
     const color = relic ? RARITY_COLOR[relic.rarity] : C_VIOLET;
@@ -356,10 +371,11 @@ export function createDraftScreen(deps: DraftScreenDeps): DraftScreen {
   /** The bottom strip: the focused option opened out — cooldowns, targets, base stats. */
   function drawDetail(props: DraftProps, options: DraftOption[], count: number): void {
     const ctx = pc.ctx;
+    const p = FACE_ID[props.kind];
     const focusId = regions.focused() ?? '';
     let k = chosen ?? 0;
-    if (focusId.startsWith('draft-')) {
-      const n = Number(focusId.slice(6));
+    if (focusId.startsWith(`${p}-`)) {
+      const n = Number(focusId.slice(p.length + 1));
       if (Number.isInteger(n)) k = n;
     }
     const strip = draftDetailRect(count);
@@ -443,21 +459,22 @@ export function createDraftScreen(deps: DraftScreenDeps): DraftScreen {
       props.sets.forEach((_id, k) => drawSetCard(props, k, draftSlotRect(k, props.sets.length)));
     } else {
       const layout = props.kind === 'SUMMON' && props.full ? 4 : options.length;
-      options.forEach((option, k) => drawOptionCard(option, draftSlotRect(k, layout), `draft-${k}`, chosen === k));
+      options.forEach((option, k) => drawOptionCard(option, draftSlotRect(k, layout), `${FACE_ID[props.kind]}-${k}`, chosen === k));
     }
     if (props.kind === 'SUMMON' && props.full) drawEpicCard(props);
     drawDetail(props, options, props.kind === 'REBRAND' ? props.sets.length : options.length);
 
+    const face = FACE_ID[props.kind];
     const label = props.kind === 'DRAFT' ? 'BEGIN THE RUN' : props.kind === 'REBRAND' ? 'REBRAND' : 'RECRUIT';
     if (chosen === null) {
       hudTextCentered(ctx, 'pick one', CONTINUE.x, CONTINUE.y + 34, CONTINUE.w, HUD_PX, { color: C_MUTED, alpha: 0.7 });
     } else {
       drawPrimaryButton(ctx, CONTINUE.x, CONTINUE.y, CONTINUE.w, CONTINUE.h, label,
-        regions.focused() === 'draft-continue', regions.pressing() === 'draft-continue');
+        regions.focused() === `${face}-continue`, regions.pressing() === `${face}-continue`);
     }
     if (props.kind !== 'DRAFT') {
       const declineLabel = props.kind === 'REBRAND' ? props.declineLabel ?? 'DECLINE' : 'DECLINE';
-      drawSecondaryButton(ctx, WEAR_X[3], WEAR_Y, WEAR_BTN.w, WEAR_BTN.h, declineLabel, regions.focused() === 'draft-decline');
+      drawSecondaryButton(ctx, WEAR_X[3], WEAR_Y, WEAR_BTN.w, WEAR_BTN.h, declineLabel, regions.focused() === `${face}-decline`);
     } else {
       hudTextCentered(ctx, 'the draft cannot be declined', WEAR_X[3], WEAR_Y + 34, WEAR_BTN.w, HUD_SMALL, {
         px: HUD_SMALL, color: C_MUTED, alpha: 0.6,
