@@ -25,7 +25,7 @@ import { bakeSprite, drawBaked, makeSprite } from '../engine';
 import { ACTOR_RECIPES, bakePose } from '../game/art/actors';
 import type { PoseName } from '../game/art/actors';
 import { EMBER_STUDY } from '../game/art/pixel/ember-study';
-import type { StudyPose } from '../game/art/pixel/ember-study';
+import type { PixelStudy, StudyPose } from '../game/art/pixel/ember-study';
 
 const params = new URLSearchParams(location.search);
 const POSES: readonly StudyPose[] = ['idle', 'attack', 'hurt', 'cast', 'dead'];
@@ -38,6 +38,8 @@ const zooms = (params.get('zooms') ?? '2,4,8')
   .split(',')
   .map((s) => Math.round(Number(s)))
   .filter((z) => z >= 1 && z <= 16);
+/** id of a tools/intake.mjs-generated PixelStudy module to draw as a column after the study; absent = today's sheet, unchanged. */
+const genId = params.get('gen');
 
 interface RefSpec {
   key: string;
@@ -206,6 +208,13 @@ function toGrey(target: HTMLCanvasElement): void {
   ctx.putImageData(img, 0, 0);
 }
 
+/** Duck-types a dynamically-imported module's export as a PixelStudy (its type is erased for a computed import specifier). */
+function looksLikeStudy(v: unknown): v is PixelStudy {
+  if (!v || typeof v !== 'object') return false;
+  const o = v as Record<string, unknown>;
+  return 'poses' in o && 'map' in o && 'feet' in o && 'hitSize' in o;
+}
+
 async function main(): Promise<void> {
   const recipe = ACTOR_RECIPES.EMBER;
   const kitBmp = bakePose(recipe, pose as PoseName, frame, 'FIRE');
@@ -249,6 +258,39 @@ async function main(): Promise<void> {
       drawBaked(ctx, studyBmp, x + Math.round(EMBER_STUDY.feet.x * z), groundY, { scale: z, originX: EMBER_STUDY.feet.x, originY: EMBER_STUDY.feet.y });
     },
   });
+
+  // The `gen` column: a tools/intake.mjs output, loaded ONLY when ?gen=<id>
+  // is given. Dynamic (computed-specifier) import so a missing module never
+  // breaks the sheet — every other column still renders, gen is just absent.
+  let genMetrics: StudyMetrics | null = null;
+  if (genId) {
+    try {
+      const file = genId.toLowerCase().replace(/_/g, '-');
+      const mod: unknown = await import(/* @vite-ignore */ `/game/art/pixel/${file}.ts`);
+      const namespace = mod as Record<string, unknown>;
+      const candidate = looksLikeStudy(namespace[genId]) ? namespace[genId] : Object.values(namespace).find(looksLikeStudy);
+      if (!looksLikeStudy(candidate)) throw new Error(`no PixelStudy export found in game/art/pixel/${file}.ts`);
+      const genStudy = candidate;
+      const gRows = genStudy.poses[pose]?.[frame] ?? genStudy.poses[pose]?.[0] ?? genStudy.poses.idle[0];
+      const gWidth = gRows[0]?.length ?? 0;
+      for (const r of gRows) {
+        if (r.length !== gWidth) throw new Error(`${genId} ${pose}[${frame}]: row lengths differ (${r.length} vs ${gWidth})`);
+      }
+      if (gRows.length > 64 || gWidth > 48) throw new Error(`${genId} ${pose}[${frame}]: ${gWidth}x${gRows.length} exceeds 48x64`);
+      const genSprite = makeSprite([...gRows], genStudy.map);
+      const genBmp = bakeSprite(genSprite, 1);
+      columns.push({
+        label: `${genId} gen · ${pose} ${frame}`,
+        size: (z) => ({ w: genBmp.width * z, h: genBmp.height * z }),
+        draw: (ctx, z, x, groundY) => {
+          drawBaked(ctx, genBmp, x + Math.round(genStudy.feet.x * z), groundY, { scale: z, originX: genStudy.feet.x, originY: genStudy.feet.y });
+        },
+      });
+      genMetrics = measure(genId, genBmp);
+    } catch (err) {
+      console.warn(`gen column skipped: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
 
   // Layout: one row per zoom; every column bottom-aligned on the row's ground line.
   const rowTops: number[] = [];
@@ -313,8 +355,19 @@ async function main(): Promise<void> {
     'figure         h   w  cells  p50L*  <L35%  >L75%  colours  comps',
     line(study),
     line(current),
+    ...(genMetrics ? [line(genMetrics)] : []),
   ].join('\n');
-  (window as unknown as { __study: unknown }).__study = { ready: true, pose, frame, mode, bg, zooms, study, current };
+  (window as unknown as { __study: unknown }).__study = {
+    ready: true,
+    pose,
+    frame,
+    mode,
+    bg,
+    zooms,
+    study,
+    current,
+    ...(genMetrics ? { gen: genMetrics } : {}),
+  };
 }
 
 main().catch((err: unknown) => {

@@ -25,6 +25,11 @@ node tools/rulers.mjs [actors=…] [json=1] | hash [out=…] [against=…]
 node tools/probe.mjs crop | diff | step | ground | refval
                                  # frame probes: pixels side by side, what moved between two frames,
                                  # a vertical value step, the ground under each rank, a reference crop
+node tools/intake.mjs <in.png> [id=EMBER_GEN] [cell=<px>] [bg=auto|#rrggbb] [cols=40] [rows=64] [palette=study|<n>] [out=…]
+                                 # turns a generated reference image into the PixelStudy grid shape
+                                 # (game/art/pixel/*.ts); judge it on tools/study.html?gen=<id> beside
+                                 # the study and the kit; writes tools/out/intake-<id>-x8.png + a JSON
+                                 # summary (bbox, pitch, colours, mean ΔE, components, L* stats)
 ```
 
 Playable at http://localhost:5173/: title → draft (three of six, leader
