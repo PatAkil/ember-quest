@@ -379,6 +379,36 @@ const SWAY_RATE = 0.09;
 const BLOOM_DIV_HIGH = 4;
 const BLOOM_DIV_MED = 8;
 const BLOOM_ALPHA = 0.5;
+/**
+ * How much of the bloom is taken back off the ACTOR PLANE, over the same
+ * ellipse the gain uses.
+ *
+ * The bloom is the last additive term left on a sprite, and round 5 measured
+ * what that costs once the ground under the actors carries value. With ONE
+ * sprite (GALE) planted at all six seats of the crypt at HIGH, the same pose,
+ * the same pixels — sheet p50 36.0 at every seat — the frame read p50 47.4 to
+ * 57.5: an **8.2 L spread** with the per-actor gain contributing a nearly flat
+ * +12.6 to +18.9. At MED (an eighth-res bloom) the spread was 4.3; at LOW,
+ * which draws no bloom at all, it was **0.4**. The seat lottery is the bloom
+ * and nothing else: it is frame-derived, so a sprite standing where the floor
+ * happens to be bright — the near hero seat, or the enemy seat the crypt's
+ * brazier blooms across — is lifted by however bright that patch is.
+ *
+ * Additive is also the wrong law for a sprite's DISTRIBUTION. A constant added
+ * in sRGB moves every cell by the same number of L*, so it eats the dark tail
+ * first: it is why a hero authored with 48 % of its torso below L 35 arrived
+ * with 10 %. The gain (`GAIN_FLOOR`) is multiplicative and preserves the
+ * spread, so what the bloom is taken off by is given back there.
+ *
+ * NOT everywhere. The mask feathers — full over the inner 62 % of the ellipse
+ * and back to nothing at its edge — so the halo a lit prop throws into the AIR
+ * survives; only the part landing on the carrier's own cells goes. A `'vfx'`
+ * box is never damped at all: an effect IS the bright thing the bloom exists
+ * to catch. At 1 the frame keeps 205 of 216 hero seat-readings inside the
+ * review's value bar against 196 at 0.9, which is the trade this number is
+ * making.
+ */
+const BLOOM_ACTOR_DAMP = 1;
 
 /** Radial gradients are cached per this many px of radius. */
 const RADIUS_BUCKET = 8;
@@ -441,8 +471,8 @@ const RIM_PUSH_Y = 0.22;
  * neutral, at 1 it carries the rim colour's own channel ratio, which over-warms
  * a garment the biome has already tinted.
  */
-const GAIN_FLOOR = 0.30;
-const GAIN_LIFT = 0.28;
+const GAIN_FLOOR = 0.14;
+const GAIN_LIFT = 0.32;
 const GAIN_TINT = 0.45;
 /**
  * The gain's footprint, as fractions of the actor's box. Deliberately TIGHTER
@@ -450,6 +480,28 @@ const GAIN_TINT = 0.45;
  * boxes, so two neighbours overlap by a third, and two gains MULTIPLY where two
  * washes only added. At 0.66 x 0.98 the ellipses meet instead of stacking.
  */
+/**
+ * The per-frame SEAT CAP: how far one body's source reach may sit from the
+ * median body's, before the gain is computed from it.
+ *
+ * The pools are ellipses on the floor and the seats are a diagonal across
+ * them, so reach at the six anchors runs 0.18 to 0.99 in the crypt — a 0.8
+ * spread, which at `GAIN_LIFT` is ~8 L of gain between the best-lit and the
+ * worst-lit seat, on top of whatever the sprite itself is. Round 11 called
+ * that out as "the near hero seat is the brightest thing on the stage", and
+ * the review's own rule is that no seat's torso p50 may sit more than 5 L
+ * above the median seat's.
+ *
+ * Geometry alone cannot deliver that — the pools have to stay where the feet
+ * are — so the rig compresses instead: every actor's reach is clamped into a
+ * band around the MEDIAN actor's reach in the same frame. Inside the band the
+ * light still varies, which is the point of having pools at all; outside it,
+ * no body may be more than `GAIN_SPREAD_CAP` of reach clear of the pack. It is
+ * a relative law, so a frame of one actor is unchanged, and `'vfx'` boxes are
+ * excluded from the median and never capped.
+ */
+const GAIN_SPREAD_CAP = 0.14;
+
 const GAIN_RX = 0.66;
 const GAIN_RY = 0.98;
 
@@ -481,6 +533,9 @@ const GLOW_POOL_SQUASH = 0.24;
 
 /** Contact shadows are ink, not tint: one colour, hard edge, every biome. */
 const SHADOW_INK = '#05060b';
+/** The cast lobe's peak alpha and its foreshortening (see drawContactShadow). */
+const SHADOW_CAST_ALPHA = 0.82;
+const SHADOW_CAST_SQUASH = 0.42;
 
 /** note(): the contract's one-way quality drop. */
 const SLOW_FRAME_MS = 20;
@@ -880,6 +935,25 @@ function softSprite(color: string, size: number): HTMLCanvasElement {
 }
 
 /**
+ * The actor-plane damp mask: opaque across the body and feathering to nothing
+ * at the ellipse's edge, so the bloom is removed from the sprite's own cells
+ * and left in the air around it (see BLOOM_ACTOR_DAMP). Baked once.
+ */
+function bloomDampSprite(): HTMLCanvasElement {
+  const size = 64;
+  const cv = makeCanvas(size, size);
+  const c = ctx2d(cv);
+  const g = c.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.62, 'rgba(255,255,255,1)');
+  g.addColorStop(0.86, 'rgba(255,255,255,0.55)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  c.fillStyle = g;
+  c.fillRect(0, 0, size, size);
+  return cv;
+}
+
+/**
  * The sky body as a LIGHT: a hot core that holds its value across the disc, a
  * soft limb, then a long falloff to nothing at `halo`. Five stops rather than
  * softSprite's three, because this one is judged after a 0.5 multiply — the
@@ -1153,6 +1227,18 @@ export function createLight(opts: CreateLightOptions): Light {
   const glowA: number[] = [];
   let glowN = 0;
 
+  // The actor-plane damp list, filled in the same pass and read by the bloom
+  // (see BLOOM_ACTOR_DAMP). Pooled exactly like the glow list; a 'vfx' box
+  // never enters it.
+  const reachBuf: number[] = [];
+  const reachSorted: number[] = [];
+  const dampX: number[] = [];
+  const dampY: number[] = [];
+  const dampRX: number[] = [];
+  const dampRY: number[] = [];
+  let dampN = 0;
+  let dampSprite: HTMLCanvasElement | null = null;
+
   function ensureBaked(): Baked | null {
     if (!look) return null;
     if (baked && baked.id === look.id && baked.tier === tier) return baked;
@@ -1219,6 +1305,9 @@ export function createLight(opts: CreateLightOptions): Light {
       if (!b || !look) return;
       shakeX = frame.shakeX ?? 0;
       shakeY = frame.shakeY ?? 0;
+      // The mote clock lives here now that the motes do (see DUST IN THE BEAM).
+      const dt = lastTime < 0 ? 0 : Math.max(0, Math.min(0.1, frame.time - lastTime));
+      lastTime = frame.time;
       const sway = Math.sin(frame.time * SWAY_RATE) * SWAY_PX;
       if (b.flat) {
         // LOW / ARCADE: one opaque draw, key light and grade already in it.
@@ -1253,15 +1342,83 @@ export function createLight(opts: CreateLightOptions): Light {
         ctx.drawImage(b.lightMap, 0, 0);
         ctx.restore();
       }
+
+      // THE FOG BANDS, and they are drawn HERE — behind the actors, at the end
+      // of the background — not in renderLightPlane over the top of them.
+      //
+      // On a frame with nobody on the stage this is the same picture to the
+      // byte: renderLightPlane's first act was the per-actor loop (which does
+      // nothing with no actors) and its second was this block, so [planes]
+      // [light map][fog] is the order either way. With actors it is a different
+      // frame, and the measurement is why. Round 5 planted ONE sprite at all
+      // six seats of the crypt: identical pixels, sheet p50 36.0 everywhere,
+      // and the frame read a 6.6 L spread across the seats. The fog is a strip
+      // drawn TWICE at `fog.y` and `fog.y + height * 0.42` — 300 and 409 in the
+      // crypt — so a sprite standing in the near rank has both bands over it
+      // and a sprite in the far rank has one, which lifted the near enemy seat
+      // 4 L above the median for no reason an artist could see or fix. Killing
+      // the fog and motes over the actor plane took the spread to 2.3.
+      //
+      // It is also the right way round: aerial perspective is between the
+      // planes, not a wash over the thing the camera is focused on. The motes
+      // stay over the actors — they are dust in the beam, sparse and in front.
+      const fl = look.fog;
+      if (b.fogBand && fl.alpha > 0) {
+        const band = b.fogBand;
+        ctx.save();
+        for (let i = 0; i < fl.bands; i++) {
+          const dir = i % 2 === 0 ? 1 : -1;
+          const span = band.width;
+          let x = ((frame.time * fl.speed * dir * (0.6 + i * 0.35)) % span) - span * 0.25;
+          if (x > 0) x -= span;
+          const y = fl.y + i * fl.height * 0.42;
+          ctx.globalAlpha = fl.alpha * (1 - i * 0.22);
+          ctx.drawImage(band, Math.round(x), Math.round(y));
+          // The wrap copy only when the first one leaves a gap on the right.
+          if (x + span < W) ctx.drawImage(band, Math.round(x + span), Math.round(y));
+        }
+        ctx.restore();
+      }
+
+      // DUST IN THE BEAM — and behind the actors, with the fog, for the same
+      // reason and a bigger number. The motes are 64 additive blobs up to ~36 px
+      // across at seeded positions; where a few of them happen to cluster they
+      // are worth SIX L on whatever sprite stands there. In the crypt they sit
+      // over the near enemy seat, and that one accident was most of round 5's
+      // 6.6 L seat spread: turning the motes off alone took it to 3.0. Nothing
+      // an artist can see, nothing an artist can fix, and it moves with the
+      // seed rather than with the light. Behind the actor plane it is still the
+      // same dust in the same beam — the actor plane is the one the camera is
+      // focused on, and since round 3 the NEAR plane is under the actors too.
+      if (b.moteSprite && b.motes.length) {
+        const m = look.motes;
+        const sprite = b.moteSprite;
+        const sw = sprite.width;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (let i = 0; i < b.motes.length; i++) {
+          const p = b.motes[i];
+          p.y += m.rise * p.speed * dt;
+          if (p.y < 90) p.y = H - 30;
+          else if (p.y > H - 20) p.y = 100;
+          p.x += Math.cos(frame.time * 0.5 + p.seed) * m.drift * dt;
+          if (p.x < -20) p.x = W + 10;
+          else if (p.x > W + 20) p.x = -10;
+          const tw = 0.55 + 0.45 * Math.sin(frame.time * 1.6 + p.seed * 3);
+          const size = sw * p.scale;
+          ctx.globalAlpha = p.alpha * tw;
+          ctx.drawImage(sprite, p.x - size / 2, p.y - size / 2, size, size);
+        }
+        ctx.restore();
+      }
     },
 
     renderLightPlane(ctx, frame) {
       glowN = 0;
+      dampN = 0;
       const b = ensureBaked();
       if (!b || !look || b.flat) return; // LOW has no light plane at all.
       const l = look;
-      const dt = lastTime < 0 ? 0 : Math.max(0, Math.min(0.1, frame.time - lastTime));
-      lastTime = frame.time;
 
       // 3. The actor plane's own light, per actor: first the multiplicative
       //    GAIN that replaced the additive wash (see GAIN_FLOOR), then the
@@ -1276,10 +1433,60 @@ export function createLight(opts: CreateLightOptions): Light {
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
         const srcN = b.srcX.length;
+        // PASS ONE: every body's raw reach, and the median of them. Two pooled
+        // arrays, at most sixteen entries, no allocation (see GAIN_SPREAD_CAP).
+        let bodyN = 0;
+        for (let i = 0; i < actors.length; i++) {
+          const a = actors[i];
+          if (a.kind === 'vfx') continue;
+          const cx0 = a.x + a.w / 2;
+          const fy0 = a.y + a.h;
+          let bw = 0;
+          for (let s = 0; s < srcN; s++) {
+            const ox = b.srcX[s] - cx0;
+            const oy = b.srcY[s] - fy0;
+            const nd = Math.hypot(ox / b.srcRX[s], oy / b.srcRY[s]);
+            const w = nd >= 1 ? 0 : b.srcW[s] * (1 - nd);
+            if (w > bw) bw = w;
+          }
+          reachBuf[bodyN] = Math.min(1, bw / RIM_REF);
+          reachSorted[bodyN] = reachBuf[bodyN];
+          bodyN++;
+        }
+        let medReach = 0;
+        if (bodyN > 0) {
+          // Insertion sort over <= 16 pooled entries; sort() would allocate.
+          for (let i = 1; i < bodyN; i++) {
+            const v = reachSorted[i];
+            let j = i - 1;
+            while (j >= 0 && reachSorted[j] > v) { reachSorted[j + 1] = reachSorted[j]; j--; }
+            reachSorted[j + 1] = v;
+          }
+          medReach = reachSorted[bodyN >> 1];
+        }
+        let bodyI = 0;
         for (let i = 0; i < actors.length; i++) {
           const a = actors[i];
           const cx = a.x + a.w / 2;
           const cy = a.y + a.h * 0.42;
+          // WHERE THE SOURCE TEST HAPPENS: at the actor's FEET, not at its
+          // chest. `cy` above is the centre of mass and it is still where the
+          // gain and the spill are CENTRED, but the question "which light is on
+          // this actor, and how hard" is answered at `fy` — the ground the
+          // actor is standing on.
+          //
+          // The two floor pools are ellipses centred at the floor line with
+          // ry ~ 116; a standing figure's chest is ~65 px above its feet, which
+          // is more than half of that. So an actor standing squarely IN a pool
+          // had its chest tested near the pool's edge, and the seats standing in
+          // the brightest light drew the least gain. Measured on the crypt with
+          // one sprite at all six seats: the enemy-1 seat has the brightest
+          // ground of the six (strip relY 122 against 87-104) and drew the
+          // LOWEST reach of the six (0.23); at the feet it draws 0.62, and the
+          // near hero seat — the one round 11 called the brightest on the stage
+          // — drops from 0.83 to 0.55. The rig now tracks the floor it is
+          // lighting bodies against, which is the whole point of a floor pool.
+          const fy = a.y + a.h;
           // Which light is actually on this actor? A single centred pool peaks
           // where nobody stands, so a flat rim alpha left one whole half of the
           // stage diagonal reading as unlit. Walk the sources, keep the
@@ -1295,7 +1502,7 @@ export function createLight(opts: CreateLightOptions): Light {
           let by = 0;
           for (let s = 0; s < srcN; s++) {
             const ox = b.srcX[s] - cx;
-            const oy = b.srcY[s] - cy;
+            const oy = b.srcY[s] - fy;
             const nd = Math.hypot(ox / b.srcRX[s], oy / b.srcRY[s]);
             const w = nd >= 1 ? 0 : b.srcW[s] * (1 - nd);
             if (w > best) {
@@ -1317,7 +1524,14 @@ export function createLight(opts: CreateLightOptions): Light {
             dx /= bn;
             dy /= bn;
           }
-          const reach = Math.min(1, best / RIM_REF);
+          // The capped reach (see GAIN_SPREAD_CAP). A 'vfx' box never entered
+          // the median and is not capped; it takes its raw value and uses it
+          // for nothing but the spill it does not draw.
+          let reach = Math.min(1, best / RIM_REF);
+          if (a.kind !== 'vfx') {
+            const raw = reachBuf[bodyI++];
+            reach = medReach + Math.max(-GAIN_SPREAD_CAP, Math.min(GAIN_SPREAD_CAP, raw - medReach));
+          }
           // 3a. THE GAIN. `'color-dodge'` with this sprite's flat colour is a
           //     per-channel multiply, and with a flat colour under a feathered
           //     alpha the compositing formula is exactly
@@ -1328,6 +1542,14 @@ export function createLight(opts: CreateLightOptions): Light {
           //     needs. Centred on the box and NOT pushed toward the light: the
           //     sprite's own baked rim already carries the direction, and a
           //     pushed gain lights the air on one side instead of the figure.
+          if (a.kind !== 'vfx' && dampN < 16) {
+            // The bloom's share of THIS body, to be taken back in renderPost.
+            dampX[dampN] = cx;
+            dampY[dampN] = cy;
+            dampRX[dampN] = a.w * GAIN_RX * 0.5;
+            dampRY[dampN] = a.h * GAIN_RY * 0.5;
+            dampN++;
+          }
           // A 'vfx' box is an effect's bounds, not a body: no gain, no spill,
           // only the glow below (see LightActor.kind).
           if (gainS && a.kind !== 'vfx') {
@@ -1387,47 +1609,6 @@ export function createLight(opts: CreateLightOptions): Light {
         ctx.restore();
       }
 
-      // 4. Fog: the same strip twice, drifting in opposite directions.
-      if (b.fogBand && l.fog.alpha > 0) {
-        const band = b.fogBand;
-        ctx.save();
-        for (let i = 0; i < l.fog.bands; i++) {
-          const dir = i % 2 === 0 ? 1 : -1;
-          const span = band.width;
-          let x = ((frame.time * l.fog.speed * dir * (0.6 + i * 0.35)) % span) - span * 0.25;
-          if (x > 0) x -= span;
-          const y = l.fog.y + i * l.fog.height * 0.42;
-          ctx.globalAlpha = l.fog.alpha * (1 - i * 0.22);
-          ctx.drawImage(band, Math.round(x), Math.round(y));
-          // The wrap copy only when the first one leaves a gap on the right.
-          if (x + span < W) ctx.drawImage(band, Math.round(x + span), Math.round(y));
-        }
-        ctx.restore();
-      }
-
-      // 5. Dust in the beam. Seeded, pooled, additive; the y wrap keeps the
-      //    field inside the stage instead of raining on the ribbon.
-      if (b.moteSprite && b.motes.length) {
-        const m = l.motes;
-        const sprite = b.moteSprite;
-        const sw = sprite.width;
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        for (let i = 0; i < b.motes.length; i++) {
-          const p = b.motes[i];
-          p.y += m.rise * p.speed * dt;
-          if (p.y < 90) p.y = H - 30;
-          else if (p.y > H - 20) p.y = 100;
-          p.x += Math.cos(frame.time * 0.5 + p.seed) * m.drift * dt;
-          if (p.x < -20) p.x = W + 10;
-          else if (p.x > W + 20) p.x = -10;
-          const tw = 0.55 + 0.45 * Math.sin(frame.time * 1.6 + p.seed * 3);
-          const size = sw * p.scale;
-          ctx.globalAlpha = p.alpha * tw;
-          ctx.drawImage(sprite, p.x - size / 2, p.y - size / 2, size, size);
-        }
-        ctx.restore();
-      }
     },
 
     renderPost(ctx, frame) {
@@ -1504,6 +1685,26 @@ export function createLight(opts: CreateLightOptions): Light {
           if (bloomMid && bloomMidCtx) {
             bloomMidCtx.globalCompositeOperation = 'copy';
             bloomMidCtx.drawImage(bloomB, 0, 0, bloomW, bloomH, 0, 0, bloomMid.width, bloomMid.height);
+            // ...and the actor plane's share of it comes straight back off
+            // (see BLOOM_ACTOR_DAMP). One 'destination-out' ellipse per body
+            // on the half-res buffer, from a sprite baked once: at most sixteen
+            // draws over 640x360, no readback and no allocation. It runs inside
+            // the refresh branch because that is where the buffer is written —
+            // the bloom source is already an alternate-frame signal by design,
+            // so the damp is exactly as fresh as the thing it damps.
+            if (dampN > 0) {
+              if (!dampSprite) dampSprite = bloomDampSprite();
+              const k = bloomMid.width / W;
+              bloomMidCtx.save();
+              bloomMidCtx.globalCompositeOperation = 'destination-out';
+              bloomMidCtx.globalAlpha = BLOOM_ACTOR_DAMP;
+              for (let i = 0; i < dampN; i++) {
+                const rx = dampRX[i] * k;
+                const ry = dampRY[i] * k;
+                bloomMidCtx.drawImage(dampSprite, dampX[i] * k - rx, dampY[i] * k - ry, rx * 2, ry * 2);
+              }
+              bloomMidCtx.restore();
+            }
           }
         }
         if (bloomB && bloomMid && bloomMidCtx) {
@@ -1582,9 +1783,33 @@ export function createLight(opts: CreateLightOptions): Light {
       // L 19 and read as a black sticker under every actor. These land it back
       // at L 29-30 — a shade heavier than it used to read, which is the right
       // side to err on for contact.
+      //
+      // ROUND 5 ADDS THE CAST LOBE. The two ellipses below are CONTACT — they
+      // say the feet touch the floor, and they reach about five px past them.
+      // On round 4's floor that is no longer the whole job: the ground the
+      // actors stand on now carries L 36-44 inside the pools, and the review's
+      // in-scene ruler is the actor's median against that ground. A figure lit
+      // from upper left throws a shadow down and to the RIGHT, and in
+      // `octopath-4` those cast shadows are the darkest marks on the sand. So a
+      // third, softer, longer lobe leans away from the key, at two thirds of
+      // the contact alpha and falling to nothing. One more ellipse per actor,
+      // drawn on the floor and never on a sprite, and invisible to the
+      // actorless backdrop captures, which never call this.
       const rx = w * 0.4;
       const ry = Math.max(2, rx * 0.2);
       ctx.save();
+      const lx = x + rx * 0.55;
+      const ly = y + ry * 1.7;
+      const lr = rx * 2.3;
+      ctx.save();
+      ctx.globalAlpha = SHADOW_CAST_ALPHA;
+      ctx.translate(lx, ly);
+      ctx.scale(1, SHADOW_CAST_SQUASH);
+      // The shared cache, so a per-actor cast shadow is a Map lookup and not a
+      // gradient construction: nothing here allocates per frame.
+      ctx.fillStyle = radial(ctx, SHADOW_INK, lr);
+      ctx.fillRect(-lr, -lr, lr * 2, lr * 2);
+      ctx.restore();
       ctx.fillStyle = SHADOW_INK;
       ctx.globalAlpha = 0.34;
       ctx.beginPath();
