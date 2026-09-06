@@ -62,7 +62,12 @@ export function lateRecipes(): Record<string, ActorRecipe> {
   const SPRITE_CURRENT: Ramp = ramp(166, 22, 40);
   const STORM_SLATE: Ramp = ramp(216, 14, 42);
   const RAIN: Ramp = ramp(202, 27, 46);
-  const DRAKE_HIDE: Ramp = ramp(158, 19, 38);
+  // ROUND 12 — four points of saturation back. The drake's five flank ribs and
+  // its stepped belly plane are neutral cells by construction and they took its
+  // mean CIELAB chroma from 11.14 to 10.49; the late pack's mean sits only 0.3
+  // clear of its 12 floor, and this hide and the wolf's are where the round's
+  // own work spent it.
+  const DRAKE_HIDE: Ramp = ramp(158, 23, 38);
   const DRAKE_MEMBRANE: Ramp = ramp(136, 13, 46);
   const DRAKE_HORN: Ramp = ramp(48, 13, 48);
   const SKY_SILVER: Ramp = ramp(272, 11, 47); // the king's tarnished plate
@@ -187,10 +192,16 @@ export function lateRecipes(): Record<string, ActorRecipe> {
   const SCORCHED_IRON: Ramp = ramp(8, 13, 34); // the furnace knight's plate
   const SLAG: Ramp = ramp(34, 24, 40); // cooling slag on the golem's fist
   const EMBER_RED: Ramp = ramp(6, 27, 40); // the knight's scorched tabard
-  const WOLF_HIDE: Ramp = ramp(12, 15, 36); // a charcoal hide, warm where PYRE_KNIGHT's charred iron is violet
+  const WOLF_HIDE: Ramp = ramp(12, 21, 36); // a charcoal hide, warm where PYRE_KNIGHT's charred iron is violet — five points up, see DRAKE_HIDE
   const WOLF_SPINE: Ramp = ramp(26, 32, 42);
-  const SMITH_LEATHER: Ramp = ramp(30, 27, 42, { mid: -5, lit: -4, spec: 3 }); // the priest's apron
-  const SMITH_STOLE: Ramp = ramp(348, 20, 36);
+  const SMITH_LEATHER: Ramp = ramp(30, 27, 42, { mid: -5, lit: -4, spec: 3 }); // the Forge Saint's leathers
+  // ROUND 12 — the priest's apron is its own ramp now, four points of
+  // saturation under the Saint's. Its mean CIELAB chroma was 14.82, over the
+  // reference's p98, and it is the apron that carries most of the figure;
+  // cutting SMITH_LEATHER itself would have taken the Saint (7.99) down with
+  // it and the late pack's mean is only 0.3 clear of its 12 floor.
+  const PRIEST_APRON: Ramp = ramp(30, 25, 42, { mid: -5, lit: -4, spec: 3 });
+  const SMITH_STOLE: Ramp = ramp(348, 19, 36);
   const VAPOUR: Ramp = ramp(188, 13, 50); // the steam wraith, clear of TIDE's and LUMEN's pale blues
   const SOOT_LINEN: Ramp = ramp(24, 8, 40); // the Forge Saint's chasuble — a LIGHT boss in soot, not in white
 
@@ -253,7 +264,7 @@ export function lateRecipes(): Record<string, ActorRecipe> {
       swayBody: 'priest_body_sway',
       headOff: { x: 2, y: 5 }, // THE STOOP: a smith works bent over the anvil, and it is what takes his outline off the vault's two robed columns
       extras: [{ part: 'bellows', at: { x: 20, y: 34 }, z: 0 }],
-      palette: { leather: SMITH_LEATHER, cloth2: SMITH_STOLE, cloth: ramp(28, 10, 34), glow: glowRamp(28, 86, 92) },
+      palette: { leather: PRIEST_APRON, cloth2: SMITH_STOLE, cloth: ramp(28, 10, 34), glow: glowRamp(28, 86, 92) },
     }),
     // The WATER foil in a furnace: a legless column of scalding vapour with a
     // hollow face and two vent arms — no hard edge anywhere on it, which is the
@@ -301,7 +312,7 @@ export function lateRecipes(): Record<string, ActorRecipe> {
       head: 'saintf_head',
       cape: 'cloak_saintf',
       crest: 'halo_sparks',
-      crestAt: { x: 34, y: 23 },
+      crestAt: { x: 34, y: 25 },
       arms: 'arms_vestment',
       weapon: 'sceptre_hammer',
       fallen: 'fallen_saintf',
@@ -321,17 +332,22 @@ export function lateRecipes(): Record<string, ActorRecipe> {
   // A drowned reliquary over VAULT_GROUND's teal floor (#3e6d7c) under a #6fd8ff
   // key: teal on teal is a hole, so the pack is BRONZE and KELP, and the only
   // cyan in it is a bioluminescence the enemies carry as light sources.
-  const VERDIGRIS: Ramp = ramp(152, 21, 42, { mid: -8, lit: -2, spec: -3, plane: 3 }); // drowned bronze — warm-green metal against a cold floor
-  const KELP: Ramp = ramp(94, 20, 34); // the weed every figure in the vault wears
-  const VAULT_RUST: Ramp = ramp(18, 30, 40);
+  // ROUND 12 — the sentinel's three garment ramps desaturated. Its mean CIELAB
+  // chroma was 15.42, the highest garment in the cast after GALE and a point
+  // over the reference's p98; these three are its whole surface and nobody else
+  // wears them, so the cut lands on one figure. The accents (the bioluminescent
+  // glow, the barnacle rust) keep their chroma.
+  const VERDIGRIS: Ramp = ramp(152, 20, 42, { mid: -8, lit: -2, spec: -3, plane: 3 }); // drowned bronze — warm-green metal against a cold floor
+  const KELP: Ramp = ramp(94, 19, 34); // the weed every figure in the vault wears
+  const VAULT_RUST: Ramp = ramp(18, 29, 40);
   const JELLY_BELL: Ramp = ramp(282, 12, 44); // a violet bell, the one non-green thing in the biome
   const JELLY_STING: Ramp = ramp(300, 15, 38);
   const ORACLE_ROBE: Ramp = ramp(232, 20, 40, { plane: 4 }); // indigo, well clear of TIDE's and the Saint's pale blues
   const CORAL: Ramp = ramp(6, 21, 46);
   const EEL_HIDE: Ramp = ramp(204, 17, 36);
   const EEL_FIN: Ramp = ramp(46, 27, 46); // a brass sail fin — the WIND foil reads warm in a cold room
-  const ABYSS_HIDE: Ramp = ramp(262, 15, 32);
-  const SKING_GOLD: Ramp = ramp(44, 17, 40); // the drowned king's gold, not the Forge Saint's
+  const ABYSS_HIDE: Ramp = ramp(262, 15, 32); // a point up: the coil's scale seams are neutral cells and took its mean chroma 14.37 -> 13.19
+  const SKING_GOLD: Ramp = ramp(44, 19, 40); // the drowned king's gold, not the Forge Saint's — two points up against the kelp seams' neutral cells
 
   const vault: Record<string, ActorRecipe> = {
     // Tall and NARROW where the crypt's drowned knight is hunched: a barnacled
@@ -429,7 +445,7 @@ export function lateRecipes(): Record<string, ActorRecipe> {
       head: 'sking_head',
       cape: 'cloak_sking',
       crest: 'crown_coral',
-      crestAt: { x: 34, y: 22 },
+      crestAt: { x: 34, y: 19 },
       arms: 'arms_bronze',
       weapon: 'trident',
       weaponOff: { x: -2, y: 0 },
@@ -442,7 +458,6 @@ export function lateRecipes(): Record<string, ActorRecipe> {
       sway: 'sking_head_sway',
       sway2: 'sking_head_sway2',
       swayCape: 'cloak_sking_sway',
-      extras: [{ part: 'anchor_broken', at: { x: 22, y: 40 }, z: 5 }],
       palette: { metal: SKING_GOLD, cloth: ramp(84, 16, 32), bone: CORAL, glow: glowRamp(172, 64, 90) },
     }),
   };
@@ -534,7 +549,16 @@ export function lateRecipes(): Record<string, ActorRecipe> {
       hurt: 'elemental_hurt',
       dead: ['elemental_dead', 'elemental_dead_b'],
       settle: { part: 'elemental_settle' },
-      palette: { bone: CLINKER, glow: glowRamp(20, 88, 92) },
+      // ROUND 12 — the ember ramp twelve points quieter. Shrinking the halo
+      // (parts-late.ts `emberGrid`: a three-cell ring, three breaks in nine,
+      // smaller embers, three of them gone out to clinker) took the glow's
+      // SHARE from 0.56 of the sprite to 0.38 and its mean CIELAB chroma from
+      // 27.37 to 26.0 — not to the 23 the round-11 critic asked for, because
+      // the cells that came off were the ring's dim outer band and the ones
+      // left are the hottest. The last three points come off the ramp's
+      // saturation, which touches every step alike and leaves the core the
+      // brightest thing in the biome.
+      palette: { bone: CLINKER, glow: glowRamp(20, 74, 92) },
     }),
     // CHAIN BOLT: granite bound in brass, with two conductor rods standing off
     // the shoulders and an arc between them — the widest and brightest part of

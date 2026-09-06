@@ -8,14 +8,26 @@
  * imports only from './parts' — importing actors.ts here would close a cycle
  * at load time.
  *
- * THE AUTHORING LAYER IS LOCAL. parts.ts keeps `part`, `autoShade` and the
- * band helpers module-private (only the materials, the step constants, the
- * `PartDef` shape and the library itself are exported), so this file carries
- * its own copy of that layer, keyed to exactly the same character alphabet
- * and the same one-key-from-the-upper-left shading law. Every grid below is
- * therefore shaded by the same rules as the act 1-2 cast, and a change to
- * parts.ts's own `autoShade` would need mirroring here — noted rather than
- * hidden.
+ * THE AUTHORING LAYER IS parts.ts's. Round 11 retired the copy this file used
+ * to carry: `part`, `autoShade`, the band helpers (`sym/hb/hbf/bands/rep/
+ * shiftX/stanceRow/pair/padRow/stamp/stampRows`), `castPlane`,
+ * `castChinShadow`, `shiftRows`, `fit`, `mirrorRows`, `firstSolid`,
+ * `shoulderDrop`, `turn`, `faceBlock`, `crown`, `armsPart`, `armsRecoil`,
+ * `fallenHeadRows`, `scaleRows`, `hemShift` and `scallopHem` are all imported
+ * from './parts' above, so one shading law serves the whole cast and a change
+ * to parts.ts's `autoShade` reaches these grids by itself. THREE helpers stay
+ * local, and only because swapping them would move pixels rather than share
+ * code: `selfShadowLate` stamps the chin shadow at `lh - 5` where parts.ts
+ * fixes it at 7 (these heads are wider than the act 1-2 ones);
+ * `fingersLate` is a seven-row fist with its grip at y 3, against parts.ts's
+ * five-row fist at y 2, because every two-handed prop in these four packs is
+ * gripped low on a leaned haft; and `legsTurned` takes a different signature
+ * (a `LegSpec` per side) from parts.ts's leg builder. What IS local and is
+ * meant to be is the RASTER KIT below — `grid/ell/limb/box/underbelly/
+ * topLight/planeBox/planeEll/featherPass/planeStep` — the mass-based
+ * authoring eleven of these twenty-four are not bipeds and cannot be banded
+ * into; and the alphabet TABLES `PLANE_OF`/`DARK_OF`/`LIT_OF`/`SPEC_OF`/
+ * `SHADOW_OF`/`DEEP_DARK`, which parts.ts keeps private.
  *
  * SCALE. These are authored at the round-10 enemy scale: a standard enemy is
  * 40-50 cells at the 2-px cell (80-100 px, 11-14 % of the 720 frame), an
@@ -36,7 +48,6 @@ import {
   hb,
   hbf,
   hemShift,
-  MAT_INK,
   MATERIALS,
   mirrorRows,
   padRow,
@@ -68,28 +79,12 @@ import type { AnchorName, ArmOpts, FistOpts, PartDef, Point } from './parts';
 //   glow        G     g          @       7        >        j
 //   bone        B     b          %       8        &        q
 
-const DEEP_S = 0;
-const DARK_S = 1;
-const SHADOW_S = 2;
-const LIT_S = 4;
-const PLANE_S = 6;
-const AUTO = -1;
-
-interface CharDef {
-  mat: number;
-  shade: number;
-}
-const CHARS: Record<string, CharDef> = { '#': { mat: MAT_INK, shade: 0 } };
+// ROUND 12 — the char -> {material, shade} table that used to sit here was the
+// last of the duplicated authoring layer: `part()` (imported from parts.ts)
+// owns that mapping, and this copy was written and never read. What the tables
+// below DO carry is the step-to-step mapping parts.ts keeps private, which the
+// three band passes need.
 const CHAR_ROWS: readonly string[] = ['Ss$0(X', 'Hh^1)J', 'Cc+2[V', 'Dd=3]U', 'Ll~4{F', 'Mm*5}Q', 'Aa!6<Z', 'Gg@7>j', 'Bb%8&q'];
-for (let m = 0; m < CHAR_ROWS.length; m++) {
-  const [auto, shadow, lit, dark, deep, plane] = [...CHAR_ROWS[m]];
-  CHARS[auto] = { mat: m, shade: AUTO };
-  CHARS[shadow] = { mat: m, shade: SHADOW_S };
-  CHARS[lit] = { mat: m, shade: LIT_S };
-  CHARS[dark] = { mat: m, shade: DARK_S };
-  CHARS[deep] = { mat: m, shade: DEEP_S };
-  CHARS[plane] = { mat: m, shade: PLANE_S };
-}
 /** Every material's PLANE char keyed by any of that material's chars; glow is excluded — a light inside a cast shadow is still a light. */
 const PLANE_OF: Record<string, string> = {};
 /** The same table for the DARK step (the seam at a plane join) and the LIT step (the key on a near shoulder or a crown). */
@@ -785,6 +780,139 @@ function planeEll(g: Grid, cx: number, cy: number, rx: number, ry: number): void
     }
   }
 }
+/**
+ * FEATHER A WING (round 12, the critic's Global 9). A membrane drawn as one
+ * tapering mass reads as a plank: LIGHTNING_HAWK measured 50.2 % interior edge
+ * density and STORM_DRAKE 54.1 against the heroes' 85.7, with a single-colour
+ * blob of 22.9 / 24.6 % — one value per wing and one per limb. `topLight` and
+ * `underbelly` cannot fix it, because both walk a COLUMN to the whole sprite's
+ * topmost and bottom-most cell and a swept wing owns neither.
+ *
+ * This walks the wing's own columns instead and lays the three courses a
+ * flight feather actually has: `lead` rows of the LIT step down the leading
+ * edge, a mid band under them, and a dark trailing course — then cuts a
+ * one-cell notch out of the trailing edge every `notch` columns, so the wing
+ * ends in a row of primaries rather than a straight cut. The notch is always
+ * the LAST cell of a column's run, so it can never disconnect the mass above
+ * it. Call it while only the wing is painted, or bound it with `x0`/`x1`.
+ */
+function featherPass(
+  g: Grid,
+  mats: string,
+  lit: string,
+  mid: string,
+  dark: string,
+  o: { notch?: number; lead?: number; x0?: number; x1?: number; minRun?: number } = {},
+): void {
+  const w = g[0].length;
+  const { notch = 3, lead = 2, x0 = 0, x1 = w - 1, minRun = 4 } = o;
+  const set = new Set([...mats]);
+  for (let x = Math.max(0, x0); x <= Math.min(w - 1, x1); x++) {
+    let top = -1;
+    let bot = -1;
+    for (let y = 0; y < g.length; y++) {
+      if (set.has(g[y][x])) {
+        if (top < 0) top = y;
+        bot = y;
+      } else if (top >= 0 && bot === y - 1) break; // the run ended; anything below belongs to another mass
+    }
+    if (top < 0 || bot - top + 1 < minRun) continue;
+    for (let y = top; y <= bot; y++) {
+      if (!set.has(g[y][x])) continue;
+      g[y][x] = y < top + lead ? lit : y === bot ? dark : mid;
+    }
+    if (notch > 0 && (x - x0) % notch === 0) g[bot][x] = '.';
+  }
+}
+/**
+ * A STEPPED SEAM between two planes of a body (round 12). The round-11 critic
+ * read ASH_HOUND's and CINDER_WOLF's planes as "flat slabs with straight
+ * horizontal seams": a plane join that runs level across a whole animal is a
+ * stripe, not an edge between two forms. This drops everything below a
+ * STEPPED line into the plane step — the line walks `run` cells at a height
+ * and then steps `rise` — so the seam has the same length of edge but none of
+ * it in one straight run.
+ */
+function planeStep(g: Grid, x0: number, x1: number, y0: number, run: number, rise: number, depth = 6, map: Record<string, string> = PLANE_OF): void {
+  const w = g[0].length;
+  for (let x = Math.max(0, x0); x <= Math.min(w - 1, x1); x++) {
+    const step = Math.floor((x - x0) / run);
+    const y = y0 + step * rise;
+    for (let i = 0; i < depth; i++) {
+      const yy = y + i;
+      if (yy < 0 || yy >= g.length) continue;
+      const p = map[g[yy][x]];
+      if (p) g[yy][x] = p;
+    }
+  }
+}
+/**
+ * A ONE-CELL SEAM down a mass, painted only where the mass already is — a
+ * robe fold, a plate join, a coil's outline. Round 12 uses it on grids that
+ * were built by the BAND helpers and then read back with `gridOf`, because a
+ * seam that has to follow a silhouette whose width changes row by row cannot
+ * be a `stampRows` column: on the Forge Saint's chasuble a fixed x poked two
+ * cells of cloth out into the background at the shoulders.
+ */
+function seamLine(g: Grid, x0: number, y0: number, x1: number, y1: number, ch: string, gap = 0): void {
+  const steps = Math.max(1, Math.round(Math.hypot(x1 - x0, y1 - y0)));
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const x = Math.round(x0 + (x1 - x0) * t);
+    const y = Math.round(y0 + (y1 - y0) * t);
+    if (y < 0 || y >= g.length || x < 0 || x >= g[y].length || g[y][x] === '.') continue;
+    if (gap > 0 && i % gap === 0) continue;
+    g[y][x] = ch;
+  }
+}
+/**
+ * CUT A NOTCH INTO THE SILHOUETTE at the ends of a row. Round 11 separated
+ * LEVIATHAN_SPAWN's three coils in VALUE — a deep arc along each junction —
+ * and the critic's answer was that the loops are still one lump on
+ * `late-x2-sil.png`, because a value seam is invisible in a silhouette. This
+ * takes `n` cells off each end of the row instead, so the background shows
+ * through at the junction. It can never disconnect the mass: only the OUTER
+ * cells of a row go, and the rows above and below carry the join.
+ */
+function nickRow(g: Grid, y: number, n = 1, sides: 'both' | 'left' | 'right' = 'both'): void {
+  if (y < 0 || y >= g.length) return;
+  const row = g[y];
+  let l = 0;
+  while (l < row.length && row[l] === '.') l++;
+  let r = row.length - 1;
+  while (r >= 0 && row[r] === '.') r--;
+  if (r < l) return;
+  for (let i = 0; i < n; i++) {
+    if (sides !== 'right' && l + i <= r) row[l + i] = '.';
+    if (sides !== 'left' && r - i >= l) row[r - i] = '.';
+  }
+}
+/** Erase every 8-connected island under `min` cells — the cleanup after `nickRow`, whose notch can strand a cell off a jagged ellipse edge and cost the bake its one-component rule. */
+function dropSpecks(g: Grid, min = 4): void {
+  const h = g.length;
+  const w = g[0].length;
+  const seen = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      if (g[y][x] === '.' || seen[y * w + x]) continue;
+      const stack = [[x, y]];
+      const cells: [number, number][] = [];
+      seen[y * w + x] = 1;
+      while (stack.length) {
+        const [cx2, cy2] = stack.pop() as [number, number];
+        cells.push([cx2, cy2]);
+        for (let dy = -1; dy <= 1; dy++)
+          for (let dx = -1; dx <= 1; dx++) {
+            const nx = cx2 + dx;
+            const ny = cy2 + dy;
+            if (nx < 0 || ny < 0 || nx >= w || ny >= h || seen[ny * w + nx] || g[ny][nx] === '.') continue;
+            seen[ny * w + nx] = 1;
+            stack.push([nx, ny]);
+          }
+      }
+      if (cells.length < min) for (const [ex, ey] of cells) g[ey][ex] = '.';
+    }
+}
 /** A blank grid row helper for the hand-authored rows that sit beside the masses. */
 function E(w: number): string {
   return '.'.repeat(w);
@@ -807,7 +935,7 @@ function R(w: number, ...edits: readonly (readonly [x: number, s: string])[]): s
 // when it is about to drop), a short thick neck pitched forward, a hooked beak
 // and a long stiff tail counterweighting it. The strike throws both wings open
 // and drives the talons nine cells forward.
-const RAP_W = 42;
+const RAP_W = 48;
 const RAP_H = 44;
 interface RaptorPose {
   /** Wing spread: 0 folded into two peaks, 1 half-open, 2 thrown wide. */
@@ -838,16 +966,43 @@ function raptorGrid(o: RaptorPose = {}): string[] {
   if (wing >= 1) limb(g, 14 + bx, 15 + by + wy, 4 + bx, 4 + by + wy, 7, 3, 'A');
   if (wing >= 2) limb(g, 20 + bx, 14 + by + wy, 30 + bx, 3 + by + wy, 7, 3, 'A');
   limb(g, 12 + bx, 9 + by + wy, 10 + bx, 25 + by, 1, 1, '<'); // the valley between the peaks
-  // body, neck and skull — the neck PITCHED UP, seventeen rows of rise over six
-  // of run, so the skull sits above the wing line instead of level with it
+  // body, neck and skull. ROUND 12 — A RAPTOR, NOT A GRAZER. Round 11's neck
+  // rose seventeen rows over six of run and carried a 13x11 skull with three
+  // cells of beak on it: a long neck under a small head with a short bill is a
+  // browsing bird, and both critics read it as one. The neck is SHORTER (ten
+  // rows of rise) and S-CURVED — up and BACK off the shoulders, then forward
+  // into the skull, the way a hawk carries its head between its own wing peaks
+  // — and the skull is 17x13 against 13x11 (1.55x the box) so it is the mass
+  // the eye lands on.
   ell(g, 17 + bx, 25 + by, 11, 8, 'B');
-  limb(g, 23 + bx, 23 + by, 29 + hx, 6 + hy, 9, 6, 'B');
-  ell(g, 31 + hx, 5 + hy, 6, 5, 'B');
-  // the crest, swept back off the skull
-  limb(g, 29 + hx, 1 + hy, 23 + hx - crest, 0 + hy + crest, 3, 1, 'A');
-  // the beak: a straight upper mandible and a hook under it
-  limb(g, 34 + hx, 6 + hy, 40 + hx, 8 + hy, 6, 3, 'L');
-  limb(g, 40 + hx, 8 + hy, 38 + hx, 11 + hy, 3, 1, 'L');
+  limb(g, 22 + bx, 25 + by, 20 + bx, 18 + by, 9, 6, 'B'); // up and back off the shoulders
+  limb(g, 20 + bx, 18 + by, 28 + hx, 12 + hy, 6, 8, 'B'); // then forward into the skull
+  ell(g, 30 + hx, 10 + hy, 7, 6, 'B');
+  // the crest, three quills swept back off the crown
+  limb(g, 26 + hx, 4 + hy, 19 + hx - crest, 1 + hy + crest, 3, 1, 'A');
+  limb(g, 26 + hx, 5 + hy, 20 + hx - crest, 4 + hy + crest, 2, 1, '6');
+  // THE BEAK. A raptor's bill is a HOOK, and at x2 it is the whole read: round
+  // 11's was three cells of run that ended inside the skull's own box. This one
+  // carries SIX cells past the skull front (x 37): a heavy upper mandible out
+  // to x 43, then a tip that steps DOWN four rows and tucks back under the
+  // lower jaw, with the gape a one-cell deep line and the lower mandible a
+  // shade under it. Boxes, not capsules — a tapering limb rounds the hook off
+  // and the hook is the whole point.
+  limb(g, 33 + hx, 9 + hy, 41 + hx, 11 + hy, 9, 5, 'L'); // the cere, tapering out of the skull
+  box(g, 40 + hx, 9 + hy, 43 + hx, 12 + hy, 'L'); // the mandible's body, out past the skull front
+  box(g, 32 + hx, 8 + hy, 40 + hx, 8 + hy, '~'); // the culmen, lit along its whole length
+  box(g, 41 + hx, 12 + hy, 44 + hx, 14 + hy, 'L'); // THE HOOK, turning down
+  box(g, 40 + hx, 14 + hy, 43 + hx, 16 + hy, '4');
+  box(g, 39 + hx, 16 + hy, 42 + hx, 17 + hy, 'l'); // its point, clear under the jaw line
+  box(g, 31 + hx, 12 + hy, 40 + hx, 12 + hy, '4'); // the gape
+  box(g, 30 + hx, 10 + hy, 33 + hx, 10 + hy, '8'); // and the malar line back off the eye
+  box(g, 31 + hx, 13 + hy, 39 + hx, 14 + hy, '4'); // the lower mandible in shadow under it
+  // THE BROW: a one-cell shelf of the plume's LIT step with the deep step
+  // under it — a hawk's supraorbital ridge, and what turns two dots into a
+  // stare. A two-cell band read as a white cap.
+  box(g, 26 + hx, 6 + hy, 36 + hx, 6 + hy, '%');
+  box(g, 27 + hx, 7 + hy, 35 + hx, 7 + hy, '&');
+  limb(g, 24 + bx, 20 + by, 28 + bx, 17 + by, 3, 2, 'b'); // the throat seam, so the neck is not the breast
   // legs — the far one set back and a step darker, the near one carrying the reach
   limb(g, 14 + bx, 30 + by, 12 + bx, 37 + by, 5, 4, 'l');
   box(g, 9 + bx, 38 + by, 15 + bx, 39 + by, 'l');
@@ -867,11 +1022,11 @@ function raptorGrid(o: RaptorPose = {}): string[] {
   underbelly(g, '6', '<', 3, 'A');
   planeEll(g, 21 + bx, 28 + by, 10, 5); // the breast in the wing's own shadow
   planeBox(g, 4 + bx, 20 + by, 11 + bx, 25 + by); // and the far covert, which the key does not reach
-  box(g, 20 + bx, 21 + by, 29 + bx, 23 + by, '8'); // a dark collar where the neck meets the breast
+  box(g, 18 + bx, 20 + by, 26 + bx, 22 + by, '8'); // a dark collar where the neck meets the breast
   box(g, 6 + bx, 30 + by, 16 + bx, 32 + by, '&'); // and the deep under the tail root
-  // the eye, high and forward on the skull, with an ink surround
+  // the eye, under the brow ridge and forward on the skull, with an ink surround
   const gr = rowsOf(g);
-  return stampRows(stampRows(gr, 3 + hy, 3 + hy, [30 + hx, '#GG#']), 4 + hy, 4 + hy, [30 + hx, '#bb#']);
+  return stampRows(stampRows(gr, 8 + hy, 8 + hy, [28 + hx, '#GG#']), 9 + hy, 9 + hy, [28 + hx, '#bb#']);
 }
 const RAPTOR_ANCH = { feet: { x: 22, y: RAP_H - 1 }, hit: { x: 20, y: 24 } };
 beastKit('raptor', {
@@ -879,7 +1034,7 @@ beastKit('raptor', {
   wind: raptorGrid({ wing: 1, hx: -5, hy: 1, bx: -2, crest: -1 }),
   strike: raptorGrid({ wing: 2, hx: 4, hy: 3, reach: 9, bx: 1 }),
   hurt: raptorGrid({ wing: 1, hx: -7, hy: -3, bx: -3, by: 1, crest: -2 }),
-  settle: raptorGrid({ wing: 1, hx: 1, hy: 1, reach: 2, crest: 1 }),
+  settle: raptorGrid({ wing: 1, hx: 1, hy: 1, reach: 1, crest: 1 }),
   dead: [
     (() => {
       // The collapse: nineteen rows against forty-four — down on one wing with
@@ -1123,13 +1278,18 @@ function drakeGrid(o: DrakePose = {}): string[] {
   const { wing = 0, hx = 0, hy = 0, bx = 0, by = 0, jaw = 0 } = o;
   const g = grid(DRK_W, DRK_H);
   const wl = wing;
-  // the far wing goes back over the shoulder, the near one forward — never a pair
+  // the far wing goes back over the shoulder, the near one forward — never a pair.
+  // ROUND 12 — each membrane is FEATHERED as it is drawn (Global 9: 54.1 % edge
+  // density, a 24.6 % single-colour blob, flat planks for wings): a lit leading
+  // edge, a mid band, a dark trailing course and a notch every third column.
   drakeWing(g, 20 + bx, 26 + by, Math.max(4, 6 + bx - 2 * wl), 16 + by - 6 * wl, 'D', '3');
+  featherPass(g, 'D3', '=', 'D', ']', { notch: 3, lead: 2, x1: 21 + bx });
   // tail, body, haunch
   limb(g, 14 + bx, 34 + by, 1 + bx, 47 + by, 9, 3, 'L');
   ell(g, 15 + bx, 33 + by, 9, 8, 'L');
   ell(g, 24 + bx, 32 + by, 13, 9, 'L');
   drakeWing(g, 27 + bx, 25 + by, Math.min(50, 45 + bx + 4 * wl), 12 + by - 6 * wl, 'D', '3');
+  featherPass(g, 'D3', '=', 'D', ']', { notch: 3, lead: 2, x0: 28 + bx });
   // neck and skull
   limb(g, 32 + bx, 27 + by, 43 + hx, 13 + hy, 10, 6, 'L');
   ell(g, 46 + hx, 11 + hy, 6, 5, 'L');
@@ -1155,7 +1315,21 @@ function drakeGrid(o: DrakePose = {}): string[] {
   topLight(g, '=', 1, 'D');
   underbelly(g, '4', '{', 3, 'L');
   underbelly(g, '3', ']', 2, 'D');
-  planeEll(g, 30 + bx, 34 + by, 12, 8);
+  // A CHEST PLANE AND A BELLY PLANE on the body, split by a stepped seam —
+  // round 11's single ellipse over the whole flank was "one value per limb".
+  planeEll(g, 33 + bx, 30 + by, 7, 7); // the chest, under the neck
+  planeStep(g, 13 + bx, 37 + bx, 33 + by, 5, 1, 8); // the belly, its top edge stepping back
+  planeStep(g, 26 + bx, 32 + bx, 26 + by, 2, 2, 3, DARK_OF); // the seam over the shoulder
+  planeStep(g, 12 + bx, 18 + bx, 28 + by, 2, 2, 3, DARK_OF); // and the haunch's own
+  underbelly(g, '{', '{', 2, 'F', 2); // the deep step under the belly plane, so it is not one flat mass
+  // FIVE RIBS falling off the spine and CROSSING the belly plane. Two cells
+  // wide, because an 8-connected region is not cut by a one-cell diagonal —
+  // the neighbours join round it and the plane stays one blob (the metric the
+  // critic reads as "one value per flank").
+  for (const rx of [14, 19, 24, 29, 34]) {
+    limb(g, rx + bx, 22 + by, rx - 10 + bx, 41 + by, 1, 1, 'l');
+    limb(g, rx + 1 + bx, 22 + by, rx - 9 + bx, 41 + by, 1, 1, '~');
+  }
   planeBox(g, 34 + bx, 20 + by, 44 + bx, 27 + by);
   let out = rowsOf(g);
   out = stampRows(out, 9 + hy, 9 + hy, [44 + hx, '#GG']);
@@ -1329,10 +1503,17 @@ const SKW = 2 * SKL + 1;
 const skyTop = bands(SKL, [
   [2, hb(SKL, 16, '5'), '5'], //  0-1  the gorget
   [1, hb(SKL, 4, 'M'), 'M'], //  2    the pauldron line
-  [3, hb(SKL, 2, 'M'), 'M'], //  3-5
+  // ROUND 12 — TWO MORE LIT COURSES on the plate. The figure sat at 44.6 %
+  // of its pixels under 3:1 against the stage, the cast's highest and 0.4
+  // from the cap: the pauldrons' crown and the cuirass's top course are the
+  // two runs that are physically facing the key, and they were carrying the
+  // metal's mid step.
+  [1, hb(SKL, 2, '*'), '*'], //  3    the pauldrons' lit crown
+  [2, hb(SKL, 2, 'M'), 'M'], //  4-5
   [1, hb(SKL, 4, '5'), '5'], //  6    their underside
   [1, hb(SKL, 5, '}'), '}'], //  7    the deep seam
-  [4, hbf(SKL, 6, 'M', 'm', [8, 13]), 'M'], //  8-11 the cuirass, two courses
+  [1, hbf(SKL, 6, '*', 'm', [8, 13]), '*'], //  8    the cuirass's lit top course
+  [3, hbf(SKL, 6, 'M', 'm', [8, 13]), 'M'], //  9-11 and its two body courses
   [1, hb(SKL, 6, 'M', 'DD'), 'D'], // 12   a torn surcoat starts
   [3, hbf(SKL, 6, 'D', '3', [9, 14]), 'D'], // 13-15
   [1, hb(SKL, 5, '5'), 'M'], // 16   the belt and its buckle
@@ -1343,7 +1524,12 @@ const skyTop = bands(SKL, [
   [1, hb(SKL, 4, ']'), ']'], // 27
 ]);
 const skyRows = [
-  ...cutBands(keyEdge(sideModel(turn(selfShadowLate(shoulderDrop(skyTop, 2, SKL, 'M', 5, 3), '}', 3, [8, 17], [5, SKW - 6], 8), { top: 2, bottom: 16, ch: 'M', pelvis: [18, 27] }), { from: 2, to: 1e9, seam: true }), 2, 8, 3), 2, 1e9, 0.28),
+  // ROUND 12 — the shadow side is a fifth of each row, not a third, and the
+  // band lift reaches a third of the way across instead of 28 %. The figure
+  // sat at 44.6 % of its pixels under 3:1 against the stage, the cast's
+  // highest and 0.4 from the cap, and every one of those cells is a PLANE or
+  // a DEEP by construction: `legal()` lifts every other step clear.
+  ...cutBands(keyEdge(sideModel(turn(selfShadowLate(shoulderDrop(skyTop, 2, SKL, 'M', 5, 3), '}', 3, [8, 17], [5, SKW - 6], 8), { top: 2, bottom: 16, ch: 'M', pelvis: [18, 27] }), { from: 2, to: 1e9, frac: 0.21, seam: true }), 2, 8, 3), 2, 1e9, 0.34),
   ...legsTurned(SKW + 2, 18, { pad: 7, w: 8, leg: 'm', knee: '5', boot: '5', cuff: 'm' }, { pad: 8, w: 9, leg: 'M', knee: 'm', boot: '5', cuff: 'M' }, 12),
 ];
 /**
@@ -1352,8 +1538,8 @@ const skyRows = [
  * step, which is the one contiguous dark area criterion 1 rests on.
  */
 const skyBodyRows = stampRows(
-  castPlane(stampRows(stampRows(stampRows(skyRows, 2, 4, [0, 'BBB']), 5, 8, [0, 'B&B']), 9, 11, [1, '&&']), 19, 25, 26, 36),
-  41,
+  castPlane(stampRows(stampRows(stampRows(skyRows, 2, 4, [0, 'BBB']), 5, 8, [0, 'B&B']), 9, 11, [1, '&&']), 19, 24, 28, 36),
+  42,
   45,
   [7, '}}}}}}}}}'],
   [26, '}}}}}}}}}}'],
@@ -1584,7 +1770,7 @@ reg(
 // pitch") is the thing to avoid: this one is taller and leggier than the hound,
 // its topline broken by a RUFF OF SPINES from skull to shoulder, its tail up and
 // forward, and its hind pair genuinely different geometry from its fore.
-const WLF_W = 46;
+const WLF_W = 50;
 const WLF_H = 44;
 interface WolfPose {
   jaw?: number;
@@ -1606,24 +1792,30 @@ function wolfGrid(o: WolfPose = {}): string[] {
   ell(g, 11 + bx, 24 + by, 8, 8, 'L');
   ell(g, 21 + bx, 24 + by, 10, 7, 'L');
   ell(g, 30 + bx, 22 + by, 7, 7, 'L');
-  // neck and skull
+  // neck and skull. ROUND 12 — A LONG LEAN SKULL. Round 11's was a 13x11 dome
+  // with a two-cell muzzle on it, which the critic read as bulbous; a wolf's
+  // head is a wedge — a low braincase carried forward into a muzzle half again
+  // as long as it is deep. Seventeen cells of skull-and-muzzle against eleven,
+  // and the round-11 jaw break kept.
   limb(g, 31 + bx, 19 + by, 38 + hx, 9 + hy, 9, 6, 'L');
-  ell(g, 39 + hx, 8 + hy, 6, 5, 'L');
-  // ROUND 11 — SHORTER IN THE FACE, EARS BACK. A five-cell muzzle under two
-  // upright ears is a donkey; this one's muzzle is three cells shorter, there
-  // is a one-cell DEEP break between the upper jaw and the lower, and both ears
-  // are swept BACK along the skull the way a running animal's are.
-  limb(g, 40 + hx, 9 + hy, 42 + hx, 10 + hy, 5, 4, 'L');
-  limb(g, 37 + hx, 11 + hy, 42 + hx, 13 + hy + 2 * jaw, 5, 3, 'B');
-  limb(g, 38 + hx, 10 + hy, 42 + hx, 11 + hy, 1, 1, '{'); // the jaw break
+  ell(g, 38 + hx, 8 + hy, 6, 4, 'L');
+  limb(g, 40 + hx, 8 + hy, 47 + hx, 10 + hy, 7, 4, 'L'); // the muzzle, long and tapering
+  box(g, 41 + hx, 7 + hy, 46 + hx, 7 + hy, '~'); // lit along the bridge of it
+  limb(g, 37 + hx, 11 + hy, 46 + hx, 12 + hy + 2 * jaw, 5, 3, 'B'); // the lower jaw under it
+  limb(g, 39 + hx, 10 + hy, 46 + hx, 11 + hy, 1, 1, '{'); // the jaw break
+  box(g, 44 + hx, 9 + hy, 47 + hx, 9 + hy, '4'); // and the nose leather at the end
   // ears, laid back along the skull
-  limb(g, 39 + hx, 5 + hy, 32 + hx, 3 + hy, 3, 1, 'L');
-  limb(g, 41 + hx, 6 + hy, 35 + hx, 2 + hy, 3, 1, 'l');
-  // THE RUFF: seven ember-lit spines along the topline, each its own length
-  [0, 1, 2, 3, 4, 5, 6].forEach((i) => {
-    const sx = 10 + bx + i * 4;
-    const len = 5 + ((i * 3) % 5);
-    limb(g, sx, 18 + by, sx - 2, 17 + by - len, 3, 1, i % 2 ? 'A' : 'a');
+  limb(g, 38 + hx, 5 + hy, 31 + hx, 3 + hy, 3, 1, 'L');
+  limb(g, 40 + hx, 6 + hy, 34 + hx, 2 + hy, 3, 1, 'l');
+  // THE RUFF. Round 11's seven five-to-nine-cell spines were the loudest thing
+  // in the sprite and both critics read a spined boar, not a wolf: a hackle is
+  // RAISED HAIR, one or two cells of it, not a row of quills. Nine one-cell
+  // ember-lit tufts along the neck and withers only — off the rump entirely,
+  // so the topline behind the shoulder is the animal's own back.
+  [0, 1, 2, 3, 4, 5, 6, 7, 8].forEach((i) => {
+    const sx = 14 + bx + i * 3;
+    const len = 1 + (i % 3 === 1 ? 1 : 0);
+    limb(g, sx, 18 + by, sx - 1, 18 + by - len, 2, 1, i % 2 ? 'A' : 'a');
   });
   // four legs: fore pair near-vertical and forward, hind pair angled back off a haunch
   limb(g, 9 + bx, 29 + by, 5 + bx - hind, 40 + by, 7, 4, 'l');
@@ -1637,8 +1829,25 @@ function wolfGrid(o: WolfPose = {}): string[] {
   topLight(g, '~', 2, 'L');
   topLight(g, '!', 1, 'A');
   underbelly(g, '4', '{', 5, 'L', 2);
-  planeEll(g, 25 + bx, 27 + by, 11, 5);
-  planeBox(g, 6 + bx, 24 + by, 16 + bx, 30 + by);
+  // ROUND 12 — THREE PLANES ON A STEPPED SEAM (edge density 63.5). Round 11's
+  // body was a lit slab over a dark slab with the join running level across the
+  // whole animal, which is a stripe and not an edge between two forms. The
+  // CHEST falls away under the throat, the BELLY is a plane whose top edge
+  // STEPS two cells at a time as it runs back under the ribs, and the HAUNCH
+  // carries its own plane with a one-cell dark seam down the join.
+  planeEll(g, 31 + bx, 27 + by, 6, 5); // the chest, in the jaw's own shadow
+  planeStep(g, 13 + bx, 33 + bx, 27 + by, 5, 1, 6); // the belly, its top edge stepping down as it runs back
+  planeEll(g, 9 + bx, 29 + by, 8, 5); // the haunch's own shadow side
+  planeStep(g, 15 + bx, 21 + bx, 17 + by, 2, 2, 3, DARK_OF); // a stepped seam down the rump-to-rib join
+  planeStep(g, 26 + bx, 31 + bx, 18 + by, 2, 2, 3, DARK_OF); // and another down the shoulder
+  // FOUR RIBS crossing the belly plane, each a dark cell beside a shadow one:
+  // a one-cell diagonal does not cut an 8-connected region (the neighbours join
+  // round it), so a single line leaves the plane one flat blob — which is the
+  // 26 % single-colour mass this pass exists to break.
+  for (const rx of [19, 24, 29]) {
+    limb(g, rx + bx, 20 + by, rx - 7 + bx, 32 + by, 1, 1, '4');
+    limb(g, rx + 1 + bx, 20 + by, rx - 6 + bx, 32 + by, 1, 1, 'l');
+  }
   let out = rowsOf(g);
   // ember cracks along the flank, and the eye
   out = stampRows(out, 21 + by, 21 + by, [12 + bx, '@'], [19 + bx, '@'], [26 + bx, '@']);
@@ -1995,11 +2204,28 @@ const saintTop = bands(FSL, [
   [3, hbf(FSL, 4, 'c', '[', [9, 15]), 'c'], // 23-25 into shadow
   [2, hb(FSL, 4, '['), '['], // 26-27 the hem band
 ]);
-const saintRows = [
-  ...cutBands(keyEdge(sideModel(turn(selfShadowLate(shoulderDrop(saintTop, 2, FSL, 'C', 5, 3), '[', 3, [8, 16], [5, FSW - 6], 8), { top: 2, bottom: 15, ch: 'C', pelvis: [17, 27] }), { from: 2, to: 1e9, seam: true }), 2, 8, 3), 2, 1e9, 0.28),
-  ...hemShift(bands(FSL + 1, [[10, hbf(FSL + 1, 5, 'c', '[', [8, 14]), 'c']]), 0, 'c', 4, 1),
-  ...scallopHem(FSW + 2, 'c', '[', [4, 2, 5, 3]),
-];
+/**
+ * ROUND 12 — THE CHASUBLE, BROKEN. Its midtone was one 495-cell 8-connected
+ * mass, 25.9 % of the sprite and the cast's worst single-colour blob outside
+ * the two licensed glows: the round-11 fold lines are one cell wide and stop
+ * short of the hem, and a seam that does not reach both ends of a region does
+ * not cut it. Two fold seams now run belt to hem on the near side and one on
+ * the far, and a PLANE STEP takes the far skirt down a step at a time so the
+ * robe has a shadow SIDE as well as folds.
+ */
+const saintRows = (() => {
+  const g = gridOf([
+    ...cutBands(keyEdge(sideModel(turn(selfShadowLate(shoulderDrop(saintTop, 2, FSL, 'C', 5, 3), '[', 3, [8, 16], [5, FSW - 6], 8), { top: 2, bottom: 15, ch: 'C', pelvis: [17, 27] }), { from: 2, to: 1e9, seam: true }), 2, 8, 3), 2, 1e9, 0.28),
+    ...hemShift(bands(FSL + 1, [[10, hbf(FSL + 1, 5, 'c', '[', [8, 14]), 'c']]), 0, 'c', 4, 1),
+    ...scallopHem(FSW + 2, 'c', '[', [4, 2, 5, 3]),
+  ]);
+  planeStep(g, 33, 48, 26, 4, 3, 36); // the far skirt, stepping into shadow
+  seamLine(g, 12, 14, 8, 60, '+'); // four folds, belt to hem — two lit, two deep,
+  seamLine(g, 19, 14, 17, 60, '['); // because a deep cell is sub-3:1 by construction
+  seamLine(g, 30, 14, 33, 60, '+'); // and a robe this size cannot spend four runs of it
+  seamLine(g, 43, 26, 46, 60, '['); // the last down the far side's plane
+  return rowsOf(g);
+})();
 const saintAnchors: Partial<Record<AnchorName, Point>> = {
   head: { x: FSL + 2, y: 0 },
   hand: { x: FSL, y: 4 },
@@ -2043,20 +2269,27 @@ armKit(
 /** A halo of sparks — a broken ring of embers rather than a plate, so it reads as a forge saint and not a church one. */
 reg(
   'halo_sparks',
-  part([
-    R(32, [11, 'GGGGGGGGGG']),
-    R(32, [7, 'GGGG'], [21, 'GGGG']),
-    R(32, [5, 'GG'], [25, 'GG']),
-    R(32, [3, 'GG'], [27, 'GG']),
-    R(32, [2, 'GG'], [28, 'GG']),
-    R(32, [2, 'G7'], [28, '7G']),
-    R(32, [3, 'GG'], [27, 'GG']),
-    R(32, [4, 'GG'], [26, 'GG']),
-    R(32, [6, 'GG'], [24, 'GG']),
-    R(32, [8, 'GG'], [22, 'GG']),
-    R(32, [10, 'GG'], [20, 'GG']),
-    R(32, [12, 'GGGGGGGG']),
-  ]),
+  // ROUND 12 — TILTED, and longer on the near side. A ring centred on the mitre
+  // was the last perfectly symmetric mass in the silhouette and the Saint's
+  // mirror IoU was 81.0, the humanoid maximum: every row of the ring is now
+  // sheared toward the weapon side, and the near arc carries three sparks out
+  // past the shoulder that the far arc does not have.
+  part(
+    [
+      R(38, [11, 'GGGGGGGGGG']),
+      R(38, [7, 'GGGG'], [21, 'GGGG']),
+      R(38, [5, 'GG'], [25, 'GG']),
+      R(38, [3, 'GG'], [27, 'GG']),
+      R(38, [2, 'GG'], [28, 'GGGG']),
+      R(38, [2, 'G7'], [28, '7GGGGG']),
+      R(38, [3, 'GG'], [27, 'GGGGGGG']),
+      R(38, [4, 'GG'], [26, 'GGGGG']),
+      R(38, [6, 'GG'], [24, 'GG']),
+      R(38, [8, 'GG'], [22, 'GG']),
+      R(38, [10, 'GG'], [20, 'GG']),
+      R(38, [12, 'GGGGGGGG']),
+    ].map((r, y) => shiftX(r, Math.round((11 - y) * 0.28))),
+  ),
 );
 /** A mantle to the floor, hanging behind the crucible. */
 const saintfCloakRows = [
@@ -2127,8 +2360,8 @@ const dsentTop = bands(DSL, [
   [2, hbf(DSL, 4, 'M', 'm', [7]), 'M'], // 11-12
   [1, hb(DSL, 3, '4'), 'M'], // 13   the belt
   [1, hb(DSL, 3, '{'), '{'], // 14   deep seam
-  [6, hbf(DSL, 3, 'C', '2', [5, 9]), 'C'], // 15-20 a long scale skirt
-  [2, hbf(DSL, 2, 'c', '[', [6]), 'c'], // 21-22 falling into shadow
+  [5, hbf(DSL, 3, 'C', '2', [5, 9]), 'C'], // 15-19 a long scale skirt
+  [3, hbf(DSL, 2, '[', '[', [6]), '['], // 20-22 falling into shadow
   [2, hb(DSL, 2, '['), '['], // 23-24 its hem band, deep
 ]);
 // ROUND 11 — THE FLARED SCALE SKIRT. The whole grid is carried four cells right
@@ -2162,10 +2395,10 @@ const dsentHeadRows = [
   sym(HL, hb(HL, 6, '*'), '*'), //  0  an OPEN-faced helm: a low skull cap, no visor at all
   sym(HL, hb(HL, 4, '*'), '*'), //  1
   sym(HL, hb(HL, 3, '*'), '*'), //  2
-  sym(HL, hb(HL, 3, 'M'), 'M'), //  3  its rim
+  sym(HL, hb(HL, 3, '*'), '*'), //  3  its rim, lit — the top quarter is where this figure's margin lives
   sym(HL, hb(HL, 3, '}'), '}'), //  4
   ...faceBlock({ side: 'C', sideDark: '[', skin: 's', eye: '#', sclera: 'g', brow: 1, spacing: 1, mouth: 3, turn: true }),
-  stamp(sym(HL, hb(HL, 4, 'C'), 'C'), [5, 'c'], [16, 'c']), // and a kelp veil closing under the jaw
+  stamp(sym(HL, hb(HL, 4, '+'), '+'), [5, 'c'], [16, 'c']), // and a kelp veil closing under the jaw, lit across its top
   stamp(sym(HL, hb(HL, 5, 'c'), 'c'), [7, '2']),
   stamp(sym(HL, hb(HL, 6, 'C'), 'C'), [8, '['], [14, '[']),
   sym(HL, hb(HL, 8, '2'), '2'),
@@ -2506,6 +2739,35 @@ function levGrid(o: LevPose = {}): string[] {
   // DEEP step along each junction, and the stack reads as three loops.
   ell(g, cx, 43 + by, 21 - coil * 2, 0, '{', true);
   ell(g, cx - 3, 36 + by, 17 - coil, 0, '{', true);
+  // ROUND 12 — AND TWO GAPS IN THE OUTLINE. The round-11 arcs above separate
+  // the coils in value, which is invisible on `late-x2-sil.png`: the critic
+  // still read one lump. Each junction now loses three cells off each end of
+  // its own row and two off the rows either side, so the background shows
+  // through at the waist between the loops. The coil bodies still meet across
+  // the middle of every junction, so the bake is one 8-connected component.
+  // SCALE SEAMS across each loop — a shadow cell beside a lit one, the pair
+  // repeated down the FRONT of each loop only. The round-11 critic put this
+  // figure fourth in the flattest five at 59.9 % interior edge density (heroes
+  // 85.7) and a coil painted as one tapering mass has nothing in it between
+  // its top light and its underbelly. Carried over the whole height of the
+  // coil the pair read as corrugation, so they stop at the crown.
+  for (const [cy2, rx2, n] of [
+    [47 + by, 20, 7],
+    [40 + by, 16, 6],
+    [33 + by + coil, 12, 5],
+  ] as const)
+    for (let i = 0; i < n; i++) {
+      const sx = cx - rx2 + Math.round(((2 * rx2) / n) * (i + 0.5)) - (cy2 === 40 + by ? 3 : cy2 === 47 + by ? 0 : -3);
+      seamLine(g, sx, cy2 - 2, sx + 2, cy2 + 6, 'l');
+      seamLine(g, sx + 1, cy2 - 2, sx + 3, cy2 + 6, '{');
+    }
+  nickRow(g, 43 + by, 4);
+  nickRow(g, 42 + by, 2);
+  nickRow(g, 44 + by, 2);
+  nickRow(g, 36 + by, 4);
+  nickRow(g, 35 + by, 2);
+  nickRow(g, 37 + by, 2);
+  dropSpecks(g, 4);
   let out = rowsOf(g);
   // the eye, and a row of teeth that only shows when the jaw is open
   out = stampRows(out, 11 + hy, 11 + hy, [cx + 9 + hx, '#GG']);
@@ -2567,11 +2829,24 @@ const skingTop = bands(SKGL, [
   [4, hbf(SKGL, 3, 'c', '[', [8, 15]), 'c'], // 24-27 falling into shadow
   [2, hb(SKGL, 3, '['), '['], // 28-29 its hem band
 ]);
-const skingRows = [
-  ...cutBands(keyEdge(sideModel(turn(selfShadowLate(shoulderDrop(skingTop, 2, SKGL, 'M', 5, 3), '}', 3, [9, 16], [4, SKGW - 5], 8), { top: 2, bottom: 15, ch: 'M', pelvis: [17, 29] }), { from: 2, to: 1e9, seam: true }), 2, 8, 3), 2, 1e9, 0.28),
-  ...hemShift(bands(SKGL + 1, [[8, hbf(SKGL + 1, 6, 'c', '[', [9, 15]), 'c']]), 0, 'c', 3, 2),
-  ...scallopHem(SKGW + 2, 'c', '[', [5, 2, 7, 3, 4, 2]),
-];
+const skingRows = stampRows(
+  [
+    ...cutBands(keyEdge(sideModel(turn(selfShadowLate(shoulderDrop(skingTop, 2, SKGL, 'M', 5, 3), '}', 3, [9, 16], [4, SKGW - 5], 8), { top: 2, bottom: 15, ch: 'M', pelvis: [17, 29] }), { from: 2, to: 1e9, seam: true }), 2, 8, 3), 2, 1e9, 0.28),
+    ...hemShift(bands(SKGL + 1, [[8, hbf(SKGL + 1, 6, 'c', '[', [9, 15]), 'c']]), 0, 'c', 3, 2),
+    ...scallopHem(SKGW + 2, 'c', '[', [5, 2, 7, 3, 4, 2]),
+  ],
+  // ROUND 12 — FOUR STRANDS OF KELP, belt to hem. Round 11's fold lines ran
+  // only over the lower half, so the skirt's midtone was one 431-cell mass —
+  // 20.1 % of the sprite, the third-worst single-colour blob in the cast. A
+  // seam that does not reach both ends of a region does not cut it: these run
+  // the whole depth of the mantle, which is also what a weed skirt looks like.
+  17,
+  38,
+  [9, '+'],
+  [15, '['],
+  [21, '+'],
+  [27, '['],
+);
 const skingAnchors: Partial<Record<AnchorName, Point>> = {
   head: { x: SKGL + 2, y: 0 },
   hand: { x: SKGL, y: 4 },
@@ -2609,30 +2884,20 @@ const skingHeadFinal = stampRows(
 );
 headKit('sking', { rows: skingHeadFinal, cx: SKGHL, down: { crown: 'M', dark: '5', face: 'C', eye: '#', deep: '[' }, downFlip: true, lift: 2 });
 reg('fallen_sking', fallenBody({ g: 'M', dark: '5', deep: '}', boot: 'C', bootDeep: '[' }, FALLEN_SPREAD, true, 1.5));
-/** A broken anchor, caught over the far shoulder — the one asymmetric mass in the silhouette. */
-reg(
-  'anchor_broken',
-  part([
-    R(16, [6, 'MMM']),
-    R(16, [6, 'M*M']),
-    R(16, [6, 'M*M']),
-    R(16, [2, 'MMMM*MMMM']),
-    R(16, [2, 'M55*55M']),
-    R(16, [6, 'M*M']),
-    R(16, [6, 'M*M']),
-    R(16, [6, 'M5M']),
-    R(16, [6, 'M5M']),
-    R(16, [1, 'M5M'], [6, 'M5M']),
-    R(16, [1, 'M5MM5M'], [9, 'M']),
-    R(16, [2, 'M555M']),
-    R(16, [3, '}}}']),
-  ]),
-);
-
-/** A coral crown of five uneven prongs. */
+/**
+ * A coral crown of five uneven prongs. ROUND 12 — three rows taller. It is the
+ * KING'S crown and it has to stay the top of his silhouette: the rebuilt
+ * trident rises past the helm, and the review's crownDy ruler reads the whole
+ * sprite's bounding box, so a weapon standing over the crest would have the
+ * hit frame measuring +4 (the weapon drops 8 rows on hurt 0 while the crest
+ * lifts 2) on a recoil that is actually correct.
+ */
 reg(
   'crown_coral',
   part([
+    R(28, [13, 'B']),
+    R(28, [8, 'B'], [13, 'B'], [19, 'B']),
+    R(28, [3, 'B'], [8, 'B'], [13, 'BB'], [19, 'B'], [25, 'B']),
     R(28, [3, 'B'], [8, 'B'], [14, 'B'], [20, 'B'], [25, 'B']),
     R(28, [2, 'BB'], [7, 'BB'], [13, 'BBB'], [19, 'BB'], [24, 'BB']),
     R(28, [2, 'BBB'], [7, 'BB'], [13, 'BBB'], [19, 'BB'], [24, 'BB']),
@@ -2660,42 +2925,69 @@ reg(
     { capePin: { x: 14, y: 1 } },
   ),
 );
-/** ABYSSAL TRIDENT — three tines on a weed-bound haft; too tall to swing, so it thrusts. */
-reg(
-  'trident',
-  part(
-    outboard(
-      [
-      // ROUND 11 — THREE REAL TINES. They were one cell wide and read as a
-      // scratch on the plate at x2; each is three cells across now, barbed at
-      // the tip, with three cells of air between them and the middle one
-      // standing two rows proud.
-      R(15, [5, 'M*M']),
-      R(15, [1, 'M*M'], [5, '*7*'], [9, 'M*M']),
-      R(15, [1, 'M*M'], [5, '*7*'], [9, 'M*M']),
-      R(15, [0, 'M*5M'], [5, '*7*'], [9, 'M5*M']),
-      R(15, [0, 'M*5M'], [5, 'M*M'], [9, 'M5*M']),
-      R(15, [1, 'M*M'], [5, 'M*M'], [9, 'M*M']),
-      R(15, [1, 'M5MM*MM5M']),
-      R(15, [2, 'MM5M*M5MM']),
-      R(15, [3, 'M55*55M']),
-      R(15, [4, '}}}}}']),
-      ...rep(6, R(15, [5, 'M5M'])),
-      ...rep(3, R(15, [5, 'CcC'])),
-      ...rep(9, R(15, [5, 'M5M'])),
-      ...rep(3, R(15, [5, 'cCc'])),
-      ...rep(6, R(15, [5, 'M5M'])),
-        R(15, [5, '5}5']),
-        R(15, [4, 'BBBBB']),
-        R(15, [5, '&&&']),
-      ],
-      24,
-      0.5,
-      30,
-    ),
-    { weaponGrip: { x: 6, y: 26 } },
-  ),
-);
+/**
+ * ABYSSAL TRIDENT — one weapon, not two ornaments.
+ *
+ * ROUND 12 (the critic's Global 7). Round 11's head sat eighteen rows above the
+ * grip and eight cells outboard, which put it BESIDE the helm rather than above
+ * it, and `outboard` sheared the head's own rows as it leaned them — so at x6
+ * the three tines read as a two-prong stick propped by the king's ear, with the
+ * broken anchor over the far shoulder reading as a second small pale ornament
+ * on the other side. The anchor is retired and the trident rebuilt: FIFTEEN
+ * cells of head (three 3-cell tines with three cells of air between them, the
+ * middle one two rows proud), forty-nine rows of haft under it, and the lean
+ * applied to the HAFT ONLY — the head rides the lean as one rigid block, so its
+ * tines stay vertical and its crossbar stays level. The tips land five cells
+ * clear above the coral crown and eight cells outboard of the far shoulder,
+ * with the fist over the haft at the kink.
+ */
+const TRI_W = 42;
+const TRI_LEAN = 0.6;
+/** The haft row the lean turns about — the grip, so the kink is inside the fist. */
+const TRI_PIVOT = 31;
+const tridentHaft = [
+  R(TRI_W, [6, 'M5M']),
+  ...rep(3, R(TRI_W, [6, 'CcC'])), // a weed binding
+  ...rep(8, R(TRI_W, [6, 'M5M'])),
+  ...rep(3, R(TRI_W, [6, 'cCc'])),
+  ...rep(9, R(TRI_W, [6, 'M5M'])),
+  ...rep(3, R(TRI_W, [6, 'CcC'])),
+  ...rep(4, R(TRI_W, [6, 'M5M'])), // rows 0-30
+  // THE FIST, rows 31-36, authored ON the haft. `boss()` has no `fingers`
+  // layer and draws the weapon at z 3 over the arms at z 2, so a gauntlet
+  // behind the shaft is a gauntlet nobody sees: this is a five-cell grip
+  // block with two DEEP finger notches across it, and it starts AT the pivot
+  // row so the lean never shears it.
+  R(TRI_W, [5, 'MM5MM']),
+  R(TRI_W, [5, 'M}}}M']),
+  R(TRI_W, [5, 'M*5*M']),
+  R(TRI_W, [5, 'M}}}M']),
+  R(TRI_W, [5, 'M*55M']),
+  R(TRI_W, [5, 'MM5MM']),
+  ...rep(2, R(TRI_W, [6, 'M5M'])),
+  R(TRI_W, [6, '5}5']),
+  R(TRI_W, [5, 'BBBBB']),
+  R(TRI_W, [6, '&&&']),
+];
+const TRI_HEAD_DX = Math.round(TRI_PIVOT * TRI_LEAN);
+const tridentHead = [
+  R(TRI_W, [6, 'M*M']),
+  R(TRI_W, [6, 'M*M']),
+  R(TRI_W, [0, 'M*M'], [6, '*7*'], [12, 'M*M']),
+  R(TRI_W, [0, '*7*'], [6, '*7*'], [12, '*7*']),
+  R(TRI_W, [0, 'M*M'], [6, 'M*M'], [12, 'M*M']),
+  R(TRI_W, [0, 'M*5M'], [6, 'M*M'], [11, 'M5*M']), // barbs, out to the sides
+  R(TRI_W, [0, 'M*M'], [6, 'M*M'], [12, 'M*M']),
+  R(TRI_W, [0, 'M5M'], [6, 'M5M'], [12, 'M5M']),
+  R(TRI_W, [0, 'MM5MM5MM5MM5MMM']), // the crossbar the three stand on
+  R(TRI_W, [1, '}}}}}}}}}}}}}']),
+  R(TRI_W, [4, 'M55*55M']), // the socket, narrowing to the haft
+  R(TRI_W, [5, 'M5*5M']),
+].map((r) => shiftX(r, TRI_HEAD_DX));
+const tridentRows = [...tridentHead, ...outboard(tridentHaft, TRI_PIVOT, TRI_LEAN, TRI_W)];
+/** The grip: the haft's pivot row, counted from the top of the assembled part. */
+const TRI_GRIP_Y = tridentHead.length + TRI_PIVOT;
+reg('trident', part(tridentRows, { weaponGrip: { x: 7, y: TRI_GRIP_Y } }));
 
 // ================================================================================
 // STORM SPIRE (act 6) — WIND dominant, FIRE foil, LIGHT boss.
@@ -2734,10 +3026,19 @@ function hawkGrid(o: HawkPose = {}): string[] {
       limb(g, sx, sy, sx + (tx - sx) * t, sy + (ty - sy) * t + 7 * t, 6 - i, 2, ch);
     }
   };
+  // ROUND 12 — FEATHERS, NOT PLANKS (the critic's Global 9: 50.2 % interior edge
+  // density against the heroes' 85.7, a 22.9 % single-colour blob, "one value
+  // per wing and one per flank"). Each membrane is feathered the moment it is
+  // drawn, while nothing else shares its char: a lit leading edge, a shadow
+  // mid band, a dark trailing course, and a one-cell notch every third column
+  // so the trailing edge is a row of primaries instead of a straight cut.
   wing(24 + bx, 15 + by, 2 + bx - 3 * d, 3 + by - 6 * d, 'H');
+  featherPass(g, 'H', '^', 'h', '1', { notch: 2, lead: 2 });
   limb(g, 20 + bx, 25 + by, 4 + bx, 36 + by, 8, 3, 'H'); // the tail, fanned back and down
+  featherPass(g, 'H', '^', 'h', '1', { notch: 4, lead: 1, x0: 4 + bx, x1: 20 + bx }); // and the tail's own rectrices
   ell(g, 25 + bx, 22 + by, 13, 10, 'H'); // the body, pitched along the dive line
   wing(30 + bx, 14 + by, 48 + bx + 2 * d, 2 + by - 5 * d, 'h');
+  featherPass(g, 'h', '^', 'H', '1', { notch: 2, lead: 2, x0: 33 + bx });
   limb(g, 32 + bx, 18 + by, 38 + hx, 10 + hy, 9, 6, 'H'); // a short neck
   ell(g, 40 + hx, 9 + hy, 6, 5, 'H'); // the skull
   limb(g, 41 + hx, 10 + hy, 46 + hx, 12 + hy, 5, 2, 'A'); // a brass beak
@@ -2749,7 +3050,19 @@ function hawkGrid(o: HawkPose = {}): string[] {
   topLight(g, '^', 3, 'H');
   underbelly(g, '1', ')', 4, 'H', 2);
   planeBox(g, 8 + bx, 24 + by, 22 + bx, 32 + by); // the far wing's shadow face
-  planeEll(g, 29 + bx, 25 + by, 8, 5);
+  // A CHEST PLANE AND A BELLY PLANE, split by a stepped seam. One ellipse of
+  // shadow over the whole flank was the other half of "one value per flank".
+  planeEll(g, 33 + bx, 21 + by, 6, 6); // the chest, in the head's own shadow
+  planeStep(g, 20 + bx, 36 + bx, 26 + by, 4, 1, 4); // the belly, stepping down as it runs back
+  planeStep(g, 27 + bx, 32 + bx, 17 + by, 2, 2, 3, DARK_OF); // the seam between them
+  underbelly(g, ')', ')', 1, 'J', 1); // and the deep step under the belly plane, so it is not one flat mass
+  // three scapular courses across the breast, so the body is feathered too
+  for (const [sy, x0, x1] of [
+    [20, 24, 34],
+    [24, 20, 32],
+    [28, 17, 29],
+  ] as const)
+    limb(g, x0 + bx, sy + by, x1 + bx, sy - 2 + by, 1, 1, 'h');
   let out = rowsOf(g);
   out = stampRows(out, 8 + hy, 8 + hy, [36 + hx, '#GG']);
   out = stampRows(out, 9 + hy, 9 + hy, [36 + hx, '#11']);
@@ -3033,28 +3346,38 @@ function emberGrid(o: EmberPose = {}): string[] {
   const ky = cy + 4;
   let px = 0;
   let py = 0;
+  // ROUND 12 — A NARROWER ORBIT. Its mean CIELAB chroma was 27.37, up from
+  // 21.9 in round 11 and the one number that moved the wrong way there: the
+  // clinker was shrunk to hold sub-3:1 under the cap and the GLOW's share of
+  // the sprite rose with it. The HALO is what comes off, never the core — the
+  // ring is three cells wide instead of four, each of the nine embers is a
+  // cell smaller and the three tongues are a cell narrower, which takes the
+  // glow from 0.56 of the sprite to 0.47. Cutting further (a third break in
+  // the ring, three of the embers gone out to clinker) reached 26.0 and left a
+  // grey boulder with sparks over it, so the rest of the way to 23 is a
+  // saturation trim on the ramp in actors-late.ts.
   const BREAK = [2, 6];
   for (let i = 0; i <= 9; i++) {
     const a = (i / 9) * Math.PI * 2 + 0.4;
     const nx = cx + Math.cos(a) * 11 * r;
     const ny = cy + Math.sin(a) * 13 * r;
-    if (i > 0 && !BREAK.includes(i)) limb(g, px, py, nx, ny, 4, 4, 'G'); // the ring the embers ride
-    if (i < 9) ell(g, nx, ny, 3 + ((i * 5) % 4), 2 + ((i * 5) % 4), i % 2 ? 'G' : '7');
+    if (i > 0 && !BREAK.includes(i)) limb(g, px, py, nx, ny, 3, 3, 'G'); // the ring the embers ride
+    if (i < 9) ell(g, nx, ny, 2 + ((i * 5) % 4), 2 + ((i * 5) % 4), i % 2 ? 'G' : '7');
     px = nx;
     py = ny;
   }
-  limb(g, kx, ky, cx, cy - 13 * r, 5, 4, 'G'); // and a spoke joining it to the clinker
+  limb(g, kx, ky, cx, cy - 13 * r, 4, 3, 'G'); // and a spoke joining it to the clinker
   // three tongues off the top, one longer than the others
   [0, 1, 2].forEach((i) => {
     const len = 8 + (i === lick ? 10 : 0) + (i === (lick + 2) % 3 ? 4 : 0);
-    limb(g, cx - 5 + i * 5, cy - 11, cx - 7 + i * 6, cy - 11 - len, 5, 1, 'G');
+    limb(g, cx - 5 + i * 5, cy - 11, cx - 7 + i * 6, cy - 11 - len, 4, 1, 'G');
   });
   // the clinker: a dark burnt heart, offset low-LEFT of the ring, with its own
   // tone carried OUT through the lower break so the core belongs to the fire
   ell(g, kx, ky, 9, 10, 'b');
   ell(g, kx, ky, 7, 8, 'B');
-  ell(g, kx + 1, ky + 1, 5, 6, '8');
-  ell(g, kx + 1, ky + 2, 3, 4, '&');
+  ell(g, kx + 1, ky + 1, 4, 5, '8');
+  ell(g, kx + 1, ky + 2, 2, 3, '&');
   // the core's own tone, carried OUT through the lower break — FROST_WISP's
   // round-9 fix. It runs in the bone's SHADOW step, not its dark: this body is
   // a light source and a third of it below 3:1 is all the contrast budget a
@@ -3268,12 +3591,20 @@ function seraphWings(rows: readonly string[]): string[] {
   const sy = 5;
   const lx = SERAPH_PAD + 8;
   const rx = SERAPH_PAD + SRW - 6;
+  // ROUND 12 — DARK PINIONS. `autoShade` gives every AUTO cell on an
+  // upper-left silhouette the material's SPECULAR step, so all six spars ended
+  // in a pale spike and the round-11 critic could not find the lance among
+  // them at x2 ("one pale spike among eight"). The outer half of each spar is
+  // now the cloth's DEEP step, explicitly — an explicit step is not resolved
+  // by `autoShade` and cannot take the key — which leaves the lance's lit
+  // metal vane as the only pale spike on the figure.
   const wing2 = (x: number, dy: number, span: number, drop: number, ch: string): void => {
     limb(g, x, sy + dy, x + span, sy + dy - drop, 7, 2, ch);
     for (let i = 1; i <= 3; i++) {
       const t = i / 3;
       limb(g, x, sy + dy, x + span * t, sy + dy - drop * t + 9 * t, 6 - i, 2, ch);
     }
+    limb(g, x + span * 0.38, sy + dy - drop * 0.38, x + span, sy + dy - drop, 5, 2, ']');
   };
   wing2(lx, 0, -17, 14, 'D');
   wing2(rx, 1, 12, 7, 'D');
