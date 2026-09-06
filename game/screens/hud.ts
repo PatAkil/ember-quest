@@ -968,16 +968,26 @@ export function drawPrimaryButton(
   ctx.arc(0, 0, pw / 2, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
-  // The key's own light landing on it from above, ADDED rather than painted: a
-  // radial centred on the patch's crown falls off downward and outward, so the
-  // light has no edge either, and it is what says "light lands here" now that
-  // the straight 2-px lip is gone.
+  // The key's own light landing on it from above, ADDED rather than painted,
+  // and CONFINED TO THE PATCH. In the same squashed space as the ink, a radial
+  // whose inner circle is a point near the crown and whose OUTER circle is the
+  // patch's own rim: the light peaks at the crown, falls off downward and
+  // outward, and is exactly zero all the way round the rim, where the ink is
+  // zero too — so the light has no edge either, and it is what says "light
+  // lands here" now that the straight 2-px lip is gone. (Full-frame round 4's
+  // first defect: drawn as a RECT through a gradient that had not reached zero
+  // at the rect's edge, it cut the title screen's button — the first frame of
+  // the game — with a +31 L step 340 px long, and RETRY, CONTINUE and RESUME
+  // with the same band.)
   ctx.save();
-  ctx.translate(px, py);
+  ctx.translate(px + pw / 2, py + ph / 2);
+  ctx.scale(1, ph / pw);
   ctx.globalCompositeOperation = 'lighter';
   ctx.globalAlpha = focused ? 1 : 0.82;
-  ctx.fillStyle = primaryPool(ctx, pw, ph, accent);
-  ctx.fillRect(-pw * 0.1, -ph * 0.3, pw * 1.2, ph * 1.6);
+  ctx.fillStyle = primaryPool(ctx, pw, accent);
+  ctx.beginPath();
+  ctx.arc(0, 0, pw / 2, 0, Math.PI * 2);
+  ctx.fill();
   ctx.restore();
   hudTextCentered(ctx, label, px, py, pw, ph, { color: focused ? PICO8[7] : C_CREAM });
 }
@@ -1001,12 +1011,21 @@ function primaryInk(ctx: CanvasRenderingContext2D, w: number, alpha: number): Ca
   }
   return g;
 }
+/**
+ * Where the light's source sits, as a fraction of the patch's radius above its
+ * centre in the squashed space — the crown's third (it was y 0.16·h from the
+ * top when the light was a rect, and 0.34·h above the centre is 0.68·r here).
+ */
+const PRIMARY_POOL_LIFT = 0.68;
 const PRIMARY_POOLS = new Map<string, CanvasGradient>();
-function primaryPool(ctx: CanvasRenderingContext2D, w: number, h: number, color: string): CanvasGradient {
-  const key = `${w}|${h}|${color}`;
+function primaryPool(ctx: CanvasRenderingContext2D, w: number, color: string): CanvasGradient {
+  const key = `${w}|${color}`;
   let g = PRIMARY_POOLS.get(key);
   if (!g) {
-    g = ctx.createRadialGradient(w / 2, h * 0.16, 0, w / 2, h * 0.16, Math.max(w * 0.5, h * 1.4));
+    const r = w / 2;
+    // Inner circle: a point PRIMARY_POOL_LIFT·r above the centre. Outer circle:
+    // the rim itself, so t = 1 (alpha 0) on every point of the rim at once.
+    g = ctx.createRadialGradient(0, -PRIMARY_POOL_LIFT * r, 0, 0, 0, r);
     g.addColorStop(0, withAlpha(color, 0.7));
     g.addColorStop(0.42, withAlpha(color, 0.38));
     g.addColorStop(1, withAlpha(color, 0));
