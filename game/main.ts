@@ -1,1143 +1,975 @@
-// Ember Quest — a retro roguelike JRPG. No overworld walking, no real-time
-// action: every screen is a menu or a battle tableau. Descend through FOUR
-// ACTS (Crypt -> Tundra -> Desert -> Holy Temple), each a branching node map
-// (FIGHT/ELITE/REST/LOOT/BOSS) leading to that act's single boss. Combat is
-// turn-based, one enemy at a time: ATTACK (free) or a known spell (costs MP);
-// enemies hit back PHYSICAL or MAGIC and carry their own resists.
+// Ember Quest v3 — boot, loop, scene routing, input dispatch.
 //
-// v2 PROGRESSION (see DESIGN.md): every clear pays SKILL POINTS spent on the
-// LEVEL UP screen (HP/MP/ATK/MAG/DEF/MDEF/CRIT), and loot is a table of NAMED
-// ITEMS in six slots — one item per slot, a new find replaces the old — where
-// every RARE+ item carries a unique effect (hex dagger, ramping axe, twin
-// bolts, reflect mail, phoenix pendant...). Rules live in sim.ts, content in
-// data.ts; this file is screens, input, juice and rendering only.
-// Permadeath; felling the Seraph wins the run.
+// Phase 6a: the whole run is playable. The engine scene machine stays the
+// enforced five (TITLE → PLAYING ⇄ PAUSED → (GAME_OVER | WIN) → restart) and
+// every scene entry sends the one runtime message it owns (messaging-game-over).
+// The finer phase INSIDE PLAYING is not a machine at all — it is DERIVED from
+// what the run seam is waiting on:
 //
-// STYLE CARD — diverges from the reference game, both verification fixtures,
-// AND every sibling in workspace/ (see workspace/ember-descent/game/main.ts for
-// the sibling this most needs to differ from — same fiction):
-//   - PALETTE: PICO8. Background is a flat BLACK VOID (PICO8[0]) — ember-descent
-//     uses PICO8[1]; this game's depth planes are the only thing separating
-//     "menu" screens from "battle" screens.
-//   - HERO: a CRIMSON KNIGHT, 22x27 at px 1 — body 8, shade 2, highlight 9,
-//     white (7) plume, yellow (10) visor, grey (6/5) blade angled off his right
-//     side as its own silhouette island. NOT blue (ember-descent's hero).
-//   - SPRITE CRAFT: every actor authored at px 1 at rendered size (normals
-//     14-38 px, elites 14-25, bosses 26-39 wide), keyline in the rows, 2-3 body
-//     tones + flat accents, 2-frame breathe/float idles (sprites.ts).
-//   - BACKGROUND PLANES (under the ambient layer, inside the ambient band):
-//     CRYPT [1] pillars + torch flames; TUNDRA [1] crescent moon + ice peaks;
-//     DESERT low orange sun behind brown dune domes at reduced alpha; TEMPLE
-//     fluted dark-grey columns with gold capitals.
-//   - SURFACES: drawBevel floors — CRYPT 5/6/1, TUNDRA 1/12/0, DESERT 4/9/2,
-//     TEMPLE 6/7/5 — one dither lip; black ground shadows under actors. Panels
-//     are square dark-blue (1) plates with a yellow (10) keyline, selected rows
-//     get a dark-purple (2) bar — the opposite of ember-descent's notched panels.
-//   - RARITY LANGUAGE: item names tint by rarity — grey / blue / pink / yellow.
-//   - LOGO: drawLogo 10 / 9 / 2; the title prop is the knight at px 2 on the
-//     Crypt floor with a slime idling opposite.
-//   - ACCENT: warm yellow (10) for headings, the selected row and borders.
-//   - AMBIENT: embers / snow / embers-as-dust (peach) / bubbles-as-motes (gold).
-//   - JUICE: shake + yellow flash on hits, red shake + flash when struck, crits
-//     get a scale-3 outlined number and a hit-stop, bursts in each actor's own
-//     hue, a red RADIAL flash from the hero + freeze-frame on the killing blow;
-//     the knight falls where he stood and the killer stays under the dim.
-//   - TERMINAL SCREENS: live tableau + dimScene + a hollow drawFrame bezel.
+//     phase = run.pending()?.kind ?? 'ROOM'
 //
-// Controls: Up/Down (arrows/WASD) move every cursor; A confirms / spends a
-// point / advances; PAUSE pauses. B is intentionally undeclared.
+// game/sim/runstep.ts walks game/sim/run.ts's generator and stops on one
+// `RunPending`; screens/run.ts adapts it (and raises the one thing the seam has
+// no pending for, the room card); this file routes that pending to the screen
+// that draws it and hands the screen's answer straight back. No rule, no
+// legality check and no fallback lives here: an illegal answer travels into
+// run.ts untouched and that decision's own documented default decides it.
+//
+//   pending      screen                        answer
+//   ─────────────────────────────────────────────────────────────────────
+//   (pre-run)    vault.ts   EQUIP              {equip, ascension} → RunConfig
+//   DRAFT        draft.ts   DRAFT              index
+//   VAULT_EQUIP  — answered from the pre-run screen's list
+//   SUMMON       draft.ts   SUMMON             index | {swap,out} | null
+//   LEADER       party.ts   leaderEnabled      member index (B keeps the seat)
+//   ROUTE        map.ts                        index into offeredIdxs
+//   (room card)  cards.ts   ROOM               CONTINUE
+//   BATTLE       battle.ts                     {result, forfeit}
+//   RELIC        cards.ts   CARDS + wear row   {card, onto} | null
+//   REST/SHRINE/FORGE/ALTAR   node.ts          per face
+//   LAP          vault.ts   DOORS              'DESCEND' | 'LAP'
+//   BANK         vault.ts   BANK               {take, drop}
+//
+// PAUSE/INSPECT/ARCADE persist exactly as before: PAUSE outside of battle is
+// this file's own overlay (the region table's generic "pause" row) above EVERY
+// non-battle screen — each screen carries its own on-screen pause icon, because
+// a phone has no P key — and PAUSE mid-battle is forwarded to the battle
+// screen, which owns its own pause-and-forfeit flow.
+//
+// ONE SCENE. `engine/light.ts` is created here, once, and handed to every
+// screen: the diorama bakes per (biome, tier), and the title, the map, the
+// card, the node screens, the end screens and this file's pause overlay all
+// draw over the same lit biome the battle does, in the battle's own order
+// (renderBackground → world → renderLightPlane → renderPost, HUD last and
+// un-bloomed). ARCADE lives here for the same reason: it swaps the light module
+// to its flat tier AND applies the CRT, and "bloom XOR CRT halation" is a rule
+// about the whole frame, not about one screen.
+//
+// STYLE CARD: PALETTE PICO8 for UI, element tints per actor layer (art/).
+// TEXT the HUD face (screens/hud.ts) for everything the player reads as UI;
+// bitmap FONT_HD only for the logo, card titles, door labels and damage pops.
+// INPUT every tap target is a hit region; A/arrows route to it. CRT off by
+// default; ARCADE is the toggle.
 
 import {
-  createPixelCanvas, createLoop, createInput, controlHints, createScenes,
-  createParticles, createJuice, createAudio, createCrt, createRuntime,
-  drawSprite, frameIndex, drawText, drawTextCentered, textWidth,
-  drawFrame, drawLogo, fillDither, drawBevel, drawPanel,
-  hudText, dimScene, blink,
-  BUTTON_KEY, PICO8, SAFE_MARGIN,
+  createPixelCanvas, createLoop, createInput, createScenes, createAudio, createRuntime,
+  createHitRegions, setSafeInset, createJuice, createParticles, createCrt, createLight, pickBackingScale,
+  dimScene, PICO8,
 } from '../engine';
-import type { Sprite, AmbientPreset } from '../engine';
+import type { BiomeLook, Light, LightActor, LightTier } from '../engine';
+import type { Battle } from './sim/battle';
+import { forecast } from './sim/battle';
+import { ACTS, SLOTS, VAULT_EQUIP_MAX } from './types';
+import type { RunConfig, RunResult } from './types';
 import {
-  heroFrames, ENEMY_FRAMES, ICON_SWORD, ICON_WAND, ICON_ARMOR, ICON_NECKLACE, ICON_CHALICE, ICON_BOOTS, ICON_TOME, ICON_EMPTY,
-  fightIcon, eliteIcon, restIcon, lootIcon, bossIcon,
-} from './sprites';
-import type { Anim } from './sprites';
-import { STAT_KEYS, SP_GAIN, SLOTS } from './types';
-import type { Hero, Item, Slot, StatKey, SpellId, LootSource, LootOffer, EnemyKind, EnemyInstance, BattleState, HeroAction, Derived } from './types';
-import { BIOMES, ENEMIES, ITEMS, SPELLS, RARITY_COLOR_INDEX, BOSS_ENTRY_HEAL, validateData } from './data';
-import {
-  createHero, derive, heroActions, spellCost, canAfford, spendPoint, grantClear, healFraction, fullHeal,
-  spawnEnemy, createBattle, startTurn, heroAct, enemyAct, rollLoot, skipMend,
-  applyOffer, compareOffer, describeOffer, displayName, itemLevel, noteDeclinedScrolls,
-} from './sim';
+  CANVAS_W, CANVAS_H, PAUSE_BTN, PAUSE_BTN_X, PAUSE_BTN_Y, PAUSED_TEXT_Y, SAFE_INSET,
+} from './screens/layout';
+import { ACCENT, EDGE_LIT, PLATE_RADIUS, drawPrimaryButton, focusGlow, hudText, hudTextCentered, hudWidth, plate } from './screens/hud';
+import { createRunScreen, runConfig } from './screens/run';
+import type { HeroChoice, RunScreen } from './screens/run';
+import { createCardsScreen } from './screens/cards';
+import { createTitleScreen } from './screens/title';
+import { createEndScreen } from './screens/end';
+import { createBattleScreen } from './screens/battle';
+import { FACE_ID, createDraftScreen } from './screens/draft';
+import type { DraftAnswer, DraftProps } from './screens/draft';
+import { createMapScreen } from './screens/map';
+import type { MapProps } from './screens/map';
+import { createPartyScreen } from './screens/party';
+import type { PartyProps } from './screens/party';
+import { createNodeScreen } from './screens/node';
+import type { NodeAnswer, NodeProps } from './screens/node';
+import { ASCENSION_MAX, clampAscension, createVaultScreen, loadVault, saveVault } from './screens/vault';
+import type { VaultAnswer, VaultProps, VaultSave } from './screens/vault';
+import { mulberry32 } from './sim/rng';
+import { backdropFor } from './art/backdrops';
+import { BIOMES } from './data';
 
-// --- Setup -------------------------------------------------------------------
-const W = 240;
-const H = 160;
-const pc = createPixelCanvas({ width: W, height: H, scale: 3, parent: document.getElementById('screen') });
+/** Dev only — Vite substitutes `false` in the Pages build, so every block guarded by it folds away. */
+const DEV = (import.meta as unknown as { env: { DEV: boolean } }).env.DEV;
+
+// --- Boot --------------------------------------------------------------------
+const W = CANVAS_W;
+const H = CANVAS_H;
+const mount = document.getElementById('screen');
+const pc = createPixelCanvas({
+  width: W,
+  height: H,
+  // The canvas is not in the DOM yet, so measure the CSS width it will get
+  // (index.html: min(100vw, 100vh × 16/9)) rather than the empty mount.
+  scale: pickBackingScale(Math.min(window.innerWidth, (window.innerHeight * 16) / 9)),
+  parent: mount,
+  smoothing: true,
+});
+setSafeInset(SAFE_INSET);
 const audio = createAudio();
 const input = createInput(
-  [{ button: 'A', label: 'select' }, { button: 'PAUSE', label: 'pause' }],
-  { onFirstKey: () => audio.unlock() },
+  [{ button: 'A', label: 'select' }, { button: 'B', label: 'back' }, { button: 'PAUSE', label: 'pause' }],
+  { onFirstInput: () => audio.unlock(), pointer: { canvas: pc.canvas, width: W, height: H } },
 );
+const regions = createHitRegions(input, { width: W, height: H });
 const scenes = createScenes();
-const particles = createParticles({ width: W, height: H, ambient: 'embers' });
-const juice = createJuice();
-const crt = createCrt();
 const runtime = createRuntime();
-for (const v of validateData()) console.warn('[ember-quest data]', v);
+const juice = createJuice();
+const particles = createParticles({ width: W, height: H, ambient: 'embers' });
+const crt = createCrt();
 
-// --- Palette roles -----------------------------------------------------------
-const C_BG = PICO8[0];
-const C_PANEL = PICO8[1];
-const C_BORDER = PICO8[10];
-const C_ACCENT = PICO8[10];
 const C_TEXT = PICO8[7];
-const C_DIM = PICO8[6];
-const C_HP = PICO8[11];
-const C_HP_LOW = PICO8[8];
-const C_MP = PICO8[12];
-const C_DMG_TAKEN = PICO8[8];
-const C_SEL_BAR = PICO8[2];
-const rarityColor = (item: Item): string => PICO8[RARITY_COLOR_INDEX[item.rarity]];
+/** PAUSED in the HUD face, at roughly the height the contract's bitmap scale 4 drew (battle.ts's own number). */
+const PAUSED_PX = 44;
 
-/** Burst / identity hue per enemy id (sprites carry the rest). */
-const ENEMY_COLOR: Record<string, string> = {
-  SLIME: PICO8[11], GOBLIN: PICO8[9], SKELETON: PICO8[7], OGRE_KING: PICO8[4], WRAITH_LORD: PICO8[13], DARK_LORD: PICO8[3],
-  ICE_WOLF: PICO8[12], ICE_BEAR: PICO8[7], FROST_WISP: PICO8[13], YETI: PICO8[6],
-  SANDWORM: PICO8[15], SCORPION: PICO8[10], MUMMY: PICO8[6], SAND_GOLEM: PICO8[4],
-  GUARDIAN: PICO8[10], ORACLE: PICO8[13], PALADIN: PICO8[7], SERAPH: PICO8[15],
-};
-const enemyColor = (id: string): string => ENEMY_COLOR[id] ?? C_TEXT;
+// --- The scene ----------------------------------------------------------------
+// One light module for the life of the page. It bakes a diorama per (biome,
+// tier), so the title, the cards, the end screens and every battle share one
+// bake — entering or leaving a battle swaps nothing and re-bakes nothing.
+const BASE_TIER: LightTier = 'HIGH';
+const light: Light = createLight({ width: W, height: H, tier: BASE_TIER });
+let sceneBiome: BiomeLook | null = null;
 
-/** Per-biome presentation (the rules tables in data.ts know nothing about colour). */
-interface BiomeLook { floor: string; floorLight: string; floorDark: string; ambient: AmbientPreset; ambientColor: string }
-const BIOME_LOOK: BiomeLook[] = [
-  { floor: PICO8[5], floorLight: PICO8[6], floorDark: PICO8[1], ambient: 'embers', ambientColor: PICO8[9] },
-  { floor: PICO8[1], floorLight: PICO8[12], floorDark: PICO8[0], ambient: 'snow', ambientColor: PICO8[7] },
-  { floor: PICO8[4], floorLight: PICO8[9], floorDark: PICO8[2], ambient: 'embers', ambientColor: PICO8[15] },
-  { floor: PICO8[6], floorLight: PICO8[7], floorDark: PICO8[5], ambient: 'bubbles', ambientColor: PICO8[10] },
-];
-
-let clock = 0; // ONE clock, fed by fixed-step dt, drives every animation.
-
-// --- Map generation -------------------------------------------------------------
-type RoomType = 'FIGHT' | 'ELITE' | 'REST' | 'LOOT' | 'BOSS';
-interface MapNode { type: RoomType; stage: number; slot: number; links: number[]; cleared: boolean }
-const STAGE_SIZES = [2, 3, 2, 3, 2, 3]; // 6 stages, then a 1-node BOSS stage
-
-function pickRoomType(): RoomType {
-  const r = Math.random();
-  if (r < 0.15) return 'ELITE';
-  if (r < 0.30) return 'REST';
-  if (r < 0.42) return 'LOOT';
-  return 'FIGHT';
+/** Swaps the diorama (and the ambient field that goes with it); a no-op when that look is already up. */
+function useBiome(name: string): void {
+  const look = backdropFor(name);
+  if (look === sceneBiome) return;
+  sceneBiome = look;
+  light.setBiome(look);
+  // The look owns the ambient field too: the flat tiers draw it, the HD tiers
+  // let the light plane's own motes and fog do that job.
+  particles.setAmbient(look.ambient, look.ambientColor);
 }
 
 /**
- * Link one stage to the next so that (a) every next node is reachable,
- * (b) most nodes offer TWO onward choices — the previous monotone ladder gave
- * a single link 84 % of the time, so the map, not the player, picked rooms —
- * and (c) crossings are only ever the small X between two NEIGHBOURING nodes:
- * node i's lowest target may dip one below node i-1's highest, never below
- * node i-2's highest, so no edge ever cuts across another node's straight run.
+ * ARCADE, owned here because it is a rule about the whole frame: ON = the light
+ * module at its flat ARCADE tier PLUS crt.render; OFF = the HD tier and no CRT
+ * call at all. Bloom and CRT halation are the same effect and exactly one is
+ * alight. Every screen reads this one flag, so a toggle in the battle's pause
+ * menu still holds on the room card and the title.
  */
-function linkStage(cur: MapNode[], next: MapNode[]): void {
-  const a = cur.length; const b = next.length;
-  const his: number[] = [];
-  for (let i = 0; i < a; i++) {
-    const straight = Math.round((i * (b - 1)) / Math.max(1, a - 1));
-    const floorLo = Math.max(i >= 1 ? his[i - 1] - 1 : 0, i >= 2 ? his[i - 2] : 0);
-    const span = b >= 2 && Math.random() < 0.85 ? 2 : 1;
-    let lo = Math.max(floorLo, Math.min(straight - (span === 2 && Math.random() < 0.5 ? 1 : 0), b - 1));
-    let hi = Math.min(b - 1, lo + span - 1);
-    if (hi < lo) hi = lo;
-    // keep the span honest when it was clipped at the bottom edge
-    if (hi - lo + 1 < span && lo > floorLo) lo = Math.max(floorLo, hi - span + 1);
-    cur[i].links = [];
-    for (let j = lo; j <= hi; j++) cur[i].links.push(j);
-    his.push(hi);
-  }
-  // Coverage: any orphaned next node is claimed by the nearest node whose span can stretch to it.
-  for (let j = 0; j < b; j++) {
-    if (cur.some((n) => n.links.includes(j))) continue;
-    let best = 0; let bestDist = Infinity;
-    cur.forEach((n, i) => {
-      const d = Math.min(Math.abs(n.links[0] - j), Math.abs(n.links[n.links.length - 1] - j));
-      if (d < bestDist) { bestDist = d; best = i; }
-    });
-    cur[best].links.push(j);
-    cur[best].links.sort((x, y) => x - y);
-  }
-  // No rest feeding into rest: the second one becomes a fight.
-  for (const n of cur) if (n.type === 'REST') for (const j of n.links) if (next[j].type === 'REST') next[j].type = 'FIGHT';
+let arcadeOn = false;
+const arcade = {
+  get on(): boolean {
+    return arcadeOn;
+  },
+  toggle(): void {
+    arcadeOn = !arcadeOn;
+    light.setTier(arcadeOn ? 'ARCADE' : BASE_TIER);
+  },
+};
+/** The flat tiers have no light plane, so the engine's ambient field is their dust. */
+function flatTier(): boolean {
+  const t = light.tier();
+  return t === 'LOW' || t === 'ARCADE';
 }
 
-function generateMap(): MapNode[][] {
-  const stages: MapNode[][] = [];
-  for (let s = 0; s < STAGE_SIZES.length; s++) {
-    const stage: MapNode[] = [];
-    for (let n = 0; n < STAGE_SIZES[s]; n++) stage.push({ type: pickRoomType(), stage: s, slot: n, links: [], cleared: false });
-    stages.push(stage);
-  }
-  stages.push([{ type: 'BOSS', stage: STAGE_SIZES.length, slot: 0, links: [], cleared: false }]);
-  // No elite before the first clear — an elite against base stats is a coin flip, not a choice.
-  for (const n of stages[0]) if (n.type === 'ELITE') n.type = 'FIGHT';
-  if (!stages.slice(1, 6).some((st) => st.some((n) => n.type === 'ELITE'))) {
-    const st = stages[2]; st[Math.floor(Math.random() * st.length)].type = 'ELITE';
-  }
-  if (!stages.slice(0, 6).some((st) => st.some((n) => n.type === 'REST'))) {
-    const st = stages[4]; st[Math.floor(Math.random() * st.length)].type = 'REST';
-  }
-  // A chest every act — and when we have to invent one, make it the REST's
-  // sibling so "rest or loot" is a choice the route forces at least once.
-  if (!stages.slice(0, 6).some((st) => st.some((n) => n.type === 'LOOT'))) {
-    const restStage = stages.slice(0, 6).find((st) => st.length > 1 && st.some((n) => n.type === 'REST')) ?? stages[3];
-    const cands = restStage.filter((n) => n.type !== 'REST');
-    (cands[Math.floor(Math.random() * cands.length)] ?? restStage[0]).type = 'LOOT';
-  }
-  for (let s = 0; s < stages.length - 1; s++) linkStage(stages[s], stages[s + 1]);
-  return stages;
+/**
+ * The one out-of-battle scene pass, in the battle screen's own order:
+ * preRender → diorama → world → light plane → postRender → post. The juice
+ * transform OPENS and CLOSES in here, exactly as it does inside battle.render,
+ * so the bloom, the grade and every screen's HUD are drawn on the restored
+ * frame: a shake can never offset the bloom, and a flash can never paint over a
+ * number the player has to read. Every screen calls this first thing in its
+ * render and then draws its HUD on top, un-shaken, un-bloomed and un-graded.
+ */
+function renderScene(drawWorld?: () => void, actors?: readonly LightActor[]): void {
+  const ctx = pc.ctx;
+  juice.preRender(ctx);
+  const shake = juice.offset();
+  light.renderBackground(ctx, { time: clock, shakeX: shake.x, shakeY: shake.y });
+  if (flatTier()) particles.render(ctx);
+  drawWorld?.();
+  light.renderLightPlane(ctx, { time: clock, actors });
+  juice.postRender(ctx, W, H); // restore the shake, then the flash
+  light.renderPost(ctx, { time: clock });
 }
 
-// --- Run state -------------------------------------------------------------------
-let hero: Hero = createHero();
-let clears = 0; // encounters cleared this run — the difficulty scalar and score basis
-let score = 0;
-let actIndex = 0;
-let mapStages: MapNode[][] = [];
-let curStage = -1; // -1 = before stage 0
-let reachable: number[] = [0, 1]; // slot indices reachable in the NEXT stage
-let cursor = 0;
-let pendingNode: MapNode | null = null;
+// --- The run ------------------------------------------------------------------
+let run: RunScreen | null = null;
+let activeBattle: Battle | null = null;
+let lastRunPhase: string | null = null;
+/**
+ * The hero turns of the battle now on screen, as the player played them. The
+ * battle screen resolves a turn from ITS activations — a `skill-N` row, then an
+ * `enemy-N`/`hero-N` target where the skill takes one — and those activations
+ * are resolved on this file's own region registry, so they can be read back
+ * here without the screen having to report anything. A turn is committed the
+ * frame the battle phase leaves the hero's half of it.
+ *
+ * This is the one thing a replay cannot re-derive: `battle.rng` IS the run's
+ * rng, so a battle answered by different choices consumes a different stream
+ * and every later room diverges. See screens/run.ts's `HeroChoice`.
+ */
+const heroChoices: HeroChoice[] = [];
+let turnActorId: string | null = null;
+let turnSkill = -1;
+let turnTarget = -1;
+let lastScore = 0;
+let clock = 0;
 
-type SubScene = 'MAP' | 'BATTLE' | 'LEVELUP' | 'LOOT' | 'CARD';
-let subScene: SubScene = 'MAP';
-let prevDirY = 0; // manual edge-detection for menu navigation (engine exposes dir, not a directional press edge)
-function resetCursorEdge(): void { prevDirY = input.dir.y; }
-/** Up/Down as a press edge: returns -1/0/+1 once per key-down. */
-function dirEdge(): number {
-  const dy = input.dir.y;
-  const edge = dy !== 0 && prevDirY === 0 ? dy : 0;
-  prevDirY = dy;
-  return edge;
-}
+/**
+ * The Vault, read once at boot and rewritten the moment a run ends
+ * (screens/vault.ts owns the key and the parsing; a corrupt payload comes back
+ * as an empty Vault rather than throwing). DESIGN.md → The Vault.
+ */
+let vaultSave: VaultSave = loadVault();
+/**
+ * The one screen that cannot be a pending: `RunConfig.ascension` has to be
+ * known before `createRun` draws its first number, and the ascension stepper
+ * sits on the Vault's EQUIP face — so that face is shown BEFORE the run and its
+ * two answers part ways here. The ascension goes into the config; the equip
+ * list is held and handed to the run's own VAULT_EQUIP pending when it arrives
+ * (after the draft, since the starter has to exist before relics can be worn on
+ * them). The player answers it once and sees it once.
+ */
+let preRun: 'VAULT' | null = null;
+let heldEquip: number[] = [];
+let chosenAscension = 0;
+/** The party screen opened over the map (its PARTY button, or B) — not a pending, a look at the party. */
+let partyOpen = false;
+/** Which screen owned the last frame — the edge that decides where the keyboard lands (see focusOnOpen). */
+let lastScreenKey = '';
 
-let best = 0;
-let beatBest = false;
-const BEST_KEY = 'retrovibe.ember-quest.best';
-try { best = Number(localStorage.getItem(BEST_KEY) ?? 0) || 0; } catch { best = 0; }
-function saveBest(): void {
-  beatBest = score > best;
-  if (beatBest) { best = score; try { localStorage.setItem(BEST_KEY, String(best)); } catch { /* private mode */ } }
-}
-
-let deathBiome = '';
-let dying = false;
-let heroDown = false; // death tableau: the knight lies where he fell
-const biome = () => BIOMES[actIndex];
-const look = () => BIOME_LOOK[actIndex];
-
-// --- Damage / status pops -------------------------------------------------------
-interface Pop { x: number; y: number; life: number; text: string; color: string; scale: number }
-const POP_LIFE = 1.1;
-const pops: Pop[] = [];
-function pushPop(x: number, y: number, text: string, color: string, scale = 2): void { pops.push({ x, y, life: POP_LIFE, text, color, scale }); }
-function updatePops(dt: number): void {
-  for (let i = pops.length - 1; i >= 0; i--) {
-    const p = pops[i]; p.life -= dt; p.y -= 14 * dt;
-    if (p.life <= 0) pops.splice(i, 1);
+/** The run's seed and the config it was built with — a replay's other two inputs beside the decision log. */
+let runSeed = 0;
+let runCfg: RunConfig = runConfig();
+function nextSeed(): number {
+  if (DEV) {
+    const q = new URLSearchParams(window.location.search).get('seed');
+    const n = Number(q);
+    if (q !== null && q !== '' && Number.isFinite(n)) return n >>> 0;
   }
+  return (Math.random() * 0x100000000) >>> 0;
 }
 
-// --- Card screen (non-interactive message) --------------------------------------
-let cardLines: string[] = [];
-let cardOnDone: () => void = () => {};
-function showCard(lines: string[], onDone: () => void): void {
-  cardLines = lines; cardOnDone = onDone; subScene = 'CARD'; resetCursorEdge();
-}
-
-// --- Level-up screen (spend skill points) ---------------------------------------
-let luCursor = 0;
-let luOnDone: () => void = () => {};
-let luEarned = 0;
-function startLevelUp(earned: number, onDone: () => void): void {
-  if (hero.sp <= 0) { onDone(); return; }
-  luEarned = earned; luCursor = 0; luOnDone = onDone; subScene = 'LEVELUP'; resetCursorEdge();
-}
-function updateLevelUp(): void {
-  const dy = dirEdge();
-  if (dy) { luCursor = (luCursor + dy + STAT_KEYS.length) % STAT_KEYS.length; audio.play('blip'); }
-  if (input.pressed('A')) {
-    if (spendPoint(hero, STAT_KEYS[luCursor])) {
-      audio.play('pickup');
-      const hp = heroPos();
-      pushPop(hp.x, hp.y - 26, `+${SP_GAIN[STAT_KEYS[luCursor]]} ${STAT_KEYS[luCursor]}`, C_ACCENT);
-    }
-    if (hero.sp <= 0) luOnDone();
-  }
-}
-
-// --- Loot screen (choose one item, or keep gear + mend) --------------------------
-const pickOne = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
-let lootOffers: LootOffer[] = [];
-let lootCursor = 0;
-let lootSource: LootSource = 'FIGHT';
-let lootOnDone: () => void = () => {};
-function startLoot(source: LootSource, onDone: () => void): void {
-  lootOffers = rollLoot(source, actIndex, hero, Math.random);
-  // Bad-luck guard: a knight with no weapon cannot out-damage anything, so the
-  // first item offers of a run always include one (a common blade or wand).
-  const itemIdx = lootOffers.map((o, i) => (o.kind === 'ITEM' ? i : -1)).filter((i) => i >= 0);
-  if (!hero.equipment.WEAPON && itemIdx.length && !lootOffers.some((o) => o.kind === 'ITEM' && o.item.slot === 'WEAPON')) {
-    const starters = ITEMS.filter((i) => i.slot === 'WEAPON' && i.rarity === 'COMMON' && (i.minAct ?? 0) <= actIndex);
-    if (starters.length) lootOffers[itemIdx[itemIdx.length - 1]] = { kind: 'ITEM', item: pickOne(starters) };
-  }
-  lootSource = source; lootCursor = 0; lootOnDone = onDone;
-  if (lootOffers.length === 0) {
-    if (source === 'FIGHT') { onDone(); return; } // a dry fight: no drop, no screen
-    const m = skipMend(hero);
-    showCard(['THE CACHE IS BARE', `MENDED ${m.hp} HP AND ${m.mp} MP`], onDone);
+/** TITLE's START, and RETRY/CONTINUE: the Vault face first when there is anything to choose, else straight in. */
+function beginNewRun(): void {
+  partyOpen = false;
+  chosenAscension = clampAscension(chosenAscension, 0, vaultSave.unlockedAscension);
+  if (vaultSave.vault.length > 0 || vaultSave.unlockedAscension > 0) {
+    preRun = 'VAULT';
+    run = null;
+    activeBattle = null;
+    lastRunPhase = null;
+    if (!scenes.is('PLAYING')) scenes.to('PLAYING');
     return;
   }
-  subScene = 'LOOT'; resetCursorEdge();
-}
-function updateLoot(): void {
-  const n = lootOffers.length + 1;
-  const dy = dirEdge();
-  if (dy) { lootCursor = (lootCursor + dy + n) % n; audio.play('blip'); }
-  if (input.pressed('A')) {
-    if (lootCursor < lootOffers.length) {
-      const offer = lootOffers[lootCursor];
-      const delta = compareOffer(hero, offer);
-      const r = applyOffer(hero, offer, Math.random);
-      noteDeclinedScrolls(hero, lootOffers, offer);
-      audio.play('pickup');
-      if (offer.kind === 'SCROLL') {
-        const hp = heroPos();
-        particles.burst(hp.x, hp.y - 10, { count: 14, color: PICO8[12], speed: 100 });
-        juice.flash(PICO8[12], 0.3);
-        const sp = SPELLS[offer.spell];
-        showCard([`YOU LEARNED ${sp.name}!`, `${sp.scale} x${sp.mult.toFixed(1)}${sp.hits > 1 ? ` x${sp.hits}` : ''}  ${sp.cost} MP  ${sp.kind}`], lootOnDone);
-      } else if (offer.kind === 'ITEM') {
-        showCard([`EQUIPPED ${offer.item.name}`, r.replaced ? `${r.replaced.name} IS LEFT BEHIND` : offer.item.blurb], lootOnDone);
-      } else {
-        const hp = heroPos();
-        particles.burst(hp.x, hp.y, { count: 12, color: C_ACCENT, speed: 90 });
-        showCard([offer.toLevel >= 2 ? `${offer.item.name} AWAKENS!` : `${displayName(offer.item, offer.toLevel)}`, offer.toLevel >= 2 ? r.line : delta], lootOnDone);
-      }
-    } else {
-      const m = skipMend(hero);
-      noteDeclinedScrolls(hero, lootOffers, null);
-      audio.play('pickup');
-      showCard(['YOU KEEP YOUR GEAR', `MENDED ${m.hp} HP AND ${m.mp} MP`], lootOnDone);
-    }
-  }
-}
-
-// --- Map navigation ---------------------------------------------------------------
-function moveCursor(dy: number): void {
-  const i = reachable.indexOf(cursor);
-  const next = reachable[(i + dy + reachable.length) % reachable.length];
-  if (next !== cursor) { cursor = next; audio.play('blip'); }
-}
-
-function advanceStage(): void {
-  const node = pendingNode!;
-  node.cleared = true;
-  curStage = node.stage;
-  const next = mapStages[curStage + 1];
-  reachable = node.links.length ? node.links : next.map((_, i) => i);
-  cursor = reachable[0];
-  subScene = 'MAP';
-  resetCursorEdge();
-}
-
-function onClear(kind: EnemyKind): number {
-  clears++;
-  score = clears * 100;
-  runtime.scoreChanged(score);
-  const g = grantClear(hero, kind);
-  return g.sp;
-}
-
-function onActCleared(): void {
-  if (actIndex >= BIOMES.length - 1) { subScene = 'BATTLE'; scenes.to('WIN'); return; }
-  actIndex++;
-  showCard([`${BIOMES[actIndex].name} AWAITS...`, 'THE DESCENT CONTINUES'], () => enterAct());
-}
-
-function selectNode(node: MapNode): void {
-  pendingNode = node;
-  const b = biome();
-  if (node.type === 'FIGHT') {
-    startBattle(pickOne(b.normals), () => {
-      const sp = onClear('NORMAL');
-      startLevelUp(sp, () => startLoot('FIGHT', () => advanceStage()));
-    });
-  } else if (node.type === 'ELITE') {
-    startBattle(pickOne(b.elites), () => {
-      const sp = onClear('ELITE');
-      startLevelUp(sp, () => startLoot('ELITE', () => advanceStage()));
-    });
-  } else if (node.type === 'BOSS') {
-    node.cleared = true;
-    healFraction(hero, BOSS_ENTRY_HEAL);
-    startBattle(b.boss, () => {
-      const sp = onClear('BOSS');
-      showCard(['VICTORY!', `${ENEMIES[b.boss].name} IS NO MORE`], () =>
-        startLevelUp(sp, () => startLoot('BOSS', () => onActCleared())));
-    });
-  } else if (node.type === 'REST') {
-    fullHeal(hero);
-    audio.play('pickup');
-    showCard(['FULLY RESTED', 'HP AND MP RESTORED'], () => advanceStage());
-  } else if (node.type === 'LOOT') {
-    startLoot('LOOT', () => advanceStage());
-  }
-}
-
-function enterAct(): void {
-  mapStages = generateMap();
-  pendingNode = null;
-  curStage = -1;
-  reachable = mapStages[0].map((_, i) => i);
-  cursor = 0;
-  subScene = 'MAP';
-  particles.setAmbient(look().ambient, look().ambientColor);
-  resetCursorEdge();
+  heldEquip = [];
+  startRun();
 }
 
 function startRun(): void {
-  hero = createHero();
-  clears = 0; score = 0; actIndex = 0; dying = false; heroDown = false; enemy = null; battle = null; pops.length = 0;
-  enterAct();
+  preRun = null;
+  partyOpen = false;
+  runSeed = nextSeed();
+  runCfg = runConfig({
+    ascension: chosenAscension,
+    vault: [...vaultSave.vault],
+    vaultSlots: vaultSave.vaultSlots,
+  });
+  run = createRunScreen(mulberry32(runSeed), runCfg);
+  activeBattle = null;
+  lastRunPhase = null;
+  lastScore = 0;
+  useBiome(run.biome().name);
+  if (!scenes.is('PLAYING')) scenes.to('PLAYING');
 }
 
-function startPlaying(): void { startRun(); scenes.to('PLAYING'); }
+/**
+ * The run is over: the Vault is what it leaves behind. `RunResult.banked` is
+ * already the WHOLE new Vault (run.ts's resolveBank returns vault − drop +
+ * take, trimmed to VAULT_SIZE), `vaultSlots` is next run's
+ * min(VAULT_EQUIP_MAX, actsCleared), and the ascension unlock is granted on the
+ * run's first act-6 kill (DESIGN.md → Laps, The Vault).
+ */
+function persistVault(result: RunResult): void {
+  const clearedSix = result.actsCleared >= ACTS;
+  vaultSave = {
+    version: vaultSave.version,
+    vault: [...result.banked],
+    vaultSlots: Math.min(VAULT_EQUIP_MAX, result.actsCleared),
+    unlockedAscension: Math.max(
+      vaultSave.unlockedAscension,
+      clearedSix ? Math.min(ASCENSION_MAX, result.ascension + 1) : 0,
+    ),
+  };
+  saveVault(vaultSave);
+}
+
+// --- Answers ------------------------------------------------------------------
+// Each of these is a one-liner on purpose: the screen already drew the
+// enumerated options the pending carried, so the answer is passed through
+// verbatim. Nothing is validated here — run.ts owns every fallback.
+function onDraftAnswer(answer: DraftAnswer): void {
+  if (!run) return;
+  if (answer.kind === 'DRAFT') run.answer(answer.index);
+  else if (answer.kind === 'SUMMON') run.answer(answer.answer);
+  // REBRAND is the node screen's own inner use of the draft grid; it answers there.
+}
+function onNodeAnswer(answer: NodeAnswer): void {
+  if (!run) return;
+  if (answer.kind === 'SHRINE') run.answer(answer.take);
+  else if (answer.kind === 'FORGE') run.answer(answer.answer);
+  else if (answer.kind === 'ALTAR') run.answer(answer.index);
+  else run.answer(answer.answer); // REST
+}
+function onVaultAnswer(answer: VaultAnswer): void {
+  if (answer.kind === 'EQUIP') {
+    // The two halves part ways: the ascension is config, the equip list is the
+    // run's own VAULT_EQUIP answer, held until that pending arrives.
+    heldEquip = [...answer.equip];
+    chosenAscension = answer.ascension;
+    startRun();
+    return;
+  }
+  if (!run) return;
+  if (answer.kind === 'DOORS') run.answer(answer.door);
+  else run.answer({ take: answer.take, drop: answer.drop });
+}
+/** The party screen's BACK. With a LEADER pending open it is not "go away" — it is the seam's own default. */
+function onPartyBack(): void {
+  const p = run?.pending();
+  if (run && p && p.kind === 'LEADER') { run.answer(run.view().party.leader); return; }
+  partyOpen = false;
+}
+function onLeaderPick(member: number): void {
+  const p = run?.pending();
+  if (run && p && p.kind === 'LEADER') { run.answer(member); return; }
+  partyOpen = false;
+}
+
+// --- Screens (created once; each is handed the props its pending carries) -----
+const onPause = (): void => { scenes.to('PAUSED'); };
+
+const titleScreen = createTitleScreen({
+  pc, input, regions, audio, light, scene: renderScene, onStart: beginNewRun,
+  vaultLine: () => {
+    const bits: string[] = [];
+    if (vaultSave.vault.length > 0) bits.push(`VAULT ${vaultSave.vault.length} . ${vaultSave.vaultSlots} TO EQUIP`);
+    if (vaultSave.unlockedAscension > 0) bits.push(`A${vaultSave.unlockedAscension} UNLOCKED`);
+    return bits.join('   .   ');
+  },
+});
+const cardsScreen = createCardsScreen({ pc, input, regions, audio, scene: renderScene, onPause });
+const endScreen = createEndScreen({
+  pc, input, regions, audio, light, scene: renderScene, onRetry: beginNewRun, onContinue: beginNewRun,
+});
+const battleScreen = createBattleScreen({
+  pc, input, regions, audio, juice, particles, crt, light, arcade, setBiome: useBiome,
+});
+const draftScreen = createDraftScreen({
+  pc, input, regions, audio, scene: renderScene, onPause, onAnswer: onDraftAnswer,
+});
+const mapScreen = createMapScreen({
+  pc, input, regions, audio, scene: renderScene, onPause,
+  onRoute: (choice) => run?.route(choice),
+  onParty: () => { partyOpen = true; },
+});
+const partyScreen = createPartyScreen({
+  pc, input, regions, audio, scene: renderScene, onPause,
+  onBack: onPartyBack, onLeader: onLeaderPick, onSwap: () => { partyOpen = false; },
+});
+const nodeScreen = createNodeScreen({
+  pc, input, regions, audio, scene: renderScene, onPause, onAnswer: onNodeAnswer,
+});
+const vaultScreen = createVaultScreen({
+  pc, input, regions, audio, scene: renderScene, onPause, onAnswer: onVaultAnswer,
+});
+
+// The title stands in act 1's biome, so the first act needs no swap on the way in.
+useBiome(BIOMES[0].name);
 
 scenes.onEnter('TITLE', () => runtime.stateChanged('TITLE'));
 scenes.onEnter('PLAYING', () => runtime.stateChanged('PLAYING'));
 scenes.onEnter('PAUSED', () => runtime.stateChanged('PAUSED'));
-scenes.onEnter('GAME_OVER', () => { saveBest(); runtime.stateChanged('GAME_OVER'); runtime.gameOver({ score, won: false }); });
-scenes.onEnter('WIN', () => { saveBest(); runtime.stateChanged('WIN'); runtime.gameOver({ score, won: true }); });
+scenes.onEnter('GAME_OVER', () => {
+  runtime.stateChanged('GAME_OVER');
+  runtime.gameOver({ score: run?.score ?? 0, won: false });
+});
+scenes.onEnter('WIN', () => {
+  runtime.stateChanged('WIN');
+  runtime.gameOver({ score: run?.score ?? 0, won: true });
+});
+runtime.stateChanged('TITLE');
 
-// --- Battle state ------------------------------------------------------------------
-let enemy: EnemyInstance | null = null;
-let battle: BattleState | null = null;
-type BattlePhase = 'MENU' | 'QUEUE';
-let battlePhase: BattlePhase = 'MENU';
-let menuCursor = 0;
-type Outcome = 'NONE' | 'WON' | 'LOST';
-let pendingOutcome: Outcome = 'NONE';
-let onBattleWon: () => void = () => {};
-interface QueueStep { hold: number; run: () => void }
-let queue: QueueStep[] = [];
-let queueTimer = 0;
-let curText = '';
-let curColor = C_TEXT;
+// --- The router ---------------------------------------------------------------
+/**
+ * Which screen owns the frame. Everything but the two pre-run/overlay cases is
+ * `pending()?.kind`; screens/run.ts collapses BATTLE, RELIC and its own room
+ * card into the three phases the phase-4 screens already spoke.
+ */
+type ScreenKey =
+  | 'NONE' | 'PRE_VAULT' | 'PARTY' | 'ROOM' | 'ACT_CLEAR' | 'CARDS' | 'BATTLE'
+  | 'DRAFT' | 'VAULT_EQUIP' | 'SUMMON' | 'LEADER' | 'ROUTE' | 'RELIC'
+  | 'REST' | 'SHRINE' | 'FORGE' | 'ALTAR' | 'LAP' | 'BANK';
 
-const FLOOR_Y = 112;
-const HERO_X = 56;   // hero centre
-const ENEMY_X = 176; // enemy centre
-
-function heroPos(): { x: number; y: number } { return { x: HERO_X, y: FLOOR_Y - 14 }; }
-function enemyPos(): { x: number; y: number } {
-  const h = enemy ? ENEMY_FRAMES[enemy.def.id][0].h : 0;
-  return { x: ENEMY_X, y: FLOOR_Y - h / 2 };
+/**
+ * The keyboard's landing spot when a screen opens. Only the SUMMON asks for
+ * one: it arrives directly behind the draft, which leaves the focus on its own
+ * CONTINUE (slot 0 is pre-picked there), and a SUMMON's CONTINUE is disabled
+ * until something is chosen — so the keyboard would land on a dead seat. Its
+ * first offer is the honest spot. screens/draft.ts gives each face its own id
+ * namespace (`FACE_ID`), so this names the SUMMON's first card rather than a
+ * literal that a rename could quietly break. `focus()` is validated at the next
+ * end(), so setting it here — before the screen registers — is in time.
+ */
+function focusOnOpen(key: ScreenKey): void {
+  if (key === 'SUMMON') regions.focus(`${FACE_ID.SUMMON}-0`);
 }
 
-function startBattle(id: string, onWin: () => void): void {
-  enemy = spawnEnemy(id, clears, actIndex);
-  battle = createBattle(enemy);
-  onBattleWon = onWin;
-  battlePhase = 'MENU'; menuCursor = 0; pendingOutcome = 'NONE';
-  queue = []; queueTimer = 0; curText = ''; curColor = C_TEXT;
-  subScene = 'BATTLE';
-  resetCursorEdge();
+function screenKey(): ScreenKey {
+  if (preRun === 'VAULT') return 'PRE_VAULT';
+  if (!run) return 'NONE';
+  const phase = run.state().phase;
+  if (phase === 'ACT_CLEAR') return 'ACT_CLEAR';
+  if (phase === 'ROOM') return 'ROOM';
+  if (phase === 'CARDS') return 'CARDS';
+  if (phase === 'BATTLE') return 'BATTLE';
+  const p = run.pending();
+  if (!p) return 'NONE';
+  if (p.kind === 'LEADER') return 'LEADER';
+  if (partyOpen) return 'PARTY';
+  return p.kind;
 }
 
-function push(hold: number, run: () => void): void { queue.push({ hold, run }); }
-function beginQueue(): void { battlePhase = 'QUEUE'; advanceQueueStep(); }
-function advanceQueueStep(): void {
-  const step = queue.shift();
-  if (!step) { onQueueDone(); return; }
-  step.run();
-  queueTimer = step.hold;
-}
-
-function onQueueDone(): void {
-  if (pendingOutcome === 'LOST') return; // dying flow handled in updateBattle
-  if (pendingOutcome === 'WON') {
-    pendingOutcome = 'NONE';
-    const cb = onBattleWon;
-    enemy = null; battle = null;
-    battlePhase = 'MENU';
-    cb();
-    return;
+// The props every screen takes are plain objects that mirror the pending
+// field-for-field, plus the live view. They are rebuilt per tick rather than
+// cached: the run only moves on an answer, and each screen re-syncs off its own
+// payload key, so a fresh object with the same contents changes nothing.
+function draftProps(): DraftProps | null {
+  const p = run?.pending();
+  if (!run || !p) return null;
+  if (p.kind === 'DRAFT') return { kind: 'DRAFT', view: run.view(), roster: p.roster };
+  if (p.kind === 'SUMMON') {
+    // The EPIC a full party is offered is not in this pending: taking it
+    // (answer 0) raises a RELIC pending with source 'SUMMON' right after.
+    return { kind: 'SUMMON', view: run.view(), offers: p.offers, full: p.full, epic: null };
   }
-  battlePhase = 'MENU';
-  menuCursor = Math.min(menuCursor, heroActions(hero).length - 1);
+  return null;
 }
-
-function enemyDefeatedStep(): void {
-  const e = enemy!;
-  const p = enemyPos();
-  const mag = e.def.kind === 'BOSS' ? 1 : e.def.kind === 'ELITE' ? 0.6 : 0.3;
-  push(1.0, () => {
-    curText = `${e.def.name} DEFEATED!`; curColor = C_ACCENT;
-    audio.play('explosion');
-    particles.burst(p.x, p.y, { count: 10 + Math.round(mag * 10), color: enemyColor(e.def.id), speed: 120 + mag * 60 });
-    juice.shake(4 + mag * 3, 0.35 + mag * 0.15);
-    pushPop(p.x, p.y - 24, '+100', C_ACCENT);
-    pendingOutcome = 'WON';
-  });
+function mapProps(): MapProps | null {
+  const p = run?.pending();
+  if (!run || !p || p.kind !== 'ROUTE') return null;
+  const v = run.view();
+  return {
+    view: v,
+    map: p.map,
+    // `stage` is where the OFFERED nodes live; the party is standing one stage back.
+    stage: p.stage,
+    nodeIdx: v.nodeIdx,
+    offeredIdxs: p.offeredIdxs,
+    offeredTypes: p.offeredTypes,
+    taken: run.taken(),
+  };
 }
-
-function heroDies(text: string): void {
-  const hp = heroPos();
-  curText = text; curColor = C_DMG_TAKEN;
-  audio.play('explosion');
-  particles.burst(hp.x, hp.y, { count: 14, color: PICO8[8], speed: 150 });
-  juice.shake(6, 0.5);
-  juice.flash(PICO8[8], 0.45, { x: hp.x, y: hp.y });
-  juice.hitStop(0.4);
-  dying = true; heroDown = true;
-  pendingOutcome = 'LOST';
+function partyProps(): PartyProps | null {
+  if (!run) return null;
+  const leader = run.pending()?.kind === 'LEADER';
+  return {
+    view: run.view(),
+    leaderEnabled: leader,
+    swapEnabled: false,
+    title: leader ? 'WHO LEADS' : 'THE PARTY',
+  };
 }
-
-function applyEnemyAction(): void {
-  if (!enemy || !battle) return;
-  const r = enemyAct(hero, battle, Math.random);
-  const hp = heroPos();
-  curText = r.text; curColor = r.dodged ? C_TEXT : C_DMG_TAKEN;
-  if (r.dodged) { audio.play('blip'); pushPop(hp.x, hp.y - 8, 'MISS', C_DIM); }
-  else {
-    pushPop(hp.x, hp.y - 8, `-${r.dmg}`, C_DMG_TAKEN);
-    if (r.heroDead) { heroDies(r.text); return; }
-    audio.play('hit');
-    particles.burst(hp.x, hp.y, { count: 5, color: PICO8[8] });
-    juice.shake(3, 0.25);
-    juice.flash(PICO8[8], 0.2);
-    if (r.revived) {
-      juice.flash(C_ACCENT, 0.6, { x: hp.x, y: hp.y });
-      particles.burst(hp.x, hp.y, { count: 16, color: C_ACCENT, speed: 140 });
-      audio.play('pickup');
-      curColor = C_ACCENT;
-    }
+function nodeProps(): NodeProps | null {
+  const p = run?.pending();
+  if (!run || !p) return null;
+  const view = run.view();
+  if (p.kind === 'SHRINE') return { kind: 'SHRINE', view, pact: p.pact, untakenCount: p.untakenCount, biome: run.biome().name };
+  if (p.kind === 'FORGE') {
+    return {
+      kind: 'FORGE', view, worn: p.worn, options: p.options, pool: p.pool, levels: p.levels, rebrand: p.rebrand,
+    };
   }
-  if (r.reflected > 0) {
-    const p = enemyPos();
-    pushPop(p.x, p.y - 8, `-${r.reflected}`, PICO8[9]);
-    particles.burst(p.x, p.y, { count: 5, color: PICO8[9] });
+  if (p.kind === 'ALTAR') return { kind: 'ALTAR', view, candidates: p.candidates };
+  if (p.kind === 'REST') return { kind: 'REST', view, candidates: p.candidates };
+  return null;
+}
+function vaultProps(): VaultProps | null {
+  if (preRun === 'VAULT') {
+    return {
+      kind: 'EQUIP',
+      vault: vaultSave.vault,
+      slots: vaultSave.vaultSlots,
+      ascension: chosenAscension,
+      unlockedAscension: vaultSave.unlockedAscension,
+    };
   }
-  if (r.enemyDefeated) enemyDefeatedStep();
+  const p = run?.pending();
+  if (!run || !p) return null;
+  const view = run.view();
+  if (p.kind === 'LAP') return { kind: 'DOORS', view, banked: p.banked };
+  if (p.kind === 'BANK') {
+    return { kind: 'BANK', view, worn: p.worn, n: p.n, vault: p.vault, vaultSize: p.vaultSize };
+  }
+  return null;
 }
 
-function applyHeroAction(action: HeroAction): void {
-  if (!enemy || !battle) return;
-  const e = enemy;
-  const hp = heroPos();
-  const turn = startTurn(hero);
-  if (turn.mpRegen > 0) pushPop(hp.x, hp.y - 22, `+${turn.mpRegen} MP`, C_MP);
-  if (turn.hpRegen > 0) pushPop(hp.x + 18, hp.y - 30, `+${turn.hpRegen} HP`, C_HP);
-  if (turn.bloodLoss > 0) pushPop(hp.x - 16, hp.y - 30, `-${turn.bloodLoss}`, C_DMG_TAKEN);
-  const r = heroAct(hero, battle, action, Math.random);
-  curText = r.text; curColor = r.crit ? C_ACCENT : C_TEXT;
-  const p = enemyPos();
-  r.hits.forEach((h, i) => {
-    const color = h.crit ? C_ACCENT : h.kind === 'MAGIC' ? PICO8[14] : C_TEXT;
-    pushPop(p.x + (i - (r.hits.length - 1) / 2) * 26, p.y - 8 - i * 6, `-${h.dmg}${h.crit ? '!' : ''}`, color, h.crit ? 3 : 2);
-  });
-  if (r.hits.length) {
-    if (r.crit) {
-      audio.play('explosion'); juice.shake(4, 0.3); juice.flash(C_ACCENT, 0.3); juice.hitStop(0.08);
-      particles.burst(p.x, p.y, { count: 12, color: C_ACCENT, speed: 130 });
-    } else {
-      audio.play('hit'); juice.shake(2, 0.2); juice.flash(C_ACCENT, 0.2);
-      particles.burst(p.x, p.y, { count: 6, color: enemyColor(e.def.id) });
-    }
-  } else {
-    audio.play('pickup');
-    particles.burst(hp.x, hp.y, { count: 8, color: C_HP, speed: 60 });
-  }
-  if (r.healed > 0) pushPop(hp.x, hp.y - 14, `+${r.healed} HP`, C_HP);
-  if (r.mpRestored > 0) pushPop(hp.x + 14, hp.y - 20, `+${r.mpRestored} MP`, C_MP);
-  if (r.enemyDefeated) enemyDefeatedStep();
-  else {
-    push(0.7, () => { curText = `${e.def.name} PREPARES...`; curColor = C_DIM; });
-    push(0.9, applyEnemyAction);
-  }
-}
-
-function useAction(action: HeroAction): void {
-  if (!enemy) return;
-  if (!canAfford(hero, action)) {
-    push(0.7, () => { curText = 'NOT ENOUGH MP!'; curColor = C_DIM; audio.play('blip'); });
-    beginQueue();
-    return;
-  }
-  push(0.9, () => applyHeroAction(action));
-  beginQueue();
-}
-
-// --- Update ----------------------------------------------------------------------
-const blinkHz = (hz: number): boolean => blink(clock, 1 / hz, 0.5) === 1;
-const accentHz = (hz: number, duty = 0.2): boolean => blink(clock, 1 / hz, duty) === 1;
-
-function updateMap(): void {
-  const dy = dirEdge();
-  if (dy) moveCursor(dy);
-  if (input.pressed('A') && reachable.length) {
+// A complete tick — begin -> add -> end -> check activation -> endFrame() —
+// the same shape battle.ts uses: end() is what resolves this tick's
+// activation, so it must run before (not after) the checks below.
+function updatePauseOverlay(): void {
+  const resumeKey = input.pressed('PAUSE');
+  regions.begin();
+  regions.add('pause-resume', PAUSE_BTN_X, PAUSE_BTN_Y[0], PAUSE_BTN.w, PAUSE_BTN.h, { index: 0, group: 'pause' });
+  regions.add('pause-arcade', PAUSE_BTN_X, PAUSE_BTN_Y[1], PAUSE_BTN.w, PAUSE_BTN.h, { index: 1, group: 'pause' });
+  regions.add('pause-quit', PAUSE_BTN_X, PAUSE_BTN_Y[2], PAUSE_BTN.w, PAUSE_BTN.h, { index: 2, group: 'pause' });
+  regions.end();
+  const act = regions.activated();
+  if (act === 'pause-resume' || resumeKey) { audio.play('blip'); scenes.to('PLAYING'); }
+  else if (act === 'pause-arcade') { audio.play('blip'); arcade.toggle(); }
+  else if (act === 'pause-quit') {
     audio.play('blip');
-    selectNode(mapStages[curStage + 1][cursor]);
-  }
-}
-
-function updateBattle(dt: number): void {
-  if (dying) {
-    if (!juice.frozen) {
-      deathBiome = biome().name; dying = false;
-      scenes.to('GAME_OVER');
-    }
-    return;
-  }
-  if (battlePhase === 'MENU') {
-    const n = heroActions(hero).length;
-    const dy = dirEdge();
-    if (dy) { menuCursor = (menuCursor + dy + n) % n; audio.play('blip'); }
-    if (input.pressed('A')) { audio.play('blip'); useAction(heroActions(hero)[menuCursor]); }
-  } else {
-    queueTimer -= dt;
-    if (queueTimer <= 0 || input.pressed('A')) advanceQueueStep();
-  }
-}
-
-function updateCard(): void {
-  if (input.pressed('A')) { audio.play('blip'); cardOnDone(); }
-}
-
-function update(dt: number): void {
-  clock += dt;
-  juice.update(dt);
-  particles.update(dt);
-  updatePops(dt);
-
-  switch (scenes.current) {
-    case 'TITLE': { if (input.pressed('A')) { audio.play('blip'); startPlaying(); } break; }
-    case 'PLAYING': {
-      if (input.pressed('PAUSE')) { audio.play('blip'); scenes.to('PAUSED'); break; }
-      switch (subScene) {
-        case 'MAP': updateMap(); break;
-        case 'BATTLE': updateBattle(dt); break;
-        case 'LEVELUP': updateLevelUp(); break;
-        case 'LOOT': updateLoot(); break;
-        case 'CARD': updateCard(); break;
-      }
-      break;
-    }
-    case 'PAUSED': { if (input.pressed('PAUSE')) { audio.play('blip'); scenes.to('PLAYING'); } break; }
-    case 'GAME_OVER':
-    case 'WIN': { if (input.pressed('A')) { audio.play('blip'); startPlaying(); } break; }
+    run = null;
+    activeBattle = null;
+    preRun = null;
+    partyOpen = false;
+    lastRunPhase = null;
+    scenes.to('TITLE');
   }
   input.endFrame();
 }
 
-// --- Rendering ---------------------------------------------------------------------
-/** Filled isoceles triangle, apex up — for ice peaks. Integer rows, no AA. */
-function fillPeak(ctx: CanvasRenderingContext2D, cx: number, baseY: number, halfW: number, height: number): void {
-  for (let i = 0; i < height; i++) {
-    const hw = Math.round((halfW * (i + 1)) / height);
-    ctx.fillRect(cx - hw, baseY - height + i, hw * 2 + 1, 1);
-  }
+/**
+ * The region table's pause row — dimScene, PAUSED, three buttons — drawn by the
+ * battle screen's rules so the two overlays are one object: the LIVE screen
+ * stays underneath, every label reads bright whether or not it holds focus, and
+ * the ring is what says "focused". What sits under this overlay is the diorama
+ * alone (render() skips the live screen while PAUSED — its text would otherwise
+ * land in the gaps between the three PAUSE_BTN plates as a second layer of
+ * English), so the dim only has to push scenery back, a step further than the
+ * battle's.
+ */
+const PAUSE_DIM = 0.7;
+
+function renderPauseOverlay(): void {
+  const ctx = pc.ctx;
+  dimScene(pc, PAUSE_DIM);
+  const title = 'PAUSED';
+  const tw = hudWidth(ctx, title, PAUSED_PX, 200);
+  hudText(ctx, title, (W - tw) / 2, PAUSED_TEXT_Y, { px: PAUSED_PX, weight: 200, color: C_TEXT });
+  const labels: [string, string][] = [
+    ['pause-resume', 'RESUME'],
+    ['pause-arcade', `ARCADE ${arcade.on ? 'ON' : 'OFF'}`],
+    ['pause-quit', 'QUIT TO TITLE'],
+  ];
+  // The same two-button language the battle's overlay speaks: RESUME is the
+  // primary (a lit plate), and every other button is BORDERED so none of them
+  // can dissolve into the dimmed scene behind it.
+  labels.forEach(([id, label], i) => {
+    const focused = regions.focused() === id;
+    const y = PAUSE_BTN_Y[i];
+    if (i === 0) {
+      drawPrimaryButton(ctx, PAUSE_BTN_X, y, PAUSE_BTN.w, PAUSE_BTN.h, label, focused);
+      return;
+    }
+    const ph = 56;
+    const py = y + (PAUSE_BTN.h - ph) / 2;
+    // Focus is the glow, here as everywhere — the cream 2-px ring is gone. The
+    // border stays because THIS overlay is the contract's one place a line is
+    // still the honest answer: over a 0.66 dim with no lit world behind them a
+    // borderless plate dissolves. Same treatment as battle.ts's own overlay.
+    if (focused) focusGlow(ctx, PAUSE_BTN_X, py, PAUSE_BTN.w, ph, PLATE_RADIUS, ACCENT);
+    plate(ctx, PAUSE_BTN_X, py, PAUSE_BTN.w, ph, {
+      border: EDGE_LIT, borderWidth: 1, alpha: focused ? 0.78 : 0.62,
+    });
+    hudTextCentered(ctx, label, PAUSE_BTN_X, py, PAUSE_BTN.w, ph, { color: C_TEXT });
+  });
 }
 
-/** Filled half-disc (dune / sun), rows only. */
-function fillDome(ctx: CanvasRenderingContext2D, cx: number, baseY: number, r: number, cap = r): void {
-  for (let i = 0; i < cap; i++) {
-    const y = baseY - cap + i;
-    const dy = cap - i;
-    const hw = Math.round(Math.sqrt(Math.max(0, r * r - dy * dy)));
-    ctx.fillRect(cx - hw, y, hw * 2 + 1, 1);
-  }
-}
+// --- Update -------------------------------------------------------------------
+// Every screen's update() (title/cards/end, the five phase-5 screens, battle.ts's
+// own) is a COMPLETE tick on its own — regions.begin() -> add() -> regions.end()
+// -> check activation -> input.endFrame(). EXACTLY ONE of them runs per tick,
+// chosen by scene/pending below; this file must never ALSO touch regions or
+// endFrame around the call (a second begin/end would re-resolve this tick's
+// pointer/dirPressed edges; a second endFrame would clear them before the
+// screen's own check ever saw them). juice/particles are the one exception:
+// battle.ts ticks them itself, so this file ticks them only when battle isn't
+// the active screen.
+function update(dt: number): void {
+  clock += dt;
 
-/** Filled disc, rows only. */
-function fillDisc(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number): void {
-  for (let dy = -r; dy <= r; dy++) {
-    const hw = Math.round(Math.sqrt(Math.max(0, r * r - dy * dy)));
-    ctx.fillRect(cx - hw, cy + dy, hw * 2 + 1, 1);
+  if (scenes.is('PLAYING') && run && run.state().phase === 'BATTLE') {
+    if (!activeBattle) {
+      const p = run.pending();
+      activeBattle = run.beginBattle();
+      heroChoices.length = 0;
+      turnActorId = null;
+      turnSkill = -1;
+      turnTarget = -1;
+      battleScreen.begin(activeBattle, {
+        act: p && p.kind === 'BATTLE' ? p.act : run.view().act,
+        lap: p && p.kind === 'BATTLE' ? p.lap : run.view().lap,
+        score: run.score,
+        biome: run.biome().name,
+      });
+    }
+    run.armTick();
+    // Whose turn is open, and how far into it we are, BEFORE the screen ticks.
+    const wasHeroTurn = battleScreen.phase === 'HERO_SKILL' || battleScreen.phase === 'HERO_TARGET';
+    if (battleScreen.phase === 'HERO_SKILL' && battleScreen.currentActorId) turnActorId = battleScreen.currentActorId;
+    battleScreen.update(dt);
+    // ...and what the player pressed on it. `activated()` holds the id this
+    // tick resolved (the screen's own end() computed it), so reading it again
+    // here consumes nothing and sees exactly what the screen acted on.
+    const pressed = regions.activated();
+    if (pressed) {
+      if (pressed.startsWith('skill-')) turnSkill = Number(pressed.slice(6));
+      else if (pressed.startsWith('enemy-')) turnTarget = Number(pressed.slice(6));
+      else if (pressed.startsWith('hero-')) turnTarget = Number(pressed.slice(5));
+    }
+    const stillHeroTurn = battleScreen.phase === 'HERO_SKILL' || battleScreen.phase === 'HERO_TARGET';
+    if (wasHeroTurn && !stillHeroTurn && turnSkill >= 0) {
+      heroChoices.push({ actor: turnActorId ?? '', skill: turnSkill, target: turnTarget });
+      turnSkill = -1;
+      turnTarget = -1;
+      turnActorId = null;
+    }
+    const result = battleScreen.result();
+    if (result) {
+      // A quit-to-forfeit (battleScreen's own `forfeit` tag) rides on the result
+      // itself and run.ts reads it there: a won result comes back a loss, and
+      // screens/run.ts remembers the RETREAT for the end screen's verdict line.
+      // Who landed the killing blow is the seam's own `deathBy` now.
+      run.afterBattle(result, heroChoices);
+      activeBattle = null;
+    }
+    if (run.score !== lastScore) { lastScore = run.score; runtime.scoreChanged(lastScore); }
+    return;
   }
+
+  juice.update(dt);
+  particles.update(dt);
+
+  if (scenes.is('TITLE')) {
+    titleScreen.update(dt);
+    return;
+  }
+  if (scenes.is('PAUSED')) {
+    updatePauseOverlay();
+    return;
+  }
+  if ((scenes.is('GAME_OVER') || scenes.is('WIN')) && run) {
+    endScreen.update(dt, run);
+    return;
+  }
+  if (!scenes.is('PLAYING')) return;
+
+  if (run) {
+    // THE ACT-CLEAR BEAT HOLDS THE OUTGOING BIOME. The seam advances its act —
+    // and with it `run.biome()` — the moment the boss's last reward is answered,
+    // which is the same moment the beat is raised, so drawing `run.biome()`
+    // under it printed "ACT 1 CLEARED / EMBER CRYPT" over the frost marsh: the
+    // caption naming what you beat, the diorama showing where you are going.
+    // `actClearedBiome` is the name recorded BEFORE the step, so the tableau
+    // shows the crypt until the beat is dismissed and the map takes the frame.
+    const st = run.state();
+    useBiome(st.phase === 'ACT_CLEAR' ? st.actClearedBiome : run.biome().name);
+    const phase = st.phase;
+    if (phase !== lastRunPhase) {
+      lastRunPhase = phase;
+      const result = run.result();
+      if (result) {
+        persistVault(result);
+        scenes.to(result.won ? 'WIN' : 'GAME_OVER');
+      }
+    }
+    // The frame the run ends on still owes the registry a complete tick: the
+    // scene has moved to GAME_OVER/WIN and the end screen's own update() does
+    // not run until the next frame, so without this the pointer and dirPressed
+    // edges raised on this one would survive into it and fire a button nobody
+    // pressed there.
+    if (!scenes.is('PLAYING')) { idleTick(); return; }
+    // The run's own VAULT_EQUIP: already answered on the pre-run face, so it is
+    // handed the list that face returned instead of asking a second time.
+    if (run.pending()?.kind === 'VAULT_EQUIP') {
+      run.armTick();
+      run.answer(heldEquip);
+      heldEquip = [];
+    }
+  }
+
+  // Read the PAUSE edge BEFORE the screen's update() clears it with its own endFrame().
+  const pausePressed = input.pressed('PAUSE');
+  // One tick, one answer: the screen about to run answers against the token the
+  // run is standing on NOW, so a second answer inside this same tick (a double
+  // tap, a handler firing after the run already moved) is refused by the seam
+  // instead of landing on the decision behind it.
+  run?.armTick();
+  const key = screenKey();
+  if (key !== lastScreenKey) { lastScreenKey = key; focusOnOpen(key); }
+  updateScreen(dt);
+  if (pausePressed) scenes.to('PAUSED');
+  if (run && run.score !== lastScore) { lastScore = run.score; runtime.scoreChanged(lastScore); }
 }
 
 /**
- * Far plane + silhouette plane for the current biome, both under the ambient
- * layer and both inside the ambient band vs the black void: silhouettes are
- * PICO8[1] (1.52:1) or a palette tone at reduced alpha (~2:1 max); the far
- * band is PICO8[1] at half alpha (~1.25:1). Tiny bright accents (torch
- * flames, gold caps) are the only things brighter, and they are 2-4 px.
+ * A complete tick with no screen behind it: begin -> end -> endFrame, so a
+ * frame that registers nothing still CONSUMES this frame's edges instead of
+ * leaving them for whatever screen runs next.
  */
-function renderBiomeBackdrop(): void {
-  const ctx = pc.ctx;
-  const flame = frameIndex(clock, 6, 2);
-  switch (actIndex) {
-    case 0: { // THE CRYPT — a low stone wall, four pillars, torch sconces.
-      ctx.globalAlpha = 0.5; ctx.fillStyle = PICO8[1];
-      ctx.fillRect(0, FLOOR_Y - 30, W, 30);
-      ctx.globalAlpha = 1;
-      for (const px of [14, 92, 148, 216]) {
-        ctx.fillRect(px, 6, 10, FLOOR_Y - 6);
-        ctx.fillRect(px - 2, 6, 14, 3);      // capital
-        ctx.fillRect(px - 2, FLOOR_Y - 4, 14, 4); // plinth
-      }
-      for (const tx of [40, 120, 200]) {   // torches between the pillars
-        ctx.fillStyle = PICO8[4]; ctx.fillRect(tx, 44, 2, 6);
-        ctx.fillStyle = flame ? PICO8[9] : PICO8[10];
-        ctx.fillRect(tx - 1 + flame, 38, 3, 4); ctx.fillRect(tx, 36 + flame, 2, 2);
-      }
+function idleTick(): void {
+  regions.begin();
+  regions.end();
+  input.endFrame();
+}
+
+/** The one screen update this tick. Each branch is a complete tick and ends the frame itself. */
+function updateScreen(dt: number): void {
+  switch (screenKey()) {
+    case 'PRE_VAULT': case 'LAP': case 'BANK': {
+      const props = vaultProps();
+      if (props) { vaultScreen.update(dt, props); return; }
       break;
     }
-    case 1: { // THE TUNDRA — a dark moon, a ridge of ice peaks, a snow-haze band.
-      ctx.fillStyle = PICO8[1];
-      fillDisc(ctx, 60, 36, 12);                       // moon
-      ctx.fillStyle = PICO8[0]; fillDisc(ctx, 65, 33, 10); // crescent bite
-      ctx.fillStyle = PICO8[1];
-      const peaks: Array<[number, number, number]> = [[10, 26, 34], [48, 20, 24], [96, 30, 42], [140, 18, 20], [186, 26, 30], [232, 22, 26]];
-      for (const [cx, hw, h] of peaks) fillPeak(ctx, cx, FLOOR_Y, hw, h);
-      ctx.globalAlpha = 0.5; ctx.fillRect(0, FLOOR_Y - 18, W, 18); ctx.globalAlpha = 1;
+    case 'DRAFT': case 'SUMMON': {
+      const props = draftProps();
+      if (props) { draftScreen.update(dt, props); return; }
       break;
     }
-    case 2: { // THE DESERT — a huge low sun, two dune ridges, heat band.
-      ctx.globalAlpha = 0.3; ctx.fillStyle = PICO8[9];
-      fillDome(ctx, 150, FLOOR_Y - 34, 22, 22);       // low sun, half-set behind the far dune
-      ctx.globalAlpha = 0.45; ctx.fillStyle = PICO8[4];
-      fillDome(ctx, 40, FLOOR_Y, 90, 30); fillDome(ctx, 200, FLOOR_Y, 110, 24);
-      ctx.globalAlpha = 0.6; fillDome(ctx, 130, FLOOR_Y, 70, 12);
-      ctx.globalAlpha = 1;
+    case 'LEADER': case 'PARTY': {
+      const props = partyProps();
+      if (props) { partyScreen.update(dt, props); return; }
       break;
     }
-    default: { // HOLY TEMPLE — fluted marble columns with gold capitals, altar step.
-      ctx.globalAlpha = 0.5; ctx.fillStyle = PICO8[1];
-      ctx.fillRect(0, FLOOR_Y - 26, W, 26);
-      ctx.globalAlpha = 0.7; ctx.fillStyle = PICO8[5];
-      for (const cx of [22, 78, 162, 218]) {
-        ctx.fillRect(cx - 6, 10, 12, FLOOR_Y - 10);
-        ctx.fillStyle = PICO8[0]; ctx.fillRect(cx - 2, 16, 1, FLOOR_Y - 22); ctx.fillRect(cx + 2, 16, 1, FLOOR_Y - 22);
-        ctx.fillStyle = PICO8[5];
-        ctx.fillRect(cx - 8, 10, 16, 4); ctx.fillRect(cx - 8, FLOOR_Y - 5, 16, 5);
-      }
-      ctx.globalAlpha = 0.45; ctx.fillStyle = PICO8[10];
-      for (const cx of [22, 78, 162, 218]) ctx.fillRect(cx - 8, 8, 16, 2);
-      ctx.globalAlpha = 1;
+    case 'ROUTE': {
+      const props = mapProps();
+      if (props) { mapScreen.update(dt, props); return; }
       break;
     }
+    case 'SHRINE': case 'FORGE': case 'ALTAR': case 'REST': {
+      const props = nodeProps();
+      if (props) { nodeScreen.update(dt, props); return; }
+      break;
+    }
+    case 'ACT_CLEAR':
+      if (run) { endScreen.updateActClear(dt, run); return; }
+      break;
+    case 'ROOM': case 'CARDS': case 'RELIC':
+      if (run) { cardsScreen.update(dt, run); return; }
+      break;
+    default:
+      break;
   }
+  // Nothing is standing (a torn frame between two answers, or the pre-run
+  // title): still a complete tick, so this frame's edges are consumed like
+  // every other.
+  idleTick();
 }
 
-/** Beveled biome floor with a single dithered lip — the one texture strip. */
-function renderFloor(): void {
-  const b = look();
-  drawBevel(pc.ctx, 0, FLOOR_Y, W, H - FLOOR_Y, b.floor, b.floorLight, b.floorDark);
-  fillDither(pc.ctx, 0, FLOOR_Y + 2, W, 2, b.floor, b.floorLight, 'sparse');
-  fillDither(pc.ctx, 0, H - 10, W, 10, b.floor, b.floorDark, 'sparse');
-}
-
-/** Ground shadow + sprite, feet on FLOOR_Y. `phase` desyncs the two idle clocks. */
-function drawActor(frames: Anim, cx: number, phase: number, fallen = false): void {
-  const ctx = pc.ctx;
-  const f = frames[frameIndex(clock + phase, 2, 2)];
-  const sx = Math.round(cx - f.w / 2);
-  const sy = FLOOR_Y - f.h;
-  ctx.fillStyle = PICO8[0];
-  ctx.fillRect(sx + 3, FLOOR_Y - 1, f.w - 6, 3);
-  if (fallen) {
-    // Death tableau: the knight lies on his back — a 90-degree rotate keeps pixels crisp.
-    ctx.save();
-    ctx.translate(sx + f.w / 2, FLOOR_Y);
-    ctx.rotate(-Math.PI / 2);
-    drawSprite(ctx, frames[0], 0, Math.round(-f.h / 2), 1);
-    ctx.restore();
+// --- Render ---------------------------------------------------------------------
+// Same rule: the battle screen clears, wraps juice pre/postRender, draws the
+// scene and applies its OWN CRT pass internally, so it is the only thing drawn
+// on a battle frame. Every other scene shares this file's pipeline — clear, the
+// screen (which opens with renderScene, and renderScene is where the juice
+// transform opens and closes, then draws its HUD on the restored frame), and
+// the CRT only when ARCADE is on.
+function render(): void {
+  if (scenes.is('PLAYING') && run && run.state().phase === 'BATTLE') {
+    battleScreen.render(clock);
     return;
   }
-  drawSprite(ctx, f, sx, sy, 1);
-}
 
-function drawBar(x: number, y: number, w: number, h: number, frac: number, color: string): void {
-  const ctx = pc.ctx;
-  ctx.fillStyle = PICO8[5]; ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = color; ctx.fillRect(x, y, Math.max(0, Math.round(w * Math.max(0, Math.min(1, frac)))), h);
-  drawFrame(ctx, x, y, w, h, PICO8[0], 1);
-}
+  const t0 = performance.now();
+  pc.clear(PICO8[0]);
 
-function drawLine(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, color: string): void {
-  const dx = x1 - x0; const dy = y1 - y0;
-  const steps = Math.max(Math.abs(dx), Math.abs(dy), 1);
-  ctx.fillStyle = color;
-  for (let i = 0; i <= steps; i++) {
-    ctx.fillRect(Math.round(x0 + (dx * i) / steps), Math.round(y0 + (dy * i) / steps), 1, 1);
-  }
-}
-
-
-const ROOM_ICON: Record<RoomType, Sprite> = { FIGHT: fightIcon, ELITE: eliteIcon, REST: restIcon, LOOT: lootIcon, BOSS: bossIcon };
-const ROOM_LABEL: Record<RoomType, string> = { FIGHT: 'FIGHT', ELITE: 'ELITE', REST: 'REST', LOOT: 'LOOT', BOSS: 'BOSS' };
-const SLOT_ICON: Record<Slot, Sprite> = { WEAPON: ICON_SWORD, ARMOR: ICON_ARMOR, NECKLACE: ICON_NECKLACE, BOOTS: ICON_BOOTS, CHALICE: ICON_CHALICE, TOME: ICON_TOME };
-function itemIcon(item: Item): Sprite { return item.slot === 'WEAPON' && item.weaponKind === 'MAGIC' ? ICON_WAND : SLOT_ICON[item.slot]; }
-
-const STAGE_COUNT = STAGE_SIZES.length + 1;
-function nodeX(stage: number): number { return SAFE_MARGIN + 14 + stage * ((W - 2 * SAFE_MARGIN - 28) / (STAGE_COUNT - 1)); }
-function nodeY(_stage: number, slot: number, count: number): number {
-  const spread = 28; const top = 64 - ((count - 1) * spread) / 2;
-  return top + slot * spread;
-}
-
-/** Text that must fit a width: draws at scale 1, dropping trailing words if it would overflow. */
-function fitText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxW: number, opts: { color: string; shadow?: boolean }): void {
-  let t = text;
-  while (t.length > 3 && textWidth(t, 1) > maxW) {
-    const cut = t.lastIndexOf(' ');
-    t = cut > 0 ? t.slice(0, cut) : t.slice(0, -1);
-  }
-  drawText(ctx, t, x, y, opts);
-}
-/** Split a battle-log line into at most two lines that fit `maxW`. */
-function wrap2(text: string, maxW: number): string[] {
-  if (textWidth(text, 1) <= maxW) return [text];
-  const words = text.split(' ');
-  let first = '';
-  for (const w of words) {
-    const t = first ? `${first} ${w}` : w;
-    if (textWidth(t, 1) > maxW) break;
-    first = t;
-  }
-  return [first, text.slice(first.length).trim()];
-}
-
-const pct = (n: number): string => `${Math.round(n)}%`;
-
-/** Equipment strip (two rows of three slots) + HP/MP bars + derived stats. */
-function drawStatusPanel(y: number): void {
-  const ctx = pc.ctx;
-  const d = derive(hero);
-  drawPanel(pc, SAFE_MARGIN, y, W - 2 * SAFE_MARGIN, 46, { color: C_PANEL, border: C_BORDER });
-  SLOTS.forEach((slot, i) => {
-    const bx = SAFE_MARGIN + 5 + (i % 3) * 72;
-    const by = y + 4 + Math.floor(i / 3) * 8;
-    const item = hero.equipment[slot];
-    drawSprite(ctx, item ? itemIcon(item) : ICON_EMPTY, bx, by, 1);
-    drawText(ctx, item ? displayName(item, itemLevel(hero, slot)) : `NO ${slot}`, bx + 7, by, { color: item ? rarityColor(item) : PICO8[5] });
-  });
-  drawText(ctx, 'HP', SAFE_MARGIN + 5, y + 23, { color: C_TEXT });
-  drawBar(SAFE_MARGIN + 15, y + 23, 40, 5, hero.hp / d.maxHp, hero.hp / d.maxHp < 0.25 ? C_HP_LOW : C_HP);
-  drawText(ctx, `${hero.hp}/${d.maxHp}`, SAFE_MARGIN + 58, y + 23, { color: C_DIM });
-  drawText(ctx, 'MP', SAFE_MARGIN + 92, y + 23, { color: C_TEXT });
-  drawBar(SAFE_MARGIN + 102, y + 23, 40, 5, hero.mp / d.maxMp, C_MP);
-  drawText(ctx, `${hero.mp}/${d.maxMp}`, SAFE_MARGIN + 145, y + 23, { color: C_DIM });
-  const regen = [d.mpRegen ? `+${d.mpRegen}MP` : '', d.hpRegen ? `+${d.hpRegen}HP` : ''].filter(Boolean).join(' ');
-  if (regen) drawText(ctx, `${regen}/TURN`, W - SAFE_MARGIN - 5 - textWidth(`${regen}/TURN`, 1), y + 23, { color: C_HP });
-  const stats = `ATK ${d.atk} MAG ${d.mag} DEF ${pct(d.def)} MDEF ${pct(d.mdef)} CRIT ${pct(d.crit)} X${d.critMult.toFixed(1)} DGE ${pct(d.dodge)}`;
-  fitText(ctx, stats, SAFE_MARGIN + 5, y + 34, W - 2 * SAFE_MARGIN - 10, { color: C_DIM });
-}
-
-function renderMap(): void {
-  const ctx = pc.ctx;
-  ctx.globalAlpha = 0.45; renderBiomeBackdrop(); ctx.globalAlpha = 1;
-  particles.render(ctx);
-  const header = `ACT ${actIndex + 1}  ${biome().name}`;
-  drawTextCentered(ctx, header, W, SAFE_MARGIN, { color: C_ACCENT, shadow: true });
-  drawTextCentered(ctx, 'CHOOSE YOUR PATH', W, SAFE_MARGIN + 8, { color: C_DIM, shadow: true });
-  // Edges: a short horizontal stub out of the source, a diagonal, a stub into
-  // the target — dim by default, white out of the current node, thick accent
-  // to the cursor node, so "where does this path go" is answered by colour.
-  const drawEdge = (s: number, node: MapNode, li: number, color: string, thick: boolean) => {
-    const x0 = nodeX(s) + 11; const y0 = nodeY(s, node.slot, mapStages[s].length);
-    const x1 = nodeX(s + 1) - 11; const y1 = nodeY(s + 1, li, mapStages[s + 1].length);
-    drawLine(ctx, x0, y0, x0 + 3, y0, color);
-    drawLine(ctx, x0 + 3, y0, x1 - 3, y1, color);
-    drawLine(ctx, x1 - 3, y1, x1, y1, color);
-    if (thick) { drawLine(ctx, x0, y0 + 1, x0 + 3, y0 + 1, color); drawLine(ctx, x0 + 3, y0 + 1, x1 - 3, y1 + 1, color); drawLine(ctx, x1 - 3, y1 + 1, x1, y1 + 1, color); }
-  };
-  const fromCurrent = (s: number, node: MapNode) => s === curStage && node === pendingNode;
-  for (let s = 0; s < mapStages.length - 1; s++) {
-    for (const node of mapStages[s]) for (const li of node.links) {
-      if (!fromCurrent(s, node)) drawEdge(s, node, li, node.cleared ? C_DIM : PICO8[5], false);
-    }
-  }
-  if (curStage >= 0 && pendingNode) {
-    for (const li of pendingNode.links) drawEdge(curStage, pendingNode, li, li === cursor ? C_ACCENT : C_TEXT, li === cursor);
-  }
-  for (let s = 0; s < mapStages.length; s++) {
-    const stage = mapStages[s];
-    for (const node of stage) {
-      const x = nodeX(s); const y = nodeY(s, node.slot, stage.length);
-      const isReachable = s === curStage + 1 && reachable.includes(node.slot);
-      const isCursor = isReachable && node.slot === cursor;
-      const dim = node.cleared || s > curStage + 1 || (s === curStage + 1 && !isReachable);
-      const glow = isCursor && accentHz(3, 0.5);
-      const boxColor = isCursor ? (glow ? PICO8[7] : C_ACCENT) : dim ? PICO8[5] : C_DIM;
-      drawBevel(ctx, x - 11, y - 11, 22, 20, node.cleared ? PICO8[0] : C_PANEL, isCursor ? C_ACCENT : PICO8[1], PICO8[0]);
-      drawFrame(ctx, x - 11, y - 11, 22, 20, boxColor, 1);
-      drawSprite(ctx, ROOM_ICON[node.type], x - 2, y - 8, 1);
-      const label = ROOM_LABEL[node.type];
-      drawText(ctx, label, x - textWidth(label, 1) / 2, y + 1, { color: boxColor, shadow: true });
-      if (node.cleared) drawText(ctx, 'X', x - 2, y - 8, { color: C_DIM });
-    }
-  }
-  drawStatusPanel(H - SAFE_MARGIN - 46);
-  hudText(pc, `SCORE ${score}`, 'right', 'top', { color: C_TEXT });
-}
-
-function renderTableau(withEnemy: boolean, withHero = true): void {
-  renderBiomeBackdrop();
-  particles.render(pc.ctx);
-  renderFloor();
-  if (withHero) drawActor(heroFrames, HERO_X, 0, heroDown);
-  if (withEnemy && enemy) drawActor(ENEMY_FRAMES[enemy.def.id], ENEMY_X, 0.25);
-}
-
-function renderHeroHud(d: Derived): void {
-  const ctx = pc.ctx;
-  drawPanel(pc, SAFE_MARGIN, SAFE_MARGIN, 132, 32, { color: C_PANEL, border: C_BORDER });
-  drawText(ctx, 'HP', SAFE_MARGIN + 4, SAFE_MARGIN + 4, { color: C_TEXT });
-  drawBar(SAFE_MARGIN + 16, SAFE_MARGIN + 4, 56, 5, hero.hp / d.maxHp, hero.hp / d.maxHp < 0.25 ? C_HP_LOW : C_HP);
-  drawText(ctx, `${hero.hp}/${d.maxHp}`, SAFE_MARGIN + 76, SAFE_MARGIN + 4, { color: C_DIM });
-  drawText(ctx, 'MP', SAFE_MARGIN + 4, SAFE_MARGIN + 12, { color: C_TEXT });
-  drawBar(SAFE_MARGIN + 16, SAFE_MARGIN + 12, 56, 5, hero.mp / d.maxMp, C_MP);
-  drawText(ctx, `${hero.mp}/${d.maxMp}`, SAFE_MARGIN + 76, SAFE_MARGIN + 12, { color: C_DIM });
-  const line = `ATK ${d.atk} MAG ${d.mag} CRIT ${pct(d.crit)}`;
-  drawText(ctx, line, SAFE_MARGIN + 4, SAFE_MARGIN + 22, { color: C_DIM });
-  if (battle && battle.rampStacks > 0) {
-    const ramp = `RAMP ${battle.rampStacks}`;
-    drawText(ctx, ramp, SAFE_MARGIN + 128 - textWidth(ramp, 1), SAFE_MARGIN + 22, { color: PICO8[9] });
-  }
-}
-
-function renderEnemyHud(): void {
-  if (!enemy) return;
-  const ctx = pc.ctx;
-  const e = enemy;
-  const tag = e.def.kind === 'BOSS' ? ' BOSS' : e.def.kind === 'ELITE' ? ' ELITE' : '';
-  const nameW = textWidth(e.def.name + tag, 1);
-  drawText(ctx, e.def.name, W - SAFE_MARGIN - nameW, SAFE_MARGIN + 9, { color: C_TEXT, shadow: true });
-  if (tag) drawText(ctx, tag.trim(), W - SAFE_MARGIN - textWidth(tag.trim(), 1), SAFE_MARGIN + 9, { color: C_ACCENT, shadow: true });
-  drawBar(W - SAFE_MARGIN - 80, SAFE_MARGIN + 17, 80, 5, e.hp / e.maxHp, e.hp / e.maxHp < 0.25 ? C_HP_LOW : C_HP);
-  const atk = e.def.atkType === 'PHYSICAL' ? 'STRIKES' : 'HEXES';
-  drawText(ctx, atk, W - SAFE_MARGIN - 80, SAFE_MARGIN + 24, { color: e.def.atkType === 'PHYSICAL' ? PICO8[9] : PICO8[14], shadow: true });
-  const res = e.def.def >= e.def.mdef ? (e.def.def > 0 ? `RES PHYS ${e.def.def}%` : '') : `RES MAG ${e.def.mdef}%`;
-  if (res) drawText(ctx, res, W - SAFE_MARGIN - textWidth(res, 1), SAFE_MARGIN + 24, { color: C_DIM, shadow: true });
-}
-
-function renderBattle(): void {
-  renderTableau(true);
-  const d = derive(hero);
-  renderEnemyHud();
-  hudText(pc, `SCORE ${score}`, 'right', 'top', { color: C_TEXT });
-  renderHeroHud(d);
-
-  if (battlePhase === 'MENU' && !heroDown) {
-    // Up to 3 rows per column so the panel never climbs over the actors' feet.
-    const actions = heroActions(hero);
-    const rows = Math.min(3, actions.length);
-    const cols = Math.ceil(actions.length / 3);
-    const colW = (W - 2 * SAFE_MARGIN) / cols;
-    const panelH = 10 + rows * 9;
-    const panelY = H - SAFE_MARGIN - panelH;
-    drawPanel(pc, SAFE_MARGIN, panelY, W - 2 * SAFE_MARGIN, panelH, { color: C_PANEL, border: C_BORDER });
-    actions.forEach((a, i) => {
-      const sel = i === menuCursor;
-      const afford = canAfford(hero, a);
-      const x0 = Math.round(SAFE_MARGIN + Math.floor(i / 3) * colW);
-      const y = panelY + 5 + (i % 3) * 9;
-      if (sel) { pc.ctx.fillStyle = C_SEL_BAR; pc.ctx.fillRect(x0 + 2, y - 2, Math.round(colW) - 4, 9); }
-      const cost = a === 'ATTACK' ? 0 : spellCost(hero, a);
-      const name = a === 'ATTACK' ? 'ATTACK' : SPELLS[a].name;
-      const label = cost > 0 ? `${name} ${cost}MP` : `${name} FREE`;
-      drawText(pc.ctx, (sel ? '> ' : '  ') + label, x0 + 5, y, { color: sel ? C_ACCENT : afford ? C_TEXT : PICO8[5], shadow: sel });
-      const hex = Object.values(hero.equipment).some((it) => it && it.effect.kind === 'HEX_STRIKE');
-      const kind = a === 'ATTACK'
-        ? (hex || hero.equipment.WEAPON?.weaponKind === 'MAGIC' ? 'MAGIC' : 'PHYSICAL')
-        : hex && a === 'SLASH' ? 'MAGIC' : SPELLS[a].kind;
-      const res = enemy ? (kind === 'PHYSICAL' ? enemy.def.def : enemy.def.mdef) : 0;
-      const isHeal = a !== 'ATTACK' && SPELLS[a].heal !== undefined;
-      const info = a === 'ATTACK'
-        ? (hero.equipment.WEAPON?.weaponKind === 'MAGIC' ? 'MAG x1.0' : 'ATK x1.0')
-        : isHeal ? `HEAL ${Math.round(SPELLS[a].heal! * 100)}%`
-          : `${SPELLS[a].scale} x${SPELLS[a].mult.toFixed(1)}${SPELLS[a].hits > 1 ? `x${SPELLS[a].hits}` : ''}`;
-      const tag = !isHeal && res >= 20 ? ` -${res}%` : '';
-      drawText(pc.ctx, info + tag, x0 + Math.round(colW) - 5 - textWidth(info + tag, 1), y, { color: tag ? PICO8[8] : sel ? C_TEXT : C_DIM });
-    });
+  if (scenes.is('TITLE')) {
+    titleScreen.render(clock);
+  } else if (scenes.is('PAUSED')) {
+    // PAUSED over a screen shows the diorama alone: the pause row's contract
+    // geometry sits exactly over the cards and the node columns, so any of their
+    // text would land between the buttons as a second layer of English — the
+    // battle keeps its live world behind its overlay, and the world here is the
+    // scene.
+    renderScene();
+    renderPauseOverlay();
+  } else if ((scenes.is('GAME_OVER') || scenes.is('WIN')) && run) {
+    endScreen.render(clock, run);
+  } else if (scenes.is('PLAYING')) {
+    renderScreen();
   } else {
-    drawPanel(pc, SAFE_MARGIN, H - SAFE_MARGIN - 22, W - 2 * SAFE_MARGIN, 22, { color: C_PANEL, border: C_BORDER });
-    const lines = wrap2(curText, W - 2 * SAFE_MARGIN - 10);
-    if (lines.length === 1) drawTextCentered(pc.ctx, lines[0], W, H - SAFE_MARGIN - 15, { color: curColor, shadow: true });
-    else {
-      drawTextCentered(pc.ctx, lines[0], W, H - SAFE_MARGIN - 18, { color: curColor, shadow: true });
-      drawTextCentered(pc.ctx, lines[1], W, H - SAFE_MARGIN - 10, { color: curColor, shadow: true });
-    }
+    renderScene(); // no run yet: the lit biome on its own, never a black frame
   }
-  drawPops();
+
+  if (arcade.on) crt.render(pc.ctx, W, H, 1 / 60);
+  // The same feedback the battle frame gives: 60 consecutive slow frames drop
+  // the scene to LOW for good.
+  light.note(performance.now() - t0);
 }
 
-/** Damage / score numbers: scale 2 with a drop shadow, crits at scale 3 outlined. */
-function drawPops(): void {
-  for (const p of pops) {
-    pc.ctx.globalAlpha = Math.min(1, Math.max(0, (p.life / POP_LIFE) * 1.6));
-    drawText(pc.ctx, p.text, Math.round(p.x - textWidth(p.text, p.scale) / 2), Math.round(p.y), { color: p.color, scale: p.scale, shadow: p.scale < 3, outline: p.scale >= 3 });
-  }
-  pc.ctx.globalAlpha = 1;
-}
-
-function renderLevelUp(): void {
-  renderTableau(false);
-  const d = derive(hero);
-  const ctx = pc.ctx;
-  const panelY = SAFE_MARGIN + 2;
-  const panelH = 62;
-  drawPanel(pc, 16, panelY, W - 32, panelH, { color: C_PANEL, border: C_BORDER });
-  const title = `LEVEL UP  +${luEarned} SP   ${hero.sp} TO SPEND`;
-  drawTextCentered(ctx, title, W, panelY + 5, { color: C_ACCENT, shadow: true });
-  const current: Record<StatKey, string> = {
-    HP: String(d.maxHp), MP: String(d.maxMp), ATK: String(d.atk), MAG: String(d.mag), DEF: pct(d.def), MDEF: pct(d.mdef), CRIT: pct(d.crit),
-  };
-  const gainTxt: Record<StatKey, string> = { HP: '+5', MP: '+3', ATK: '+2', MAG: '+2', DEF: '+3%', MDEF: '+3%', CRIT: '+2%' };
-  const colW = (W - 32) / 2;
-  STAT_KEYS.forEach((k, i) => {
-    const col = Math.floor(i / 4); const row = i % 4;
-    const x0 = 16 + col * colW; const y = panelY + 16 + row * 9;
-    const sel = i === luCursor;
-    if (sel) { ctx.fillStyle = C_SEL_BAR; ctx.fillRect(Math.round(x0) + 3, y - 2, Math.round(colW) - 6, 9); }
-    drawText(ctx, `${sel ? '> ' : '  '}${k}`, Math.round(x0) + 6, y, { color: sel ? C_ACCENT : C_TEXT, shadow: sel });
-    const v = `${current[k]} ${gainTxt[k]}`;
-    drawText(ctx, v, Math.round(x0 + colW) - 6 - textWidth(v, 1), y, { color: sel ? C_TEXT : C_DIM });
-  });
-  drawTextCentered(ctx, `${BUTTON_KEY.A.hint} SPEND A POINT`, W, panelY + panelH - 9, { color: blinkHz(1.2) ? C_TEXT : C_DIM });
-  drawPops();
-}
-
-function renderLoot(): void {
-  renderTableau(false, false);
-  const ctx = pc.ctx;
-  const n = lootOffers.length;
-  const panelY = SAFE_MARGIN;
-  const panelH = 14 + (n + 1) * 8 + 4 + 26;
-  const x0 = 16; const pw = W - 32;
-  drawPanel(pc, x0, panelY, pw, panelH, { color: C_PANEL, border: C_BORDER });
-  const title = lootSource === 'LOOT' ? 'A CHEST  TAKE ONE OR LEAVE IT' : lootSource === 'FIGHT' ? 'IT DROPPED SOMETHING' : lootSource === 'BOSS' ? 'THE BOSS HOARD  CHOOSE ONE' : 'ELITE SPOILS  CHOOSE ONE';
-  drawTextCentered(ctx, title, W, panelY + 5, { color: C_ACCENT, shadow: true });
-  for (let i = 0; i <= n; i++) {
-    const y = panelY + 14 + i * 8;
-    const sel = i === lootCursor;
-    if (sel) { ctx.fillStyle = C_SEL_BAR; ctx.fillRect(x0 + 3, y - 2, pw - 6, 9); }
-    drawText(ctx, sel ? '>' : ' ', x0 + 6, y, { color: C_ACCENT });
-    if (i < n && lootOffers[i].kind === 'SCROLL') {
-      const offer = lootOffers[i] as { kind: 'SCROLL'; spell: SpellId };
-      drawSprite(ctx, ICON_TOME, x0 + 14, y - 1, 1);
-      drawText(ctx, `SCROLL OF ${SPELLS[offer.spell].name}`, x0 + 22, y, { color: PICO8[12], shadow: sel });
-      drawText(ctx, 'LEARN A SPELL', x0 + 88, y, { color: C_DIM });
-      drawText(ctx, 'SCROLL', x0 + pw - 6 - textWidth('SCROLL', 1), y, { color: PICO8[12] });
-    } else if (i < n) {
-      const offer = lootOffers[i] as Exclude<LootOffer, { kind: 'SCROLL' }>;
-      const item = offer.item;
-      drawSprite(ctx, itemIcon(item), x0 + 14, y - 1, 1);
-      if (offer.kind === 'ITEM') {
-        const owned = hero.equipment[item.slot];
-        drawText(ctx, item.name, x0 + 22, y, { color: rarityColor(item), shadow: sel });
-        drawText(ctx, owned ? `VS ${displayName(owned, itemLevel(hero, item.slot))}` : `${item.slot} SLOT`, x0 + 88, y, { color: C_DIM });
-        drawText(ctx, item.rarity, x0 + pw - 6 - textWidth(item.rarity, 1), y, { color: rarityColor(item) });
-      } else {
-        drawText(ctx, displayName(item, offer.toLevel), x0 + 22, y, { color: C_ACCENT, shadow: sel });
-        drawText(ctx, offer.toLevel >= 2 ? 'AWAKEN YOUR GEAR' : 'IMPROVE YOUR GEAR', x0 + 88, y, { color: C_DIM });
-        drawText(ctx, 'UPGRADE', x0 + pw - 6 - textWidth('UPGRADE', 1), y, { color: C_ACCENT });
-      }
-    } else {
-      drawText(ctx, 'KEEP YOUR GEAR', x0 + 12, y, { color: sel ? C_ACCENT : C_TEXT, shadow: sel });
-      drawText(ctx, 'MEND 25% HP AND MP', x0 + pw - 6 - textWidth('MEND 25% HP AND MP', 1), y, { color: C_DIM });
-    }
-  }
-  const dy = panelY + 14 + (n + 1) * 8 + 4;
-  ctx.fillStyle = PICO8[5]; ctx.fillRect(x0 + 6, dy - 3, pw - 12, 1);
-  if (lootCursor < n) {
-    const offer = lootOffers[lootCursor];
-    const lines = describeOffer(hero, offer);
-    const blurbColor = offer.kind === 'SCROLL' ? PICO8[12] : offer.kind === 'UPGRADE' ? C_ACCENT : offer.item.effect.kind === 'NONE' ? C_DIM : rarityColor(offer.item);
-    fitText(ctx, lines[0] ?? '', x0 + 6, dy, pw - 12, { color: C_TEXT });
-    fitText(ctx, lines[1] ?? '', x0 + 6, dy + 8, pw - 12, { color: blurbColor });
-    fitText(ctx, compareOffer(hero, offer), x0 + 6, dy + 16, pw - 12, { color: C_DIM });
-  } else {
-    drawText(ctx, 'NOTHING HERE FITS YOUR BUILD?', x0 + 6, dy, { color: C_DIM });
-    drawText(ctx, 'TAKE THE MEND AND MOVE ON.', x0 + 6, dy + 8, { color: C_DIM });
-  }
-}
-
-function renderCard(): void {
-  renderTableau(false);
-  dimScene(pc, 0.6);
-  const h = 26 + cardLines.length * 12;
-  const y = 30;
-  drawFrame(pc.ctx, 26, y, W - 52, h, C_BORDER, 1);
-  cardLines.forEach((line, i) => drawTextCentered(pc.ctx, line, W, y + 8 + i * 12, { color: i === 0 ? C_ACCENT : C_TEXT, shadow: true }));
-  drawTextCentered(pc.ctx, `${BUTTON_KEY.A.hint} CONTINUE`, W, y + h - 10, { color: blinkHz(1.2) ? C_TEXT : C_DIM });
-}
-
-function renderTitle(): void {
-  renderBiomeBackdrop(); particles.render(pc.ctx); renderFloor();
-  // Hero as a poster prop at px 2 — its keyline is PICO8[0] on the black void
-  // (1:1), so scaling the row-authored keyline is legal here.
-  const hf = heroFrames[frameIndex(clock, 2, 2)];
-  pc.ctx.fillStyle = PICO8[0]; pc.ctx.fillRect(HERO_X - hf.w + 6, FLOOR_Y - 1, hf.w * 2 - 12, 3);
-  drawSprite(pc.ctx, hf, HERO_X - hf.w, FLOOR_Y - hf.h * 2, 2);
-  drawActor(ENEMY_FRAMES.SLIME, 170, 0.5);
-  drawLogo(pc.ctx, 'EMBER QUEST', W, 12, { color: C_ACCENT, shade: PICO8[9], shadow: PICO8[2], scale: 3 });
-  drawTextCentered(pc.ctx, 'A ROGUELIKE DESCENT', W, 34, { color: C_DIM, shadow: true });
-  drawTextCentered(pc.ctx, 'FOUR ACTS  ONE LIFE  YOUR BUILD', W, 44, { color: C_TEXT, shadow: true });
-  drawTextCentered(pc.ctx, `PRESS ${BUTTON_KEY.A.hint} TO DESCEND`, W, 122, { color: blinkHz(1.2) ? C_ACCENT : C_TEXT, shadow: true });
-  const hintOpts = { color: C_DIM, shadow: true };
-  drawTextCentered(pc.ctx, 'UP/DOWN  MOVE CURSOR', W, 134, hintOpts);
-  controlHints(input).forEach((h, i) => drawTextCentered(pc.ctx, h, W, 142 + i * 8, hintOpts));
-  if (best > 0) hudText(pc, `BEST ${best}`, 'right', 'top', { color: C_DIM });
-}
-
-/** The PLAYING world for whatever sub-screen is active — also drawn as context under PAUSED / GAME_OVER / WIN. */
-function renderPlaying(): void {
-  switch (subScene) {
-    case 'MAP': renderMap(); break;
-    case 'BATTLE': renderBattle(); break;
-    case 'LEVELUP': renderLevelUp(); break;
-    case 'LOOT': renderLoot(); break;
-    case 'CARD': renderCard(); break;
-  }
-}
-
-function renderEnding(headline: string, headColor: string, sub: string): void {
-  renderPlaying();
-  dimScene(pc, 0.6);
-  drawFrame(pc.ctx, 26, 42, W - 52, 76, C_BORDER, 1);
-  drawTextCentered(pc.ctx, sub, W, 50, { color: C_DIM, shadow: true });
-  drawTextCentered(pc.ctx, headline, W, 60, { color: headColor, scale: 2 });
-  drawTextCentered(pc.ctx, `${clears} ENCOUNTERS CLEARED`, W, 78, { color: C_TEXT, shadow: true });
-  const build = SLOTS.map((sl) => (hero.equipment[sl] ? displayName(hero.equipment[sl]!, itemLevel(hero, sl)) : '')).filter(Boolean).join(' ') || 'NO GEAR';
-  fitText(pc.ctx, build, Math.max(30, Math.round((W - Math.min(W - 60, textWidth(build, 1))) / 2)), 86, W - 60, { color: C_DIM, shadow: true });
-  drawTextCentered(pc.ctx, `SCORE ${score}   ${beatBest ? 'NEW BEST' : `BEST ${best}`}`, W, 95, { color: beatBest ? C_ACCENT : C_DIM, shadow: true });
-  drawTextCentered(pc.ctx, `${BUTTON_KEY.A.hint} DESCEND AGAIN`, W, 106, { color: blinkHz(1.2) ? C_TEXT : C_DIM, shadow: true });
-}
-
-function render(): void {
-  pc.clear(C_BG);
-  juice.preRender(pc.ctx);
-  switch (scenes.current) {
-    case 'TITLE': renderTitle(); break;
-    case 'PLAYING': renderPlaying(); break;
-    case 'PAUSED': {
-      renderPlaying();
-      dimScene(pc, 0.6);
-      hudText(pc, 'PAUSED', 'center', 'middle', { color: C_ACCENT, scale: 2, plate: false });
-      drawTextCentered(pc.ctx, `${BUTTON_KEY.PAUSE.hint} RESUME`, W, 96, { color: C_DIM, shadow: true });
+function renderScreen(): void {
+  switch (screenKey()) {
+    case 'PRE_VAULT': case 'LAP': case 'BANK': {
+      const props = vaultProps();
+      if (props) { vaultScreen.render(clock, props); return; }
       break;
     }
-    case 'GAME_OVER': renderEnding(deathBiome, PICO8[8], 'YOU DIED IN'); break;
-    case 'WIN': renderEnding('VICTORY', C_ACCENT, 'THE SERAPH IS UNMADE'); break;
+    case 'DRAFT': case 'SUMMON': {
+      const props = draftProps();
+      if (props) { draftScreen.render(clock, props); return; }
+      break;
+    }
+    case 'LEADER': case 'PARTY': {
+      const props = partyProps();
+      if (props) { partyScreen.render(clock, props); return; }
+      break;
+    }
+    case 'ROUTE': {
+      const props = mapProps();
+      if (props) { mapScreen.render(clock, props); return; }
+      break;
+    }
+    case 'SHRINE': case 'FORGE': case 'ALTAR': case 'REST': {
+      const props = nodeProps();
+      if (props) { nodeScreen.render(clock, props); return; }
+      break;
+    }
+    case 'ACT_CLEAR':
+      if (run) { endScreen.renderActClear(clock, run); return; }
+      break;
+    case 'ROOM': case 'CARDS': case 'RELIC':
+      if (run) { cardsScreen.render(clock, run); return; }
+      break;
+    default:
+      break;
   }
-  juice.postRender(pc.ctx, W, H);
-  crt.render(pc.ctx, W, H, 1 / 60);
+  renderScene();
 }
 
 createLoop({ update, render }).start();
+
+// --- Dev state hook -------------------------------------------------------------
+// The test driver reads the live scene, the open decision and the run off the
+// page rather than guessing them from pixels. Dev only: Vite substitutes
+// `import.meta.env.DEV` with `false` in the Pages build, so the whole block is
+// constant-folded away — zero production impact. (The cast is how this file
+// reaches `env` without pulling vite/client's ambient types into tsconfig; it
+// leaves the member expression Vite actually substitutes untouched.)
+if (DEV) {
+  /**
+   * The (column, row) each worn relic sits at on the party columns — geometry,
+   * not a rule: `partyWorn` is member-major in SLOTS order, so a driver that
+   * must tap the relic at worn index i taps cells[i]. FORGE and BANK only.
+   */
+  const wornCells = (): { m: number; row: number }[] => {
+    const out: { m: number; row: number }[] = [];
+    const members = run?.view().party.members ?? [];
+    members.forEach((member, m) => {
+      SLOTS.forEach((slot, row) => { if (member.relics[slot]) out.push({ m, row }); });
+    });
+    return out;
+  };
+  /**
+   * The pending, JSON-safe and small: a driver needs to know WHAT is up and how
+   * many options it has, not to carry a live Battle (or a whole RunMap) across
+   * the bridge on every poll.
+   */
+  const pendingSummary = (): unknown => {
+    if (preRun === 'VAULT') {
+      return {
+        kind: 'VAULT_EQUIP', pre: true, options: vaultSave.vault.length,
+        slots: vaultSave.vaultSlots, unlockedAscension: vaultSave.unlockedAscension,
+      };
+    }
+    const p = run?.pending();
+    if (!p) {
+      const done = run?.result();
+      return done ? { kind: 'DONE', won: done.won } : null;
+    }
+    switch (p.kind) {
+      case 'DRAFT': return { kind: p.kind, options: p.roster.length, roster: [...p.roster] };
+      case 'VAULT_EQUIP': return { kind: p.kind, options: p.vault.length, slots: p.slots };
+      case 'SUMMON': return {
+        kind: p.kind, options: p.offers.length, full: p.full, opening: p.opening,
+        offers: p.offers.map((o) => o.def.id),
+      };
+      case 'LEADER': return { kind: p.kind, members: p.party.members.length, leader: p.party.leader };
+      case 'ROUTE': return {
+        kind: p.kind, stage: p.stage, offeredIdxs: [...p.offeredIdxs], offeredTypes: [...p.offeredTypes],
+        sizes: p.map.stages.map((s) => s.length),
+      };
+      case 'RELIC': return { kind: p.kind, cards: p.cards.length, source: p.source };
+      case 'REST': return { kind: p.kind, candidates: [...p.candidates] };
+      case 'SHRINE': return { kind: p.kind, pact: p.pact.id, untakenCount: p.untakenCount };
+      case 'FORGE': return {
+        kind: p.kind, worn: p.worn.length, levels: p.levels,
+        options: p.options.map((o) => ({ relic: o.relic, mode: o.mode })), cells: wornCells(),
+      };
+      case 'ALTAR': return { kind: p.kind, candidates: [...p.candidates] };
+      case 'BATTLE': return {
+        kind: p.kind, source: p.source, act: p.act, lap: p.lap, biome: p.biome.name, packIds: [...p.packIds],
+      };
+      case 'LAP': return { kind: p.kind, banked: p.banked };
+      case 'BANK': return {
+        kind: p.kind, worn: p.worn.length, n: p.n, vault: p.vault.length, vaultSize: p.vaultSize,
+        cells: wornCells(),
+      };
+      default: return null;
+    }
+  };
+
+  (window as unknown as { __eq: unknown }).__eq = {
+    scene: () => scenes.current,
+    /** Which screen owns the frame — the router's own key, the pre-run face and the party overlay included. */
+    phase: () => screenKey(),
+    /** What the run is waiting on, JSON-safe (see pendingSummary). */
+    pending: pendingSummary,
+    run: () => run?.state() ?? null,
+    /** The whole live view: act, lap, ascension, score, where the party stands, who is in it. */
+    view: () => {
+      if (!run) return null;
+      const v = run.view();
+      return {
+        act: v.act, lap: v.lap, ascension: v.ascension, score: v.score, clears: v.clears,
+        stage: v.stage, nodeIdx: v.nodeIdx, rooms: [...v.rooms], roomType: v.roomType,
+        biome: v.biome.name, pactsTaken: [...v.pactsTaken], phase: v.phase, over: v.over,
+        members: v.party.members.map((m) => ({ id: m.def.id, hp: m.hp, awakened: m.awakened })),
+        leader: v.party.leader,
+      };
+    },
+    /** The finished run, if it is finished. */
+    result: () => run?.result() ?? null,
+    /**
+     * The three inputs a headless replay needs: the seed, the config the run was
+     * built with, and every answer given (a BATTLE answer carries the hero turns
+     * that produced it — `battle.rng` is the run's own rng, so nothing less
+     * reproduces the stream).
+     */
+    seed: () => runSeed,
+    config: () => ({
+      ascension: runCfg.ascension, vaultSlots: runCfg.vaultSlots,
+      roster: [...runCfg.roster], vault: runCfg.vault.length,
+    }),
+    decisions: () => run?.decisions?.() ?? [],
+    /** What each phase-5 screen believes it is showing (its own view(props)) — null when it is not up. */
+    map: () => { const p = mapProps(); return p ? mapScreen.view(p) : null; },
+    party: () => { const p = partyProps(); return p ? partyScreen.view(p) : null; },
+    draft: () => { const p = draftProps(); return p ? draftScreen.view(p) : null; },
+    node: () => { const p = nodeProps(); return p ? nodeScreen.view(p) : null; },
+    vault: () => { const p = vaultProps(); return p ? vaultScreen.view(p) : null; },
+    battle: () => battleScreen.phase,
+    /** Whose turn it is (def.id), for the dev state hook and nothing else — mirrors `battle()`. */
+    battleActor: () => battleScreen.currentActorId,
+    /** The live sim Battle (heroes/enemies/log/events), for a driver to read exact numbers or
+     * force a status onto a LIVE actor (e.g. enemies[i].statuses.push(...)) the same way `run().party`
+     * is already used to force a hero's hp before a fight. Dev only, same as every field above. */
+    battleObj: () => activeBattle,
+    /** The exact ribbon forecast (def.id per queue slot) — the same pure function drawRibbonQueue()
+     * calls, so a driver can assert "who acts next" against it turn over turn without reading pixels. */
+    forecastIds: () => (activeBattle ? forecast(activeBattle, 8).map((a) => a.def.id) : []),
+    /**
+     * Which region the registry resolves the POINTER to this frame. A QA driver
+     * moves the mouse over a grid and reads this back, which is the only way to
+     * prove that no strip between two hit rects resolves to the wrong one —
+     * pixels cannot show it and geometry alone cannot, since the answer depends
+     * on the registry's two-pass order. Dev only, like every field above.
+     */
+    regionAt: () => regions.hovered(),
+    /** Where the KEYBOARD is. The pause overlay replaces the region pool, so
+     * proving that resume puts the focus back where the player left it is not
+     * something a frame can show — only this can. Dev only. */
+    focusedId: () => regions.focused(),
+    /** Whether the battle screen is PAUSED — the one state that freezes update()
+     * while render() keeps going, so a driver can tell "frozen" from "slow". Dev only. */
+    battlePaused: () => battleScreen.paused,
+  };
+}

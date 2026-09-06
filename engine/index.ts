@@ -6,6 +6,8 @@ export type { GameLoop, LoopCallbacks, LoopOptions } from './loop';
 
 export { createInput, controlHints, BUTTON_KEY } from './input';
 export type { Input, InputOptions, ButtonName, ActionDecl } from './input';
+export { createHitRegions, pointerHints, TAP_MIN, TAP_GAP } from './input';
+export type { HitRegions, HitRegionOptions, PointerState } from './input';
 
 export { createScenes } from './scenes';
 export type { SceneMachine, Scene } from './scenes';
@@ -39,6 +41,8 @@ export type {
   DitherPattern,
   LogoOptions,
 } from './draw';
+export { FONT_RETRO, FONT_HD, bakeSprite, drawBaked, tintSprite, pickBackingScale } from './draw';
+export type { BitmapFont, DrawBakedOptions } from './draw';
 
 export { PICO8, GAMEBOY, DUSK, NEON, SUNSET, OCEAN, PALETTES, swapPalette, contrast } from './palette';
 export type { Palette } from './palette';
@@ -52,8 +56,27 @@ export type { Juice } from './juice';
 export { createAudio } from './audio';
 export type { Audio, Sfx } from './audio';
 
-export { SAFE_MARGIN, drawScore, drawLives, hudText, drawPanel, dimScene } from './ui';
-export type { HudOptions, PanelOptions, HAnchor, VAnchor } from './ui';
+export { SAFE_MARGIN, setSafeInset, getSafeInset, drawScore, drawLives, hudText, drawPanel, dimScene } from './ui';
+export type { SafeInset, HudOptions, PanelOptions, HAnchor, VAnchor } from './ui';
+
+export { createLight } from './light';
+export type {
+  Light,
+  LightTier,
+  BiomeLook,
+  BiomeLooks,
+  LightActor,
+  PlanePainter,
+  KeyLight,
+  PoolLight,
+  GradeLook,
+  FogLook,
+  MoteLook,
+  CreateLightOptions,
+  BackgroundFrame,
+  LightPlaneFrame,
+  PostFrame,
+} from './light';
 
 export { createCrt } from './crt';
 export type { Crt, CrtOptions } from './crt';
