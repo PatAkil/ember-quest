@@ -18,19 +18,45 @@
  * are warm sandstone over a violet floor, the vault is bronze and kelp over a
  * teal one, and the spire is brass over blue-grey.
  */
-import { boss, creature, humanoid, glowRamp, ramp } from './actors';
+import { boss, creature, humanoid, glowRamp, ramp, registerRecoilArms } from './actors';
 import type { ActorRecipe } from './actors';
 import type { Ramp } from './parts';
 
+/**
+ * ROUND 11 — THE RECOIL ARMS, reachable at last. `RECOIL_ARMS` was a module
+ * const in actors.ts, so the `arms_*_hurt` grids parts-late.ts authored in the
+ * late-enemy round were registered and unreachable: the recoil was carried by a
+ * sheared torso alone, and the round-10 critic measured six of these humanoids
+ * driving the head DOWN three cells on hurt 0 (crownDy +3) — the exact defect
+ * round 10 had just closed on the nineteen. `registerRecoilArms` (artist A's
+ * hook) folds these pairs into the same table the nineteen are found in, so the
+ * far arm is now flung up and out off the blow and the weapon arm drops back to
+ * the hip, on every one of the thirteen.
+ */
+const LATE_RECOIL_ARMS: Record<string, string> = {
+  arms_stone: 'arms_stone_hurt',
+  arms_slag: 'arms_slag_hurt',
+  arms_apron: 'arms_apron_hurt',
+  arms_furnace: 'arms_furnace_hurt',
+  arms_vestment: 'arms_vestment_hurt',
+  arms_bronze: 'arms_bronze_hurt',
+  arms_shell: 'arms_shell_hurt',
+  arms_late_bare: 'arms_late_bare_hurt',
+  arms_brass: 'arms_brass_hurt',
+  arms_granite: 'arms_granite_hurt',
+  arms_seraph: 'arms_seraph_hurt',
+};
+
 export function lateRecipes(): Record<string, ActorRecipe> {
+  registerRecoilArms(LATE_RECOIL_ARMS);
   // ---- SKY RUINS (act 3) ------------------------------------------------------
   // Weathered sandstone, wind-green and a pale sky, read against RUINS_GROUND's
   // violet-grey floor (#57506f) — the lightest of the four. Grey stone would be
   // a hole in that floor, so the masonry here is WARM and the wind is GREEN.
-  const RUIN_STONE: Ramp = ramp(34, 11, 44, { mid: -8, lit: -12, spec: -12, plane: -3 }); // the sentinel's masonry, ten L under the floor it stands on
+  const RUIN_STONE: Ramp = ramp(34, 11, 44, { mid: -8, lit: -12, spec: -12, plane: 3 }); // the sentinel's masonry, ten L under the floor it stands on
   const RUIN_RUNE: Ramp = ramp(122, 22, 40); // carved bands, the one chromatic thing on it
-  const RAPTOR_PLUME: Ramp = ramp(52, 21, 44, { mid: -9, lit: -4, plane: -3 }); // straw-pale plumage: the raptor reads light where the sentinel reads dark
-  const RAPTOR_COVERT: Ramp = ramp(128, 15, 40, { mid: -9, lit: -4, plane: -2 });
+  const RAPTOR_PLUME: Ramp = ramp(52, 21, 44, { mid: -9, lit: -4, plane: 1 }); // straw-pale plumage: the raptor reads light where the sentinel reads dark
+  const RAPTOR_COVERT: Ramp = ramp(128, 15, 40, { mid: -9, lit: -4, plane: 1 });
   const RAPTOR_HIDE: Ramp = ramp(26, 27, 38); // beak, scaled legs and talons
   const SPRITE_AIR: Ramp = ramp(150, 15, 48);
   const SPRITE_CURRENT: Ramp = ramp(166, 22, 40);
@@ -55,7 +81,7 @@ export function lateRecipes(): Record<string, ActorRecipe> {
       strike: 'raptor_strike',
       hurt: 'raptor_hurt',
       dead: ['raptor_dead'],
-      settle: { part: 'raptor_body', dy: -1 },
+      settle: { part: 'raptor_settle' },
       palette: { bone: RAPTOR_PLUME, accent: RAPTOR_COVERT, leather: RAPTOR_HIDE },
     }),
     // DAZZLE GUST blinds: a coil of moving air with a lit heart and two slits,
@@ -69,7 +95,7 @@ export function lateRecipes(): Record<string, ActorRecipe> {
       strike: 'sprite_strike',
       hurt: 'sprite_hurt',
       dead: ['sprite_dead', 'sprite_dead_b'],
-      settle: { part: 'sprite_body', dy: -1 },
+      settle: { part: 'sprite_settle' },
       palette: { cloth: SPRITE_AIR, accent: SPRITE_CURRENT, glow: glowRamp(96, 58, 93) },
     }),
     // WARD STONE and MEND ECHO: masonry that guards. A lintel of shoulder past
@@ -88,6 +114,8 @@ export function lateRecipes(): Record<string, ActorRecipe> {
       tilt: 'sentinel_head_tilt',
       recoilBody: 'sentinel_body_hurt',
       recoilDx: -9,
+      // ROUND 11 — the chin goes UP on the hit. Without the arms swap this figure had nothing to lift the skull and the critic measured crownDy +3 on it.
+      recoilLift: true,
       sway: 'sentinel_head_sway',
       sway2: 'sentinel_head_sway2',
       swayBody: 'sentinel_body_sway',
@@ -117,6 +145,7 @@ export function lateRecipes(): Record<string, ActorRecipe> {
       strike: 'drake_strike',
       hurt: 'drake_hurt',
       dead: ['drake_dead'],
+      settle: { part: 'drake_settle' },
       palette: { leather: DRAKE_HIDE, cloth2: DRAKE_MEMBRANE, bone: DRAKE_HORN },
     }),
     // The lord the ruins fell with: one wing sheared to a stump of masonry, a
@@ -154,7 +183,7 @@ export function lateRecipes(): Record<string, ActorRecipe> {
   // knight are both iron over a warm accent, and on one ramp they measured 79 %
   // top-ten-colour overlap. The golem's iron is COLD (a blue cast iron) over a
   // dull ochre slag; the knight's is SCORCHED (a warm rust) over the ember red.
-  const COLD_IRON: Ramp = ramp(220, 9, 38, { mid: -5, lit: -9, spec: -9, plane: -2 }); // the golem, and the Forge Saint's mitre
+  const COLD_IRON: Ramp = ramp(220, 9, 38, { mid: -5, lit: -9, spec: -9, plane: 3 }); // the golem, and the Forge Saint's mitre
   const SCORCHED_IRON: Ramp = ramp(8, 13, 34); // the furnace knight's plate
   const SLAG: Ramp = ramp(34, 24, 40); // cooling slag on the golem's fist
   const EMBER_RED: Ramp = ramp(6, 27, 40); // the knight's scorched tabard
@@ -181,6 +210,8 @@ export function lateRecipes(): Record<string, ActorRecipe> {
       tilt: 'golem_head_tilt',
       recoilBody: 'golem_body_hurt',
       recoilDx: -9,
+      // ROUND 11 — the chin goes UP on the hit. Without the arms swap this figure had nothing to lift the skull and the critic measured crownDy +3 on it.
+      recoilLift: true,
       sway: 'golem_head_sway',
       sway2: 'golem_head_sway2',
       swayBody: 'golem_body_sway',
@@ -197,7 +228,7 @@ export function lateRecipes(): Record<string, ActorRecipe> {
       strike: 'wolf_strike',
       hurt: 'wolf_hurt',
       dead: ['wolf_dead'],
-      settle: { part: 'wolf_body', dy: -1 },
+      settle: { part: 'wolf_settle' },
       palette: { leather: WOLF_HIDE, accent: WOLF_SPINE, bone: ramp(44, 12, 56), glow: glowRamp(20, 90, 90) },
     }),
     // TEMPER and EMBER SALVE: a working smith in orders. Narrow shoulders under
@@ -253,6 +284,8 @@ export function lateRecipes(): Record<string, ActorRecipe> {
       tilt: 'furnace_head_tilt',
       recoilBody: 'furnace_body_hurt',
       recoilDx: -10,
+      // ROUND 11 — the chin goes UP on the hit. Without the arms swap this figure had nothing to lift the skull and the critic measured crownDy +3 on it.
+      recoilLift: true,
       sway: 'furnace_head_sway',
       sway2: 'furnace_head_sway2',
       swayBody: 'furnace_body_sway',
@@ -288,12 +321,12 @@ export function lateRecipes(): Record<string, ActorRecipe> {
   // A drowned reliquary over VAULT_GROUND's teal floor (#3e6d7c) under a #6fd8ff
   // key: teal on teal is a hole, so the pack is BRONZE and KELP, and the only
   // cyan in it is a bioluminescence the enemies carry as light sources.
-  const VERDIGRIS: Ramp = ramp(152, 21, 42, { mid: -8, lit: -12, spec: -12, plane: -3 }); // drowned bronze — warm-green metal against a cold floor
+  const VERDIGRIS: Ramp = ramp(152, 21, 42, { mid: -8, lit: -2, spec: -3, plane: 3 }); // drowned bronze — warm-green metal against a cold floor
   const KELP: Ramp = ramp(94, 20, 34); // the weed every figure in the vault wears
   const VAULT_RUST: Ramp = ramp(18, 30, 40);
   const JELLY_BELL: Ramp = ramp(282, 12, 44); // a violet bell, the one non-green thing in the biome
   const JELLY_STING: Ramp = ramp(300, 15, 38);
-  const ORACLE_ROBE: Ramp = ramp(232, 20, 40); // indigo, well clear of TIDE's and the Saint's pale blues
+  const ORACLE_ROBE: Ramp = ramp(232, 20, 40, { plane: 4 }); // indigo, well clear of TIDE's and the Saint's pale blues
   const CORAL: Ramp = ramp(6, 21, 46);
   const EEL_HIDE: Ramp = ramp(204, 17, 36);
   const EEL_FIN: Ramp = ramp(46, 27, 46); // a brass sail fin — the WIND foil reads warm in a cold room
@@ -317,6 +350,8 @@ export function lateRecipes(): Record<string, ActorRecipe> {
       tilt: 'dsent_head_tilt',
       recoilBody: 'dsent_body_hurt',
       recoilDx: -10,
+      // ROUND 11 — the chin goes UP on the hit. Without the arms swap this figure had nothing to lift the skull and the critic measured crownDy +3 on it.
+      recoilLift: true,
       sway: 'dsent_head_sway',
       sway2: 'dsent_head_sway2',
       swayBody: 'dsent_body_sway',
@@ -368,7 +403,7 @@ export function lateRecipes(): Record<string, ActorRecipe> {
       strike: 'eel_strike',
       hurt: 'eel_hurt',
       dead: ['eel_dead'],
-      settle: { part: 'eel_body', dy: -1 },
+      settle: { part: 'eel_settle' },
       palette: { leather: EEL_HIDE, cloth2: EEL_FIN, bone: ramp(44, 12, 54), glow: glowRamp(56, 46, 94) },
     }),
     // CRUSHING COILS: the silhouette IS the coil — three stacked loops with a
@@ -381,6 +416,7 @@ export function lateRecipes(): Record<string, ActorRecipe> {
       strike: 'lev_strike',
       hurt: 'lev_hurt',
       dead: ['lev_dead'],
+      settle: { part: 'lev_settle' },
       palette: { leather: ABYSS_HIDE, bone: ramp(42, 14, 56), glow: glowRamp(174, 60, 90) },
     }),
     // The boss's legs are gone below the knee into a skirt of kelp, its mantle
@@ -415,9 +451,9 @@ export function lateRecipes(): Record<string, ActorRecipe> {
   // A lightning-lit tower top over SPIRE_GROUND's blue-grey floor (#5b6484) under
   // a near-white key. Storm grey on storm grey is a hole, so the pack is BRASS
   // and granite, and the only white in it is the lightning the enemies carry.
-  const BRASS: Ramp = ramp(46, 26, 44, { mid: -5, lit: -7, spec: 0 }); // the warden and the colossus's bindings
+  const BRASS: Ramp = ramp(46, 26, 44, { mid: -5, lit: 1, spec: 2 }); // the warden and the colossus's bindings
   const PALE_GOLD: Ramp = ramp(56, 19, 54); // the seraph's mask and lance, a step off the warden's brass
-  const HAWK_FEATHER: Ramp = ramp(28, 19, 36, { mid: -9, lit: -4, plane: -2 }); // a dark warm plumage: nothing like the ruins' straw raptor
+  const HAWK_FEATHER: Ramp = ramp(28, 19, 36, { mid: -9, lit: -4, plane: 2 }); // a dark warm plumage: nothing like the ruins' straw raptor
   const MONK_GI: Ramp = ramp(38, 23, 46);
   const MONK_SASH: Ramp = ramp(186, 21, 34);
   const STORM_COAT: Ramp = ramp(222, 19, 44); // the warden's and the seraph's storm indigo // the warden's and the seraph's storm indigo
@@ -436,7 +472,7 @@ export function lateRecipes(): Record<string, ActorRecipe> {
       strike: 'hawk_strike',
       hurt: 'hawk_hurt',
       dead: ['hawk_dead'],
-      settle: { part: 'hawk_body', dy: -1 },
+      settle: { part: 'hawk_settle' },
       palette: { hair: HAWK_FEATHER, accent: BRASS, glow: glowRamp(56, 44, 95) },
     }),
     // WIND PALM scales off SPD, so this is the only humanoid of the twenty-four
@@ -477,6 +513,8 @@ export function lateRecipes(): Record<string, ActorRecipe> {
       tilt: 'warden_head_tilt',
       recoilBody: 'warden_body_hurt',
       recoilDx: -10,
+      // ROUND 11 — the chin goes UP on the hit. Without the arms swap this figure had nothing to lift the skull and the critic measured crownDy +3 on it.
+      recoilLift: true,
       sway: 'warden_head_sway',
       sway2: 'warden_head_sway2',
       swayBody: 'warden_body_sway',
@@ -495,7 +533,7 @@ export function lateRecipes(): Record<string, ActorRecipe> {
       strike: 'elemental_strike',
       hurt: 'elemental_hurt',
       dead: ['elemental_dead', 'elemental_dead_b'],
-      settle: { part: 'elemental_body', dy: -1 },
+      settle: { part: 'elemental_settle' },
       palette: { bone: CLINKER, glow: glowRamp(20, 88, 92) },
     }),
     // CHAIN BOLT: granite bound in brass, with two conductor rods standing off
@@ -514,6 +552,8 @@ export function lateRecipes(): Record<string, ActorRecipe> {
       tilt: 'colossus_head_tilt',
       recoilBody: 'colossus_body_hurt',
       recoilDx: -10,
+      // ROUND 11 — the chin goes UP on the hit. Without the arms swap this figure had nothing to lift the skull and the critic measured crownDy +3 on it.
+      recoilLift: true,
       sway: 'colossus_head_sway',
       sway2: 'colossus_head_sway2',
       swayBody: 'colossus_body_sway',
