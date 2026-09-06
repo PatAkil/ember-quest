@@ -28,6 +28,22 @@ pose, ×N), `tools/vfx.html` (every skill effect), `tools/backdrops.html`
 (six biomes, three tiers), `tools/screens.html` (every run screen on a
 fixture, `?phone=1`).
 
+## Playing it on a phone
+
+`main` deploys to GitHub Pages on push (`.github/workflows/pages.yml`); the live URL is
+https://patakil.github.io/ember-quest/. Until PR #1 is merged that URL serves v2; after
+the merge it serves this build (the Pages workflow runs `npm ci && npm run build`, and the
+build runs standalone — `runtime.ts` is a no-op when not embedded). The phone layout was
+verified only on a 390×844 viewport at dpr 3 through Playwright (`capture.mjs phone`):
+a 40-px bottom inset, TAP_MIN 96 hit rects, the ARCADE toggle. What to try first: the
+draft, one crypt fight to a KO or a win, INSPECT, PAUSE, the map, a SUMMON room, a SHRINE.
+What to report: a screenshot (the frame IS the record) plus the act, the room type and
+what you tapped; anything you had to tap twice; anything you could not read at arm's
+length; whether the frame rate holds through a hit (the HIGH tier drops to LOW by itself
+after 60 slow frames — say if the picture suddenly flattens). Known and not worth
+reporting: the sprites (this file's first honest bullet), the damage pops on the sky,
+the map reading as a grid of squares, the light wells as flat washes.
+
 ## What to look at first
 
 1. `node tools/capture.mjs battle seed=1` → `tools/out/battle-*.png`: the
@@ -239,17 +255,17 @@ Each of these was found by a blind verifier or critic and left as is, with the r
 
 ## Next, in order
 
-1. **Decide the sprite pipeline from the pixel study** (98464a4; `tools/study.html`, and zoom 2 on
-   `bg=b9a98a` is the real test). EMBER's idle drawn by hand at the kit's own cell reads as
-   the reference's craft where thirteen kit rounds did not. If the owner agrees, phase 2
-   draws EMBER's other fourteen frames as grids (`game/art/pixel/ember-study.ts` already has
-   the shape: `poses`, `feet`, `hit`, `hitSize`), `drawActor` gains a grid branch (bake through
-   `makeSprite → bakeSprite`, draw at ACTOR_SCALE anchored at `feet`, mirrored for heroes),
-   then the five other heroes, then the 37 enemies — one Fable artist per two actors, a blind
-   eye-critic on the study sheet at zoom 2, the sheet criteria kept as gates. The study also
-   found the kit's palette has nothing between L 27–31 and 51–52 because `legal()` lifts every
-   ramp step to 3.2:1 against the navy; the reference's shadow sides live at L 35–48, so a
-   hand-drawn roster needs those tones (the study added three).
+1. **The sprite pipeline, option B — decided by the owner on 2026-09-06.** The six heroes
+   and the seven bosses redrawn by hand as pixel grids at the kit's own cell; the ordinary
+   enemies stay on the kit with the palette fixed in the engine (item 2). The defining
+   prompt is `.claude/prompts/pixel-pipeline.md`: stage 0 the grid branch in `drawActor`
+   (a `PixelActor` registry, so hand-drawn and kit actors share the stage), stage 1 EMBER's
+   fourteen frames judged in a real battle frame, stage 2 the other five heroes, stage 3
+   the bosses, stage 4 the kit enemies under the value-law fix. The study that decided it:
+   `tools/study.html` (zoom 2 on `bg=b9a98a` is the real test), `game/art/pixel/ember-study.ts`,
+   ART-REVIEW.md "The pixel study". The study's own findings feed stage 1: the figure is
+   slimmer than the reference's chibi build, the keyline follows the material, and the kit's
+   palette has nothing between L 27–31 and 51–52 (the study added three shadow tones).
 2. **The value law in the engine** (ART-REVIEW.md, decisions 5 after round 11 and 2 after
    round 14): `legal()` lifts every ramp step to 3.2:1 against the navy, which leaves no
    tone between L 38 and 49 — the reference's shadow sides. Measure contrast against the
