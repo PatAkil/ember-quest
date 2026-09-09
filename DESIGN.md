@@ -1111,12 +1111,16 @@ horizon away, and it is the plane the diorama's ARCHITECTURE stands on; the
 actor plane and the FLOOR it stands on razor sharp (`BLUR_FLOOR = 0`),
 because the ground is at the actor plane's own depth and a 1.25-px blur over
 it turned a 2-px stone into a 4-px smudge; (3) **pixel
-actors** — parts authored at `ACTOR_PART = 64` px (`BOSS_PART = 96`), a hero
-52–60 cells tall, drawn at `ACTOR_SCALE = 2` with smoothing off, ≤ `ACTOR_W
-= 128` wide (a boss ≤ `BOSS_W = 192`), the only plane with hard pixel edges —
-at ×2 a hero stands ≈ 13–17 % of the frame's height with a 2-px cell, the
-density of Octopath's sprites on a 720-px frame (×3 read as chunky and was
-retired on 2026-09-05); (4) **light at native resolution** — a per-biome key
+actors** — a **bitmap actor** (the default since 2026-09-09, see *Layered
+actors*) is an image-model sprite shrunk to its on-screen height (a hero
+`BITMAP_HERO_H = 112` px) and drawn 1:1 with smoothing off; a **kit actor**
+(the fallback) is parts authored at `ACTOR_PART = 64` px (`BOSS_PART = 96`),
+a hero 52–60 cells tall, drawn at `ACTOR_SCALE = 2` with smoothing off, ≤
+`ACTOR_W = 128` wide (a boss ≤ `BOSS_W = 192`). Either way this is the only
+plane with hard pixel edges — a hero stands ≈ 13–17 % of the frame's height,
+the density of Octopath's sprites on a 720-px frame (×3 read as chunky and
+was retired on 2026-09-05; the 2-px grid of a generated sprite lost its face
+and trim on the stage and was retired for bitmaps on 2026-09-09); (4) **light at native resolution** — a per-biome key
 light as radial gradients — and every biome carries one **LIGHT WELL**, a lit
 opening high and centred in the FAR plane (a broken vault, a cloud break, a
 roof light, the water's surface), with the key light placed on it because the
@@ -1167,17 +1171,51 @@ count. `engine/light.ts` lands in phase 7a; `engine/crt.ts` is **kept**.
 
 ### Layered actors
 
-A character is a recipe, not a picture: body, head, torso, weapon, cape —
-each an ASCII part from a shared library with **anchor points**, so a weapon
-stays in a hand across an animation. Animation is per-layer transform
-keyframes stepped at `POSE_FPS = 12`, rotation in 90° steps; element tint is
-a palette swap per layer at bake time; rim light is applied to the composed
-silhouette. Parts bake lazily, once per (part, element) — an atlas per element is the
-recommended shape; the rule is the budget: no per-cell `fillRect` at frame
-time and one `drawImage` per actor per frame; a pose is composed at part
-resolution, rim light included, only when its keyframe changes, and drawn
-at ×3. Text goes through a glyph atlas the
-same way. `fillRect` per cell exists only at bake time.
+**Two kinds of actor share one plane, and the bitmap kind is the default.**
+
+**Bitmap actors** (option C, the owner's decision of 2026-09-09 after the
+frame test in ART-REVIEW.md; the pipeline is `.claude/prompts/bitmap-pipeline.md`).
+An actor is a set of image-model-generated PNGs, one per (pose, frame),
+generated on the owner's side from one master frame per character, keyed off
+their flat green by hue and saturation, cropped to the opaque bbox and
+area-downscaled by `tools/intake.mjs bitmap` to the actor's **class height**
+— `BITMAP_HEIGHT = { hero: 112, small: 72, medium: 96, large: 112, elite: 128,
+boss: 192 }` screen px, one screen pixel per pixel, `ACTOR_SCALE` 1 for the
+kind — with alpha snapped at `BITMAP_ALPHA = 0.45` and **no palette
+snapping**: the model's pixels are the art. The shrunk sprites live in
+`game/art/bitmap/<id>/<pose>-<n>.png` and `game/art/bitmap/index.ts` is the
+registry, `{ id, height, feet, hit, hitSize, poses }`, generated from the
+intake's `manifest.json`, never hand-edited. **Poses**: heroes and bosses
+carry idle ×2 (B is the breath frame), attack ×2 (wind-up, strike), cast,
+hurt and dead; elites idle, attack, hurt, dead; ordinary enemies idle,
+attack, hurt. A pose that is not registered falls back along `attack →
+idle`, `cast → attack`, `hurt → idle`, `dead → hurt` drawn at `DEAD_ALPHA`
+and sunk `DEAD_SINK = 6` px, `idle[1] → idle[0]`, so a partially generated
+actor is playable at every step. Animation is frame selection at
+`POSE_FPS`: no per-layer transforms, no rotation. `drawActor` decodes each
+PNG once at boot and draws it 1:1 through `drawBaked` at scale 1, anchored at
+the registry's `feet`, `flipX` for `facing −1`; the hit rect is the
+registry's `hit`/`hitSize`; status tints (BURN, IMMUNITY, INVINCIBLE), the
+contact shadow, the multiplicative light gain and the rim spill are the same
+per-actor overlays the kit gets. `tools/lineup.ts`, `capture.mjs sheets` and
+`seats.mjs` measure a bitmap actor exactly as a kit actor, so ART-REVIEW.md's
+ship criteria and the in-scene rulers apply unchanged. A pose that fails the
+critic is **regenerated, never hand-edited**.
+
+**Kit actors** (the fallback for any actor with no bitmap yet; retired once
+every actor has one). A character is a recipe, not a picture: body, head,
+torso, weapon, cape — each an ASCII part from a shared library with **anchor
+points**, so a weapon stays in a hand across an animation. Animation is
+per-layer transform keyframes stepped at `POSE_FPS = 12`, rotation in 90°
+steps; element tint is a palette swap per layer at bake time; rim light is
+applied to the composed silhouette. Parts bake lazily, once per (part,
+element) — an atlas per element is the recommended shape.
+
+The rule for both is the budget: no per-cell `fillRect` at frame time and one
+`drawImage` per actor per frame; a kit pose is composed at part resolution,
+rim light included, only when its keyframe changes, and drawn at
+`ACTOR_SCALE`; a bitmap pose is one cached bitmap. Text goes through a glyph
+atlas the same way. `fillRect` per cell exists only at bake time.
 
 ### Procedural VFX
 
