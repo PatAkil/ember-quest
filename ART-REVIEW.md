@@ -1692,3 +1692,9 @@ downscaled once at boot with area averaging, drawn 1:1 through the same `drawAct
 grain. Decision pending the owner; `pixel-pipeline.md` (hand-drawn grids) stands until then.
 Reproduce: the scratch harness drew `tools/in/ember-gen-2k.png` at seat 0 (smooth), seat 1
 (hard 1-px) and `EMBER_GEN2` at seat 2 with `drawBaked` at scale 2, foes on the kit.
+
+### Owner decision after the frame test: the sprite pipeline is option C (2026-09-09)
+
+Every asset is image-model generated and used as a bitmap at its on-screen size; the
+playable characters get a few more poses than enemies. `pixel-pipeline.md` is superseded
+by `bitmap-pipeline.md`. The kit remains the fallback until every actor has a bitmap.

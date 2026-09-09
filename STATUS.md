@@ -273,17 +273,13 @@ Each of these was found by a blind verifier or critic and left as is, with the r
 
 ## Next, in order
 
-1. **The sprite pipeline, option B — decided by the owner on 2026-09-06.** The six heroes
-   and the six bosses redrawn by hand as pixel grids at the kit's own cell; the ordinary
-   enemies stay on the kit with the palette fixed in the engine (item 2). The defining
-   prompt is `.claude/prompts/pixel-pipeline.md`: stage 0 the grid branch in `drawActor`
-   (a `PixelActor` registry, so hand-drawn and kit actors share the stage), stage 1 EMBER's
-   fourteen frames judged in a real battle frame, stage 2 the other five heroes, stage 3
-   the bosses, stage 4 the kit enemies under the value-law fix. The study that decided it:
-   `tools/study.html` (zoom 2 on `bg=b9a98a` is the real test), `game/art/pixel/ember-study.ts`,
-   ART-REVIEW.md "The pixel study". The study's own findings feed stage 1: the figure is
-   slimmer than the reference's chibi build, the keyline follows the material, and the kit's
-   palette has nothing between L 27–31 and 51–52 (the study added three shadow tones).
+1. **The sprite pipeline, option C — decided by the owner on 2026-09-09.** Every actor is an
+   image-model-generated bitmap at its on-screen size; heroes get more poses than enemies.
+   The defining prompt is `.claude/prompts/bitmap-pipeline.md` (asset spec, generation
+   prompts, the intake's `bitmap` mode, the `drawActor` branch, the stages). Stage 0 is the
+   engine work; stage 1 is EMBER's poses from `tools/in/ember-gen-2.png`. Option B
+   (`pixel-pipeline.md`, hand-drawn grids) is superseded and kept as history; the kit stays
+   as the fallback for actors without bitmaps.
 2. **The value law in the engine** (ART-REVIEW.md, decisions 5 after round 11 and 2 after
    round 14): `legal()` lifts every ramp step to 3.2:1 against the navy, which leaves no
    tone between L 38 and 49 — the reference's shadow sides. Measure contrast against the
