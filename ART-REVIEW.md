@@ -1671,3 +1671,24 @@ verdict's byte-identity finding (54 of 645 bakes moved, all four actors') and it
 misses (4 of 13 seats on the named set; 6 of 17 when seeds 3 and 11 are driven too) reproduce
 exactly.
 
+
+
+## Frame test — the generated reference on the stage (2026-09-09)
+
+The owner asked why the generated EMBER (an image-model sprite, `tools/in/ember-gen-2.png`,
+≈ 110 painted pixels tall at a 12-px pitch) could not simply be used, since the intake's
+40×64 grid of it reads worse. Tested on the real lit crypt stage through `engine/light.ts`
+(contact shadows, light plane, bloom, grade) beside three kit enemies, in one frame:
+A — the original PNG area-downscaled to the on-screen height (112 px) and drawn with
+smoothing; B — the same at 1-px hard pixels; C — the intake grid `EMBER_GEN2` at ×2.
+Result: A and B keep the face, the vest trim, the belt and the boots and sit well under
+the bloom; C loses the face and reads coarser than the reference. The kit enemies at
+2-px cells are visibly coarser than A/B. Conclusion: the 2-px grid is not what makes it
+read like Octopath; the on-screen size is. A 1-px-grain bitmap at 112 px tall is a valid
+actor for the hero rank if the pipeline gains (1) a bitmap actor path (a PNG per pose,
+downscaled once at boot with area averaging, drawn 1:1 through the same `drawActor`),
+(2) pose frames generated image-to-image from the master and judged in frame, and
+(3) the same treatment for enemies so the grain matches, or the kit re-authored at that
+grain. Decision pending the owner; `pixel-pipeline.md` (hand-drawn grids) stands until then.
+Reproduce: the scratch harness drew `tools/in/ember-gen-2k.png` at seat 0 (smooth), seat 1
+(hard 1-px) and `EMBER_GEN2` at seat 2 with `drawBaked` at scale 2, foes on the kit.
