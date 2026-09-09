@@ -38,6 +38,19 @@ import { LATE_PARTS } from './parts-late';
 import { lateRecipes } from './actors-late';
 import { renderVfx, spawnVfx, updateVfx } from './vfx';
 import type { VfxInstance } from './vfx';
+import { BITMAP_ACTORS, bitmapFor, loadBitmapActors } from './bitmap';
+
+/**
+ * Option C (.claude/prompts/bitmap-pipeline.md): an id present in
+ * BITMAP_ACTORS draws an image-model-generated bitmap instead of the
+ * procedural kit — see the branches in `bakePose`, `drawActor` and
+ * `actorHitRect` below. Kicked off as soon as this module loads (the same
+ * pattern as the LATE_PARTS merge below: a side effect that must run before
+ * any draw, and there is no other boot hook this file is allowed to add
+ * itself to). `drawActor`'s bitmap branch tolerates the brief window before
+ * this resolves by falling through to a blank draw rather than throwing.
+ */
+void loadBitmapActors();
 
 // --- Presentation constants (DESIGN.md → Presentation → Canvas and scale) -----
 
@@ -937,7 +950,33 @@ const SLOTS = 5 * MAX_FRAMES * 5;
 const poseBitmaps = new Map<ActorRecipe, (HTMLCanvasElement | undefined)[]>();
 let bakedCount = 0;
 
-/** Composes and bakes a pose the first time it is asked for; every later call for the same (recipe, pose, frame, element) is a cache hit. */
+/** One transparent px, returned (never cached) for a bitmap actor whose PNG has not decoded yet — see `loadBitmapActors` above. */
+const BLANK_BITMAP_CANVAS = document.createElement('canvas');
+BLANK_BITMAP_CANVAS.width = 1;
+BLANK_BITMAP_CANVAS.height = 1;
+
+/** Wraps a decoded bitmap PNG in a same-size canvas ONCE, so `bakePose` keeps returning `HTMLCanvasElement` for every actor, kit or bitmap — the type the tools already measure. */
+function canvasFromBitmapImage(img: HTMLImageElement): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, img.naturalWidth || img.width);
+  canvas.height = Math.max(1, img.naturalHeight || img.height);
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, 0, 0);
+  }
+  return canvas;
+}
+
+/**
+ * Composes and bakes a pose the first time it is asked for; every later call
+ * for the same (recipe, pose, frame, element) is a cache hit. An id present
+ * in BITMAP_ACTORS (option C) skips the kit entirely: the decoded PNG for
+ * (pose, frame) — following BITMAP_ACTORS' own pose/frame fallbacks — is
+ * wrapped in a canvas and cached in the exact same slot a kit bake would use,
+ * so every caller (drawActor, actorHitRect, and the art loop's tools) sees
+ * one shape regardless of which pipeline made the pixels.
+ */
 export function bakePose(recipe: ActorRecipe, pose: PoseName, frame: number, element: Element): HTMLCanvasElement {
   let slots = poseBitmaps.get(recipe);
   if (!slots) {
@@ -947,7 +986,13 @@ export function bakePose(recipe: ActorRecipe, pose: PoseName, frame: number, ele
   const i = (POSE_INDEX[pose] * MAX_FRAMES + (frame % MAX_FRAMES)) * 5 + ELEMENT_INDEX[element];
   let bmp = slots[i];
   if (!bmp) {
-    bmp = bakeSprite(composePose(recipe, pose, frame, element), 1);
+    if (BITMAP_ACTORS[recipe.id]) {
+      const img = bitmapFor(recipe.id, pose, frame);
+      if (!img) return BLANK_BITMAP_CANVAS; // not yet decoded: draw nothing this frame, don't cache it
+      bmp = canvasFromBitmapImage(img);
+    } else {
+      bmp = bakeSprite(composePose(recipe, pose, frame, element), 1);
+    }
     slots[i] = bmp;
     bakedCount++;
   }
@@ -983,11 +1028,31 @@ const drawOpts: { scale: number; flipX: boolean; originX: number; originY: numbe
   originY: 0,
   alpha: 1,
 };
+/** Bitmap actors draw at scale 1 (one PNG px per screen px) — a second reused options record beside the kit's, same reason: allocate nothing per frame. */
+const bitmapDrawOpts: { scale: number; flipX: boolean; originX: number; originY: number; alpha: number } = {
+  scale: 1,
+  flipX: false,
+  originX: 0,
+  originY: 0,
+  alpha: 1,
+};
+/** A dead bitmap actor sinks this many px on top of the DEAD_ALPHA fade — the kit sinks by keyframe dy instead, baked into its dead-pose cells. */
+const BITMAP_DEAD_SINK = 6;
 
-/** One drawImage per actor per frame: look up (or bake) the pose bitmap, then draw it hard-pixelled at ACTOR_SCALE, anchored at the feet. */
+/** One drawImage per actor per frame: look up (or bake) the pose bitmap, then draw it hard-pixelled, anchored at the feet — at ACTOR_SCALE for the kit, at 1:1 for a bitmap actor (BITMAP_ACTORS). */
 export function drawActor(ctx: CanvasRenderingContext2D, recipe: ActorRecipe, state: ActorDrawState): void {
   const frame = frameIndex(state.time, POSE_FPS, POSE_FRAMES[state.pose]);
   const bitmap = bakePose(recipe, state.pose, frame, state.element);
+  const bmpActor = BITMAP_ACTORS[recipe.id];
+  if (bmpActor) {
+    const dead = state.pose === 'dead';
+    bitmapDrawOpts.flipX = state.facing === -1;
+    bitmapDrawOpts.originX = bmpActor.feet.x;
+    bitmapDrawOpts.originY = bmpActor.feet.y;
+    bitmapDrawOpts.alpha = dead ? (DEAD_ALPHA[frame] ?? 1) : 1;
+    drawBaked(ctx, bitmap, state.x, state.y + (dead ? BITMAP_DEAD_SINK : 0), bitmapDrawOpts);
+    return;
+  }
   drawOpts.flipX = state.facing === -1;
   drawOpts.originX = recipe.feet.x;
   drawOpts.originY = recipe.feet.y;
@@ -995,8 +1060,16 @@ export function drawActor(ctx: CanvasRenderingContext2D, recipe: ActorRecipe, st
   drawBaked(ctx, bitmap, state.x, state.y, drawOpts);
 }
 
-/** The hurtbox for pops and targeting cursors: a fixed-size rect centred on the recipe's `hit` point, in the same logical-px space as the (x, y) passed to drawActor. */
+/** The hurtbox for pops and targeting cursors: a fixed-size rect centred on the recipe's `hit` point, in the same logical-px space as the (x, y) passed to drawActor. A bitmap actor (BITMAP_ACTORS) uses the registry's own feet/hit/hitSize directly — already in screen px, since it draws at scale 1. */
 export function actorHitRect(recipe: ActorRecipe, x: number, y: number): { x: number; y: number; w: number; h: number } {
+  const bmpActor = BITMAP_ACTORS[recipe.id];
+  if (bmpActor) {
+    const dx = bmpActor.hit.x - bmpActor.feet.x;
+    const dy = bmpActor.hit.y - bmpActor.feet.y;
+    const w = bmpActor.hitSize.w;
+    const h = bmpActor.hitSize.h;
+    return { x: x + dx - w / 2, y: y + dy - h / 2, w, h };
+  }
   const dx = (recipe.hit.x - recipe.feet.x) * ACTOR_SCALE;
   const dy = (recipe.hit.y - recipe.feet.y) * ACTOR_SCALE;
   const w = recipe.hitSize.w * ACTOR_SCALE;

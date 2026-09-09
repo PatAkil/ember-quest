@@ -1,0 +1,29 @@
+{
+  "EMBER": {
+    "id": "EMBER",
+    "class": "hero",
+    "height": 112,
+    "feet": {
+      "x": 30,
+      "y": 112
+    },
+    "hit": {
+      "x": 30,
+      "y": 56
+    },
+    "hitSize": {
+      "w": 36,
+      "h": 50
+    },
+    "metrics": {
+      "p50L": 30.3,
+      "pctBelow35": 58.3,
+      "pctAbove75": 4.4
+    },
+    "poses": {
+      "idle": [
+        "idle-0.png"
+      ]
+    }
+  }
+}

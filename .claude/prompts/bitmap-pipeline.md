@@ -35,8 +35,13 @@ size is what makes it read like Octopath; the 2-px grid was a pipeline conventio
 - **Repo layout**: masters and pose sources in `tools/in/<ID>/<pose>-<n>.png` (tracked;
   the model's output is the master copy); shrunk, keyed sprites in
   `game/art/bitmap/<id>/<pose>-<n>.png` (tracked, a few KB each) with
-  `game/art/bitmap/index.ts` as the registry: `{ id, height, feet, hit, hitSize,
-  poses: { idle: [url, url], attack: [...], … } }` built from Vite asset imports.
+  `game/art/bitmap/registry.ts` as the registry (GENERATED from `manifest.json` by the
+  intake, never hand-edited): `BITMAP_ACTORS = { <ID>: { id, height, feet, hit, hitSize,
+  poses: { idle: [url, url], attack: [...], … } } }` built from `new URL(…, import.meta.url)`
+  asset references; `game/art/bitmap/index.ts` is the HAND-WRITTEN runtime — the types,
+  `POSE_FALLBACK`, `loadBitmapActors()`, `bitmapFor(id, pose, frame)` — and re-exports
+  the registry. Runtime changes go in `index.ts`; the intake only ever rewrites
+  `registry.ts` and `manifest.json`.
 - **Intake** (`tools/intake.mjs bitmap …`, to be added): key the green by hue and
   saturation (the model's green wobbles ±20 RGB; the corner key fails), crop to the
   opaque bbox, area-downscale in two steps to the class height, snap alpha at 0.45,

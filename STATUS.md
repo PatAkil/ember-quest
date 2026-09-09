@@ -276,10 +276,29 @@ Each of these was found by a blind verifier or critic and left as is, with the r
 1. **The sprite pipeline, option C — decided by the owner on 2026-09-09.** Every actor is an
    image-model-generated bitmap at its on-screen size; heroes get more poses than enemies.
    The defining prompt is `.claude/prompts/bitmap-pipeline.md` (asset spec, generation
-   prompts, the intake's `bitmap` mode, the `drawActor` branch, the stages). Stage 0 is the
-   engine work; stage 1 is EMBER's poses from `tools/in/ember-gen-2.png`. Option B
+   prompts, the intake's `bitmap` mode, the `drawActor` branch, the stages). Option B
    (`pixel-pipeline.md`, hand-drawn grids) is superseded and kept as history; the kit stays
    as the fallback for actors without bitmaps.
+   **Stage 0 landed (2026-09-09)**: `node tools/intake.mjs bitmap <in.png> id=EMBER pose=idle
+   frame=0 [class=hero|small|medium|large|elite|boss] [key=auto|#rrggbb] [alpha=0.45]` keys
+   the model's green by hue (±20°) and saturation (> 0.5), crops, area-downscales in two
+   steps to the class height, snaps alpha, writes `game/art/bitmap/<id>/<pose>-<n>.png`,
+   updates `manifest.json` and regenerates `registry.ts` (DATA); `game/art/bitmap/index.ts`
+   is the hand-written runtime (`POSE_FALLBACK`, `loadBitmapActors`, `bitmapFor`).
+   `actors.ts`'s `bakePose` / `drawActor` / `actorHitRect` branch on `BITMAP_ACTORS[id]`
+   and draw 1:1 at the registry's feet; `tools/lineup.ts` awaits the decode and measures a
+   bitmap in real px. EMBER's master (`tools/in/ember-gen-2.png`) is registered as idle 0:
+   60×112, p50 L 30.3, 58 % below L 35, 4 % above 75; on the stage
+   (`capture.mjs battle seed=1`, `tools/out/ember-crop.png`) she keeps face, trim, belt and
+   boots at 1-px grain beside the ×2 kit heroes. Residuals: `battle.ts`'s `fillLightActors`
+   still sizes the light-gain box from the kit's `ACTOR_W` (harmless over transparent
+   pixels, not tuned); the sheet's lP98 80 (< 85) and contrast 2.33 (< 3) are this master
+   frame's own values, for stage 1's regenerate loop; no KO frame captured yet (seed 1
+   never reaches one), so `BITMAP_DEAD_SINK` + `DEAD_ALPHA` are type-checked, not seen.
+   **Stage 1 next**: the owner generates EMBER's six pose sources (the prompts are in the
+   pipeline file; save as `ember-idle-1 / attack-0 / attack-1 / cast-0 / hurt-0 / dead-0`),
+   intake each, then a blind Opus critic judges `capture.mjs battle seed=1` (and a KO
+   frame) — one character, does it move; fix by regenerating, never by hand-editing.
 2. **The value law in the engine** (ART-REVIEW.md, decisions 5 after round 11 and 2 after
    round 14): `legal()` lifts every ramp step to 3.2:1 against the navy, which leaves no
    tone between L 38 and 49 — the reference's shadow sides. Measure contrast against the

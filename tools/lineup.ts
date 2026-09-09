@@ -22,6 +22,7 @@
 
 import { ACTOR_RECIPES, ACTOR_SCALE, POSE_FRAMES, bakePose } from '../game/art/actors';
 import type { ActorRecipe, PoseName } from '../game/art/actors';
+import { BITMAP_ACTORS, loadBitmapActors } from '../game/art/bitmap';
 
 const params = new URLSearchParams(location.search);
 const sheet = params.get('sheet') ?? 'lineup';
@@ -180,6 +181,10 @@ const scratchCtx = scratch.getContext('2d', { willReadFrequently: true });
 
 function measure(recipe: ActorRecipe): ActorMetrics {
   const bmp = bakePose(recipe, 'idle', 0, recipe.element);
+  // A bitmap actor's bake is already real screen px (drawn at scale 1); a kit
+  // bake is in CELLS, screen px only after ACTOR_SCALE. framePct is the only
+  // stat below that has to know which.
+  const bmpActor = BITMAP_ACTORS[recipe.id];
   scratch.width = bmp.width;
   scratch.height = bmp.height;
   const ctx = scratchCtx;
@@ -268,7 +273,7 @@ function measure(recipe: ActorRecipe): ActorMetrics {
     pixels: ls.length,
     w: x1 >= x0 ? x1 - x0 + 1 : 0,
     h,
-    framePct: Math.round(((h * ACTOR_SCALE) / 720) * 1000) / 10,
+    framePct: Math.round(((bmpActor ? h : h * ACTOR_SCALE) / 720) * 1000) / 10,
     lMin: Math.round(ls[0] ?? 0),
     lP2: Math.round(ls[Math.floor(0.02 * (n - 1))] ?? 0),
     lP98: Math.round(ls[Math.floor(0.98 * (n - 1))] ?? 0),
@@ -315,8 +320,14 @@ const out = document.getElementById('metrics') as HTMLPreElement;
 
 function drawFrame(ctx: CanvasRenderingContext2D, recipe: ActorRecipe, pose: PoseName, frame: number, feetX: number, feetY: number): void {
   const bmp = bakePose(recipe, pose, frame, recipe.element);
+  const bmpActor = BITMAP_ACTORS[recipe.id];
+  const feet = bmpActor ? bmpActor.feet : recipe.feet;
+  // Bitmaps draw at scale 1 in the real game, the kit at ACTOR_SCALE; the
+  // sheet's own `zoom` is screen px per kit CELL, so a bitmap actor's own px
+  // has to shrink by that same ratio to sit at the size it would in the game.
+  const unitZoom = bmpActor ? zoom / ACTOR_SCALE : zoom;
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(bmp, Math.round(feetX - recipe.feet.x * zoom), Math.round(feetY - recipe.feet.y * zoom), bmp.width * zoom, bmp.height * zoom);
+  ctx.drawImage(bmp, Math.round(feetX - feet.x * unitZoom), Math.round(feetY - feet.y * unitZoom), bmp.width * unitZoom, bmp.height * unitZoom);
 }
 
 /** Applies the value-read modes to the art layer: greyscale keeps luminance, silhouette flattens every body pixel. */
@@ -444,13 +455,24 @@ function table(metrics: ActorMetrics[]): string {
   return [head, ...rows].join('\n');
 }
 
-const metrics = render();
-out.textContent = `sheet=${sheet} mode=${mode} zoom=${zoom} bg=${bg}\n${table(metrics)}`;
-(window as unknown as { __lineup: { ready: boolean; sheet: string; mode: string; zoom: number; metrics: ActorMetrics[]; humanoids: string[] } }).__lineup = {
-  ready: true,
-  sheet,
-  mode,
-  zoom,
-  metrics,
-  humanoids: [...HUMANOIDS],
-};
+// A bitmap actor's PNG decodes asynchronously (game/art/bitmap's
+// loadBitmapActors, kicked off when actors.ts loads); a real battle frame
+// re-draws at 60 Hz so it is never caught mid-decode in practice, but this
+// sheet renders exactly once, synchronously, at page load — the one caller
+// that DOES need to wait, or `bakePose` hands it the 1x1 blank placeholder
+// for a bitmap actor's very first ask (see actors.ts) and every metric on it
+// reads zero forever after (the blank bakes into the cache).
+async function boot(): Promise<void> {
+  await loadBitmapActors();
+  const metrics = render();
+  out.textContent = `sheet=${sheet} mode=${mode} zoom=${zoom} bg=${bg}\n${table(metrics)}`;
+  (window as unknown as { __lineup: { ready: boolean; sheet: string; mode: string; zoom: number; metrics: ActorMetrics[]; humanoids: string[] } }).__lineup = {
+    ready: true,
+    sheet,
+    mode,
+    zoom,
+    metrics,
+    humanoids: [...HUMANOIDS],
+  };
+}
+void boot();

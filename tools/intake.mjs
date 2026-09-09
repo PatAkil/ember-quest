@@ -68,18 +68,41 @@ const BG_DIST = 8; // Euclidean RGB distance: "a small distance" from the backgr
 const OUT_DIR = 'tools/out';
 const GROUND_HEX = '#b9a98a'; // the study sheet's light ground
 
+// --- bitmap mode (option C, .claude/prompts/bitmap-pipeline.md) ------------
+// A second, independent pipeline living beside the grid one above: same CLI
+// entry point, own dispatch (`argv[0] === 'bitmap'`), own self-contained
+// page.evaluate function (see runBitmapPipeline below) so nothing here can
+// perturb the grid mode's behaviour.
+const BITMAP_DIR = 'game/art/bitmap';
+const BITMAP_MANIFEST_PATH = `${BITMAP_DIR}/manifest.json`;
+const BITMAP_REGISTRY_PATH = `${BITMAP_DIR}/registry.ts`; // DATA only; the runtime is the hand-written index.ts
+const CLASS_HEIGHT = { hero: 112, small: 72, medium: 96, large: 112, elite: 128, boss: 192 };
+const POSE_NAMES = ['idle', 'attack', 'hurt', 'cast', 'dead'];
+// Half-width of the hue window a pixel must fall inside (of the sampled
+// background hue) to be keyed as background; the model's green wobbles
+// roughly ±20 RGB, a jitter of about the same order in hue degrees.
+const HUE_WINDOW_DEG = 20;
+// A pixel also has to be reasonably saturated to count as the green screen —
+// a desaturated shadow tone on the character must not fall inside the window
+// and be keyed out just because its hue happens to drift toward green.
+const SAT_MIN = 0.5;
+
 function idToFile(id) {
   return id.toLowerCase().replace(/_/g, '-');
 }
 
-function fail(msg) {
+function fail(msg, usage = USAGE) {
   console.error(`intake: ${msg}`);
-  console.error(USAGE);
+  console.error(usage);
   process.exitCode = 1;
 }
 
 async function main() {
   const argv = process.argv.slice(2);
+  if (argv[0] === 'bitmap') {
+    await mainBitmap(argv.slice(1));
+    return;
+  }
   if (argv.length === 0 || argv[0] === 'help' || argv[0] === '--help' || argv[0] === '-h') {
     console.log(USAGE);
     process.exitCode = argv.length === 0 ? 1 : 0;
@@ -775,6 +798,457 @@ async function runPipeline(args) {
       hitSize,
       report,
       previewPngBase64,
+    };
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || String(e), log };
+  }
+}
+
+const BITMAP_USAGE = `Usage:
+  node tools/intake.mjs bitmap <in.png> id=<ID> pose=idle|attack|hurt|cast|dead frame=<n>
+                         [class=hero|small|medium|large|elite|boss] [key=auto|#rrggbb] [alpha=0.45]
+  node tools/intake.mjs bitmap help
+
+  in.png    one PNG per (actor, pose, frame): the figure on a flat solid
+            green (#00FF00-ish) background, facing RIGHT, feet at the bottom
+            centre (see .claude/prompts/bitmap-pipeline.md's asset spec).
+  id        BITMAP_ACTORS key — must match the id ACTOR_RECIPES / enemies.ts
+            use (e.g. EMBER). Required.
+  pose      idle | attack | hurt | cast | dead. Required.
+  frame     frame index within the pose, 0-based. Required.
+  class     sets the on-screen height: hero/large 112, elite 128, boss 192,
+            medium 96, small 72. Default hero.
+  key       'auto' (default) samples the dominant corner colour and keys
+            every pixel within a ${HUE_WINDOW_DEG}° hue window of it with
+            saturation > ${SAT_MIN}; or give the background colour explicitly
+            as #rrggbb to skip corner sampling (still hue+saturation keyed).
+  alpha     the alpha-snap threshold (0-1, default 0.45): a downscaled pixel
+            at or above this coverage becomes fully opaque, below it fully
+            transparent — no anti-aliased edges survive into the game.
+
+Crops to the opaque bbox, area-downscales in two steps (to 1/4, then to the
+class height, imageSmoothingQuality 'high') to keep the shrink clean, writes
+game/art/bitmap/<id lower>/<pose>-<frame>.png, and regenerates
+game/art/bitmap/registry.ts (the DATA — the runtime is the hand-written
+index.ts) from game/art/bitmap/manifest.json (which this also updates) — so
+re-running the same intake is deterministic. Prints one JSON
+line: size, feet (bottom centre of the opaque mass), hit/hitSize (the torso
+box) and the value stats the sheet uses (median L*, % below L 35, % above
+L 75 of opaque pixels).`;
+
+function readBitmapManifest() {
+  if (!existsSync(BITMAP_MANIFEST_PATH)) return {};
+  return JSON.parse(readFileSync(BITMAP_MANIFEST_PATH, 'utf8'));
+}
+function writeBitmapManifest(manifest) {
+  mkdirSync(BITMAP_DIR, { recursive: true });
+  writeFileSync(BITMAP_MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
+/**
+ * The registry is a pure function of the manifest — always rebuilt in full
+ * (never hand-patched), sorted by id, so two intakes of the same inputs in
+ * either order produce byte-identical output. A gap in a pose's frame array
+ * (an odd frame intake'd before an earlier one) is filled from the nearest
+ * earlier real frame, or the first real one, so every index still resolves.
+ */
+function buildBitmapRegistry(manifest) {
+  const POSE_ORDER = ['idle', 'attack', 'cast', 'hurt', 'dead'];
+  const ids = Object.keys(manifest).sort();
+  const constLines = [];
+  const entryBlocks = [];
+  for (const id of ids) {
+    const rec = manifest[id];
+    const idLower = id.toLowerCase();
+    const poseParts = [];
+    for (const pose of POSE_ORDER) {
+      const files = rec.poses && rec.poses[pose];
+      if (!files || files.length === 0) continue;
+      const firstReal = files.find((f) => f) || null;
+      if (!firstReal) continue;
+      let last = firstReal;
+      const names = files.map((f, i) => {
+        if (f) last = f;
+        const use = f || last;
+        const constName = `${id}_${pose.toUpperCase()}_${i}`;
+        constLines.push(`const ${constName} = new URL('./${idLower}/${use}', import.meta.url).href;`);
+        return constName;
+      });
+      poseParts.push(`${pose}: [${names.join(', ')}]`);
+    }
+    entryBlocks.push(
+      `  ${id}: {\n` +
+        `    id: '${id}',\n` +
+        `    height: ${rec.height},\n` +
+        `    feet: { x: ${rec.feet.x}, y: ${rec.feet.y} },\n` +
+        `    hit: { x: ${rec.hit.x}, y: ${rec.hit.y} },\n` +
+        `    hitSize: { w: ${rec.hitSize.w}, h: ${rec.hitSize.h} },\n` +
+        `    poses: { ${poseParts.join(', ')} },\n` +
+        `  },`,
+    );
+  }
+  return `// game/art/bitmap/registry.ts — GENERATED by \`node tools/intake.mjs bitmap\`
+// from game/art/bitmap/manifest.json. Do not hand-edit: the next intake
+// overwrites this file. This is the DATA; the runtime (the types, the pose
+// fallbacks, the decoder, \`bitmapFor\`) is the hand-written ./index.ts.
+
+import type { BitmapActor } from './index';
+
+${constLines.join('\n')}
+
+export const BITMAP_ACTORS: Record<string, BitmapActor> = {
+${entryBlocks.join('\n')}
+};
+`;
+}
+
+async function mainBitmap(argv) {
+  if (argv.length === 0 || argv[0] === 'help' || argv[0] === '--help' || argv[0] === '-h') {
+    console.log(BITMAP_USAGE);
+    process.exitCode = argv.length === 0 ? 1 : 0;
+    return;
+  }
+
+  const inArg = argv[0];
+  const opts = {};
+  for (const a of argv.slice(1)) {
+    const eq = a.indexOf('=');
+    if (eq > 0) opts[a.slice(0, eq)] = a.slice(eq + 1);
+  }
+
+  const inPath = resolve(process.cwd(), inArg);
+  if (!existsSync(inPath)) return fail(`no such file: ${inPath}`, BITMAP_USAGE);
+
+  const id = (opts.id || '').trim();
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(id)) return fail(`id must be a valid identifier, got ${JSON.stringify(opts.id)}`, BITMAP_USAGE);
+
+  const pose = (opts.pose || '').trim();
+  if (!POSE_NAMES.includes(pose)) return fail(`pose must be one of ${POSE_NAMES.join('|')}, got ${JSON.stringify(opts.pose)}`, BITMAP_USAGE);
+
+  const frame = opts.frame !== undefined ? Math.round(Number(opts.frame)) : NaN;
+  if (!Number.isFinite(frame) || frame < 0) return fail(`frame must be a non-negative integer, got ${JSON.stringify(opts.frame)}`, BITMAP_USAGE);
+
+  const klass = (opts.class || 'hero').trim();
+  if (!(klass in CLASS_HEIGHT)) return fail(`class must be one of ${Object.keys(CLASS_HEIGHT).join('|')}, got ${JSON.stringify(opts.class)}`, BITMAP_USAGE);
+  const targetHeight = CLASS_HEIGHT[klass];
+
+  const keyParam = (opts.key || 'auto').trim();
+  if (keyParam !== 'auto' && !/^#?[0-9a-fA-F]{6}$/.test(keyParam)) return fail(`key must be 'auto' or #rrggbb, got ${JSON.stringify(opts.key)}`, BITMAP_USAGE);
+  const keyHex = keyParam === 'auto' ? null : `#${keyParam.replace('#', '')}`.toLowerCase();
+
+  const alpha = opts.alpha !== undefined ? Number(opts.alpha) : 0.45;
+  if (!Number.isFinite(alpha) || alpha <= 0 || alpha >= 1) return fail(`alpha must be a number in (0,1), got ${JSON.stringify(opts.alpha)}`, BITMAP_USAGE);
+
+  const idLower = id.toLowerCase();
+  const outDir = `${BITMAP_DIR}/${idLower}`;
+  const outFile = `${pose}-${frame}.png`;
+  const outPath = `${outDir}/${outFile}`;
+
+  console.log(`[1/6] loading ${inArg}`);
+  const pngBuf = readFileSync(inPath);
+  const dataUri = `data:image/png;base64,${pngBuf.toString('base64')}`;
+
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+  let result;
+  try {
+    result = await page.evaluate(runBitmapPipeline, {
+      dataUri,
+      keyHex,
+      hueWindowDeg: HUE_WINDOW_DEG,
+      satMin: SAT_MIN,
+      targetHeight,
+      alphaThreshold: alpha,
+    });
+  } finally {
+    await browser.close();
+  }
+  if (!result.ok) return fail(result.error, BITMAP_USAGE);
+  for (const line of result.log) console.log(line);
+
+  mkdirSync(outDir, { recursive: true });
+  writeFileSync(outPath, Buffer.from(result.pngBase64, 'base64'));
+  console.log(`[6/6] wrote ${outPath}`);
+
+  const manifest = readBitmapManifest();
+  const rec = manifest[id] || { poses: {} };
+  const arr = (rec.poses && rec.poses[pose]) ? [...rec.poses[pose]] : [];
+  arr[frame] = outFile;
+  manifest[id] = {
+    id,
+    class: klass,
+    height: targetHeight,
+    feet: result.feet,
+    hit: result.hit,
+    hitSize: result.hitSize,
+    metrics: { p50L: result.p50L, pctBelow35: result.pctBelow35, pctAbove75: result.pctAbove75 },
+    poses: { ...(rec.poses || {}), [pose]: arr },
+  };
+  writeBitmapManifest(manifest);
+  console.log(`[6/6] wrote ${BITMAP_MANIFEST_PATH}`);
+  writeFileSync(BITMAP_REGISTRY_PATH, buildBitmapRegistry(manifest));
+  console.log(`[6/6] wrote ${BITMAP_REGISTRY_PATH}`);
+
+  const summary = {
+    id,
+    pose,
+    frame,
+    class: klass,
+    out: outPath,
+    size: { w: result.width, h: result.height },
+    feet: result.feet,
+    hit: result.hit,
+    hitSize: result.hitSize,
+    p50L: result.p50L,
+    pctBelow35: result.pctBelow35,
+    pctAbove75: result.pctAbove75,
+    keyHex: result.keyHex,
+    registry: BITMAP_REGISTRY_PATH,
+    manifest: BITMAP_MANIFEST_PATH,
+  };
+  console.log(JSON.stringify(summary));
+}
+
+// --- runs INSIDE the browser via page.evaluate (see runPipeline's own note:
+// Playwright serializes it by source text, so it cannot close over anything
+// from the module above — every helper it needs is declared inside it). ---
+async function runBitmapPipeline(args) {
+  const { dataUri, keyHex, hueWindowDeg, satMin, targetHeight, alphaThreshold } = args;
+  const log = [];
+  try {
+    function lin(c) {
+      const v = c / 255;
+      return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    }
+    function luminance(r, g, b) {
+      return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+    }
+    function lstar(y) {
+      return y <= 0.008856 ? 903.3 * y : 116 * Math.cbrt(y) - 16;
+    }
+    function hexToRgb(hex) {
+      const h = hex.replace('#', '');
+      return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+    }
+    function rgbToHex(r, g, b) {
+      return `#${[r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('')}`;
+    }
+    function rgbToHsv(r, g, b) {
+      r /= 255;
+      g /= 255;
+      b /= 255;
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const d = max - min;
+      let h = 0;
+      if (d !== 0) {
+        if (max === r) h = 60 * (((g - b) / d) % 6);
+        else if (max === g) h = 60 * ((b - r) / d + 2);
+        else h = 60 * ((r - g) / d + 4);
+      }
+      if (h < 0) h += 360;
+      return [h, max === 0 ? 0 : d / max, max];
+    }
+    function hueDist(a, b) {
+      const d = Math.abs(a - b) % 360;
+      return d > 180 ? 360 - d : d;
+    }
+
+    // ---- 1. decode ----
+    const img = await new Promise((res, rej) => {
+      const im = new Image();
+      im.onload = () => res(im);
+      im.onerror = () => rej(new Error('failed to decode the input as a PNG'));
+      im.src = dataUri;
+    });
+    const W = img.naturalWidth;
+    const H = img.naturalHeight;
+    if (W < 1 || H < 1) throw new Error('decoded image has zero size');
+    const srcCanvas = document.createElement('canvas');
+    srcCanvas.width = W;
+    srcCanvas.height = H;
+    const sctx = srcCanvas.getContext('2d', { willReadFrequently: true });
+    sctx.imageSmoothingEnabled = false;
+    sctx.drawImage(img, 0, 0);
+    const srcData = sctx.getImageData(0, 0, W, H);
+    const px = srcData.data;
+    log.push(`[2/6] decoded ${W}x${H} px`);
+
+    // ---- 2. background hue (corner sample, or the given key=) ----
+    let keyRgb;
+    if (keyHex) {
+      keyRgb = hexToRgb(keyHex);
+    } else {
+      const corners = [
+        [0, 0],
+        [W - 1, 0],
+        [0, H - 1],
+        [W - 1, H - 1],
+      ].map(([x, y]) => {
+        const i = (y * W + x) * 4;
+        return [px[i], px[i + 1], px[i + 2]];
+      });
+      const counts = new Map();
+      for (const c of corners) {
+        const k = c.join(',');
+        counts.set(k, (counts.get(k) || 0) + 1);
+      }
+      let bestKey = corners[0].join(',');
+      let bestN = 0;
+      for (const [k, n] of counts) {
+        if (n > bestN) {
+          bestN = n;
+          bestKey = k;
+        }
+      }
+      keyRgb = bestKey.split(',').map(Number);
+    }
+    const hue0 = rgbToHsv(...keyRgb)[0];
+    log.push(`[3/6] background hue ${hue0.toFixed(1)}° from ${rgbToHex(...keyRgb)} (window ±${hueWindowDeg}°, sat>${satMin})`);
+
+    // ---- 3. opaque mask: hue+saturation key, already-transparent stays transparent ----
+    const opaque = new Uint8Array(W * H);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const i = (y * W + x) * 4;
+        if (px[i + 3] === 0) continue;
+        const [h, s] = rgbToHsv(px[i], px[i + 1], px[i + 2]);
+        if (s > satMin && hueDist(h, hue0) <= hueWindowDeg) continue;
+        opaque[y * W + x] = 1;
+      }
+    }
+    let x0 = W;
+    let x1 = -1;
+    let y0 = H;
+    let y1 = -1;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (!opaque[y * W + x]) continue;
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+    }
+    if (x1 < x0) throw new Error('no non-background pixels found (check key= / the input image)');
+    const bboxW = x1 - x0 + 1;
+    const bboxH = y1 - y0 + 1;
+    log.push(`[4/6] cropped to bbox x=${x0} y=${y0} w=${bboxW} h=${bboxH}`);
+
+    // ---- 4. crop onto its own canvas, background RGB zeroed defensively ----
+    const cropCanvas = document.createElement('canvas');
+    cropCanvas.width = bboxW;
+    cropCanvas.height = bboxH;
+    const cropCtx = cropCanvas.getContext('2d');
+    const cropData = cropCtx.createImageData(bboxW, bboxH);
+    for (let y = 0; y < bboxH; y++) {
+      for (let x = 0; x < bboxW; x++) {
+        const sy = y + y0;
+        const sx = x + x0;
+        if (!opaque[sy * W + sx]) continue; // leave at the zero-init (0,0,0,0)
+        const si = (sy * W + sx) * 4;
+        const di = (y * bboxW + x) * 4;
+        cropData.data[di] = px[si];
+        cropData.data[di + 1] = px[si + 1];
+        cropData.data[di + 2] = px[si + 2];
+        cropData.data[di + 3] = 255;
+      }
+    }
+    cropCtx.putImageData(cropData, 0, 0);
+
+    // ---- 5. area-downscale in two steps: to 1/4, then to the class height ----
+    const midW = Math.max(1, Math.round(bboxW * 0.25));
+    const midH = Math.max(1, Math.round(bboxH * 0.25));
+    const midCanvas = document.createElement('canvas');
+    midCanvas.width = midW;
+    midCanvas.height = midH;
+    const midCtx = midCanvas.getContext('2d');
+    midCtx.imageSmoothingEnabled = true;
+    midCtx.imageSmoothingQuality = 'high';
+    midCtx.drawImage(cropCanvas, 0, 0, midW, midH);
+
+    const outW = Math.max(1, Math.round(targetHeight * (bboxW / bboxH)));
+    const outH = targetHeight;
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = outW;
+    outCanvas.height = outH;
+    const outCtx = outCanvas.getContext('2d');
+    outCtx.imageSmoothingEnabled = true;
+    outCtx.imageSmoothingQuality = 'high';
+    outCtx.drawImage(midCanvas, 0, 0, outW, outH);
+    log.push(`[5/6] downscaled ${bboxW}x${bboxH} -> ${midW}x${midH} -> ${outW}x${outH}`);
+
+    // ---- 6. snap alpha: hard edges, no anti-aliasing survives ----
+    const finalImg = outCtx.getImageData(0, 0, outW, outH);
+    const fd = finalImg.data;
+    for (let i = 0; i < fd.length; i += 4) {
+      if (fd[i + 3] / 255 >= alphaThreshold) {
+        fd[i + 3] = 255;
+      } else {
+        fd[i] = 0;
+        fd[i + 1] = 0;
+        fd[i + 2] = 0;
+        fd[i + 3] = 0;
+      }
+    }
+    outCtx.putImageData(finalImg, 0, 0);
+
+    // ---- feet / hit / hitSize off the final (post-snap) opaque mass ----
+    let fx0 = outW;
+    let fx1 = -1;
+    let fy0 = outH;
+    let fy1 = -1;
+    for (let y = 0; y < outH; y++) {
+      for (let x = 0; x < outW; x++) {
+        if (fd[(y * outW + x) * 4 + 3] === 0) continue;
+        if (x < fx0) fx0 = x;
+        if (x > fx1) fx1 = x;
+        if (y < fy0) fy0 = y;
+        if (y > fy1) fy1 = y;
+      }
+    }
+    if (fx1 < fx0) throw new Error('bitmap is empty after the alpha snap (try a lower alpha= or check key=)');
+    const figW = fx1 - fx0 + 1;
+    const figH = fy1 - fy0 + 1;
+    const feet = { x: Math.round((fx0 + fx1) / 2), y: fy1 + 1 };
+    // The torso box: the opaque bbox's central 60 % of width over the middle 45 % of height.
+    const hitW = Math.max(1, Math.round(0.6 * figW));
+    const hitH = Math.max(1, Math.round(0.45 * figH));
+    const hx0 = fx0 + Math.floor((figW - hitW) / 2);
+    const hy0 = fy0 + Math.floor((figH - hitH) / 2);
+    const hit = { x: hx0 + Math.floor(hitW / 2), y: hy0 + Math.floor(hitH / 2) };
+    const hitSize = { w: hitW, h: hitH };
+
+    // ---- value stats over the opaque pixels (median L*, % below 35, % above 75) ----
+    const ls = [];
+    for (let y = 0; y < outH; y++) {
+      for (let x = 0; x < outW; x++) {
+        const i = (y * outW + x) * 4;
+        if (fd[i + 3] === 0) continue;
+        ls.push(lstar(luminance(fd[i], fd[i + 1], fd[i + 2])));
+      }
+    }
+    ls.sort((a, b) => a - b);
+    const n = Math.max(1, ls.length);
+    const p50L = Math.round((ls[n >> 1] ?? 0) * 10) / 10;
+    const pctBelow35 = Math.round((1000 * ls.filter((l) => l < 35).length) / n) / 10;
+    const pctAbove75 = Math.round((1000 * ls.filter((l) => l > 75).length) / n) / 10;
+    log.push(`[6/6] ${outW}x${outH} px, feet=(${feet.x},${feet.y}), p50L=${p50L} <35%=${pctBelow35} >75%=${pctAbove75}`);
+
+    const pngBase64 = outCanvas.toDataURL('image/png').split(',')[1];
+    return {
+      ok: true,
+      log,
+      pngBase64,
+      width: outW,
+      height: outH,
+      feet,
+      hit,
+      hitSize,
+      p50L,
+      pctBelow35,
+      pctAbove75,
+      keyHex: rgbToHex(...keyRgb),
     };
   } catch (e) {
     return { ok: false, error: (e && e.message) || String(e), log };
