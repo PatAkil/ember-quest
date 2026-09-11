@@ -41,6 +41,7 @@ ember-quest/
 │                             #   tools/out/ (captures) and tools/ref/ (the owner's reference frames) are gitignored
 ├── index.html                # arcade shell; game mounts into #screen
 ├── .github/workflows/pages.yml   # push to main = deploy to GitHub Pages
+├── plan/                     # the Kotlin Multiplatform move: README (decisions, roadmap), FUNCTIONAL, TECHNICAL, VERIFICATION, REVIEW
 └── .claude/skills/           # ten skills; agents/game-writer.md
 ```
 
