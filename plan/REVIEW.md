@@ -1268,3 +1268,126 @@ D8, D10, D11, B19). Revision 12 resolves all of them and declines none.
 | D19 | MINOR | Question 8(a)'s moment | = B6 |
 
 **Declined or only partly applied (MINOR):** none declined.
+
+## Round 11 — on revision 12 (commit `7f82ba5`)
+
+Four reviewers on a lighter model, 74 findings: 2 BLOCKING, 30 GAP, 8 NUMBERS, 34 MINOR.
+The two blocking rows are one defect: the gloss revision 12 wrote on the red-`main` rule
+had its direction inverted (A1, C1). About a third of the gaps are residue of revision
+12's own edits — the halo criterion now measured an empty set (A2), the seat spread's bar
+was never measured at P0 (A3), the per-module booleans left `iosApp/**`, `core-testing/**`
+and `config/**` in none (A4), the required-check list could not hold the hand-written
+jobs it was said to hold (C5), the `env-image` hand-back needed a digest nothing made
+stable (C6), `--fixture` was given a second meaning and an unknown `party` fell back
+silently (C7), the `sim` flag list lacked the battles knobs (C3), and the minSdk-31
+consequence never reached the README's platform decision (D1) — which is why a read-only
+consistency pass now precedes every round. The rest are new ground: the image goldens had
+no home (A5), out-of-battle heals left no trace (A6), promotion pull requests contradicted
+"merges on green alone" (A7), the image pinned from a pull request's head was never
+verified against `main`'s recipe (A8), adding a required check dismisses every open
+approval (A9), the size bands had no gate status (A10), the binder generated fixtures the
+main code needs into test source sets (C2), the detekt fallback lost the custom rules
+(C4), the save corpus had no schema (C8), the art tool had no `package.json` (C9); and on
+the owner's side a wrapper to run Play's clock early (B1, weighed and declined), a paid
+tester service that Google's own check defeats (B2, dropped), P7's gate under the iOS-first
+fallback (B3), generation not paused at the stops (B4), the go or no-go taken on a
+defective build (B5, so question 3(c) now recommends the fix), the aggregate silently
+excluding the character changes and PvP (B6), the Mac assumed rather than confirmed (B7),
+the store name reserved too late (B8), no blocker class for a run-breaking tester report
+(B9), question 10's "no" during the closed test (B10), and an absence during P4 under a
+subscription winner (D2). Revision 13 resolves all of them and declines none.
+
+### 11-A — adversarial, technical
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| A1 | BLOCKING | The red-`main` gloss said a red `:core` blocks `:core` pull requests and lets `:ui` merge — the opposite of the rule | while `:core` is red a `:core` fix may merge and a `:ui` pull request waits (§ V5) |
+| A2 | GAP | The silhouette is the opaque-cell set, so the ring outside it holds nothing | the silhouette is α ≥ 128 after `normalise`; the ring reads 0 < α < 128; stray cells are α > 0 farther out (§ T10.4) |
+| A3 | GAP | The seat spread's 5 L* was an absolute the rig measured with one sprite; the cast spreads wider | its bar is what the landed rig achieves on the same 72-reading set at P0; 5 L* is the intent (`FUNCTIONAL.md` § F3.1, § T10.4) |
+| A4 | GAP | `iosApp/**`, `core-testing/**` and `config/**` fell in no boolean, so their pull requests ran nothing | `ios` added; `core-testing` in `core`, `config` in `build`; a path in no glob is a generator error (§ T4.1) |
+| A5 | GAP | The image goldens had no home the goldens check could watch | `spec/golden/images/<kind>/`, owned and in the check's path (§ T2.1, § V2) |
+| A6 | GAP | Out-of-battle heals moved hero HP with no record | the battle-start `party` record carries `:<hp>` per hero (§ T5.3) |
+| A7 | GAP | Every first-binding pull request trips the contract-clause check, contradicting "merges on green alone" | stated: except where it promotes a clause, the normal case through P3 and P5, integrated one owner-gated pull request per session per track by design (§ V5, README D15) |
+| A8 | GAP | The image built from a pull request's head was pinned unverified | `main` rebuilds from its recipe and goes red if the manifest differs; the owner's review of `ci/env/**` is the review of the image (§ V4) |
+| A9 | GAP | A new required check reads "expected" on every open head and a push dismisses the approval | taken when no owner-gated pull request is open, else a re-review each (§ T13.5) |
+| A10 | GAP | The size bands had no gate status | *Size, pass* on idle 0 (§ T10.4) |
+| A11 | MINOR | The `unlit` flag left the resampled floor under the crisp one | the flag drops the floor layer from `bakeFlat`'s loop (§ T4.2) |
+| A12 | MINOR | "Criteria 1–5" was ambiguous between two numberings | § F3.1's *Pass* bullets named; ART-REVIEW's criterion 3 the critic's (§ T10.4) |
+| A13 | MINOR | Declined shrine offers had no encoding | `<PACT>:<0\|1>` in roll order (§ T5.3) |
+| A14 | MINOR | No nightly run yet had no verdict | reads as green (§ V5) |
+| A15 | MINOR | A job cannot carry a trigger | the merge workflow carries `workflow_dispatch`; `changes` outputs all-true on it (§ V4) |
+| A16 | MINOR | `clears` had two owners | the fallback records lap 1 and no pacts only (§ T5.3) |
+
+### 11-B — adversarial, product and process
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | A wrapper of the prototype could run Play's fourteen days early | weighed and declined, with the reasons, in the calendar section (README) |
+| B2 | GAP | The paid tester fallback was unpriced and is what Google's genuine-use check catches | dropped; iOS-first is the only fallback (README) |
+| B3 | GAP | P7's gate was unreachable under the iOS-first fallback | the gate names the recorded state (README, § T14) |
+| B4 | GAP | The cast kept generating through the P1 and P2 stops | generation pauses while a decision is pending; each stop states the committed art spend (README P1 row, § T14) |
+| B5 | GAP | The go or no-go was taken on a build with the hero-turn defect | question 3(c) now recommends the fix; if left, the decision knowingly accepts a degraded signal (README) |
+| B6 | GAP | The aggregate silently excluded the character changes and PvP | said at the aggregate and in item 6 (README) |
+| B7 | GAP | P1's exit rested on a Mac the plan only assumed | the owner confirms at P0; a hosted-macOS job stands in otherwise (README money table and P1 row, § V4, § V9, § T14) |
+| B8 | GAP | The store name reserved at P5 with no fallback | reserved at P0 with the accounts, a fallback name recorded (README P0 and P5 rows, § T12) |
+| B9 | GAP | No blocker class for a run-breaking tester report | holds the `v*` tag and is fixed inside P7 whatever it touches (README, § T14) |
+| B10 | GAP | Question 10's "no" was priced as savings only | the closed-test cost named (README question 10) |
+| B11 | NUMBERS | A floor of twelve against a tripwire at fourteen | the Android floor is fourteen, two over the rule (README, § T12) |
+| B12 | NUMBERS | The measured rate came from review rounds, with no sub-one-a-week case | the case named; P1's stop is taken on the measured real session (README) |
+| B13 | NUMBERS | The felt-row bound's worst case was unpriced | four reworks in all across the eight (`FUNCTIONAL.md` § F1.5) |
+| B14 | NUMBERS | P5's sittings were fewer than P4's | P5 ≈ 8–12 sittings of two to three hours; the totals re-derived (README) |
+| B15 | MINOR | The bake-off had no cap of its own | $300, a second bake-off another $300 by name (§ T10.1) |
+| B16 | MINOR | Each document named one of the two exceptions to "never authors" | both in both (§ T1, § V5) |
+| B17 | MINOR | The `LICENSE` choice had no options | the fork stated beside question 8(b), all rights reserved recommended (README) |
+| B18 | MINOR | The App Privacy questionnaire and the Support URL | added to the P5 list (§ T12) |
+| B19 | MINOR | A red monthly batch had no session | it waits for the quarterly session (§ T3) |
+| B20 | MINOR | An unspent sprite cap cannot fund the plane key | reworded (`FUNCTIONAL.md` § F3.5) |
+| B21 | MINOR | "P0's first act" when 3(c)'s fix precedes it | "the owner's first act" (README, `FUNCTIONAL.md` § F1.5, § T14) |
+
+### 11-C — blind, the implementer
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| C1 | BLOCKING | The red-`main` rule stated both ways | = A1 |
+| C2 | GAP | The binder generated fixtures the harness, the instruments and the debug drawer need into `commonTest` | the cell table and the fixtures go to `commonMain`, the tables and hash lists to `commonTest` (§ T2.1, § T7.2) |
+| C3 | GAP | `sim` had no battles knobs | `--party --pack --act --lap --clears --pacts` with the prototype's defaults (§ T5.4, § V3) |
+| C4 | GAP | The detekt fallback lost the custom rule set | Konsist takes it over (§ T3) |
+| C5 | GAP | The generated required-check list could not hold the hand-written jobs or the gate-App checks | a committed literal block beside the generated names (§ T13.5) |
+| C6 | GAP | The `env-image` hand-back needed a stable digest | the workflow rebuilds only when `ci/env/**` changed; the digest is the first build's under the head tag (§ V4) |
+| C7 | GAP | `party` had no token and an unknown value fell back silently; `--fixture` had two meanings | `battle-fixtures` is the literal, any other value an error; `--party` names a row, `--fixture` keeps its meaning (§ T5.3, § T4.2) |
+| C8 | GAP | The fixture-to-schema mapping was an enumeration and the save corpus had no schema | the `spec/<area>/` file that declares it; `saves/**` excluded from the binder (§ T2.1) |
+| C9 | GAP | The art tool had no `package.json`, install step or Renovate scope | all three (§ T2.1, § T3) |
+| C10 | NUMBERS | "About 4 900 lines of contract and review logs" | about 4 400 (README) |
+| C11 | MINOR | The `unlit` flag and the floor | = A11 |
+| C12 | MINOR | Root-relative paths from commands that run inside `prototype/` | stated once, with `--out` (§ T4.2) |
+| C13 | MINOR | `config` in battles mode | runs mode only (§ T5.3) |
+| C14 | MINOR | `BattleCtx` has no clears field | `clears` goes to `spawnPack` alone (§ T4.2) |
+| C15 | MINOR | Two version sources with no pairing | the catalog owns libraries, `versions.env` the toolchain, a lint pairs them (§ T3) |
+| C16 | MINOR | "§ V9's twenty steps" | "eight milestones" (README) |
+| C17 | MINOR | The M2–M3 window absent from § V1 | the sixth discipline item (§ V1) |
+| C18 | MINOR | No nightly run yet | = A14 |
+| C19 | MINOR | 3(c)'s fix before the move commit, under gates that do not exist yet | the decision closes at P0's start; the fix lands after the move under the prototype's gates run by hand (README) |
+
+### 11-D — blind, the owner's advisor
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| D1 | GAP | minSdk 31 lived in § T9.4 only, under a decision marked "Owner: no" | D3 names the rise; D11 is an owner decision if the fallback is chosen (README) |
+| D2 | GAP | An absence over P4 burns a paid month under a subscription winner | the second exception in the absence protocol; the P4 row says so (README) |
+| D3 | NUMBERS | The best case needs a second seat the budget never priced | priced at roughly the same again per month, outside the total (README) |
+| D4 | NUMBERS | The "no" branch omitted the `resumeRun` S it also saves | added (README question 10) |
+| D5 | NUMBERS | 4.5–6.5 rounded up | "four and a half to six and a half" (README question 2) |
+| D6 | MINOR | 19–38 to production access counts P6 the recommended branch defers | 17–34 under question 4(a), 19–38 with the scene phase (README) |
+| D7 | MINOR | The listing copy is due at P5 | F2.5's phase (`FUNCTIONAL.md` § F2) |
+| D8 | MINOR | The accounts and the testers preceded the go | after it (README P0 row) |
+| D9 | MINOR | Question 9 priced money only | half a session to set up and an hour a month (README) |
+| D10 | MINOR | The closed testers see the placeholder stage either way | said (README question 4) |
+| D11 | MINOR | The worst-case total was two ceilings, not a total | ≈ $4 900 plus the stop branches (README) |
+| D12 | MINOR | The testers' lead sat in the post-build list | moved (README) |
+| D13 | MINOR | The art tool and the captures had no P0 sitting | in the P0 list; P0 ≈ 6 (README) |
+| D14 | MINOR | "Never a gate" against three phase-exit criteria | "never a CI gate; a phase-exit criterion at P4–P6" (§ V1) |
+| D15 | MINOR | P2 ≈ 8–10 against its row's 8–11 | 8–11, carried into the totals (README) |
+| D16 | MINOR | D20's owner column pointed at question 1 | "by approving this plan, item 3" (README) |
+| D17 | MINOR | No fallback if three iPhone testers cannot be found | internal TestFlight with the first-ten-minutes test on both owner phones (README) |
+
+**Declined or only partly applied (MINOR):** none declined.

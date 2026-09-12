@@ -112,14 +112,14 @@ behaviour and the new screens are built to it; the prototype is frozen with its 
    SHRINE, a SUMMON with a full party, the map, the Vault's EQUIP and BANK faces. A felt row
    the owner cannot sign stays open and P5 does not close — with a bound: a row reworked
    twice and still unsigned gets one more rework (an S) and then the owner's decision,
-   accept it as a recorded known miss or stop; the aggregate assumes one rework per row. The rows are scored against the
+   accept it as a recorded known miss or stop; the aggregate assumes one rework per row and four in all across the eight, beyond which the bound's branches apply. The rows are scored against the
    **feel rubric** of the `kmp-quality` skill (`TECHNICAL.md` § T13.2), written at P1 from
    `STATUS.md`'s "Playing it on a phone" section and the full-frame critic's
    first-ten-minutes items — anything tapped twice, anything unreadable at arm's length, a
    frame rate that does not hold through a hit, a hit without a pop, a prompt that blinks
    off, a screen that swallows the run.
-4. **The reference.** Nobody has played the prototype on a phone. At P0, as its first act
-   and before the bake-off's spend, the owner plays it through the first ten minutes and a
+4. **The reference.** Nobody has played the prototype on a phone. At P0, as the owner's first
+   act, before the accounts, the testers and the bake-off's spend, the owner plays it through the first ten minutes and a
    KO — after README question 3(c)'s fix if it was taken — and records, in `plan/BASELINE.md`, what a turn, a hit and a draft *feel* like
    and what did not work, with the battle screen's two hero-turn defects (§ F1.4) recorded
    as excluded from the bar, since the app must not reproduce them — the record the felt
@@ -145,7 +145,7 @@ phase named in the Phase column.
 | F2.2 | **Settings** | sound volume and mute; ARCADE on/off; quality tier (AUTO/HIGH/MED/LOW); a "reset the Vault" with a confirm; credits | One screen, reachable from the title and the pause overlay. Haptics on hits is optional and off by default. A crash-report toggle appears only when a reporter ships (§ T12). | S | P5 |
 | F2.3 | **Orientation and safe areas** | landscape locked (question 2); the frame respects notches, rounded corners and the gesture-navigation edges | The mutable safe inset reads the platform's insets. Every edge target is tested under gesture navigation. | S | P5 |
 | F2.4 | **Interruptions** | a call or a switch to another app pauses the game and the sound; returning resumes on the pause overlay | The app pauses on lifecycle events and yields audio focus. | S | P5 |
-| F2.5 | **App identity** | icon, splash, store listing, a credits screen that names the AI art providers and every bundled asset's licence (the HUD face's OFL or Apache notice; the sounds and the glyph tables are the prototype's own) | Store metadata is copy the owner writes; the credits line is required by § F3.6. | S | P5 (identity), P7 (copy) |
+| F2.5 | **App identity** | icon, splash, store listing, a credits screen that names the AI art providers and every bundled asset's licence (the HUD face's OFL or Apache notice; the sounds and the glyph tables are the prototype's own) | Store metadata is copy the owner writes; the credits line is required by § F3.6. | S | P5 (identity and the listing copy, which Play needs before a closed-track release); P7 (the credits and disclosure copy) |
 | F2.6 | **Device tiers** | a 2022 mid-range phone runs MED at 60 Hz; older devices start LOW; the toggle in settings | The tiers are the contract's; the *default* comes from a three-second stage benchmark run behind the title on first launch — the title needs no stage, so the ≤ 2 s boot budget of `TECHNICAL.md` § T9.5 holds and the tier is decided before the first battle (§ F1.3). | S | P5 |
 | F2.7 | **Bug reports from a release build** (the save share contingent on question 10's yes; built with the first test-track build so the felt rows and the closed testers have it) | a long-press on the title shares the current run's save file; the seed is shown on GAME OVER | So the owner's felt rows, the first-ten-minutes test and the closed testers — all on release builds — can report a bug that replays (`TECHNICAL.md` § T11). The rest of the debug drawer stays debug-only. | S | P5, with the first test-track build |
 
@@ -198,9 +198,12 @@ screenshots, are not in the repository and never will be.
   list fixed at P0 and an excluded seat counted as a miss, never dropped; the **bar is the
   share of those readings the prototype's landed rig achieves under this rule at P0's
   calibration** (its own record under the older strip rule was 106 of 108, quoted for
-  scale only), recorded once and used unchanged by P5 and P6; and the **seat spread**: no
-  seat's torso median (rows 0.33–0.72 of the silhouette's height) more than 5 L* above the
-  median seat's. Both are **reported** on every sprite's contact sheet and **gated** at P5
+  scale only), recorded once and used unchanged by P5 and P6; and the **seat spread** — the
+  largest excess of a seat's torso median (rows 0.33–0.72 of the silhouette's height) over
+  the median seat's — whose bar is likewise what the landed rig achieves on the same
+  72-reading set at P0 (the rig's own 4.5 L was measured with one sprite at all six
+  anchors, the cast's differences removed, so 5 L* is the intent, not the bar). Both are
+  **reported** on every sprite's contact sheet and **gated** at P5
   and P6 against the rig over the biome frame goldens (a miss is a light or shadow fault,
   worked in the scene, never by regenerating a sprite). The sheet's contrast columns stay
   reported for continuity. *Target*,
@@ -381,7 +384,7 @@ Two decision points, each a yes or no from the owner on lit phone frames:
 
 **Stop means**: the generated assets are shelved (their provenance kept), the fallback cast
 — the prototype's 43 actors' sheets captured at P0 (`TECHNICAL.md` § T10.9) — is the
-shipped art, the unspent per-image budget funds P6's planes only if question 4 approves them by name, and the heroes and
+shipped art, the owner may load P6's plane key instead, only if question 4(b) approves the planes by name (the ceilings are per key, so an unspent sprite cap funds nothing else), and the heroes and
 bosses fall back to the owner's option B (hand-drawn pixel grids at the cell, the process
 of `prototype/.claude-archive/prompts/pixel-pipeline.md`) if the owner still wants them
 redrawn — the twelve master frames ≈ 8–12 sessions at the study's measured rate, the
