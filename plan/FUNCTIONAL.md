@@ -111,8 +111,8 @@ behaviour and the new screens are built to it; the prototype is frozen with its 
    walks on a phone at P5's end: the first ten minutes (below), a KO, INSPECT, PAUSE, a
    SHRINE, a SUMMON with a full party, the map, the Vault's EQUIP and BANK faces. A felt row
    the owner cannot sign stays open and P5 does not close — with a bound: a row reworked
-   twice and still unsigned gets one more rework (an S) and then the owner's decision,
-   accept it as a recorded known miss or stop; the priced worst case is two reworks per row and six in all across the eight, and a third rework on a row or a seventh overall is the branch trigger. The rows are scored against the
+   twice and still unsigned goes to the owner's decision, accept it as a recorded known
+   miss or stop; the priced worst case is two reworks per row and six in all across the eight, and a third rework on a row or a seventh overall is the branch trigger. The rows are scored against the
    **feel rubric** of the `kmp-quality` skill (`TECHNICAL.md` § T13.2), written at P1 from
    `STATUS.md`'s "Playing it on a phone" section and the full-frame critic's
    first-ten-minutes items — anything tapped twice, anything unreadable at arm's length, a
@@ -453,7 +453,7 @@ the figures and the plate rules the full-frame critic asked for. VFX stay proced
 The owner will supply the changes once this plan is final — **and the deadline that
 matters is P0's exit**, when P4's cast pass starts (README, the P0 owner row): a brief
 supplied by then folds a *changed* hero into the cast at no extra art cost, while a *new*
-hero adds its fifteen frames, its ≈ $20–60 and its contact sheet outside the 43-actor,
+hero adds its fifteen frames, its ≈ $15–30 and its contact sheet outside the 43-actor,
 645-frame model (§ F4.3); a hero changed after its sprites are accepted costs § F4.3's
 price and a consistency re-gate against the cast. This
 section fixes what a change *is*, what it costs, and the questions the details must
@@ -500,7 +500,7 @@ The closed unions a kit is built from — anything outside them is a *mechanics*
 
 | Class | Size | Spec | Tests | Simulator | Art | Screens |
 |---|---|---|---|---|---|---|
-| NEW character | S–M each; a batch of six ≈ L | clauses under `spec/characters/<id>.md`; roster and `validateData` clauses | data validity, kit behaviour per skill, awakening, leader | every policy must be able to draft and play it; the ladder and the guards re-measured; "every character leads ≥ 5 %" | 15 frames + portrait through the gate against the accepted cast: ≈ 90–150 generated images, one critic round, the owner's sheet — ≈ $20–60 at the per-image price including re-rolls and the portrait; a whole-cast re-gate after a provider change (§ F3.6) | the draft grid and detail strip must fit (the four-column grid holds twelve) |
+| NEW character | S–M each; a batch of six ≈ L | clauses under `spec/characters/<id>.md`; roster and `validateData` clauses | data validity, kit behaviour per skill, awakening, leader | every policy must be able to draft and play it; the ladder and the guards re-measured; "every character leads ≥ 5 %" | 15 frames + portrait through the gate against the accepted cast: ≈ 90–150 generated images, one critic round, the owner's sheet — ≈ $15–30 at the per-image price including re-rolls and the portrait; a whole-cast re-gate after a provider change (§ F3.6) | the draft grid and detail strip must fit (the four-column grid holds twelve) |
 | KIT change | S | the skill clauses | the skill's behaviour, the awakening | the ladder and the guards | any pose the kit changes (a new weapon) | none |
 | NUMBERS | S | the Balance state | none new | the ladder and the guards | none | none |
 | ART | S per actor | `spec/art/` | the gate | none | the frames | none |

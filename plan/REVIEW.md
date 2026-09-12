@@ -579,7 +579,7 @@ zero minor findings from four reviewers is not a bar any document meets.
 
 ## Round 5 — on revision 6 (commit `1180072`)
 
-Four reviewers on a lighter model, 54 findings: 6 BLOCKING, 16 GAP, 11 NUMBERS, 21 MINOR.
+Four reviewers on a lighter model, 55 findings: 6 BLOCKING, 16 GAP, 11 NUMBERS, 22 MINOR.
 The six blocking rows are three defects seen by several reviewers: the P4 gate value that
 revision 6 raised to 9 in two documents and left at 8 in the phase table (A9, B1, C8, D1);
 the freeze check's command, which exits non-zero with no tag and cannot see tags on a
@@ -1422,10 +1422,10 @@ hero's art priced as free (D3). Revision 14 resolves all of them and declines no
 
 | # | Sev. | Finding | Resolution |
 |---|---|---|---|
-| A1 | GAP | The nightly-red rule blocked the `:core` fix that clears it | the same carve-out as the red-`main` rule: a pull request confined to the failing area, or naming the red run, merges (§ V5) |
+| A1 | GAP | The nightly-red rule blocked the `:core` fix that clears it | the same carve-out as the red-`main` rule: a pull request confined to the failing area merges (§ V5) |
 | A2 | GAP | Red `main` published per-job booleans while L3's jobs span every module | the post-merge run publishes the module booleans of its failing tasks, cross-module jobs attributed by convention (hash test and `diff-oracle` to `core`, storyboard to `ui`) (§ V5; = C5) |
 | A3 | GAP | Root files in no `changes` glob — a generator error by § T4.1's own rule | a `root` boolean: `CLAUDE.md`, `.claude/**`, `.nvmrc`, `LICENSE`, `.editorconfig`, the root `README.md` and `.gitignore` (§ T4.1; = C1) |
-| A4 | GAP | `prototype-check` skipped the one change that can break the oracle harness | `prototype-check` and `diff-oracle` gated on `prototype || spec` from P2 (§ V5, § V2) |
+| A4 | GAP | `prototype-check` skipped the one change that can break the oracle harness | `prototype-check` gated on `prototype || spec` from P2 (§ V5); `diff-oracle` on `core || spec || prototype` (§ V2) |
 | A5 | GAP | A fixture's declaring file was unresolvable in the screens area | `spec/fixtures/<area>/<file-stem>/<name>.json` → `SpecFixtures.<Area>.<FileStem>.<name>` (§ T2.1; = C7) |
 | A6 | GAP | Forced storyboard state was not a decision, so the save replayed differently | the forcing hooks recorded as a `debug:` preamble the replay applies; such a save is not portable across `RULES_VERSION` (§ V3) |
 | A7 | GAP | The halo criterion gated look B, which bilinear resampling fails by construction | halo reported-only for look B (§ F3.2, § T10.4) |
@@ -1482,7 +1482,7 @@ hero's art priced as free (D3). Revision 14 resolves all of them and declines no
 |---|---|---|---|
 | D1 | GAP | No steady-state duty for the channel, the vitals or the reviews; the Support URL served the demo | = B4; the Support URL is `docs/support/index.html`, naming the reports address (README, § T14, § T12) |
 | D2 | GAP | No gate asked whether a generated actor resembles someone else's | criterion 8, "no recognisable third-party character, mark or logo", on the critic's sheet; the residual risk stated (§ F3.4, § F3.6) |
-| D3 | NUMBERS | A new hero's art priced as free | a changed hero folds free; a new one adds its frames, its ≈ $20–60 and its sheet outside the 43/645 model (§ F4, README P0 row) |
+| D3 | NUMBERS | A new hero's art priced as free | a changed hero folds free; a new one adds its frames, its ≈ $15–30 and its sheet outside the 43/645 model (§ F4, README P0 row) |
 | D4 | MINOR | Principle 10 listed five disciplines against § V1's six | the M2–M3 window added (README) |
 | D5 | MINOR | D6's "no" branch promised a decision log no build could export | scoped to the debug drawer (README D6) |
 | D6 | MINOR | "The owner's first act of P0" | = A16 (README, § F1.5, § T14) |
