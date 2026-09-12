@@ -303,7 +303,7 @@ Recommendation: **A for sprites, with painted portraits** for the ribbon chips, 
 and cards, where a painted face reads better at 48 px than a sprite crop. The fork closes at
 the **end of the P0 bake-off**, on six actors shown both ways, with all their frames, in
 lit battle frames on a phone (the prototype's stage carries them, `TECHNICAL.md` § T10.4);
-`spec/art/` is written when it closes.
+`spec/art/` is completed when it closes (it is opened at the tool's calibration, `TECHNICAL.md` § T7.5).
 
 **What the numbers cannot promise.** The prototype's kit passes every sheet criterion at its
 pass thresholds and has done so since round 11, at 9/10, and still does not reach the bar;
@@ -331,7 +331,7 @@ reported beside them), then a **critic** (an agent with eyes on a contact sheet 
 battle frame at 1:1 and 2×, under the protocol of § F3.5), then the **owner** on a phone.
 The criteria, in the order they are checked:
 
-1. Readable at arm's length on a phone: a hero at 13–17 % of the frame's height; the face two
+1. Readable at arm's length on a phone: a hero at 14–17 % of the frame's height; the face two
    dark clusters with a highlight; the weapon held.
 2. Distinct: the silhouette rules of § F3.1 across the whole cast, not only within a biome.
 3. Consistent: the same character in every frame — palette, proportions and keyline do not
@@ -534,7 +534,7 @@ The closed unions a kit is built from — anything outside them is a *mechanics*
 | KIT change | S | the skill clauses | the skill's behaviour, the awakening | the ladder and the guards | any pose the kit changes (a new weapon) | none |
 | NUMBERS | S | the Balance state | none new | the ladder and the guards | none | none |
 | ART | S per actor | `spec/art/` | the gate | none | the frames | none |
-| REMOVAL | S | roster clauses | validity | the guards | none | the draft grid; a saved run that names the removed character is abandoned with the Vault untouched — § F2.1's one exception |
+| REMOVAL | S | roster clauses | validity | the guards | none | the draft grid; a saved run that names the removed character is abandoned with the Vault untouched — one of § F2.1's two exceptions |
 
 A NEW character with a new status kind, target spec or scale is a *mechanics* change and
 goes through the clause-first discipline of `TECHNICAL.md` § T7.7 with the owner's decision

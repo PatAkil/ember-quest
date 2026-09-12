@@ -469,7 +469,7 @@ repository-root-relative):
   plus 10 ms, so the committed hashes are reproducible — with a manifest `{commit, name,
   seed, sha256}`; no engine edit (§ T9.8);
 - the **`PixelActor` registry** (`prototype/game/art/actors.ts`) and `capture.mjs battle
-  pixel=<dir> biome=<BIOME> party=<ids> pack=<ids> [tier=HIGH|MED|LOW] [flat=1] [phone=1] [seat=all|<id>]
+  pixel=<dir> biome=<BIOME> party=<ids> pack=<ids> [tier=HIGH|MED|LOW] [flat=1] [portrait=1] [phone=1] [seat=all|<id>]
   anchors=1`: a stage-only capture in any biome and tier with no run drive over `prototype/tools/stage.html` (below) — `<dir>` holds
   § T10.9's layout under `<dir>/<ID>/`; a look-B candidate is a 128 × 128 px frame (192 ×
   192 for a boss) with `canvas: 128|192, cell: 1` in its sidecar, drawn at 1:1
@@ -704,7 +704,7 @@ party, the relics, the lap and the pacts** — so the lap and the pacts come fro
 `spec/fixtures/golden/fixtures/` or the literal `battle-fixtures`, the act-1 cells' party — any `BATTLE_FIXTURES` row's
 `make()` party, which draws nothing, with the pack from the cell line's `pack=`, so no row
 name is needed — whose lap 1 and no pacts the `GOLDEN` clause records; any
-other value is a hard error, never a fallback; a `mode=runs` cell, which drafts its own party, carries `party=-`, and its `vault=<n>` equips the first n relics of `spec/fixtures/golden/vault/default.json` — the harness's three kindled EPICs, `VAULT_RELICS` today — typed by the root block `VaultRelics` of `spec/golden/vault.md` (one field, `relics: list<object:VaultRelic>`, so the file is `{"relics": […]}`) — so a cell is regenerated
+other value is a hard error, never a fallback; a `mode=runs` cell, which drafts its own party, leaves the table's `party` column `-` (the runs `cell` record has no `party=` field), and its `vault=<n>` equips the first n relics of `spec/fixtures/golden/vault/default.json` — the harness's three kindled EPICs, `VAULT_RELICS` today — typed by the root block `VaultRelics` of `spec/golden/vault.md` (one field, `relics: list<object:VaultRelic>`, so the file is `{"relics": […]}`) — so a cell is regenerated
 from its line plus its fixture row, never from the line alone, so the two enumerate the
 same set and `diff-oracle` regenerates a cell from its `cell` line and the fixture row it
 names:
@@ -953,7 +953,7 @@ golden may change only in one of two commits: a rules change — one that also c
 and carries an approval record (`VERIFICATION.md` § V5); the merge lane checks all four —
 or a re-recording, which bumps the `trace` format version and its `GOLDEN` clause, names
 every cell as expected, carries an approval record and leaves `RULES_VERSION` alone (the
-P3 trace-format disagreement § T6.1 expects takes this route). A golden that changes without a
+P3 trace-format fix — a divergence in the encoding itself, not in a rule — takes this route). A golden that changes without a
 clause is a bug, whichever of the two is wrong.
 
 ### T7.4 Screens and flows
@@ -1521,7 +1521,7 @@ the flat backdrops; P4 replaces the actors behind the gate; P6 replaces the back
   recorded turns from the pre-battle snapshot under the new rules and, if a recorded option
   is out of range, restarts from that snapshot; the decision log restarts from that point
   (a `resumed-from-snapshot` marker), because a log spanning two rules versions is not a
-  replay. The one case that abandons a run: a save naming content the installed rules no
+  replay. One of the two cases that abandon a run (the other, a save two or more versions old, is below): a save naming content the installed rules no
   longer have (a removed character or skill) — the Vault is untouched and the player told.
   **`resumeRun(snapshot)`** — entering `runSteps` at an arbitrary map position with a
   reconstructed context — is a rules-structure change the oracle does not contain; it is a
@@ -1546,7 +1546,7 @@ the flat backdrops; P4 replaces the actors behind the gate; P6 replaces the back
   owner's felt rows and the closed testers on release builds can report a bug that replays;
   the debug drawer's richer export is debug-only. The encoding, `sim replay` and the
   storyboard's saves exist under either answer to question 10; a "no" builds no
-  persistence, no share and no corpus. `sim replay <file>` reproduces a save
+  persistence and no corpus; the current run's text share stays (§ F2.7). `sim replay <file>` reproduces a save
   headlessly and prints the trace; `instruments storyboard --replay <file>` renders it,
   since `:sim` may not import Compose.
 - **PvP readiness**: the same encoding carries a party, a relic and a decision stream; a
