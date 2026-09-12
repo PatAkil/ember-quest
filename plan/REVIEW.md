@@ -12,8 +12,8 @@ plan's drafting or each other's reports.
 Severities: **BLOCKING** — the plan could not be executed as written, or a claim it depends
 on was false · **GAP** — a real case or need the plan never addressed · **NUMBERS** — a
 value, version, budget or estimate was wrong and the reviewer showed why · **MINOR** —
-clarity or style. Every BLOCKING, GAP and NUMBERS finding was resolved by editing the plan;
-MINOR findings were applied where they cost nothing and are otherwise listed with the reason
+clarity or style. Every BLOCKING and GAP finding was resolved by editing the plan; a NUMBERS finding was
+resolved the same way or declined with the evidence; MINOR findings were applied where they cost nothing and are otherwise listed with the reason
 they were declined so the owner can overrule. The loop stops when a round returns zero
 BLOCKING and zero GAP findings.
 
@@ -1780,3 +1780,91 @@ with the evidence (B7).
 | D6 | MINOR | Question 5 costed on phones the owner may not own | "holds, or buys at P0" (README) |
 
 **Declined or only partly applied:** B7 declined with the evidence above.
+
+## Round 16 — on revision 17 (commit `3c691ad`)
+
+Four reviewers on a lighter model, 45 findings: 0 BLOCKING, 17 GAP, 4 NUMBERS, 24 MINOR —
+the third round with no blocking finding. The gaps: no engine path lit a supplied plane,
+so the LOW and MED bars' venue had no producer (A1, C2); a golden re-recording that bumps
+no rule had no route past the merge lane (A2); the blind verifier could not compile
+against a module the spec commit lacks (A3); a red `main` from a step no module owns
+published an empty set (A4); a save two versions old had no stated fate (A5); nothing ever
+compared the shipped party's values with the shipped enemy rank's (B1); the field crash
+signal could be empty and nothing said so (B2); the EU trader-status declaration was in no
+checklist (B3); the one-re-run rule was left to discipline while the agents' App holds
+`actions` (B4); M2's "not enforced" branch had no response (B5); the testers' phones were
+never held against the minSdk fork (D1); the critic's pinned prompt had no stated
+behaviour under look B (D2); the portrait branch fought the P0-recorded bars (D3); the
+bible's seat list was written after the captures that plant it (C1); `hitRect` had no
+derivation for a generated actor (C3); and the device lane's APKs came from no named run
+(C4). The numbers: the outermost ceiling mixed caps with expectations (B6, D7); the
+contingent list omitted the re-gate (D4); the farm's fallback nights were unpriced on the
+recommended branch (D5); 8(b)'s metered CI was outside the programme total (D6).
+Revision 18 resolves all of them and declines none.
+
+### 16-A — adversarial, technical
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| A1 | GAP | No engine path lights a supplied bitmap; "two engine changes" did not cover LOW over the composite | the hook is a flat plane supplied as an image — `bakeFlat`'s bake over it at LOW, the rig over its flat blit at MED — the second engine change (§ T4.2; = C2) |
+| A2 | GAP | A trace-format re-recording could satisfy neither golden rule | a second route: a re-recording commit bumping the `trace` version and its `GOLDEN` clause, every cell named, an approval record, `RULES_VERSION` untouched (§ T7.3) |
+| A3 | GAP | The verifier's worktree at the spec commit has no API to compile against | the writer's public API alone — the ABI dump or a signature-only stub — beside the spec commit (§ T6.3) |
+| A4 | GAP | A red `main` from a non-Gradle step published no module | attributed to `build`, where such a fix lives (§ V5) |
+| A5 | GAP | A save older than N − 1 had no stated behaviour | abandoned with the Vault untouched and the player told, as removed content; § F2.1's promise reads "from the previous version" (§ T11, § F2.1) |
+| A6 | MINOR | `rig.json`'s constants are module-private with no export named | `export` added to them in the same pull request, as the ramps export does (§ T4.2) |
+| A7 | MINOR | `--lap`/`--pacts` refused wherever a party is named | the knobs dropped; the lap and the pacts come from the row alone (§ T4.2, § T5.3, § T5.4, § V3) |
+| A8 | MINOR | The secret-bearing job checked out the untrusted head | the changed files read through the API, no checkout (§ V5) |
+
+### 16-B — adversarial, product and process
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | No number compares the shipped party with the shipped enemy rank | `art rulers` once over the accepted cast at P5's end, the two rank medians reported (§ T14, § F3.1) |
+| B2 | GAP | The field crash signal can be empty; F2.7's share died with question 10's "no" | the run's text share exists whatever question 10 answers; an empty signal is recorded as such and the channel is the route (§ F2.7, § T12) |
+| B3 | GAP | The EU trader-status declaration in no checklist | on P5's checklist for both stores, non-trader for a free game (§ T12, README P5 row, money table) |
+| B4 | GAP | The one-re-run rule left to discipline while the App holds `actions` | every required job fails on `run_attempt` > 1 without a logged comment (§ V5) |
+| B5 | GAP | No response if M2 finds code-owner review unenforced | required approvals 1 until M4's check exists, then back to 0 (§ V9, § V1) |
+| B6 | NUMBERS | The "outermost ceiling" mixed caps with expected values; new keys were never capped | a change of provider loads keys capped at the ceiling's unspent remainder; the ceiling before a budget raised by name is $5 224, the ≈ $6 700–7 700 the expected worst case (§ T10.1, README money table, question 6) |
+| B7 | MINOR | The farm's fallback nights unpriced; two rules for a phone-less night | = D5/D13 (README) |
+| B8 | MINOR | The last stop "before the invitations" against invitations at P3's gate | one ordering: the channel at P3's gate, the store invitations after the last stop (README, § T12) |
+| B9 | MINOR | A second seat does not buy three sessions a week outright | doubles the estimate to two-to-four; three needs the upper half of P1's measurement (README) |
+| B10 | MINOR | "P1 takes a week and a half" is review latency | qualified (README) |
+| B11 | MINOR | The log's own claim ignored the declined numbers findings | "resolved the same way or declined with the evidence" (REVIEW.md, README) |
+| B12 | MINOR | The loop had a bar and no cap | the owner may stop it; a further round costs about a session; P0 may start with open minors (README) |
+
+### 16-C — blind, the implementer
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| C1 | GAP | The bible's seat list written at P0's exit, after the captures that plant it | the bible is opened when the art tool is calibrated — the seat list, the ground colour and the bars first — and `seat=all` reads the file (§ T7.5, § T4.2, § F3.1) |
+| C2 | GAP | Neither engine change lit the committed composite at LOW | = A1 (§ T4.2) |
+| C3 | GAP | `hitRect` had no derivation for a generated actor | the silhouette's bounding box over the torso band, never authored (§ T10.6) |
+| C4 | GAP | The device lane's APKs came from no named run and L3 uploaded none | L3 uploads the app, androidTest and Macrobenchmark APKs; the lane takes the latest successful post-merge L3 run on `main` (§ V2, README D18, § T1) |
+| C5 | MINOR | A `types:` line optional in one place, required in two | required (§ T2.1) |
+| C6 | MINOR | `rig.json` omitted the shadow's own geometry | the contact ellipse's radii and alphas and the lobe's offsets added (§ T4.2) |
+| C7 | MINOR | The pack hook's join unstated | `+`-joined, as the `cell` line (§ T5.3) |
+| C8 | MINOR | `trace-hash` never defined | the cell's `set` hash over its run hashes (§ T5.4, § V3) |
+| C9 | MINOR | The exact-reproduction split misdescribed `metrics.md` | the criteria `metrics.md` reports, all of them (§ T10.4) |
+| C10 | MINOR | M7's `connectedCheck` assembles | an instrumentation run by `adb install` and `am instrument` (§ V9) |
+| C11 | MINOR | The standing `ledger` issue's repository unnamed | this repository (§ V7, § V9, § T13.5) |
+
+### 16-D — blind, the owner's advisor
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| D1 | GAP | Testers' phones never held against the minSdk fork | Android 10 or newer, 12 if D11's fallback is taken, in all three places; the count checked before the decision (README, § T12) |
+| D2 | GAP | The critic's pinned prompt under look B unstated | look-neutral; the calibration sheet re-scored under B, the offset a register entry inside question 1's session (§ F3.2, README question 1) |
+| D3 | GAP | The portrait branch against the P0-recorded bars; no producer for portrait placeholders | the bars re-recorded at P5 on the landscape composites cropped to 9:16 (`portrait=1`), the bands re-derived at P0 (§ F3.1, § T10.4, § V2, README question 2) |
+| D4 | NUMBERS | The contingent list omitted the whole-cast re-gate | added, 2–4 sessions (README) |
+| D5 | NUMBERS | The farm's fallback nights unpriced on the recommended branch; two rules for a phone-less night | the reference phones stay with the runner; the farm takes the hash test and the benchmarks only when the runner or a phone is down, ≈ $3–7 a night, in the CI row (README, § T1) |
+| D6 | NUMBERS | 8(b)'s metered CI absent from the programme total | in its recurring cell (README) |
+| D7 | MINOR | The second bake-off at $250 in a ceiling that caps it at $300 | = B6 (README) |
+| D8 | MINOR | "`plan/**` is an owned path" against the spike reports' exclusion | "but the spike reports" (README) |
+| D9 | MINOR | "Nothing of it is maintained" against the build repair | "but its build … until the oracle retires" (README) |
+| D10 | MINOR | The older-Play-account exemption absent from the third term | "about two weeks if P0 finds an older account" (README) |
+| D11 | MINOR | The P4 gate unconditional under look B | "re-derived on look B's reference if question 1 chooses painted" (README, § T14) |
+| D12 | MINOR | "An S inside the M" read as P7's | "inside § F2.1's M–L" (README) |
+| D13 | MINOR | Whether a daily phone is committed to the runner | the reference phones stay with the runner; the felt rows use the owner's daily phone (§ T1, README) |
+| D14 | MINOR | The header's claim false for a declined numbers finding | "every numbers and minor one applied or listed … with the reason it was declined" (README) |
+
+**Declined or only partly applied:** none declined.

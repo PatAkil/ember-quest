@@ -144,13 +144,13 @@ phase named in the Phase column.
 
 | # | Change | What the player gets | Notes | Size | Phase |
 |---|---|---|---|---|---|
-| F2.1 | **Resume anywhere** (recommended; question 10) | Closing or being interrupted mid-run — mid-battle too — loses nothing; the app reopens on the same decision, or on the same hero turn | The run is saved after every decision, hero turns included, as `(rules version, seed, config, decisions)` and replayed on launch; a state snapshot rides along so that an app update never abandons a run — when the installed rules differ from the save's, the run continues from the snapshot under the new rules and the player is told once — **unless the save names content the installed rules no longer have** (a removed character or skill), the one case that abandons a run with the Vault untouched (`TECHNICAL.md` § T11). Not a *rewind*: the player cannot undo a decision. The resume path (`resumeRun`, `TECHNICAL.md` § T11) is a rules-structure change with its own clauses — an S inside this row's M–L, after the P3 gate — so the row's one price is the save format and `SAVE` clauses inside P3, ≈ 1–2 sessions in P5, and that S after the gate. A "no" leaves a permadeath run at the mercy of the platform killing the app in the background, which is why the plan recommends yes and D6 depends on it. | M–L (the `SAVE` clauses inside P3's size, ≈ 1–2 sessions in P5, the post-gate `resumeRun` S) | decided P0; the save format and `SAVE` clauses in P3; the resume path in P5 |
+| F2.1 | **Resume anywhere** (recommended; question 10) | Closing or being interrupted mid-run — mid-battle too — loses nothing; the app reopens on the same decision, or on the same hero turn | The run is saved after every decision, hero turns included, as `(rules version, seed, config, decisions)` and replayed on launch; a state snapshot rides along so that an app update never abandons a run from the previous version — when the installed rules differ from the save's, the run continues from the snapshot under the new rules and the player is told once — **unless the save names content the installed rules no longer have** (a removed character or skill) or is two or more versions old, the two cases that abandon a run with the Vault untouched (`TECHNICAL.md` § T11). Not a *rewind*: the player cannot undo a decision. The resume path (`resumeRun`, `TECHNICAL.md` § T11) is a rules-structure change with its own clauses — an S inside this row's M–L, after the P3 gate — so the row's one price is the save format and `SAVE` clauses inside P3, ≈ 1–2 sessions in P5, and that S after the gate. A "no" leaves a permadeath run at the mercy of the platform killing the app in the background, which is why the plan recommends yes and D6 depends on it. | M–L (the `SAVE` clauses inside P3's size, ≈ 1–2 sessions in P5, the post-gate `resumeRun` S) | decided P0; the save format and `SAVE` clauses in P3; the resume path in P5 |
 | F2.2 | **Settings** | sound volume and mute; ARCADE on/off; quality tier (AUTO/HIGH/MED/LOW); a "reset the Vault" with a confirm; credits | One screen, reachable from the title and the pause overlay. Haptics on hits is optional and off by default. A crash-report toggle appears only when a reporter ships (§ T12). | S | P5 |
 | F2.3 | **Orientation and safe areas** | landscape locked (question 2); the frame respects notches, rounded corners and the gesture-navigation edges | The mutable safe inset reads the platform's insets. Every edge target is tested under gesture navigation. | S | P5 |
 | F2.4 | **Interruptions** | a call or a switch to another app pauses the game and the sound; returning resumes on the pause overlay | The app pauses on lifecycle events and yields audio focus. | S | P5 |
 | F2.5 | **App identity** | the app icon (a 1024 × 1024 master — a normalised crop of an accepted hero's idle frame at 16×, nearest-neighbour, the fallback hero's until the cast is accepted and re-cut from the accepted hero before the P7 tag — a listing update on both stores, an S, and one owner sitting on the P7 row — over the bible's ground colour, recorded at P0 in `spec/art/bible.md`, produced by `frames --icon` (`VERIFICATION.md` § V3) and never generated — from which the platforms' sizes and Android's adaptive layers are derived by the build), the splash (the icon on the ground colour through each platform's own launch screen), Play's 1024 × 500 feature graphic (the same crop over a stage capture); all three under `assets/store/`, an owned path the owner reviews on the P5 row; store listing, a credits screen that names the AI art providers and every bundled asset's licence (the HUD face's OFL or Apache notice; the sounds and the glyph tables are the prototype's own) | Store metadata is copy the owner writes; the credits line is required by § F3.6. | S | P5 (identity and the listing copy, which Play needs before a closed-track release); P7 (the credits and disclosure copy) |
 | F2.6 | **Device tiers** | a 2022 mid-range phone runs MED at 60 Hz; older devices start LOW; the toggle in settings | The tiers are the contract's; the *default* comes from a three-second stage benchmark run behind the title on first launch — the title needs no stage, so the ≤ 2 s boot budget of `TECHNICAL.md` § T9.5 holds and the tier is decided before the first battle (§ F1.3). | S | P5 |
-| F2.7 | **Bug reports from a release build** (the save share contingent on question 10's yes; built with the first test-track build so the felt rows and the closed testers have it) | a long-press on the title shares the current run's save file; the seed is shown on GAME OVER | So the owner's felt rows, the first-ten-minutes test and the closed testers — all on release builds — can report a bug that replays (`TECHNICAL.md` § T11). The rest of the debug drawer stays debug-only. | S | P5, with the first test-track build |
+| F2.7 | **Bug reports from a release build** (the share of the current run's encoding as text exists whatever question 10 answers — the encoding does, `VERIFICATION.md` § V3.2; only persisting it in the app and the corpus are question 10's — built with the first test-track build so the felt rows and the closed testers have it) | a long-press on the title shares the current run's save file; the seed is shown on GAME OVER | So the owner's felt rows, the first-ten-minutes test and the closed testers — all on release builds — can report a bug that replays (`TECHNICAL.md` § T11). The rest of the debug drawer stays debug-only. | S | P5, with the first test-track build |
 
 Optional, not planned: controller support (cheap on the keyboard route), portrait layout,
 localisation beyond keeping strings in one place, cloud saves, accounts (PvP will decide).
@@ -198,7 +198,7 @@ screenshots, are not in the repository and never will be.
   ≥ 1.5:1 (over an L* 41.6 ground that admits an actor above L* 53.5 or below 31.3, as
   ART-REVIEW.md records; an L* ratio would be a different gate) — measured on **one fixed
   set**: the six seats of the resting frame of every biome — 36 seats, 72 strip readings
-  — the seat list (which fallback actor stands in each of the six seats of each biome) recorded in `spec/art/bible.md` at P0 beside the bars, an excluded seat counted as a miss, never dropped, and the
+  — the seat list (which fallback actor stands in each of the six seats of each biome) recorded in `spec/art/bible.md` when the art tool is calibrated, before the P0 captures, beside the bars, an excluded seat counted as a miss, never dropped, and the
   fallback cast planted as a fixed reference at P0, P5 and P6; **three bars, all recorded
   at P0 under this rule**, one per tier, each a count — the number of the 72 readings at
   ≥ 1.5:1 the rig achieves at P0 for that tier, the shape of the record's 106 of 108; a
@@ -217,13 +217,18 @@ screenshots, are not in the repository and never will be.
   one transform over every biome, not a light rig; a ruler below its bar at a phase exit
   has the cast-miss shape — one rework of the rig at P5 or of the planes at P6, then the
   owner's decision, a recorded miss carried forward or the phase held — and so does P6's
-  acceptance on a phone; and the **seat spread** — the largest excess of a seat's torso median (rows
+  acceptance on a phone; under question 2's portrait branch the bars are re-recorded at P5
+  on the portrait placeholders — the landscape composites cropped to the centre 9:16 and
+  upscaled nearest, the same `flat=1` capture with `portrait=1`, inside question 2's priced
+  session — and the bands re-derived at P0; and the **seat spread** — the largest excess of a seat's torso median (rows
   0.33–0.72 of the silhouette's height) over the median seat **of the same biome frame**,
   reported as the maximum over the six frames — an L* value that is **reported, not gated**: the rig's own
   measure, taken with one id planted at all six anchors (`seat=<id>` in the prototype,
   `frames --seat <id>` in Kotlin; the rig's 4.5 L was measured that way, the cast's
   differences removed, and 5 L* is the intent). The count is
-  **reported** on every sprite's contact sheet and **gated** at P5
+  **reported** on every sprite's contact sheet — and at P5's end once over the accepted
+  cast, the party's and the enemy rank's medians beside it, so a bright enemy rank is seen
+  even where it is not gated — and **gated** at P5
   and P6 against the rig over the biome frame goldens (a miss is a light or shadow fault,
   worked in the scene, never by regenerating a sprite). The sheet's contrast columns stay
   reported for continuity. *Target*,
@@ -285,7 +290,10 @@ normalisation (they are resampled to the cell canvas for measurement only); the 
 silhouette and motion criteria gate both looks unchanged, and the in-scene ruler is
 reported for both (§ F3.1); if B wins, P4 re-derives the value *targets* (p50 31–40 and
 ≥ 45 % below L 35 were measured on pixel figures and the reference crop) on B's own
-reference, about one extra session, while the pass thresholds stay. A B candidate reaches
+reference, about one extra session, while the pass thresholds stay; the critic's pinned
+prompt is look-neutral — its criteria name no medium — but its per-axis baselines are the
+pixel cast's, so under B the calibration sheet is re-scored with the same pinned prompt
+inside that session and the offset is a register entry the P4–P6 bars carry. A B candidate reaches
 the owner on that reduced gate, so the fork can actually close. **B's display path**: a
 painted frame is a 128 × 128 px PNG (192 × 192 for a boss) with the sidecar `canvas:
 128|192, cell: 1`, drawn by the prototype's `PixelActor` registry at 1:1 on the stage (`TECHNICAL.md` § T4.2, § T10.9)
