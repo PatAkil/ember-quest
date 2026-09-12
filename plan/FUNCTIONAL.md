@@ -108,12 +108,13 @@ behaviour and the new screens are built to it; the prototype is frozen with its 
    iOS, and reports `PLAYFULL OK`; every screen state has a golden; the budgets of
    `TECHNICAL.md` § T9.5 hold on the reference phones.
 3. **The presentation, by the owner, on a device.** *Felt rows* — at most eight — the owner
-   walks on a phone at P5's end: the first ten minutes (below), a KO, INSPECT, PAUSE, a
+   walks on a phone on P5's first playable build and re-walks until they are signed, which
+   closes P5: the first ten minutes (below), a KO, INSPECT, PAUSE, a
    SHRINE, a SUMMON with a full party, the map, the Vault's EQUIP and BANK faces. A felt row
    the owner cannot sign stays open and P5 does not close — with a bound: a row reworked
    twice and still unsigned goes to the owner's decision, accept it as a recorded known
    miss or stop — a stop during a running closed test ends the test: the testers are told,
-   the track is closed, and a later resumption restarts the fourteen days; the priced worst case is two reworks per row and six in all across the eight — six S-sized reworks, contingent and outside P5's XL — up to 2–4 sessions in the worst case, one of the aggregate's contingent items (README, *Effort*) — each re-walked in P5's next sitting inside its 8–12 — and a third rework on a row or a seventh overall is the branch trigger. The rows are scored against the
+   the track is closed, and a later resumption restarts the fourteen days; the priced worst case is two reworks per row and six in all across the eight — six reworks, each a third to two-thirds of a session, contingent and outside P5's XL — up to 2–4 sessions in the worst case, one of the aggregate's contingent items (README, *Effort*) — each re-walked in P5's next sitting inside its 8–12 — and a third rework on a row or a seventh overall is the branch trigger. The rows are scored against the
    **feel rubric** of the `kmp-quality` skill (`TECHNICAL.md` § T13.2), written at P1 from
    `STATUS.md`'s "Playing it on a phone" section and the full-frame critic's
    first-ten-minutes items — anything tapped twice, anything unreadable at arm's length, a
@@ -387,7 +388,7 @@ Two decision points, each a yes or no from the owner on lit phone frames:
    *Continue* to the enemies; *change provider* (the whole-cast re-gate, README money
    table); or *stop*. The cast is judged once more on
    the real stage at P5's end; a miss there is a light or composition fault and is worked in
-   the rig inside P5 — its gain, pools and cast lobe are P5 code — under the felt rows'
+   the rig inside P5 — its gain, pools and cast lobe are P5 code — under the cast-miss
    bound: one rig rework, then the owner's decision, a recorded miss carried into the scene
    phase (which only the planes can then answer) or P7 held for it; never by regenerating
    the cast.

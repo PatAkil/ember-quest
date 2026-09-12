@@ -34,7 +34,7 @@ the workflow so the pull request it gates cannot rewrite it — with code owners
 second layer whose enforcement at zero approvals P1's first throwaway pull request
 verifies rather than assumes, the art tool refusing any reference image that is not a
 committed asset, and the environment's two forms checked against one version manifest.
-Six things stay with discipline and are audited by the next machine gate: **P0's
+Seven things stay with discipline and are audited by the next machine gate: **P0's
 artefacts** — the move and the banner, the capture tools, the art tool and its calibration
 golden, the critic's protocol (`plan/spikes/7/CRITIC.md`) and the per-axis baselines it
 produces, the fallback captures and the sound hashes — land before any machine gate exists,
@@ -417,7 +417,7 @@ review load for P1, marked M1–M8:
   the perf test with the allocation baseline.
 - **M7 — the hooks and the platforms.** The hooks (edit, pre-commit, pre-push) → the
   Android, iOS and wasm compiles in L3 → the nightly skeleton and, if question 5 chose the runner, the private
-  device-runner repository — and, before question 5 closes, the Android phone reached over
+  device-runner repository with the standing `ledger` issue the owner creates for its rows (§ V7) — and, before question 5 closes, the Android phone reached over
   USB from the Linux VM on the owner's Mac by the real `adb` (README question 5: the path
   is not a given, and the farm is the answer if the phone is not reached).
 - **M8 — the budgets.** **The synthetic `:core`-sized module** (generated into `:core`
