@@ -120,7 +120,7 @@ tables are what it argues with. The Kotlin instruments live in `:tools:instrumen
    (the home-act pack generator), `coverage` (the trace-coverage report: every event kind,
    status, set bonus, sigil effect, pending kind, room type and ascension row that appears
    in the golden set, "appears" as `TECHNICAL.md` § T5.3 defines it), `replay <save>`;
-   flags `--policy --seed --runs --n --spd --vault --ascension --path --json --dump` and the
+   flags `--cell <id> --policy --seed --runs --n --spd --vault --ascension --path --json --dump` and the
    battles knobs `--party --pack --act --lap --clears --pacts --no-stall-gate` with the
    prototype's defaults (golden recording and `diff-oracle` pass `--no-stall-gate`).
 7. **`art`** (`tools/art/`, TypeScript) — `art gate <dir>` (the sheet, motion and

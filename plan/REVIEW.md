@@ -1766,7 +1766,7 @@ with the evidence (B7).
 | C10 | MINOR | The protocol freeze ordered against the bake-off, not spike 8 | before spike 7 or 8, whichever runs first (§ F3.5) |
 | C11 | MINOR | Held art pull requests would conflict on one spend file | one row file per generation call under `assets/spend/`, summed by the counter (§ T10.1, README, § T2.1) |
 | C12 | MINOR | "Their P5 bars" ambiguous | "the P0-recorded LOW and MED bars" (§ F3.1, § T10.4, § T14, README) |
-| C13 | MINOR | The art fixtures validated by nothing | spec-lint validates `spec/fixtures/art/**` against its root schema (§ T7.5) |
+| C13 | MINOR | The art fixtures validated by nothing | spec-lint validates `spec/fixtures/art/**` against its root schema (§ T7.8) |
 
 ### 15-D — blind, the owner's advisor
 

@@ -467,7 +467,7 @@ repository-root-relative):
   plus 10 ms, so the committed hashes are reproducible — with a manifest `{commit, name,
   seed, sha256}`; no engine edit (§ T9.8);
 - the **`PixelActor` registry** (`prototype/game/art/actors.ts`) and `capture.mjs battle
-  pixel=<dir> biome=<BIOME> party=<ids> pack=<ids> [tier=HIGH|LOW] [phone=1] [seat=all]
+  pixel=<dir> biome=<BIOME> party=<ids> pack=<ids> [tier=HIGH|MED|LOW] [flat=1] [phone=1] [seat=all|<id>]
   anchors=1`: a stage-only capture in any biome and tier with no run drive over `prototype/tools/stage.html` (below) — `<dir>` holds
   § T10.9's layout under `<dir>/<ID>/`; a look-B candidate is a 128 × 128 px frame (192 ×
   192 for a boss) with `canvas: 128|192, cell: 1` in its sidecar, drawn at 1:1
@@ -517,7 +517,7 @@ repository-root-relative):
   ≤ 48 × 64 grid bottom-centred with its feet on the canvas's bottom row — and
   `ember-study-x4.png` at ×4 nearest, with the sidecar of § T10.9.
 
-**At P2**, in this sequence: (1) the harness gains `--trace` (§ T5.3; built on the exposed
+**At P2**, in this sequence: (1) the harness gains `--trace` and `--cell <id>`, the slug the `cell` line carries (§ T5.3; built on the exposed
 `runSteps`, `answerWith`, `createBattle`, `nextReady`, `runTurn` and `Battle.events`, so
 nothing under the rules paths changes), `--ascension <A>` into `RunConfig`, `--path a|b`
 to choose the seam path a `runs` trace follows — a is `simulateRun` (the generator body,
@@ -1003,7 +1003,7 @@ designing-mechanics discipline made mechanical, and the `kmp-spec-change` skill 
 
 Unique ids; the id grammar; the `status`, `owner` and `paths` lines present and valid
 (`paths` existing for `contract` clauses); every `data:` table parsable with its `types:`
-line; every `schema:` block parsable, and every fixture under `spec/fixtures/art/**` — the one area the binder never types — validated against its root schema; links resolve; a clause's prose ≤ 60 lines (tables exempt); no two clauses
+line; every `schema:` block parsable, and every fixture under `spec/fixtures/art/**` — an area the binder never types, as `spec/fixtures/saves/**`, which JVM tests read — validated against its root schema; links resolve; a clause's prose ≤ 60 lines (tables exempt); no two clauses
 with the same title; goldens have hashes and a `GOLDEN` clause. Runs in the edit lane on
 `spec/**`.
 
@@ -1218,7 +1218,7 @@ The art tool (`tools/art/`, TypeScript) is a CLI (`generate`, `normalise`, `gate
 `rulers`, `sheet`, `accept`) and a test suite (the gate over every committed actor, run in
 the commit lane). Generation is never part of a build; the accepted PNG is the source of
 truth. Provider keys are environment secrets the owner sets, and **the hard ceiling is the
-providers' own**: every key is prepaid, or under a hard cap the provider enforces — a requirement, not a preference, checked at P0's terms check: a provider that can be neither prepaid nor hard-capped (a post-paid API whose budget only alerts, Google's for Gemini) is not used, whatever the bake-off says, because the counter below is a mirror and a mirror cannot hold a ceiling; reaching a cap is the stop trigger — the bake-off's keys
+providers' own**: every key is prepaid, or under a hard cap the provider enforces — a requirement, not a preference, checked at P0's terms check: a provider that can be neither prepaid nor hard-capped (a post-paid API whose budget only alerts — which metering each candidate has, P0's terms check records) is not used, whatever the bake-off says, because the counter below is a mirror and a mirror cannot hold a ceiling; reaching a cap is the stop trigger — the bake-off's keys
 $300 in all (a second bake-off another $300 by name), the sprite provider $3 500, the
 portrait provider $500 (together the $4 000 the cast may cost at per-image prices), P6's plane key $500 on top only if question 4(b) approves it, a subscription
 provider the months the owner pays — so a worktree race or a bypassed tool can spend

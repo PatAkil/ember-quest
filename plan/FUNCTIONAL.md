@@ -462,7 +462,7 @@ backdrops are the **scene phase, P6**: four planes per biome as data-driven pain
 default, inside P6's size — or, where README question 4 approves it by name with its own
 budget line, as AI-generated planes; a plane has no actor-shaped gate, so a generated
 plane is judged by the scene rulers of `TECHNICAL.md` § T10.4 (the ground strips' values
-against the pools and the seat spread, measured with the fallback cast planted at the six
+against the pools — the counts — with the seat spread reported beside them, measured with the fallback cast planted at the six
 anchors as the fixed reference P6's ruler frames use too), then by the critic and the
 owner, and only from a plane provider whose written commercial terms are verified into
 `assets/LICENSES.md` before the branch is taken (§ T10.2's rule, which the P0 check does
