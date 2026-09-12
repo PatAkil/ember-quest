@@ -140,7 +140,7 @@ other rows are approved with the plan and built in the phase named in the Phase 
 | F2.4 | **Interruptions** | a call or a switch to another app pauses the game and the sound; returning resumes on the pause overlay | The app pauses on lifecycle events and yields audio focus. | S | P5 |
 | F2.5 | **App identity** | icon, splash, store listing, a credits screen that names the AI art providers | Store metadata is copy the owner writes; the credits line is required by § F3.6. | S | P5 (identity), P7 (copy) |
 | F2.6 | **Device tiers** | a 2022 mid-range phone runs MED at 60 Hz; older devices start LOW; the toggle in settings | The tiers are the contract's; the *default* comes from a three-second stage benchmark run behind the title on first launch — the title needs no stage, so the ≤ 2 s boot budget of `TECHNICAL.md` § T9.5 holds and the tier is decided before the first battle (§ F1.3). | S | P5 |
-| F2.7 | **Bug reports from a release build** (the save share contingent on question 10's yes) | a long-press on the title shares the current run's save file; the seed is shown on GAME OVER | So the owner's felt rows, the first-ten-minutes test and the closed testers — all on release builds — can report a bug that replays (`TECHNICAL.md` § T11). The rest of the debug drawer stays debug-only. | S | P7 |
+| F2.7 | **Bug reports from a release build** (the save share contingent on question 10's yes; built with the first test-track build so the felt rows and the closed testers have it) | a long-press on the title shares the current run's save file; the seed is shown on GAME OVER | So the owner's felt rows, the first-ten-minutes test and the closed testers — all on release builds — can report a bug that replays (`TECHNICAL.md` § T11). The rest of the debug drawer stays debug-only. | S | P5, with the first test-track build |
 
 Optional, not planned: controller support (cheap on the keyboard route), portrait layout,
 localisation beyond keeping strings in one place, cloud saves, accounts (PvP will decide).
@@ -158,9 +158,10 @@ metrics of ART-REVIEW.md), because the reference frames themselves are the owner
 screenshots, are not in the repository and never will be.
 
 - **Cell and size.** One cell is 2 screen px at 720p. The canvas is 64 × 64 cells (96 × 96
-  for a boss). The bands are the review's recorded ones: a hero 52–60 rows tall, occupying
-  at most 48 of the 64 columns; a standard enemy 40–50 rows; an elite 50–56; a boss at
-  least 60 on the 96-cell canvas (the six measured 65–93). A taller boss band is a change
+  for a boss). The bands are the review's recorded ones: a hero 52–60 rows tall, any width
+  the 64 columns allow (the contract's `ACTOR_W`; measured heroes run to 53 columns); a
+  standard enemy 40–50 rows; an elite 50–56; a boss at least 60 on the 96-cell canvas (the
+  six measured 65–93). A taller boss band is a change
   the owner may make at the bake-off, recorded as such — never a silent renumbering. Feet at the bottom centre; authored facing right (the battle mirrors
   heroes).
 - **Line and tone.** A full 1-px keyline that follows the material (near-black with a hue on
@@ -305,8 +306,10 @@ verdict below the bar names the failing criterion by number. The prompt, the fiv
 the scoring **and the model with its version** are frozen in `plan/spikes/7/CRITIC.md`
 before the first verdict of the bake-off and promoted unchanged into `spec/art/` at P0's
 exit; every verdict records the model and version; at P0 the pinned critic scores the
-frozen calibration sheet — the prototype's round-14 cast in lit frames — three times, and
-the medians are the **baseline** every later bar is set against; if the model must change
+frozen calibration sheet — the prototype's round-14 cast in lit frames, committed as
+`spec/art/calibration-sheet/*.png` with its capture command in the spike report, since the
+prototype's own capture output is not in the repository — three times, and the medians,
+**per axis**, are the **baseline** every later bar is set against; if the model must change
 during the programme, the new one re-scores the sheet and the offset is recorded as a
 register decision.
 
@@ -318,10 +321,13 @@ Two decision points, each a yes or no from the owner on lit phone frames:
 2. **After the six heroes (in P4):** the party on the prototype's stage in three biomes,
    the six meeting the value target the prototype's kit fails (§ F3.1) and scored by the
    full-frame critic **at least one point above the prototype cast's baseline** on the
-   sprite axis — the baseline being the median the *same pinned model and prompt* give the
-   prototype's round-14 cast frames at P0 (expected 8, so the bar is expected to be 9; the
-   old 8 was a single verdict under no protocol and proves nothing); the value target and
-   the owner's eye are the discriminating criteria, the score a floor.
+   sprite axis, capped at 9 — the baseline being the median the *same pinned model and
+   prompt* give the prototype's round-14 cast frames at P0 (expected 8, so the bar is
+   expected to be 9; the old 8 was a single verdict under no protocol and proves nothing;
+   a baseline above 8 is recorded as a register decision and the cap keeps the gate
+   reachable); the value target and the owner's eye are the discriminating criteria, the
+   score a floor. The scene phase's bar is the same rule on every axis (`TECHNICAL.md`
+   § T14).
    *Continue* to the enemies; *change provider*; or *stop*. The cast is judged once more on
    the real stage at P5's end; a miss there is a light or composition fault and is worked in
    the scene phase, not by regenerating the cast.
@@ -425,7 +431,7 @@ The closed unions a kit is built from — anything outside them is a *mechanics*
 
 | Class | Size | Spec | Tests | Simulator | Art | Screens |
 |---|---|---|---|---|---|---|
-| NEW character | S–M each; a batch of six ≈ L | clauses under `spec/characters/<id>.md`; roster and `validateData` clauses | data validity, kit behaviour per skill, awakening, leader | every policy must be able to draft and play it; the ladder and the guards re-measured; "every character leads ≥ 5 %" | 15 frames + portrait through the gate against the accepted cast: ≈ 90–150 generated images, one critic round, the owner's sheet — ≈ $20–60 at the per-image price including re-rolls, plus a portrait, a whole-cast re-gate after a provider change (§ F3.6) | the draft grid and detail strip must fit (the four-column grid holds twelve) |
+| NEW character | S–M each; a batch of six ≈ L | clauses under `spec/characters/<id>.md`; roster and `validateData` clauses | data validity, kit behaviour per skill, awakening, leader | every policy must be able to draft and play it; the ladder and the guards re-measured; "every character leads ≥ 5 %" | 15 frames + portrait through the gate against the accepted cast: ≈ 90–150 generated images, one critic round, the owner's sheet — ≈ $20–60 at the per-image price including re-rolls and the portrait; a whole-cast re-gate after a provider change (§ F3.6) | the draft grid and detail strip must fit (the four-column grid holds twelve) |
 | KIT change | S | the skill clauses | the skill's behaviour, the awakening | the ladder and the guards | any pose the kit changes (a new weapon) | none |
 | NUMBERS | S | the Balance state | none new | the ladder and the guards | none | none |
 | ART | S per actor | `spec/art/` | the gate | none | the frames | none |
@@ -511,7 +517,7 @@ single-player permadeath keeps its teeth.
 
 ## F6 Out of scope now
 
-Porting anything of the prototype but its mechanics, its sounds and its measured laws;
+Porting anything of the prototype but its mechanics, its measured laws and — captured once at P0 — its sprite sheets, flat backdrops, sounds, glyph tables and hand-drawn study;
 importing the prototype's browser Vaults; fixing the prototype's screen defects (it is
 frozen); music (the contract has none); monetisation; cloud saves; accounts until PvP;
 portrait layout; localisation beyond keeping strings in one table; AI backdrops before the

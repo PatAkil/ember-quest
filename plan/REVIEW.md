@@ -677,3 +677,115 @@ runner, and the critic's baseline scored at P0.
 **Declined or only partly applied (MINOR):** none declined; A4's content-addressed approval
 was not adopted — dropping the up-to-date rule is simpler and the post-merge run covers
 the case it protected.
+
+## Round 6 — on revision 7 (commit `ad63359`)
+
+Four reviewers on a lighter model, 59 findings: 5 BLOCKING, 14 GAP, 6 NUMBERS, 34 MINOR.
+The five blocking rows are mechanical defects in text that revision 7 introduced: the
+anchors file's two frame-level strips could not hold a per-seat rule that yields three
+pairs (C1, A11); `env-check` compared a marker field that only the image has, so P1's exit
+could never be met on a host (C2, A2); the battles cell record carried no seed although the
+oracle regenerates a cell from that line alone (C3); `setup.sh` read a `.nvmrc` that does
+not exist until P2 (C4); and the three owner-review checks were told to run both on
+`pull_request_review` events and under `pull_request_target`, which are mutually exclusive
+— round 5's B3 and C3 were applied in one sentence and cancelled each other (B1). The gaps:
+the calendar was derived from agent capacity alone and never from the owner's review
+latency over fifty to sixty owned-path pull requests (B2, B7); P6's gate was still an
+absolute 8 that the rejected prototype already meets (B3, D6); P0 calibrates every later
+art gate's instrument before `main` is protected and resolves every disagreement in the
+tool's favour (B4); question 3's fix session hung off a question that closes at P7 (B5); the
+trace's SUMMON row omitted the one field the policy reads (A1); the first bootstrap step
+depended on later ones (A3); a "most recent push" setting was listed with no meaning at
+zero approvals (A4); the seat ruler had no mask, the ramps no data, the coverage gate an
+unrecordable kind, the golden table no optional type, `env-check` no hook and no lane, and
+"the failing area" no definition (C5–C10). Revision 8 resolves all of them; the structural
+changes: the owner-review checks run under `pull_request_target` only, from `main`'s
+definition, and a tiny review-event workflow re-dispatches them on the head commit; the
+calendar is the larger of two terms, agent capacity and review latency, with the
+owner-gated pull requests counted per phase; P4's and P6's gates are baseline + 1 per axis
+against P0's pinned-critic baselines, capped at 9; P0's artefacts are the fifth item on §
+V1's discipline list, with an adjudicated calibration and a second reader at P1; the
+environment recipe writes two manifests and compares every field but the marker; the
+anchors file is per seat with a mask per seat and a pose and frame; `.nvmrc` exists from
+P0's move commit; question 3 is three questions.
+
+### 6-A — adversarial, technical
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| A1 | GAP | The trace's SUMMON row printed a relic that does not exist and omitted `favored`, the one field the policy reads | `offers=<id>:<favored 0\|1>,… dominant=<ELEMENT>`; the full-party EPIC card is rolled after the answer and shown as its own `RELIC` pending (§ T5.3) |
+| A2 | GAP | `env-check` compared the image marker, which only the image has, so P1's exit could never be met on a host; the image's manifest had no home | every field but `marker` is compared; the image writes `ci/env/manifest.image.json` (committed), a host writes `build/env/manifest.json` (§ V4, § T2.1, § V9) |
+| A3 | GAP | The first bootstrap step depended on `gate.sh`, `lanes.yaml`, the ledger and a pull request, which come later | the image is built at P0 (spike 6); the pin, `env-check` and the cold-start measurement follow `lanes.yaml` and the ledger in § V9's order (§ V9, § T14) |
+| A4 | GAP | "Approval required on the most recent push" beside "required approvals 0" had no stated meaning, was absent from D15 and untested | the setting is not used — the owned-path check pins the approval to the head commit; D15 lists every setting the ruleset carries (§ V5, README D15) |
+| A5 | NUMBERS | Question 6 priced option B at ≈ 8–16 sessions against ≈ 8–12 in the money table and § F3.5 | 8–12 for the masters, the derived frames unmeasured (README question 6) |
+| A6 | MINOR | "Up-to-date branches serialise merges" beside "no up-to-date requirement" | the residue removed (§ V5) |
+| A7 | MINOR | The ledger had two sources in § V7 and three in § T13.5; `device-runner` rows missing from § V7 | one three-source definition in both (§ V7, § T13.5) |
+| A8 | MINOR | `env-check`'s lane stated three ways | L0 and L3 name it; § V4 and § V6 agree (§ V2, § V4, § V6) |
+| A9 | MINOR | "Every pending kind appears" could not hold: `BATTLE` and `ENEMY_TURN` are never recorded | the coverage gate exempts `FORFEIT`, `ENEMY_TURN` and `BATTLE` in one sentence (§ T5.3, § T14) |
+| A10 | MINOR | The halo criterion contradicted itself | "at most two cells in the ring, none elsewhere" (§ T10.4) |
+| A11 | MINOR | One global `strips` pair against a per-seat rule; the geometry differed from the ART-REVIEW convention it cited | strips per seat entry; the ruler's geometry re-derived from the convention and recorded (§ T10.4) |
+| A12 | MINOR | The compact relic encoding dropped `rolls`, which drives RECAST; `result` included `probes` | `/<rolls>` appended; `result` excludes `probes` and the Kotlin-only fields (§ T5.3) |
+| A13 | MINOR | `spec/fixtures/meta/min-ascension.json` fitted no fixture rule and `:core` tests may not read files | fixtures are generated per area (`spec/fixtures/<area>/…`), `meta` included (§ T2.1, § T5.1) |
+| A14 | MINOR | The stage-only `pixel=` capture had no harness in the prototype | `prototype/tools/stage.html`, a fixture page that draws the six seats at a pose, frame and tier, listed among the allowed prototype changes (§ T4.2) |
+| A15 | MINOR | The P4 bar "baseline + 1" had no ceiling | capped at 9 (`FUNCTIONAL.md` § F3.5, § T14, README) |
+
+### 6-B — adversarial, product and process
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| B1 | BLOCKING | The three owner-review checks were told to run on `pull_request_review` events and under `pull_request_target`, which are mutually exclusive; on the review trigger the gate is rewritable by the pull request it gates | the checks run under `pull_request_target` only, from `main`'s definition; a tiny `pull_request_review` workflow that touches nothing re-dispatches them on the head commit; the second throwaway pull request tests both halves (§ V5, § V9, D15) |
+| B2 | GAP | The calendar was derived from agent capacity alone; fifty to sixty owner-gated pull requests set a floor it never accounted for | the calendar is the larger of two terms; the owner-gated pull requests counted per phase; the floor at one sitting a day; P1's exit re-derives both (README) |
+| B3 | GAP | P6's gate was an absolute 8 on every axis, which the rejected prototype's 8·8·8·8·7 already meets | baseline + 1 per axis, capped at 9, against P0's per-axis full-frame baseline (README, § T14) |
+| B4 | GAP | P0 builds and calibrates the instrument every later art gate depends on before `main` is protected, and the calibration rule resolves every disagreement in the tool's favour; § V1 omitted P0 | P0's artefacts are the fifth item on § V1's discipline list; a disagreement between the tool and the eye is recorded and signed off by the owner, never resolved by the band alone; a second reader re-scores the sheet at P1 (§ V1, § T10.4) |
+| B5 | GAP | Question 3(a)'s fix session hung off a question that closes at P7, outside the allowed prototype changes and every phase's size | question 3 split: (a) the demo's future at P7, (b) the frozen tag at P0, (c) the two screen defects at P0 as an optional, sized fix pull request inside the allowed changes (README question 3, § T4.2) |
+| B6 | NUMBERS | Option B's price in question 6 | = A5 |
+| B7 | NUMBERS | The P1 owner row said five to ten pull requests against § V9's ~15 steps | about fifteen pull requests in about eight review milestones (README P1 row, § V9) |
+| B8 | NUMBERS | The five-run daily quota is Spark's, which cannot be exceeded; Blaze's terms differ and the nightly cost more than stated | Spark 5 physical runs a day, no overage; Blaze 30 device-minutes a day then ≈ $5 per device-hour; the nightly priced on those terms (README money table, question 5, § T1) |
+| B9 | NUMBERS | "48 of the 64 columns" was recorded nowhere | at most 64 columns (`ACTOR_W`), the derivation recorded (`FUNCTIONAL.md` § F3.1) |
+| B10 | MINOR | The portrait branch's ruler re-derivation and the P0 stage's portrait frames were named but not sized or phased | question 2 sizes and phases both (README question 2) |
+| B11 | MINOR | Question 10's "no" branch did not say it loses every reproducible bug report from release builds | said (README question 10) |
+| B12 | MINOR | The critical path silently assumed question 4's recommended branch | "(14–28 if P7 waits for P6, question 4)" (README) |
+
+### 6-C — blind, the implementer
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| C1 | BLOCKING | Two frame-level strips could not hold a per-seat rule that yields three pairs | = A11 |
+| C2 | BLOCKING | `env-check`'s marker field and the image manifest's missing location | = A2 |
+| C3 | BLOCKING | The battles cell record carried no `seed=` | `seed=<uint32>` in the battles form (§ T5.3) |
+| C4 | BLOCKING | No `.nvmrc` exists, yet `setup.sh` (P0) and the prototype check (P1) read it | P0's move commit creates `.nvmrc` = `22` at the root and in `prototype/`; P2 pins the exact version (§ T2.1, § T4.1, § V4) |
+| C5 | GAP | The seat ruler needs the actor's mask and nothing produced one | each producer writes `<frame>.masks/<seat>.png`; the anchors entry names `pose` and `frame` (§ T10.4) |
+| C6 | GAP | The ramps existed only in words; ΔE was unqualified | `export-ramps.mjs` writes `spec/art/ramps.json` at P0; ΔE is CIE76 in Lab (§ T4.2, § T10.4, `FUNCTIONAL.md` § F3.1) |
+| C7 | GAP | `ENEMY_TURN` is never recorded but the coverage gate required it | = A9 |
+| C8 | GAP | `cells.md` spans two cell kinds with disjoint columns and the binder had no optional type | optional types (`int?` and the rest) in the binder's vocabulary (§ T2.1, § T5.3) |
+| C9 | GAP | `env-check`'s lane stated three ways and the hook's matcher never fired on `ci/env/**` | `ci/env/**` in the PostToolUse matcher; L0 and L3 list `env-check` (§ T13.3, § V2) |
+| C10 | GAP | "The failing area" was never defined | the post-merge run publishes the `changes` booleans its failed jobs depend on as a commit status on `main`; L3 fails a pull request whose own outputs do not intersect them (§ V5) |
+| C11 | MINOR | Five lane ids for six budgeted lanes | `commit-a` and `commit-b` (§ T13.5, § V2) |
+| C12 | MINOR | `lanes.json` had no timestamp | `started_at` (§ T13.5, § V7) |
+| C13 | MINOR | The ledger's two sources then three | = A7 |
+| C14 | MINOR | The `changes` outputs had no path mapping; assets, the art tool and `ci/**` belonged to none | the booleans and their globs stated, `assets`, `art-tool` and `ci` added (§ T4.1, § V5) |
+| C15 | MINOR | Path (c) described two ways | the headless `RunHost` in `:sim` (§ T2.3, § T4.2, § T5.4) |
+| C16 | MINOR | The `result` field set would move every battles-cell hash if it followed the Kotlin type | pinned to the oracle's `types.ts` fields; Kotlin-only fields excluded (§ T5.3) |
+| C17 | MINOR | `min-ascension.json` reached no target under the screen-keyed fixture rule | = A13 |
+| C18 | MINOR | `;` joined both a relic list and the `party` record's entries | the `party` entries are space-separated and a relic list is bracketed `[…]` (§ T5.3) |
+| C19 | MINOR | The frozen calibration sheet had no committed location | `spec/art/calibration-sheet/*.png` (`FUNCTIONAL.md` § F3.5, § T14) |
+| C20 | MINOR | The Pages workflow's `node-version-file` switch was in no P2 list and `node-version` had to go with it | both in the P2 list (§ T4.1, § T4.2, § T14) |
+
+### 6-D — blind, the owner's advisor
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| D1 | NUMBERS | Option B's price in question 6 | = A5 |
+| D2 | MINOR | The ledger defined two ways | = A7 |
+| D3 | MINOR | The README's first paragraph and § F6 contradicted D19's list of what survives | both use D19's list (README, `FUNCTIONAL.md` § F6) |
+| D4 | MINOR | F2.7 was phased P7 with a P5 rationale | F2.7 at P5 with the first test-track build (`FUNCTIONAL.md` § F2, README, § T14) |
+| D5 | MINOR | `ENEMY_TURN` and the coverage gate | = A9 |
+| D6 | MINOR | P6's absolute gate | = B3 |
+| D7 | MINOR | The port template's `@Suppress` reason fitted neither form the rule accepts | `expires #<the P3-gate issue>` (§ T8.1) |
+| D8 | MINOR | The bootstrap window contradicted "never authors" and `prototype/**` was called owned from P0 | the bootstrap exception stated once; `prototype/**` owned from P1; the P0 owner row says the owner looks at the ~7 prototype commits (§ V5, § T4.1, README) |
+| D9 | MINOR | One hand-written GOLDEN clause per cell is ≈ 218 clauses | one generated clause per cell family (§ T7.3) |
+| D10 | MINOR | Two wordings of the later-character price | "including re-rolls and the portrait" in both (`FUNCTIONAL.md` § F4.3, README) |
+| D11 | MINOR | `config/` and `gradle/` absent from the tree | added (§ T2.1) |
+| D12 | MINOR | "D15–D18" cited D16, which is backdrops | "D15, D17–D18" (README) |
+
+**Declined or only partly applied (MINOR):** none declined.
