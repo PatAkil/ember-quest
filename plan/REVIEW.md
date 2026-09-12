@@ -1271,7 +1271,7 @@ D8, D10, D11, B19). Revision 12 resolves all of them and declines none.
 
 ## Round 11 — on revision 12 (commit `7f82ba5`)
 
-Four reviewers on a lighter model, 74 findings: 2 BLOCKING, 30 GAP, 8 NUMBERS, 34 MINOR.
+Four reviewers on a lighter model, 73 findings: 2 BLOCKING, 29 GAP, 8 NUMBERS, 34 MINOR.
 The two blocking rows are one defect: the gloss revision 12 wrote on the red-`main` rule
 had its direction inverted (A1, C1). About a third of the gaps are residue of revision
 12's own edits — the halo criterion now measured an empty set (A2), the seat spread's bar
@@ -1389,5 +1389,109 @@ subscription winner (D2). Revision 13 resolves all of them and declines none.
 | D15 | MINOR | P2 ≈ 8–10 against its row's 8–11 | 8–11, carried into the totals (README) |
 | D16 | MINOR | D20's owner column pointed at question 1 | "by approving this plan, item 3" (README) |
 | D17 | MINOR | No fallback if three iPhone testers cannot be found | internal TestFlight with the first-ten-minutes test on both owner phones (README) |
+
+**Declined or only partly applied (MINOR):** none declined.
+
+## Round 12 — on revision 13 (commit `7d736f0`)
+
+Four reviewers on a lighter model, 56 findings: 2 BLOCKING, 25 GAP, 5 NUMBERS, 24 MINOR.
+The two blocking rows are one slip and one fact: the consistency pass's own fix to the
+`changes` booleans left the root files (`CLAUDE.md`, `.claude/**`, `.nvmrc`, `LICENSE`,
+the root `README.md`, `.gitignore`, `.editorconfig`) in no glob, which § T4.1's own
+"a path in no glob is a generator error" rule turns into a red generator test from the
+first commit (C1, = A3); and the prototype's harness exits non-zero when any cell's stall
+rate passes `STALL_MAX = 0.005`, so the golden stall cell — tuned until a stall appears —
+failed golden recording and `diff-oracle` by construction (C2). Again about a third of
+the gaps are residue of revision 13's edits: the nightly-red rule had no carve-out for
+the fix that clears it (A1), the red-`main` booleans were published per job while the
+L3 jobs span every module (A2, C5), the fixture path still named no declaring file for
+the screens area (A5, C7), the `env-image` hand-back could not find its last build (C6),
+`battle-fixtures` had no builder (C4), the halo criterion gated look B, which bilinear
+resampling fails by construction (A7), the storyboard save's forced state was not a
+decision and replayed to a different run (A6), and the in-scene bar was measured on the
+prototype's full rig but gated P5's flat placeholder (A9). The owner's side: a personal
+Play account never named as the choice the 12-tester rule follows from (B1), the App
+Store name reserved without the bundle id that reserves it (B2), the upload credentials
+and the listing graphics missing from P5 (B3), nobody reading the channel, the vitals or
+the reviews after P7 (B4, D1), the blocker class unbounded (B5), the demo never run on a
+real phone before the go or no-go (B8), the root build files outside the owned paths
+(B9), no gate asking whether a generated actor resembles someone else's (D2), and a new
+hero's art priced as free (D3). Revision 14 resolves all of them and declines none.
+
+### 12-A — adversarial, technical
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| A1 | GAP | The nightly-red rule blocked the `:core` fix that clears it | the same carve-out as the red-`main` rule: a pull request confined to the failing area, or naming the red run, merges (§ V5) |
+| A2 | GAP | Red `main` published per-job booleans while L3's jobs span every module | the post-merge run publishes the module booleans of its failing tasks, cross-module jobs attributed by convention (hash test and `diff-oracle` to `core`, storyboard to `ui`) (§ V5; = C5) |
+| A3 | GAP | Root files in no `changes` glob — a generator error by § T4.1's own rule | a `meta` boolean: `CLAUDE.md`, `.claude/**`, `.nvmrc`, `LICENSE`, `.editorconfig`, the root `README.md` and `.gitignore` (§ T4.1; = C1) |
+| A4 | GAP | `prototype-check` skipped the one change that can break the oracle harness | `prototype-check` and `diff-oracle` gated on `prototype || spec` from P2 (§ V5, § V2) |
+| A5 | GAP | A fixture's declaring file was unresolvable in the screens area | `spec/fixtures/<area>/<file-stem>/<name>.json` → `SpecFixtures.<Area>.<FileStem>.<name>` (§ T2.1; = C7) |
+| A6 | GAP | Forced storyboard state was not a decision, so the save replayed differently | the forcing hooks recorded as a `debug:` preamble the replay applies; such a save is not portable across `RULES_VERSION` (§ V3) |
+| A7 | GAP | The halo criterion gated look B, which bilinear resampling fails by construction | halo reported-only for look B (§ F3.2, § T10.4) |
+| A8 | GAP | "The value order of dark figures on a lit ground" had no metric | the phrase dropped; § F3.7 gates on the rulers § T10.4 defines |
+| A9 | GAP | One bar measured on the full rig gated the flat placeholder at P5 | two bars recorded at P0: LOW tier for P5, HIGH for P6, the fallback cast as the fixed reference (§ F3.1, § T10.4, § V2, § T14, README) |
+| A10 | NUMBERS | Three reworks per row against four in all | the priced worst case: two per row, six in all; a third rework on one row is the branch trigger (§ F1.5; = B11) |
+| A11 | MINOR | The `result` record's separator unstated; a doubled em-dash | "fields space-separated" once at the top of the record table; the dash removed (§ T5.3) |
+| A12 | MINOR | The seat spread called a share of 72 readings | 36 seats / 72 strip readings; the spread's bar an L* value over the 36 (§ T10.4, § F3.1) |
+| A13 | MINOR | `strips` in the anchors file carried nothing the tool lacks | dropped from the anchors schema (§ T10.4) |
+| A14 | MINOR | P6's ruler frames carried the accepted cast against a bar set on the fallback | the fallback cast planted at the anchors in both places (§ F3.7, § T14) |
+| A15 | MINOR | `deathBy` on a forfeit unsaid | empty on a forfeit, printed as `-` (§ T2.3, § T5.3) |
+| A16 | MINOR | "The owner's first act of P0" preceded by a decision and a commit | "the owner's first act after the repository and defect decisions and the move commit" (README, § F1.5, § T14; = D6) |
+
+### 12-B — adversarial, product and process
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | The 12-tester rule follows from a personal Play account, never named as the choice | the fork named in the money row: personal chosen, the organisation route's D-U-N-S lead and trader declaration stated (README) |
+| B2 | GAP | The App Store name "reserved" at P0 without the bundle id that reserves it | reserved at P0 by creating the App Store Connect record with its bundle id; the application id chosen with it; Play gets only the owner's listing draft (README P0 row, § T12) |
+| B3 | GAP | No App Store Connect API key, no Play Developer API service account, no listing graphics | both credentials in the `release` environment and the P5 owner row; screenshots from the instruments' `shot`, the feature graphic an S (§ T12, README) |
+| B4 | GAP | Nobody read the channel, the vitals or the reviews after P7 | the quarterly session reads them; an out-of-cycle fix session at most one a year; the blocker class extended to a run-breaking production report (README, § T14, § T12; = D1) |
+| B5 | GAP | The blocker class unbounded | at most three inside P7's M; beyond, P7 re-sizes or the owner decides (README P7 row, § T14) |
+| B6 | GAP | Holding P7 for P6 priced as calendar alone | the retention load and the reset risk of a longer closed test added to the branch (question 4(a)) |
+| B7 | GAP | An absence at a stop-pause burns a subscription month | the subscription is not renewed while a stop decision is pending (absence protocol) |
+| B8 | GAP | The go or no-go on a build never run on a real phone | the branch named: a second named fix inside the freeze (≈ half a session), or the baseline taken with the gap recorded (§ T4.2, README P0 row) |
+| B9 | GAP | The root build files outside the owned paths; nothing asserted the quality plugin | `settings.gradle.kts`, the root `build.gradle.kts` and `gradle.properties` owned; a `build-logic` test asserts every included module applies the quality convention plugin (§ V5, § T8) |
+| B10 | NUMBERS | "One hand-drawn idle frame took a session" unsupported | the rate marked unmeasured; option B's sessions a guess until P0 measures it (README money row, question 6, § F3.5) |
+| B11 | NUMBERS | Two incompatible felt-row bounds | = A10 (§ F1.5) |
+| B12 | MINOR | The worst case used the bake-off's $250 estimate against its $300 cap | ≈ $4 924 (README) |
+| B13 | MINOR | "With the same testers" across two stores | "testers from the same pool" (README, § T14) |
+| B14 | MINOR | P0's breakdown counted the bake-off and the calibration twice | "the six other spikes" (README) |
+
+### 12-C — blind, the implementer
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| C1 | BLOCKING | Root files in no `changes` glob fail the generator's own test from the first commit | = A3: the `meta` boolean (§ T4.1) |
+| C2 | BLOCKING | The harness exits non-zero on the stall cell it is meant to record | `--no-stall-gate` added to the P2 harness change and the flag list; golden recording and `diff-oracle` pass it (§ T4.2, § T5.4) |
+| C3 | GAP | The stage capture had no biome selector, so the 72 readings could not be taken at P0 | `biome=<BIOME>` and `tier=` in the capture's flags; "a stage-only capture in any biome" (§ T4.2) |
+| C4 | GAP | `battle-fixtures` had no builder; the boss cell could not be regenerated | its party from any `BATTLE_FIXTURES` row's `make()`, which draws nothing, the pack from the cell line's `pack=` (§ T5.3) |
+| C5 | GAP | The post-merge run skipped by path too, so a cross-module break left `main` green | on `push` to `main` `changes` outputs all-true, as on `workflow_dispatch` (§ V5; = A2) |
+| C6 | GAP | `env-image` could not find its last build after the hand-back | the workflow resolves the last build as the newest commit tag on the branch in the registry and verifies the digest and the manifest against that image (§ V4) |
+| C7 | GAP | The fixture path named no declaring file for the screens area | = A5 (§ T2.1) |
+| C8 | NUMBERS | Round 11 logged as 74 findings, 30 GAP, against 73 rows in its tables | 73 and 29 in the log and the README's series |
+| C9 | MINOR | `--out <path>` against the tool's `key=value` parser | `out=<path>` (§ T4.2) |
+| C10 | MINOR | The device-runner repository, the third ledger source and the SKIPPED row unconditional on question 5 | all three conditional on question 5's runner branch; under the farm branch the farm's rows arrive through the nightly's own artifact (§ V9, § V7, § T13.5) |
+| C11 | MINOR | "Every pull-request workflow's `changes` job" could not hold for `owner-review.yml` | "every workflow that runs lane jobs on a pull request" (§ V5, § T4.1) |
+| C12 | MINOR | `ramps.json` typed by a bible written later | the `schema: Ramps` block lands with the ramps export (§ T4.2) |
+| C13 | MINOR | Spike 5b had no directory | `plan/spikes/5b/` (§ T14) |
+
+### 12-D — blind, the owner's advisor
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| D1 | GAP | No steady-state duty for the channel, the vitals or the reviews; the Support URL served the demo | = B4; the Support URL is `docs/support/index.html`, naming the reports address (README, § T14, § T12) |
+| D2 | GAP | No gate asked whether a generated actor resembles someone else's | criterion 8, "no recognisable third-party character, mark or logo", on the critic's sheet; the residual risk stated (§ F3.4, § F3.6) |
+| D3 | NUMBERS | A new hero's art priced as free | a changed hero folds free; a new one adds its frames, its ≈ $20–60 and its sheet outside the 43/645 model (§ F4, README P0 row) |
+| D4 | MINOR | Principle 10 listed five disciplines against § V1's six | the M2–M3 window added (README) |
+| D5 | MINOR | D6's "no" branch promised a decision log no build could export | scoped to the debug drawer (README D6) |
+| D6 | MINOR | "The owner's first act of P0" | = A16 (README, § F1.5, § T14) |
+| D7 | MINOR | The WebView wrapper's Play-policy risk stated in one place only | carried into D1 and item 2 (README) |
+| D8 | MINOR | The near-daily assumption stated for P4–P6 only | stated for the whole run to the first test-track build (README) |
+| D9 | MINOR | Question 6 closed "at P0" with no order against the bake-off's spend | "closes at P0's start, before the bake-off's spend" (README) |
+| D10 | MINOR | The monthly hour outside the programme's owner time | added (README) |
+| D11 | MINOR | The three balance diagnoses never reached the approval surface | named in the P3 owner row as a post-gate decision the owner owes (README) |
+| D12 | MINOR | D2's enumeration of what "public" exposes omitted `plan/**` | added (README D2) |
+| D13 | MINOR | The whole-cast re-gate priced in money, not sessions | 2–4 sessions beside its money (question 6, money row) |
 
 **Declined or only partly applied (MINOR):** none declined.

@@ -112,14 +112,15 @@ behaviour and the new screens are built to it; the prototype is frozen with its 
    SHRINE, a SUMMON with a full party, the map, the Vault's EQUIP and BANK faces. A felt row
    the owner cannot sign stays open and P5 does not close — with a bound: a row reworked
    twice and still unsigned gets one more rework (an S) and then the owner's decision,
-   accept it as a recorded known miss or stop; the aggregate assumes one rework per row and four in all across the eight, beyond which the bound's branches apply. The rows are scored against the
+   accept it as a recorded known miss or stop; the priced worst case is two reworks per row and six in all across the eight, and a third rework on a row or a seventh overall is the branch trigger. The rows are scored against the
    **feel rubric** of the `kmp-quality` skill (`TECHNICAL.md` § T13.2), written at P1 from
    `STATUS.md`'s "Playing it on a phone" section and the full-frame critic's
    first-ten-minutes items — anything tapped twice, anything unreadable at arm's length, a
    frame rate that does not hold through a hit, a hit without a pop, a prompt that blinks
    off, a screen that swallows the run.
 4. **The reference.** Nobody has played the prototype on a phone. At P0, as the owner's first
-   act, before the accounts, the testers and the bake-off's spend, the owner plays it through the first ten minutes and a
+   act after the move commit and question 3(c)'s fix, before the accounts, the testers and
+   the bake-off's spend, the owner plays it through the first ten minutes and a
    KO — after README question 3(c)'s fix if it was taken — and records, in `plan/BASELINE.md`, what a turn, a hit and a draft *feel* like
    and what did not work, with the battle screen's two hero-turn defects (§ F1.4) recorded
    as excluded from the bar, since the app must not reproduce them — the record the felt
@@ -194,15 +195,17 @@ screenshots, are not in the repository and never will be.
   the median of the actor's masked cells and the median of the strip's surviving cells,
   ≥ 1.5:1 (over an L* 41.6 ground that admits an actor above L* 53.5 or below 31.3, as
   ART-REVIEW.md records; an L* ratio would be a different gate) — measured on **one fixed
-  set**: the six seats of the resting frame of every biome at HIGH, 72 readings, the seat
-  list fixed at P0 and an excluded seat counted as a miss, never dropped; the **bar is the
-  share of those readings the prototype's landed rig achieves under this rule at P0's
-  calibration** (its own record under the older strip rule was 106 of 108, quoted for
-  scale only), recorded once and used unchanged by P5 and P6; and the **seat spread** — the
+  set**: the six seats of the resting frame of every biome — 36 seats, 72 strip readings
+  — the seat list fixed at P0, an excluded seat counted as a miss, never dropped, and the
+  fallback cast planted as a fixed reference at P0, P5 and P6; **two bars, both recorded
+  at P0 under this rule** on the prototype's landed rig: at its LOW tier (one flat plane
+  with the key light and grade baked in, the closest match to the placeholder stage P5
+  draws), which is P5's bar, and at HIGH, which is P6's (the record under the older strip
+  rule was 106 of 108, quoted for scale only); and the **seat spread** — the
   largest excess of a seat's torso median (rows 0.33–0.72 of the silhouette's height) over
-  the median seat's — whose bar is likewise what the landed rig achieves on the same
-  72-reading set at P0 (the rig's own 4.5 L was measured with one sprite at all six
-  anchors, the cast's differences removed, so 5 L* is the intent, not the bar). Both are
+  the median seat's — an L* value over the 36 seats whose bars are likewise the rig's at LOW and
+  HIGH (the rig's own 4.5 L was measured with one sprite at all six anchors, the cast's
+  differences removed, so 5 L* is the intent, not the bar). Both are
   **reported** on every sprite's contact sheet and **gated** at P5
   and P6 against the rig over the biome frame goldens (a miss is a light or shadow fault,
   worked in the scene, never by regenerating a sprite). The sheet's contrast columns stay
@@ -258,8 +261,8 @@ screenshots, are not in the repository and never will be.
 | **B — painted characters** | illustrated figures (a Darkest Dungeon or Slay the Spire register) under the same light | the light rig and the screens | the identity: the value instruments and the composition criteria are written for pixel figures; the bar changes from "Octopath" to something the owner has not named; and the asset model: a painted actor ships at twice the cell canvas — 128 × 128 px per frame, 192 × 192 for a boss on the 96-cell canvas (bilinear on the actor plane, no hard-pixel path), so the cast's atlases are ≈ 50 MB resident against 12–14, which with two biomes' bakes presses § T9.5's 250 MB peak-memory budget (one biome resident is the lever), and ≈ 8–15 MB on disk as PNG inside the install budget (`TECHNICAL.md` § T9.7) — both re-derived at P0's exit; about one extra session in P4 for the value targets (README question 1) |
 
 **How B is judged at the bake-off.** A painted figure fails the keyline, colour-count,
-cell-alignment and component criteria by construction, so for look B those are *reported,
-not gating*, and the candidates skip the palette quantisation and integer downscale of
+cell-alignment and component criteria by construction, and the halo criterion is
+manufactured by the bilinear resample, so for look B those are *reported, not gating*, and the candidates skip the palette quantisation and integer downscale of
 normalisation (they are resampled to the cell canvas for measurement only); the value,
 silhouette and motion criteria gate both looks unchanged, and the in-scene ruler is
 reported for both (§ F3.1); if B wins, P4 re-derives the value *targets* (p50 31–40 and
@@ -319,6 +322,8 @@ The criteria, in the order they are checked:
    the shadow back to work, not the sprite.
 7. One cast: the six heroes beside each other read as one palette; each biome's pack reads
    as one family; bosses read heavier than their packs.
+8. Nobody else's: no recognisable third-party character, mark or logo — the critic's call
+   on the sheet, since no metric can make it.
 
 An actor that fails a gating criterion twice after regeneration goes back to prompt and
 reference design, not to more sampling; an actor that fails three times goes to the stop
@@ -387,8 +392,9 @@ Two decision points, each a yes or no from the owner on lit phone frames:
 shipped art, the owner may load P6's plane key instead, only if question 4(b) approves the planes by name (the ceilings are per key, so an unspent sprite cap funds nothing else), and the heroes and
 bosses fall back to the owner's option B (hand-drawn pixel grids at the cell, the process
 of `prototype/.claude-archive/prompts/pixel-pipeline.md`) if the owner still wants them
-redrawn — the twelve master frames ≈ 8–12 sessions at the study's measured rate, the
-derived frames unmeasured, outside the aggregate (README money table; question 6). If that
+redrawn — the twelve master frames ≈ 8–12 sessions at a guessed rate (the study's one frame was
+drawn beside other work in one session, so its rate is unmeasured), the derived frames
+unmeasured too, outside the aggregate (README money table; question 6). If that
 is not affordable, stop means shipping the fallback cast as it is.
 Nothing else in the plan depends on the art succeeding; the portraits have their own
 fallback (§ F3.3) so the screens never depend on them either.
@@ -409,7 +415,10 @@ AI-generated art where the store asks.
 Copyright Office's 2025 guidance, output that is wholly machine-generated is not
 copyrightable; protection attaches to perceptible human authorship (a recorded hand pass,
 a creative arrangement), not to a prompt. The cast can therefore be copied by anyone, and
-§ T10.5 forbids the unrecorded hand edits that would add authorship. The owner approves D9
+§ T10.5 forbids the unrecorded hand edits that would add authorship. The residual risk
+runs the other way too: a generated actor that resembles someone else's character is
+published under the owner's verified developer identity, which § F3.4's criterion 8 and
+the prompt rule reduce and nothing removes. The owner approves D9
 knowing this; the options, if it matters, are recorded human passes over the accepted
 frames (a normalisation step with its own manifest entry), a style model trained on the
 hand-drawn study, or accepting the exposure for a free game.
@@ -431,8 +440,8 @@ backdrops are the **scene phase, P6**: four planes per biome as data-driven pain
 default, inside P6's size — or, where README question 4 approves it by name with its own
 budget line, as AI-generated planes; a plane has no actor-shaped gate, so a generated
 plane is judged by the scene rulers of `TECHNICAL.md` § T10.4 (the ground strips' values
-against the pools, the seat spread and the value order of dark figures on a lit ground,
-measured with the fallback cast planted at the six anchors), then by the critic and the
+against the pools and the seat spread, measured with the fallback cast planted at the six
+anchors as the fixed reference P6's ruler frames use too), then by the critic and the
 owner, and only from a plane provider whose written commercial terms are verified into
 `assets/LICENSES.md` before the branch is taken (§ T10.2's rule, which the P0 check does
 not cover for a provider chosen months later); either way with the light wells, the second hue per biome, the bright mass behind
@@ -443,8 +452,10 @@ the figures and the plate rules the full-frame critic asked for. VFX stay proced
 
 The owner will supply the changes once this plan is final — **and the deadline that
 matters is P0's exit**, when P4's cast pass starts (README, the P0 owner row): a brief
-supplied by then folds into the cast at no extra art cost; a hero changed after its
-sprites are accepted costs § F4.3's price and a consistency re-gate against the cast. This
+supplied by then folds a *changed* hero into the cast at no extra art cost, while a *new*
+hero adds its fifteen frames, its ≈ $20–60 and its contact sheet outside the 43-actor,
+645-frame model (§ F4.3); a hero changed after its sprites are accepted costs § F4.3's
+price and a consistency re-gate against the cast. This
 section fixes what a change *is*, what it costs, and the questions the details must
 answer, so that the changes can be specified and built without a second planning round.
 
