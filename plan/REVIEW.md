@@ -179,3 +179,153 @@ TECHNICAL to pointers" — the light-rig prose was cut, but the technical detail
 implementer (C) asked for made TECHNICAL longer, not shorter, and the README now carries
 the whole approval surface so the owner need not read it; D16's "drop the transfer" — made
 optional rather than dropped, since it is small and the owner decides.
+
+## Round 2 — on revision 2 (commit `10f9942`)
+
+Four reviewers, 97 findings: 8 BLOCKING, 37 GAP, 21 NUMBERS, 31 MINOR (D's readability
+note counted). Round 1's fixes were checked, and five of them were found defective — those
+are the BLOCKING rows below. The structural changes revision 3 made because of this round:
+the seam's hero turn was placed at step 7 of the turn, after the tick, with the enemy turn a
+pending of its own, the extra turn a second decision, forfeit defined and the screen's
+pre-tick enumeration listed as a divergence the port fixes (A5, A6, C1, C3, C8); the
+self-check became the TypeScript harness's trio of paths with every logged answer carrying
+the draws its answerer consumed (A2, C2); the identity model became two accounts — a
+non-admin machine user that writes and the owner who alone reviews — with approvals read
+through the API and the merge queue dropped for a ruleset (A1, A3, B1, C6, D1); the hosts
+were corrected — an x86-64 emulator with KVM in L3, arm64 on the phones or a device farm, one
+environment image that is the agents' container, the developer's and CI's, the device runner
+fenced to the nightly (A4, A13, B8, B9, C4, C5, D2, D3, D6); the art gate is built in
+TypeScript at P0 with the export pinned to the oracle's tag, criterion 6 retired for the
+lit-ground ruler, criteria 7 and 8 kept absolute with the aligned criteria calibrated at P0
+(A7, A12, B2, B3, B4, C11, C14); the lanes were re-cut — L0 ≤ 8 s, L2 split into a part
+measured at P1 and a content-scaled part, the six-act storyboard's playback in L3 and its
+skip-playback in the commit lane (A14, B19, C12, C13, D4); the harness gained
+`--ascension`, the strong-party fixture, a canonical `--dump` and one stream per cell with
+run boundaries, and the cells were recounted (A8, A9, A11, A18, C9, C16, C17); goldens after
+the oracle retires need an explained diff (B12); release builds export replays (B13); P8
+keeps the live URL alive (B14); the money and effort were restated with a defined session,
+the agent compute, the cast's regeneration and a calendar (B6, B23, D8, D13).
+
+### 2-A — adversarial, technical
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| A1 | BLOCKING | The merge queue is organization-only; a transfer would move the Pages URL | dropped: a **ruleset** with required checks, always-run shim jobs, up-to-date branches and linear history (D15, § V5) |
+| A2 | BLOCKING | Self-check path (c) replayed a log while the policy consumed draws the replay never made | the TypeScript harness's three paths mirrored; every logged answer carries `draws=<n>` and the replay burns them; an app log has `draws=0`; "identical draw count" dropped for replays (§ T2.3, § T5.3, § T11) |
+| A3 | BLOCKING | No identity model — one account cannot author and approve | a **non-admin machine user** authors; the owner is the only code owner and reviewer; L3 reads the approving review through the API (D17, § T1, § V5) |
+| A4 | BLOCKING | An arm64 Android emulator runs on no hosted runner | the x86-64 emulator with KVM in L3; arm64 ART on the owner's phones nightly or Firebase Test Lab physical devices, priced (§ T1, § V2, README money) |
+| A5 | GAP | Where `HERO_TURN` suspends; stunned and BURN-killed actors; the extra turn; forfeit | step 7 after the tick; no pending for an actor that lost its turn; the VIOLENT extra turn is a second `HERO_TURN`; `Forfeit` accepted at any battle pending; the screen's divergences listed (D5, § T2.3, § F1.3, § F1.4) |
+| A6 | GAP | Enemy intents and the forecast need per-turn stepping | `ENEMY_TURN { battle, actor, intent }` before each enemy turn, answered by `Continue`, never recorded (§ T2.3, § T5.3) |
+| A7 | GAP | The repository's motion criteria are absolute, the plan's aligned; option (b)'s breath scores zero aligned; the bake-off needs fifteen frames | criteria 7 and 8 absolute as defined; new aligned criteria calibrated at P0; option (b) generates thirteen frames plus the procedural idle (§ F3.1, § T10.3, § T10.4) |
+| A8 | GAP | No `--ascension`; act-1 fixtures die in acts 3–6; ENRAGE and the fourth skill never exercised | `--ascension` and the strong-party fixture as allowed oracle changes; every pack at its home act, A0 and A5; a long fixture tuned until an ENRAGED turn appears (§ T4.2, § T5.3) |
+| A9 | GAP | Multi-run cells shared one stream with no run boundary | one stream per cell in run order; `run <k>` records; the draw index continues across a cell's runs (§ T5.3) |
+| A10 | GAP | `minAscensionFor` lives in `game/screens/vault.ts`, outside the freeze and the sim | `META-VAULT-01` in `:core` with the screen's numbers as its vector; the placement listed as a defect the port fixes; `vault.ts` inside the `oracle-frozen` paths (§ T2.2, § T4.2, § F1.4, § V5) |
+| A11 | GAP | `--dump` "unchanged and comparable" was a contradiction | a canonical `--dump` on both sides, a harness change at P2 (§ T4.2, § T5.4) |
+| A12 | GAP | The art-now option changes the frames the parity band measures | the export is pinned to `ts-oracle-v3`; a web art change re-exports and re-approves (§ T10.9, README question 6) |
+| A13 | GAP | A self-hosted runner on a public repository executes fork code | a unique label used only by the nightly workflow on `schedule` and `workflow_dispatch` from `main`; fork pull requests require approval (D18, § V5, § V6) |
+| A14 | NUMBERS | L0 at 6–12 s realistically; type-resolved detekt on KMP up to 24 minutes; a six-act storyboard is ≈ 75 000 frames | L0 ≤ 8 s on the touched module only; type-resolved detekt out of L0/L1; the six-act playback in L3, skip-playback and the one-act slice in L2b (§ V2, § V3, § T8) |
+| A15 | NUMBERS | A substat value reaches 720; 9 bits overflow | value 10 bits, bytes recomputed; ids regenerated on import (§ T11) |
+| A16 | NUMBERS | The full balance basis is ≈ 135 000 runs, ≈ 10 minutes in Node | 10–15 minutes budgeted, nightly (§ T5.5) |
+| A17 | NUMBERS | `Screen` maps to PorterDuff below 29 — the D3 argument named the wrong modes | D3 cites `ColorDodge` and `Multiply` only (README D3, § T1) |
+| A18 | NUMBERS | The battles cell count did not add up | "one pack per enemy" defined and recounted: the pack sweep ≈ 1 920, the fixture sweep ≈ 1 600 (§ T5.3) |
+| A19 | MINOR | `__eq.config` is a getter | `strong=1` seeds `localStorage['ember-quest/vault']` before boot (§ T4.2) |
+| A20 | MINOR | The export placed in three phases | P0 everywhere (§ T4.2, § T10.9, § T14) |
+| A21 | MINOR | `gate.sh commit` = L0+L1+L2 against pre-commit L1 / pre-push L2 | pre-commit runs L1; pre-push runs `gate.sh commit` = L2a + L2b (§ V2, § V5, § T13.3) |
+| A22 | MINOR | P6's "sprite ≥ 8" equals the kit's current score | above the kit's 8 on the same frames, and the value targets met (§ F3.5, README roadmap) |
+| A23 | MINOR | Pin the Node version for the oracle and the `pow` table | the environment image's pinned Node generates the table (§ T5.2, § V4) |
+| A24 | MINOR | Bakes are already at cell resolution; "collapse" misdescribed them | reworded: atlases kept at cell resolution as today's bakes are (§ T2.5, § T9.3) |
+| A25 | MINOR | A strong party does not guarantee a win | the storyboard gate is "reached", never "won"; forcing hooks (§ V3) |
+| A26 | MINOR | `partySpd` is also a double | covered by the bits rule (§ T5.2) |
+
+### 2-B — adversarial, product and process
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| B1 | BLOCKING | A single GitHub identity; the sidecar read the git author, which is spoofable; the merge queue | = A1, A3; the sidecar names the pull request and L3 reads its approving reviews (§ V5) |
+| B2 | BLOCKING | P0's exit needed a gate that only existed in Kotlin from P1 and a PNG-on-stage path never built; the export scheduled in three phases | the gate is built in TypeScript at P0 — `lineup.ts` PNG input with the sidecar contract, the `PixelActor` registry — and the export happens at P0 (§ T4.2, § T10.4, § T10.9, § T14) |
+| B3 | GAP | Criterion 6 (≥ 3:1 against the navy) contradicts the value target; the repository moved the law to the lit ground | the in-scene ruler ≥ 1.5:1 at the seats in the pass line; the navy basis retired; calibrated at P0 (§ F3.1) |
+| B4 | GAP | Motion bands derived as absolute while alignment was uncalibrated; the criteria-7/8 instruments do not exist | = A7; "rebuilt from ART-REVIEW's definitions, calibrated at P0" (§ F3.1, § T10.4) |
+| B5 | GAP | `STATUS.md`'s "Next", `pixel-pipeline.md` and DESIGN's delivery table still said option B until P8 | rewritten, marked superseded and bannered at P0's exit (§ T4.1, README "What stands still") |
+| B6 | GAP | The money table lacked agent sessions and the cast's regeneration; no calendar | rows added; the calendar as a cadence — three sessions a week, six to twelve weeks, the closed test inside it (README) |
+| B7 | GAP | The closed test's start contradicted between README and TECHNICAL; twelve testers need lead time | it starts on the first P5 build; recruitment starts at P0 with a month's lead (README, § T12, § T14) |
+| B8 | GAP | The self-hosted runner on a public repository; is the owner's machine a Mac? | = A13; question 5 asks; hosted macOS plus Firebase Test Lab otherwise (README question 5, D18) |
+| B9 | GAP | The agent's container has no JDK, SDK, Gradle or caches; the canonical golden container was not the agent's | the environment image `kmp/ci/env.Dockerfile` is P1's first deliverable with its cold start measured, and it is the agents' container, the developer's and CI's; outside it the golden step reports `SKIPPED-GOLDEN`, never green (§ V4, § V9, § T1) |
+| B10 | GAP | The `kmp-quality` rubric's sources are stale generic checklists | written at P1 from `STATUS.md`'s phone section and the critic's first-ten-minutes items; the sources marked stale (§ T13.2) |
+| B11 | GAP | A six-act storyboard gated on a win on a fixed seed couples it to balance | forcing hooks like `ko=1`; the gate is every biome, boss and screen **reached** (§ V3) |
+| B12 | GAP | After the oracle retires goldens are self-recorded; a bug in the same commit as a clause change freezes | the explained golden diff — with the change disabled the previous hashes reproduce; the changed cells named in the clause with the first divergent line (§ V5, § V8, § T7.3) |
+| B13 | GAP | Release builds had no replay export | F2.8: a long-press on the title shares the save; the seed on GAME OVER (§ F2, § T11) |
+| B14 | GAP | P8 moves `package.json`, `pages.yml` breaks and the live URL dies | P8 rewrites `pages.yml` to build from `oracle/` until P9 (§ T4.3) |
+| B15 | GAP | Orientation must close at P0 | README question 2; F2.3 |
+| B16 | GAP | F2.1 "never abandons" against F4.3's REMOVAL; F2.1 is M, not S | F2.1 sized M with the removal exception (§ F2, § F4.3, § T11) |
+| B17 | GAP | The eight bloom comparison frames were built to pass | the first-ten-minutes screens plus one hit peak per biome; a threshold per frame class (§ T9.4, § V3) |
+| B18 | NUMBERS | P6's gate already met by the kit | = A22 |
+| B19 | NUMBERS | Storyboard playback of 66–90 k frames takes minutes | skip-playback measured at P1; the six-act playback in L3 with the one-act slice in L2b (§ V2, § V3) |
+| B20 | NUMBERS | The `--dump` contradiction | = A11 |
+| B21 | NUMBERS | Substat 10 bits | = A15 |
+| B22 | NUMBERS | The bake-off cost formula was wrong | recomputed per provider and in total, ≈ $250 (§ T10.7, README money) |
+| B23 | NUMBERS | The session unit was ambiguous; 65 sessions was 20–40× the v3 build | a session defined by hours and agent count, calibrated against v3's three days; 18–36 sessions (README) |
+| B24 | NUMBERS | The web has no MED-on-phone rule — `BASE_TIER` is HIGH | the tier row corrected: HIGH everywhere today, MED on phones is a difference the app introduces; the band measured at HIGH and reported at MED (§ F1.3) |
+| B25 | NUMBERS | `STATUS.md`'s divergence list has six items | = D12 |
+| B26 | MINOR | The inventory omitted the pictograms and the ambient presets; the character limits need the bundled font; the reference frames need a named commit | added to the Presentation row; the limits re-validated at P5; the export pinned to the tag (§ F1.1, § T9.6, § T10.9) |
+| B27 | MINOR | A QR code needs a camera permission, a scanner and an association file | paste primary; QR optional with its costs named (§ F2.4, § T11) |
+| B28 | MINOR | The `PostToolUse` mechanism | = C22 |
+| B29 | MINOR | Alpha detekt in a gate against principle 6; Renovate on owned paths needs the owner | detekt 1.23.x stable, 2.0 when it leaves alpha; one monthly dependency batch (§ T8, README money) |
+| B30 | MINOR | The parity phase P3 against P5; hero-turn granularity, forfeit and the crash toggle as rows | § V8 aligned; rows in § F1.3 and § F1.4 |
+
+### 2-C — blind, the implementer
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| C1 | BLOCKING | The screen enumerates actions before the tick and the rules after it at step 7; 16.4 % of hero turns differ — a latent oracle bug | = A5; the screen enumerates from the pending; the TypeScript trace emits the pending from inside the wrapped act; the divergence listed (§ T2.3, § F1.4) |
+| C2 | BLOCKING | Path (c) replay skipped the policy's draws | = A2 |
+| C3 | GAP | The VIOLENT extra hero turn calls the policy with no prompt and throws in the interactive path | a second `HERO_TURN`; listed as a defect the port fixes (§ T2.3, § F1.4) |
+| C4 | GAP | The arm64 emulator on no hosted runner | = A4 |
+| C5 | GAP | The canonical container undefined; no Docker in sandboxes | = B9 |
+| C6 | GAP | Approver ≠ author read a text sidecar | = B1 |
+| C7 | GAP | Snapshot resume needs `resumeRun(snapshot)`, a rules-structure change, unspecified and M | specified as entering `runSteps` at a map position, built after parity; F2.1 sized M (§ T11, § F2) |
+| C8 | GAP | Enemy intents before they act are impossible if enemy turns run atomically | = A6 |
+| C9 | GAP | Multi-run cells share one stream | = A9 |
+| C10 | GAP | The generated API, the fixture schema, `matrix.lock`'s format and who commits it | `SpecTables.kt` and the fixture schema (§ T2.1, § T6.2); `matrix.lock` one line per clause, written by L1 in the pre-commit hook and staged (§ T7.2) |
+| C11 | GAP | The motion metrics are not in `lineup.ts` | rebuilt from ART-REVIEW's definitions at P0 with the review's published per-actor values as the calibration target (§ T10.4) |
+| C12 | GAP | Storyboard "seconds" undefined | frame-stepping with virtual time, rendering only captured frames; skip-playback; the timings synthetic at P1 (§ V3, § V4) |
+| C13 | NUMBERS | L0 measured: 3.4–4.0 s compile, 4.5–5.6 s test | L0 ≤ 8 s; V9's rule kept (§ V2) |
+| C14 | NUMBERS | The settle band is the absolute diff; aligned would fail fourteen actors | = A7 |
+| C15 | NUMBERS | Substat 10 bits | = A15 |
+| C16 | NUMBERS | The `--dump` contradiction | = A11; `trace-hash` is the cross-build comparison (§ T5.4) |
+| C17 | NUMBERS | 37 × 2 × 20 = 1 480 | = A18 |
+| C18 | MINOR | The export in three phases; T4.2's sequence | = A20; the sequence is `--trace`, strong, tag (§ T4.2) |
+| C19 | MINOR | `__eq.config` is a getter | = A19 |
+| C20 | MINOR | The `:sim` CLI mixed subcommands and flags | one grammar — subcommands with flags (§ T5.4) |
+| C21 | MINOR | `paths:` validity only for contract clauses | stated (§ T7.1) |
+| C22 | MINOR | The `PostToolUse` hook is synchronous | stated: synchronous, ≤ 8 s, one run per two seconds, reports and cannot block (§ V5, § T13.3) |
+| C23 | MINOR | JS numeric comparators need a translation rule | a `Comparator` returning the sign of the same difference; `sortedWith` is stable (§ T5.2) |
+| C24 | MINOR | `instruments approve` missing from the list | instrument 7 (§ V3) |
+| C25 | MINOR | The synthetic module's shape | generated from the rules' measured function-size histogram, property tests included (§ V9) |
+
+### 2-D — blind, the owner's advisor
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| D1 | GAP | Identities, the admin bypass, the merge queue; which gates need the owner | = A1, A3; the ruleset applies to administrators; the owner-only approvals named per gate (D17, § V5) |
+| D2 | GAP | The canonical golden image is not available in the agent's container | = B9 |
+| D3 | GAP | The self-hosted runner on a public repository | = A13 |
+| D4 | NUMBERS | L2 ≤ 5 min is unprovable at P1 for content-scaled steps | L2 split: L2a measured at P1, L2b content-scaled and measured at P4 and P5, with what moves to L3 named (§ V2) |
+| D5 | NUMBERS | The closed test's start | = B7 |
+| D6 | NUMBERS | The arm64 emulator's host | = A4 |
+| D7 | MINOR | `--dump` uses V8 formatting | = A11 |
+| D8 | MINOR | The agent compute row | added (README money) |
+| D9 | MINOR | D15 and D3 should be owner decisions; the review load; whether and when the owner reviews | Owner: yes on both; the review-load row in the money table; the owner-only approvals named per gate (§ V5) |
+| D10 | MINOR | The README's "Then" row against F4.4 | aligned: from P5 on |
+| D11 | MINOR | The keyboard storyboard run missing from L2 | in L2b (§ V2, § V3) |
+| D12 | MINOR | `STATUS.md`'s list has six items | six, listed (§ T7.6, § F1.1) |
+| D13 | MINOR | Recruiting the testers is a P0 deliverable | = B7 |
+| D14 | MINOR | The binder's own tests | V9's first step |
+| D15 | MINOR | Verifier blindness | the verifier's worktree at the spec commit; the coordinator runs its tests against the writer's branch (§ T6.3, § T13.4) |
+| D16 | MINOR | Register cells are paragraphs; the roadmap appears twice with divergent wording | the two roadmap copies reconciled (the README in full, § T14 the entry and exit conditions); the register partly, see below |
+
+**Declined or only partly applied (MINOR):** D16's "one line per decision" — each decision
+stays one table row, but the row keeps its alternatives and its reason because the register
+is the approval surface and those are what the owner is approving; B6's calendar is a
+cadence and a range, not dates per phase, because the sizes are re-estimated twice (after P1
+and P2) and dates written now would be wrong by then; B27's QR code is kept as an option
+with its costs named rather than removed.
