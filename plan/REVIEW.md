@@ -576,3 +576,104 @@ the critic's model is pinned (B4, B6, B7).
 **Declined or only partly applied (MINOR):** A8's "cut the set to 18" — moot, the set is
 six; D11's stricter bar — offered to the owner, not adopted by the loop, since a round with
 zero minor findings from four reviewers is not a bar any document meets.
+
+## Round 5 — on revision 6 (commit `1180072`)
+
+Four reviewers on a lighter model, 54 findings: 6 BLOCKING, 16 GAP, 11 NUMBERS, 21 MINOR.
+The six blocking rows are three defects seen by several reviewers: the P4 gate value that
+revision 6 raised to 9 in two documents and left at 8 in the phase table (A9, B1, C8, D1);
+the freeze check's command, which exits non-zero with no tag and cannot see tags on a
+shallow checkout (A1, C1, B14); and a bootstrap order that proved the review mechanics
+before the ruleset, `CODEOWNERS` and the check existed (B2, C2, A5). The gaps were in the
+enforcement plumbing and the P0 tooling: the owned-path check could be rewritten by the
+pull request it gates (B3), shim jobs could not run under a workflow-level path filter (B4,
+A3), the owned-path and contract-clause checks had no review-event trigger and would
+deadlock (C3, D8), "branches up to date" would dismiss every approval at every unrelated
+merge (A4), the compact relic encoding, the halo and portrait metrics, the strips' geometry
+and the environment's equivalence test were undefined (C4, C5, C6, C7, A7), the farm cannot
+run Maestro and GitHub's free arm64 runners were never weighed (B7, B8), and the P4 bar was
+set against a score taken without the pinned protocol (B6). Revision 7 resolves all of
+them; the structural changes: every workflow runs on every pull request with a `changes`
+job and self-skipping jobs, no up-to-date rule, the three owner-review checks on review
+events and under `pull_request_target` from `main`'s definition, a two-step P1 bootstrap
+with two throwaway pull requests, `env-check` over a version manifest, spike 5b on an arm64
+runner, and the critic's baseline scored at P0.
+
+### 5-A — adversarial, technical
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| A1 | BLOCKING | The freeze check exits non-zero with no tag and a shallow checkout has no tags | `git rev-parse -q --verify … \|\| exit 0` before the diff; `fetch-depth: 0` (§ V5, § T4.1) |
+| A2 | GAP | `prototype-check` raced the preview server | `--strictPort` and `wait-on` before the smoke (§ V5) |
+| A3 | GAP | Shim jobs inside path-filtered workflows never run | no workflow-level filters; a `changes` job and self-skipping jobs in every workflow (§ T4.1, § V5, D15) |
+| A4 | GAP | "Branches up to date" dismisses every approval at every unrelated merge | the rule dropped; a semantic conflict is caught by the post-merge run on `main`, which blocks unrelated merges while red (§ V5, D15, README) |
+| A5 | GAP | V9 proved the review mechanics before the artefacts existed; "P1's first step" | the provisional ruleset and `CODEOWNERS`, then two throwaway pull requests at the right places (§ V9, § T1, § V1, D15) |
+| A6 | GAP | `bakeFlat` resamples the floor, so the composite cannot carry the crisp floor | far and mid from the unlit `bakeFlat` path, the floor through `bakePlane`'s crisp branch at 1:1 (§ T4.2, § T9.7) |
+| A7 | GAP | The recipe's two forms had no drift check and no failure-class row | `versions.env`, the manifest, `gate.sh env-check`; a § V6 row (§ V4, § V6, § V9) |
+| A8 | NUMBERS | The settle band is 20–39 since round 12, not 21–39 | corrected (`FUNCTIONAL.md` § F3.1, § T10.4) |
+| A9 | NUMBERS | § T14's P4 gate still at 8 | the gate is one above the P0 baseline under the pinned protocol, expected 9 (§ T14, README, `FUNCTIONAL.md` § F3.5) |
+| A10 | NUMBERS | The size bands did not match ART-REVIEW's record (hero 52–60, standard 40–50, elite 50–56, bosses 65–93) | the recorded bands, with any change recorded as a decision (`FUNCTIONAL.md` § F3.1) |
+| A11 | MINOR | P0's question lists disagreed | one list — 1, 2, 3(b), 6, 7, 8, 10 — in all three places (README, § T14) |
+| A12 | MINOR | P5's and P6's clause promotions missing from the owner's rows | added (README) |
+
+### 5-B — adversarial, product and process
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| B1 | BLOCKING | The P4 gate value in the phase table | = A9 |
+| B2 | BLOCKING | The bootstrap order | = A5 |
+| B3 | GAP | The owned-path check ran from the pull request's own head and could be rewritten by it | the three owner-review checks and the generated-workflows check run under `pull_request_target` from `main`'s definition; a § V6 row (§ V5, § V6, D15) |
+| B4 | GAP | The shims had no trigger under a workflow-level filter | = A3 |
+| B5 | GAP | The App must be installed at P0 for spike 6 | the P0 owner row; "an absent owner blocks the environment spike" (README) |
+| B6 | GAP | The P4 bar compared a protocolled score against an unprotocolled 8 | spike 8: the pinned critic scores the prototype's cast at P0; the bar is baseline + 1 (`FUNCTIONAL.md` § F3.5, § T14, README) |
+| B7 | GAP | The farm branch exceeds the free quota nightly and cannot run Maestro | priced; the farm covers the hash test and the benchmarks; the Maestro rows SKIPPED (README question 5, § T1, § V2, § V6, D18) |
+| B8 | GAP | GitHub's free arm64 Linux runners were never weighed | spike 5b; an arm64 JVM leg in L3 if it passes; the phone's role narrowed (§ T1, § T5.2, § V2, § T14, D18, README) |
+| B9 | NUMBERS | D12 still said "pitch by resampling" | corrected (README D12) |
+| B10 | NUMBERS | P0's deliverable lists omitted questions 10 and 3(b) | = A11; question 3 split in the owner's table |
+| B11 | NUMBERS | "11–22 to the test tracks" omitted P4's capacity | 13–26 of capacity, 11–22 of depth; the first build during P5 (README) |
+| B12 | NUMBERS | Option B's 8–16 rested on an unmeasured speed-up | the masters ≈ 8–12 at the measured rate, the derived frames unmeasured, measurable at P0 (README, `FUNCTIONAL.md` § F3.5) |
+| B13 | NUMBERS | "Two days earlier" was one day | "the day before" (README) |
+| B14 | MINOR | The freeze command's guard and checkout | = A1 |
+| B15 | MINOR | The README's P1 gate promised more than P1 measures | "P1-measurable" (README) |
+
+### 5-C — blind, the implementer
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| C1 | BLOCKING | The freeze check's command | = A1 |
+| C2 | BLOCKING | The bootstrap order | = A5 |
+| C3 | BLOCKING | The owned-path and contract-clause checks had no review-event trigger and would deadlock | the sentence above § V5's table: all three checks run on review events (§ V5) |
+| C4 | GAP | The compact relic encoding was never defined | a row in the trace table (§ T5.3) |
+| C5 | GAP | The halo check and the portrait metrics had no formulas | formulas and statuses (§ T10.4, `FUNCTIONAL.md` § F3.3) |
+| C6 | GAP | The strips' rows and x-window were unstated | stated once (§ T10.4) |
+| C7 | GAP | "Proven equivalent" had no criterion | = A7 |
+| C8 | NUMBERS | The P4 gate value | = A9 |
+| C9 | NUMBERS | § F3.7 said four painters per biome and tier | far, mid and floor; six images (`FUNCTIONAL.md` § F3.7) |
+| C10 | MINOR | P0's question lists | = A11 |
+| C11 | MINOR | "Every analyser configuration" was not a glob | literal globs (§ V5) |
+| C12 | MINOR | The `changes` job and the shims unspecified | specified (§ T4.1, § V5) |
+| C13 | MINOR | `setup.sh` read a `.nvmrc` that does not exist until P2 | "22.x until the pin" (§ V4) |
+| C14 | MINOR | `--path c` has no prototype counterpart | `--path a\|b` on the prototype, `a\|b\|c` in `sim` (§ T4.2, § T5.4) |
+| C15 | MINOR | The sound render's length and trim | stated (§ T4.2) |
+| C16 | MINOR | The `:core` exemption described two ways | reconciled: a module-wide suspension plus the per-function reason (§ T5.1) |
+| C17 | MINOR | `device-runner` rows never reached the ledger | appended to the nightly's issue (§ V5, § T13.5) |
+| C18 | MINOR | Palette overlap had no formula | defined (`FUNCTIONAL.md` § F3.1) |
+
+### 5-D — blind, the owner's advisor
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| D1 | NUMBERS | The P4 gate value | = A9 |
+| D2 | MINOR | D12's resampling; "two or three variants" | = B9; three (§ T9.7) |
+| D3 | MINOR | P0's question lists | = A11 |
+| D4 | MINOR | Question 10's "no" branch written three ways; F2.7 and the corpus not marked contingent | one statement in question 10, echoed in D6; F2.7 and § T11's corpus contingent (README, `FUNCTIONAL.md` § F2) |
+| D5 | MINOR | "Top ten" with eleven rows | "Risks" (README) |
+| D6 | MINOR | The App installed at P1 but needed at P0 | = B5 |
+| D7 | MINOR | The P2 owner row omitted the harness pull requests | added (README) |
+| D8 | MINOR | The review-event trigger and the "or a contract clause" rule | = C3; the rule widened (§ V5, D17) |
+| D9 | MINOR | D3's blend-mode fact unspiked and unpriced | spike 1 covers it; the reach cost and the rejected alternative stated (README D3, § T14) |
+| D10 | MINOR | § F6 absent from the approval surface | item 8 of "What you are approving" (README) |
+
+**Declined or only partly applied (MINOR):** none declined; A4's content-addressed approval
+was not adopted — dropping the up-to-date rule is simpler and the post-merge run covers
+the case it protected.

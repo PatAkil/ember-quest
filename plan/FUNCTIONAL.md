@@ -140,7 +140,7 @@ other rows are approved with the plan and built in the phase named in the Phase 
 | F2.4 | **Interruptions** | a call or a switch to another app pauses the game and the sound; returning resumes on the pause overlay | The app pauses on lifecycle events and yields audio focus. | S | P5 |
 | F2.5 | **App identity** | icon, splash, store listing, a credits screen that names the AI art providers | Store metadata is copy the owner writes; the credits line is required by § F3.6. | S | P5 (identity), P7 (copy) |
 | F2.6 | **Device tiers** | a 2022 mid-range phone runs MED at 60 Hz; older devices start LOW; the toggle in settings | The tiers are the contract's; the *default* comes from a three-second stage benchmark run behind the title on first launch — the title needs no stage, so the ≤ 2 s boot budget of `TECHNICAL.md` § T9.5 holds and the tier is decided before the first battle (§ F1.3). | S | P5 |
-| F2.7 | **Bug reports from a release build** | a long-press on the title shares the current run's save file; the seed is shown on GAME OVER | So the owner's felt rows, the first-ten-minutes test and the closed testers — all on release builds — can report a bug that replays (`TECHNICAL.md` § T11). The rest of the debug drawer stays debug-only. | S | P7 |
+| F2.7 | **Bug reports from a release build** (the save share contingent on question 10's yes) | a long-press on the title shares the current run's save file; the seed is shown on GAME OVER | So the owner's felt rows, the first-ten-minutes test and the closed testers — all on release builds — can report a bug that replays (`TECHNICAL.md` § T11). The rest of the debug drawer stays debug-only. | S | P7 |
 
 Optional, not planned: controller support (cheap on the keyboard route), portrait layout,
 localisation beyond keeping strings in one place, cloud saves, accounts (PvP will decide).
@@ -158,8 +158,10 @@ metrics of ART-REVIEW.md), because the reference frames themselves are the owner
 screenshots, are not in the repository and never will be.
 
 - **Cell and size.** One cell is 2 screen px at 720p. The canvas is 64 × 64 cells (96 × 96
-  for a boss). A hero is 52–58 rows tall and occupies at most 48 of the 64 columns; an
-  ordinary enemy 24–56 rows; a boss 84–96 rows on the 96-cell canvas. Feet at the bottom centre; authored facing right (the battle mirrors
+  for a boss). The bands are the review's recorded ones: a hero 52–60 rows tall, occupying
+  at most 48 of the 64 columns; a standard enemy 40–50 rows; an elite 50–56; a boss at
+  least 60 on the 96-cell canvas (the six measured 65–93). A taller boss band is a change
+  the owner may make at the bake-off, recorded as such — never a silent renumbering. Feet at the bottom centre; authored facing right (the battle mirrors
   heroes).
 - **Line and tone.** A full 1-px keyline that follows the material (near-black with a hue on
   garments and boots, the material's own dark step on light hair, dark brown on skin);
@@ -186,14 +188,18 @@ screenshots, are not in the repository and never will be.
   in greyscale too.
 - **Silhouette.** *Pass*: no two actors' idle silhouettes overlap above 78 % (feet-aligned,
   centred); a humanoid with a stance has a mirror IoU under 85 %; the *cast* palette
-  overlap between any two actors under 25 % (a different metric from § F3.4's
-  frame-to-frame overlap within one actor). *Target*: heroes ≤ 65 % against every other actor — a brim, a horned
+  overlap between any two actors under 25 %. **Palette overlap**, both uses: the summed
+  area share of the cells whose quantised colour appears among the other image's ten most
+  frequent colours, taken as the minimum of the two directions — cast overlap between two
+  actors' idle 0, frame-to-frame (§ F3.4) between an actor's aligned frames. *Target*: heroes ≤ 65 % against every other actor — a brim, a horned
   helm, a coat with tails, a half-cape.
 - **Motion.** Five poses — idle, attack, hurt, cast, dead — three frames each. The two
   criteria the prototype already defines are kept **as defined, as absolute differences**
   (ART-REVIEW.md's convention), with one denominator: **differing cells ÷ cells in the
   union of the two masks**: idle changes ≥ 17 % between frames (a one-cell breath is a
-  translation and counts); the settle band — attack 2 against idle 0 — 21–39 %.
+  translation and counts); the settle band — attack 2 against idle 0 — **20–39 %** (round
+  12's widened band, which rounds 13 and 14 measured against; the 21 floor of round 11 is
+  superseded).
   Three criteria are **new** and measured after alignment, defined once so the numbers mean
   one thing: *alignment* is the integer translation that maximises silhouette IoU against
   idle 0; *part travel* is the displacement of the centroid of the largest 8-connected
@@ -252,7 +258,7 @@ names what happens on a "no".
 | Heroes | 6 | 64 × 64 cells | five poses × three frames = 15 frames each; authored facing right |
 | Normal and elite enemies | 31 | 64 × 64 | same poses; creatures (a raptor, a jelly, a coil) are exempt from the mirror-IoU rule |
 | Bosses | 6 | 96 × 96 | same poses; heavier and taller by the size rule |
-| Portraits | 43 | painted, ≥ 256 px, cropped to 48-px chips | one per actor; the element mark is drawn by the UI, not painted. **Their own criteria** (the sprite metrics do not apply): crop-safe at 48 px (the face inside the chip's safe area); the face reads as two dark clusters and a highlight at 48 px; the palette agrees with the actor's element ramp; consistent with the sprite's hair, headgear and colours; no text, no watermark — the tool measures the first three, the critic judges the last two. **Fallback**: a normalised head crop of the sprite, generated by the tool, which the screens are designed to accept from P5 so no screen ever depends on a portrait |
+| Portraits | 43 | painted, ≥ 256 px, cropped to 48-px chips | one per actor; the element mark is drawn by the UI, not painted. **Their own criteria** (the sprite metrics do not apply): crop-safe at 48 px (the face inside the chip's safe area); the face reads as two dark clusters and a highlight at 48 px; the palette agrees with the actor's element ramp; consistent with the sprite's hair, headgear and colours; no text, no watermark — the tool measures the first three with the formulas of `TECHNICAL.md` § T10.4, the critic judges the last two. **Fallback**: a normalised head crop of the sprite, generated by the tool, which the screens are designed to accept from P5 so no screen ever depends on a portrait |
 | Total sprite frames | 645 | stored at cell resolution | the budget model is in `TECHNICAL.md` § T10.7 |
 
 ### F3.4 Acceptance criteria — what the player must be able to see
@@ -298,9 +304,11 @@ candidate is which, nor what changed — three runs per verdict and the median s
 verdict below the bar names the failing criterion by number. The prompt, the five axes,
 the scoring **and the model with its version** are frozen in `plan/spikes/7/CRITIC.md`
 before the first verdict of the bake-off and promoted unchanged into `spec/art/` at P0's
-exit; every verdict records the model and version; if the model must change during the
-programme, the new one re-scores a frozen calibration sheet (the prototype's round-14
-cast, whose scores are published) and the offset is recorded as a register decision.
+exit; every verdict records the model and version; at P0 the pinned critic scores the
+frozen calibration sheet — the prototype's round-14 cast in lit frames — three times, and
+the medians are the **baseline** every later bar is set against; if the model must change
+during the programme, the new one re-scores the sheet and the offset is recorded as a
+register decision.
 
 Two decision points, each a yes or no from the owner on lit phone frames:
 
@@ -309,9 +317,11 @@ Two decision points, each a yes or no from the owner on lit phone frames:
    more bake-off); or *stop*.
 2. **After the six heroes (in P4):** the party on the prototype's stage in three biomes,
    the six meeting the value target the prototype's kit fails (§ F3.1) and scored by the
-   full-frame critic **at or above 9 on the sprite axis** under the protocol above — the
-   rejected kit already scored 8, so 8 would prove nothing; the value target and the
-   owner's eye are the discriminating criteria, the score a floor.
+   full-frame critic **at least one point above the prototype cast's baseline** on the
+   sprite axis — the baseline being the median the *same pinned model and prompt* give the
+   prototype's round-14 cast frames at P0 (expected 8, so the bar is expected to be 9; the
+   old 8 was a single verdict under no protocol and proves nothing); the value target and
+   the owner's eye are the discriminating criteria, the score a floor.
    *Continue* to the enemies; *change provider*; or *stop*. The cast is judged once more on
    the real stage at P5's end; a miss there is a light or composition fault and is worked in
    the scene phase, not by regenerating the cast.
@@ -321,8 +331,9 @@ Two decision points, each a yes or no from the owner on lit phone frames:
 shipped art, the remaining art budget moves to the scene phase (P6), and the heroes and
 bosses fall back to the owner's option B (hand-drawn pixel grids at the cell, the process
 of `prototype/.claude-archive/prompts/pixel-pipeline.md`) if the owner still wants them
-redrawn — **≈ 8–16 sessions for the twelve, outside the aggregate** (README money table;
-question 6). If that is not affordable, stop means shipping the fallback cast as it is.
+redrawn — the twelve master frames ≈ 8–12 sessions at the study's measured rate, the
+derived frames unmeasured, outside the aggregate (README money table; question 6). If that
+is not affordable, stop means shipping the fallback cast as it is.
 Nothing else in the plan depends on the art succeeding; the portraits have their own
 fallback (§ F3.3) so the screens never depend on them either.
 
@@ -357,9 +368,9 @@ later character is in § F4.3.
 ### F3.7 Backdrops, VFX and portraits
 
 The stage is built at P5 over **placeholder backdrops**: one flat, unlit composite of the
-prototype's four painters per biome and tier, captured once at P0 (`TECHNICAL.md` § T10.9),
-drawn as a single plane and lit by the rig from the biome's light data (the pools follow
-the stage anchors). The real
+prototype's far, mid and floor painters per biome — six images, one per biome, drawn at
+every tier — captured once at P0 (`TECHNICAL.md` § T10.9), drawn as a single plane and lit
+by the rig from the biome's light data (the pools follow the stage anchors). The real
 backdrops are the **scene phase, P6**: four planes per biome as data-driven painters or as
 AI-generated planes through the same gate-then-critic process, with the light wells, the
 second hue per biome, the bright mass behind the figures and the plate rules the full-frame
