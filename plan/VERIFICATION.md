@@ -138,12 +138,19 @@ tables are what it argues with. The Kotlin instruments live in `:tools:instrumen
   `ghcr.io/<owner>/ember-quest-env`, whose pull request writes the digest into
   `lanes.yaml`; the image carries the marker `/etc/ember-env-image`, which is how the hooks
   tell the image from any other host) and `setup.sh` (the same steps — JDK, the Android
-  SDK, the Gradle distribution, Node at `.nvmrc`, the bundled fonts, warmed caches where
-  the host allows — for a host that cannot run the image, on Linux with `apt` and on macOS
-  with `brew`, since the owner's Mac runs P0's iOS spike and P1's golden comparison). The agents' cloud environment is such a host: it
-  is provisioned by a session-start script, not by an image, so it runs `setup.sh`, and P0's
-  environment spike measures its cold start (budget ≤ 6 min to a warm L0; the alternative,
-  costed in the README, is a self-hosted agent pool that runs the image).
+  SDK, the Gradle distribution, Node at the root `.nvmrc` (22.x until the pin is created
+  at P2), the bundled fonts, warmed caches where the host allows — for a host that cannot
+  run the image, on Linux with `apt` and on macOS with `brew`, since the owner's Mac runs
+  P0's iOS spike and P1's golden comparison). **They agree by construction and by check**:
+  both read one `ci/env/versions.env`, both end by writing `ci/env/manifest.json` (the
+  installed versions of the JDK, Gradle, Node, every Android SDK package, the fonts, the
+  marker), and `gate.sh env-check` — in L0 and in the image workflow — fails when the
+  manifest a host produced differs from the image's in any field; "proven equivalent" at
+  P1 means that check passing on `agent-env` and on the owner's Mac. The agents' cloud
+  environment is such a host: it is provisioned by a session-start script, not by an
+  image, so it runs `setup.sh`, and P0's environment spike measures its cold start (budget
+  ≤ 6 min to a warm L0; the alternative, costed in the README, is a self-hosted agent pool
+  that runs the image).
 - **Rendering**: goldens are recorded and compared **inside the image**. Inside it goldens
   are byte-exact at `k = 1`; a golden diff prints the changed pixel count and a
   side-by-side. Skia rasterises text through the host's font backend and its SIMD tier is
@@ -283,16 +290,19 @@ a one-page summary monthly; the budgets are revisited then and only then.
 ## V9 Bootstrapping the rig (P1)
 
 In order, each proven before the next: the environment recipe — the image built and
-pinned, `setup.sh` proven equivalent on `agent-env` with its cold start in the ledger
-(P0's spike, confirmed here) → the GitHub App installed and an agent session opening a
-pull request with it → **the review mechanics proven on a throwaway pull request**: whether
-a code-owner review is enforced at zero required approvals, and the owned-path check
-failing a pull request on an owned path without the owner's review on its head commit and
-passing with it → the convention plugins and the empty modules with the edge
-assertions → `lanes.yaml`, `gate.sh`, the generated workflows with their shim jobs and
-the prototype workflow (no shim), merged **before** the ruleset names them → the ruleset (approvals 0, code-owner review,
-stale-approval dismissal, the required checks), `CODEOWNERS`, the tag ruleset and the
-`release` environment — from here every step lands as a pull request → Spotless and detekt
+pinned, `setup.sh` proven equivalent on `agent-env` and on the owner's Mac by `env-check`
+over the version manifest, the cold start in the ledger (P0's spike, confirmed here) → an
+agent session opening a pull request with the App installed at P0 → the owner's
+**provisional ruleset** (a pull request required, approvals 0, a code-owner review
+required, stale approvals dismissed, no required checks yet) and `CODEOWNERS` — from here
+every step lands as a pull request — and **the first throwaway pull request**, which
+proves whether a code-owner review is enforced at zero required approvals → the
+convention plugins and the empty modules with the edge assertions → `lanes.yaml`,
+`gate.sh`, the generated workflows (every one running on every pull request with its
+`changes` job) and the prototype workflow → the required checks added to the ruleset, the
+tag ruleset and the `release` environment → **the second throwaway pull request**, which
+proves the owned-path check failing on an owned path without the owner's review on the
+head commit and passing once the review is given, without a new push → Spotless and detekt
 with the budgets → Kotest on the JVM with one clause and the binder generating one table,
 **and the binder's own tests** (an unbound clause, an unknown id, a bound `proposed` clause
 in a pull request, a missing report each fail a fixture lane) → Konsist and the JVM ABI
