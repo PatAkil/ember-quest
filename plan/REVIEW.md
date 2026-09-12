@@ -1031,3 +1031,112 @@ the approval surface.
 | D18 | MINOR | Question 10's price did not say whether it sits inside P5's XL | "inside P5's XL", with the saving on "no" (README question 10) |
 
 **Declined or only partly applied (MINOR):** none declined.
+
+## Round 9 — on revision 10 (commit `5ab9fd4`)
+
+Four reviewers on a lighter model, 59 findings: 1 BLOCKING, 22 GAP, 5 NUMBERS, 31 MINOR.
+The blocking row is residue again: revision 10 named `fixturePack` as the P2 pack builder,
+which is module-private and hard-codes act 1, while enemy scaling happens in the exported
+`spawnPack` (C1, A3). Two round-8 resolutions had over-corrected: adding the shared
+neutrals to the portrait palette criterion made it unfailable (A2), and the in-scene ruler,
+taken off the sprites, was attached to no stage gate (B5) and had no formula — its 1.5:1 is
+a luminance contrast, not an L* ratio (A1, C13). The remaining gaps are of round 8's three
+kinds. Owner commitments the approval surface lacked: the admin hours (B1, D4), the
+baseline play sequenced after the defect fix and doubling as a product go or no-go (B2,
+B3), the character brief's real deadline (B4), the store name and ids (D3), a mixed cast at
+launch when a subscription winner paces P4 (D1). Mechanisms: the spend counter's rows and
+the per-key caps (B6), `changes` job names colliding (B8), the image workflow's file (A9,
+C3), goldens recorded where the image cannot run (A5), a forfeit at an enemy turn that a
+replay would misplace (A4), the P1 subset of L3 and L4 (C6). The specification: the
+fixtures' single source and the cell line's ownership (C4, C5), the painted boss canvas
+(C7, D2), the owned fixture paths (C2), iOS tested by nobody but the owner (B7). Two
+minors are declined with GitHub's own pages quoted: the merge queue is
+organization-only (B18) and a `pull_request_review` run is in the merge-commit context
+(B23). Revision 11 resolves the rest; the structural changes: the in-scene ruler has a
+formula, a share-based bar and a place in P5's and P6's gates and in L2b; the calendar
+states both the best case and the measured case; the owner's admin hours, the go or
+no-go, the character brief's deadline and the mixed-cast approval are on the approval
+surface; every job name carries its workflow; the fixtures are one JSON source; the
+counter's rows land in every pull request behind per-key caps.
+
+### 9-A — adversarial, technical
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| A1 | GAP | The in-scene ruler had no formula: its 1.5:1 is a luminance-contrast ratio, not the L* ratio the bible's word "value" implies, and whether the gate is every seat or a share was unstated | the WCAG relative-luminance ratio defined; the bar is the share the landed rig achieved at P0 (106 of 108); the seat spread defined on the torso band (`FUNCTIONAL.md` § F3.1, § T10.4) |
+| A2 | GAP | With the neutrals counted, every grey and nearly every low-chroma colour lies within ΔE 20 of the reference set, so the portrait criterion could not fail | the element's hue must be present — at least 15 % of the chip's cells within ΔE 12 of the accent or glow — with the neutrals permitted and uncounted (§ T10.4, `FUNCTIONAL.md` § F3.3) |
+| A3 | GAP | `fixturePack` is private and act-1-only; `BattleCtx` does not scale enemies | the exported `spawnPack(ids, act, lap, ascension, clears, pacts)` builds the pack and the same values go into `BattleCtx` (§ T4.2, § T5.3) |
+| A4 | GAP | A forfeit at an enemy turn would replay at the next hero turn, after rng draws | `forfeit at=<kind> turn=<actorTurns>`; the replay stops at that turn (§ T5.3, § T11) |
+| A5 | GAP | Goldens must be recorded inside the image, which the agents' host may not run | the merge workflow's `record-goldens` job renders inside the image and uploads the PNGs; question 9's second reason restated (§ V4, § V9, README question 9) |
+| A6 | MINOR | Booleans had no encoding | `0\|1` everywhere (§ T5.3) |
+| A7 | MINOR | The N − 1 save corpus vanished at the first bump | the previous version's corpus kept under `v<N-1>/` (§ T11) |
+| A8 | MINOR | An exporter for four values, outside the allowed changes | the four values and the tie-break written into the `META-VAULT` clause (§ T5.1) |
+| A9 | MINOR | The image-build workflow had no file and no bootstrap step | `.github/workflows/env-image.yml`, hand-written, created in M3 (§ T2.1, § V4, § V9) |
+| A10 | MINOR | `node-version: 22` kept beside `node-version-file` at P0 | the literal goes at P0 (§ T4.1) |
+| A11 | MINOR | A `selfcheck` trace mode with no definition | dropped from the `mode` record (§ T5.3) |
+
+### 9-B — adversarial, product and process
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | The owner's non-review work — accounts, apps, rulesets, the runner, the Mac, the listings, the testers, the channel, App Review — was unpriced, and the steady state had no owner figure | ≈ 15–25 hours over the programme, most in P0, P1 and P5; the steady state's owner share stated (README effort, item 6, money table) |
+| B2 | GAP | The baseline play would record a feel the spec forbids, on a battle screen with the two hero-turn defects | the play follows question 3(c)'s fix if taken, and `BASELINE.md` records the two defects as excluded from the bar (README P0 row and question 3(c), `FUNCTIONAL.md` § F1.5) |
+| B3 | GAP | Nothing asked whether the game is worth building before P3 | the baseline play is a go or no-go recorded in the register, before the rig and the cast are paid for; a risk row (README P0 row, P0 gate, risks; § T14) |
+| B4 | GAP | The character brief's free-fold deadline is P0's exit and nothing asked for it by then | the brief due at P0's exit, or § F4.3's price accepted (README P0 row, `FUNCTIONAL.md` § F4, § T14) |
+| B5 | GAP | The in-scene ruler was "gated at P5 and P6" but in neither phase's exit criteria nor any lane | in P5's and P6's exit rows and in L2b's contents from P5 (README, § T14, § V2) |
+| B6 | GAP | The counter's rows could stay in a worktree, parallel packs could each spend the headroom, and the per-key caps had no amounts | every run's rows land in a pull request, `art gate` fails a manifest with no rows, per-key caps with amounts in the P0 row, P6's $500 on top of the $4 000 (§ T10.1, § T10.7, README) |
+| B7 | GAP | iOS reached App Review tested by nobody but the owner | external TestFlight with the same testers, an S inside P5 (§ T12, README P5 rows, § T14) |
+| B8 | GAP | Same-named `changes` jobs across workflows collide as required checks | the generator names every job after its workflow; the nightly is outside the rule (§ V5, § T4.1, README D15, § V9) |
+| B9 | NUMBERS | The twelve-to-fourteen-week floor assumed a capacity the plan's own measurement says the owner does not have | both cases stated: twelve to fourteen weeks at three or more sessions a week, nineteen to thirty-eight at the measured one to two (README item 6 and effort) |
+| B10 | NUMBERS | 60–90 hours did not follow from the sitting lengths | ≈ 45–90 hours of review (README) |
+| B11 | NUMBERS | The private repository was a parenthetical cost, not a priced branch | question 8(b), priced (README question 8) |
+| B12 | NUMBERS | The portrait branch omitted the placeholders, the cell scale, the size bands and the anchors | re-priced at 4–6 extra sessions with each part named (README question 2) |
+| B13 | MINOR | The subscription tier was a blank and the money table had no total | the Max-class tier assumed at ≈ $100–200 a month; a programme-total row (README money table) |
+| B14 | MINOR | The closed test's trigger was stated two ways | one statement — the first merge-lane pass inside a window the owner can cover (README money table, absence protocol; § T14) |
+| B15 | MINOR | D16's owner column said "no" for a decision question 4(b) makes | "yes (question 4(b))" (README) |
+| B16 | MINOR | The P2 row denied a clause review the balance fold needs | "no contract-clause reviews; the `spec/balance/` proposals are one owned-path review" (README P2 row) |
+| B17 | MINOR | Question 9 tied the pool's golden benefit to the cold start | the two reasons split (README question 9) |
+| B18 | MINOR | The merge queue's absence was uncertain | **declined**: GitHub's "Managing a merge queue" page, quoted and dated in D15 and § V5, offers it to organization-owned repositories only |
+| B19 | MINOR | A user account and a VM offered as equal isolations | the VM recommended, the user account the accepted-risk fallback (README D18, question 5, § T1) |
+| B20 | MINOR | The three-strikes rule was a fourth stop route with no branches | trigger 4 with the same three branches (`FUNCTIONAL.md` § F3.4, § F3.5) |
+| B21 | MINOR | The plane provider's terms were verified nowhere | verified into `LICENSES.md` before the branch is taken (`FUNCTIONAL.md` § F3.7, README question 4) |
+| B22 | MINOR | The P2 Node bullet | = C8 |
+| B23 | MINOR | "Runs in the merge-commit context" was called false | **declined**: GitHub's events reference and its 2025-11-07 changelog put `pull_request_review` in the merge-commit context; the sentence now cites them (§ V5) |
+
+### 9-C — blind, the implementer
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| C1 | BLOCKING | The named pack builder is private and act-1-only, and the knobs went where enemies are not scaled | = A3 |
+| C2 | GAP | `spec/fixtures/**` was unowned though it holds the cells' inputs and the portrait palette | `spec/fixtures/golden/**` and `spec/fixtures/art/**` owned (§ V5) |
+| C3 | GAP | The image workflow existed in no listing and no milestone | = A9 |
+| C4 | GAP | The cell line had no `lap` or `pacts` and nothing said which of the line and the fixture wins | the cell line owns seed, act, ascension, policy and the count; the fixture row owns party, relics, lap and pacts (§ T5.3) |
+| C5 | GAP | Two copies of the fixtures with no authority | the JSON is the single source; `fixtures.mjs` reads it at run time (§ T4.2, § T5.3, § T2.1) |
+| C6 | GAP | "Every lane green" was unevaluable for L3 and L4 at P1 | the P1 subset named (§ V9, § T14, README P1 gate) |
+| C7 | GAP | A painted boss had no canvas | 192 px, `canvas: 128\|192` (`FUNCTIONAL.md` § F3.2, § T4.2, § T10.9) |
+| C8 | MINOR | The P2 bullet still replaced a `22` P0 no longer writes | it confirms the pin and adds `engines` and the lint (§ T4.2) |
+| C9 | MINOR | Two sources for the Node pin with no precedence | `versions.env` authoritative from the move commit, read by `setup.sh`; the lint covers all four (§ T4.1, § T14) |
+| C10 | MINOR | The nightly's `changes` job would be a required check that never reports | the rule scoped to pull-request workflows (§ T4.1, § V5) |
+| C11 | MINOR | `gate.sh commit` and `env-check` are not lane ids | the two non-lane verbs listed (§ T13.5) |
+| C12 | MINOR | The golden fixtures' schema file was unnamed | `spec/golden/fixtures.md` (§ T7.4, § T2.1) |
+| C13 | MINOR | Every seat or a share | = A1 |
+
+### 9-D — blind, the owner's advisor
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| D1 | GAP | A subscription winner paces P4 by its allowance and nothing requires a complete cast at the first build | the fourth pace stated; a first build over the fallback actors is a mixed cast the owner approves by name (README effort, P5 and P7 rows; `FUNCTIONAL.md` § F3.5; § T14) |
+| D2 | GAP | The painted boss canvas | = C7 |
+| D3 | GAP | The store name and the bundle and application ids were never reserved or chosen | in § T12's P5 list and the P5 owner row (§ T12, README) |
+| D4 | NUMBERS | The hours were not derived and excluded the admin work | = B1, B10 |
+| D5 | MINOR | The P2 row's clause reviews | = B16 |
+| D6 | MINOR | The README's P3 gate omitted the recorded fallback | added (README) |
+| D7 | MINOR | Question 6 did not name the exposure a yes authorises | the ceiling named (README question 6) |
+| D8 | MINOR | Two triggers for the closed test | = B14 |
+| D9 | MINOR | `spend.json` and `BASELINE.md` are public too | named (README D2, question 8) |
+| D10 | MINOR | F2.1's parts exceed an M at the high end | M–L, and question 10 agrees (`FUNCTIONAL.md` § F2, README question 10) |
+| D11 | MINOR | The regeneration rule still caught criterion 6 | criterion 6 and every reported-only reading excluded (`FUNCTIONAL.md` § F3.4) |
+| D12 | MINOR | The P2 Node bullet | = C8 |
+
+**Declined or only partly applied (MINOR):** B18 and B23, each declined with GitHub's own
+page quoted in the plan.

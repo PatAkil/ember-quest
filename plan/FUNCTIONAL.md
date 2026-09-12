@@ -117,9 +117,13 @@ behaviour and the new screens are built to it; the prototype is frozen with its 
    frame rate that does not hold through a hit, a hit without a pop, a prompt that blinks
    off, a screen that swallows the run.
 4. **The reference.** Nobody has played the prototype on a phone. At P0 the owner plays it
-   through the first ten minutes and a KO and records, in `plan/BASELINE.md`, what a turn,
-   a hit and a draft *feel* like and what did not work — the record the felt rows are
-   judged against, so that "as good as the prototype" is a written bar, not a memory.
+   through the first ten minutes and a KO — after README question 3(c)'s fix if it was
+   taken — and records, in `plan/BASELINE.md`, what a turn, a hit and a draft *feel* like
+   and what did not work, with the battle screen's two hero-turn defects (§ F1.4) recorded
+   as excluded from the bar, since the app must not reproduce them — the record the felt
+   rows are judged against, so that "as good as the prototype" is a written bar, not a
+   memory. The same play is the owner's **go or no-go on the game itself**, recorded in
+   the register (README, the P0 owner row): the one product decision before P3.
 5. **The first-ten-minutes test**: title → draft → the opening SUMMON → leader → map → a
    crypt fight to a KO or a win → INSPECT → PAUSE → a SUMMON room → a SHRINE, on a phone,
    at P7 on release builds.
@@ -135,7 +139,7 @@ phase named in the Phase column.
 
 | # | Change | What the player gets | Notes | Size | Phase |
 |---|---|---|---|---|---|
-| F2.1 | **Resume anywhere** (recommended; question 10) | Closing or being interrupted mid-run — mid-battle too — loses nothing; the app reopens on the same decision, or on the same hero turn | The run is saved after every decision, hero turns included, as `(rules version, seed, config, decisions)` and replayed on launch; a state snapshot rides along so that an app update never abandons a run — when the installed rules differ from the save's, the run continues from the snapshot under the new rules and the player is told once — **unless the save names content the installed rules no longer have** (a removed character or skill), the one case that abandons a run with the Vault untouched (`TECHNICAL.md` § T11). Not a *rewind*: the player cannot undo a decision. The resume path (`resumeRun`, `TECHNICAL.md` § T11) is a rules-structure change with its own clauses — an S inside this row's M, after the P3 gate — so the row's one price is the save format and `SAVE` clauses inside P3, ≈ 1–2 sessions in P5, and that S after the gate. A "no" leaves a permadeath run at the mercy of the platform killing the app in the background, which is why the plan recommends yes and D6 depends on it. | M | decided P0; the save format and `SAVE` clauses in P3; the resume path in P5 |
+| F2.1 | **Resume anywhere** (recommended; question 10) | Closing or being interrupted mid-run — mid-battle too — loses nothing; the app reopens on the same decision, or on the same hero turn | The run is saved after every decision, hero turns included, as `(rules version, seed, config, decisions)` and replayed on launch; a state snapshot rides along so that an app update never abandons a run — when the installed rules differ from the save's, the run continues from the snapshot under the new rules and the player is told once — **unless the save names content the installed rules no longer have** (a removed character or skill), the one case that abandons a run with the Vault untouched (`TECHNICAL.md` § T11). Not a *rewind*: the player cannot undo a decision. The resume path (`resumeRun`, `TECHNICAL.md` § T11) is a rules-structure change with its own clauses — an S inside this row's M, after the P3 gate — so the row's one price is the save format and `SAVE` clauses inside P3, ≈ 1–2 sessions in P5, and that S after the gate. A "no" leaves a permadeath run at the mercy of the platform killing the app in the background, which is why the plan recommends yes and D6 depends on it. | M–L (the `SAVE` clauses inside P3's size, ≈ 1–2 sessions in P5, the post-gate `resumeRun` S) | decided P0; the save format and `SAVE` clauses in P3; the resume path in P5 |
 | F2.2 | **Settings** | sound volume and mute; ARCADE on/off; quality tier (AUTO/HIGH/MED/LOW); a "reset the Vault" with a confirm; credits | One screen, reachable from the title and the pause overlay. Haptics on hits is optional and off by default. A crash-report toggle appears only when a reporter ships (§ T12). | S | P5 |
 | F2.3 | **Orientation and safe areas** | landscape locked (question 2); the frame respects notches, rounded corners and the gesture-navigation edges | The mutable safe inset reads the platform's insets. Every edge target is tested under gesture navigation. | S | P5 |
 | F2.4 | **Interruptions** | a call or a switch to another app pauses the game and the sound; returning resumes on the pause overlay | The app pauses on lifecycle events and yields audio focus. | S | P5 |
@@ -183,13 +187,19 @@ screenshots, are not in the repository and never will be.
   owner's number, not a sprite criterion**: over the derived pools' ground at L 40–49 no
   ramp clears 1.5:1 without breaking the enemy value ceiling from the other side, and the
   rig's cast shadow is what took it from 66 to 106 of 108 seat readings): the actor's
-  median value against the ground it stands on ≥ 1.5:1 at both ground strips in a lit
-  crypt frame at each stage anchor, and no seat's torso median more than 5 L* above the
-  median seat's — **reported** on every sprite's contact sheet, **gated** at P5 and P6
-  against the rig (a miss is a light or shadow fault, worked in the scene, never by
-  regenerating a sprite), with its bar re-derived at P0's calibration on the prototype's
-  landed rig and again at P5 on the new stage. The sheet's contrast columns stay reported
-  for continuity. *Target*,
+  median against the ground it stands on at both ground strips, as a **luminance
+  contrast** — the WCAG relative-luminance ratio `(Y_hi + 0.05) / (Y_lo + 0.05)` between
+  the median of the actor's masked cells and the median of the strip's surviving cells,
+  ≥ 1.5:1 (over an L* 41.6 ground that admits an actor above L* 53.5 or below 31.3, as
+  ART-REVIEW.md records; an L* ratio would be a different gate) — in a lit crypt frame at
+  each stage anchor, the **bar being the share of seat readings the landed rig achieved at
+  P0** (106 of 108 on the round-13 tree, recorded by the calibration), never every seat;
+  and the **seat spread**: no seat's torso median (rows 0.33–0.72 of the silhouette's
+  height) more than 5 L* above the median seat's. Both are **reported** on every sprite's
+  contact sheet and **gated** at P5 and P6 against the rig over the biome frame goldens (a
+  miss is a light or shadow fault, worked in the scene, never by regenerating a sprite),
+  with the bars re-derived at P0's calibration on the prototype's landed rig and again at
+  P5 on the new stage. The sheet's contrast columns stay reported for continuity. *Target*,
   reported beside the pass and gating only P4's six heroes (§ F3.5): p50 L* 31–40 with
   ≥ 45 % of cells below L 35 (the reference crop reads 37 / 45 % / 11.5 % above L 75; the
   hand-drawn study 31 / 51 %; the prototype's EMBER 51 / 43 %).
@@ -238,7 +248,7 @@ screenshots, are not in the repository and never will be.
 | Option | The player sees | What it keeps | What it costs |
 |---|---|---|---|
 | **A — pixel sprites (recommended)** | HD-2D as the prototype, with sprites that reach further toward the bar: dense, hand-drawn-looking pixel figures under the soft light | the stage's laws, every instrument and criterion, the bar the owner set | the providers must produce clean pixel art at the cell; consistency across 15 frames is the hard part (`TECHNICAL.md` § T10.3) |
-| **B — painted characters** | illustrated figures (a Darkest Dungeon or Slay the Spire register) under the same light | the light rig and the screens | the identity: the value instruments and the composition criteria are written for pixel figures; the bar changes from "Octopath" to something the owner has not named; and the asset model: a painted actor ships at 128 × 128 px per frame (twice the cell canvas, bilinear on the actor plane, no hard-pixel path), so the cast's atlases are ≈ 50 MB resident against 12–14, which with two biomes' bakes presses § T9.5's 250 MB peak-memory budget (one biome resident is the lever), and ≈ 8–15 MB on disk as PNG inside the install budget (`TECHNICAL.md` § T9.7) — both re-derived at P0's exit; about one extra session in P4 for the value targets (README question 1) |
+| **B — painted characters** | illustrated figures (a Darkest Dungeon or Slay the Spire register) under the same light | the light rig and the screens | the identity: the value instruments and the composition criteria are written for pixel figures; the bar changes from "Octopath" to something the owner has not named; and the asset model: a painted actor ships at twice the cell canvas — 128 × 128 px per frame, 192 × 192 for a boss on the 96-cell canvas (bilinear on the actor plane, no hard-pixel path), so the cast's atlases are ≈ 50 MB resident against 12–14, which with two biomes' bakes presses § T9.5's 250 MB peak-memory budget (one biome resident is the lever), and ≈ 8–15 MB on disk as PNG inside the install budget (`TECHNICAL.md` § T9.7) — both re-derived at P0's exit; about one extra session in P4 for the value targets (README question 1) |
 
 **How B is judged at the bake-off.** A painted figure fails the keyline, colour-count,
 cell-alignment and component criteria by construction, so for look B those are *reported,
@@ -249,8 +259,8 @@ reported for both (§ F3.1); if B wins, P4 re-derives the value *targets* (p50 3
 ≥ 45 % below L 35 were measured on pixel figures and the reference crop) on B's own
 reference, about one extra session, while the pass thresholds stay. A B candidate reaches
 the owner on that reduced gate, so the fork can actually close. **B's display path**: a
-painted frame is a 128 × 128 px PNG with the sidecar `canvas: 128, cell: 1`, drawn by the
-prototype's `PixelActor` registry at 1:1 on the stage (`TECHNICAL.md` § T4.2, § T10.9)
+painted frame is a 128 × 128 px PNG (192 × 192 for a boss) with the sidecar `canvas:
+128|192, cell: 1`, drawn by the prototype's `PixelActor` registry at 1:1 on the stage (`TECHNICAL.md` § T4.2, § T10.9)
 and by the Kotlin stage bilinear, so the bake-off's lit phone frames exist for both looks.
 
 Recommendation: **A for sprites, with painted portraits** for the ribbon chips, party heads
@@ -274,7 +284,7 @@ names what happens on a "no".
 | Heroes | 6 | 64 × 64 cells | five poses × three frames = 15 frames each; authored facing right |
 | Normal and elite enemies | 31 | 64 × 64 | same poses; creatures (a raptor, a jelly, a coil) are exempt from the mirror-IoU rule |
 | Bosses | 6 | 96 × 96 | same poses; heavier and taller by the size rule |
-| Portraits | 43 | painted, ≥ 256 px, cropped to 48-px chips | one per actor; the element mark is drawn by the UI, not painted. **Their own criteria** (the sprite metrics do not apply): crop-safe at 48 px (the face inside the chip's safe area); the face reads as two dark clusters and a highlight at 48 px; the palette agrees with the actor's element ramp and the shared neutrals (skin, hair and bone are neutrals); consistent with the sprite's hair, headgear and colours; no text, no watermark — the tool measures the first three with the formulas of `TECHNICAL.md` § T10.4, the critic judges the last two. **Fallback**: a normalised head crop of the sprite, generated by the tool, which the screens are designed to accept from P5 so no screen ever depends on a portrait |
+| Portraits | 43 | painted, ≥ 256 px, cropped to 48-px chips | one per actor; the element mark is drawn by the UI, not painted. **Their own criteria** (the sprite metrics do not apply): crop-safe at 48 px (the face inside the chip's safe area); the face reads as two dark clusters and a highlight at 48 px; the element's hue is present — at least 15 % of the chip's cells within ΔE 12 of the element ramp's accent or glow colours, skin, hair and the other neutrals permitted and uncounted; consistent with the sprite's hair, headgear and colours; no text, no watermark — the tool measures the first three with the formulas of `TECHNICAL.md` § T10.4, the critic judges the last two. **Fallback**: a normalised head crop of the sprite, generated by the tool, which the screens are designed to accept from P5 so no screen ever depends on a portrait |
 | Total sprite frames | 645 | stored at cell resolution | the budget model is in `TECHNICAL.md` § T10.7 |
 
 ### F3.4 Acceptance criteria — what the player must be able to see
@@ -303,8 +313,10 @@ The criteria, in the order they are checked:
 7. One cast: the six heroes beside each other read as one palette; each biome's pack reads
    as one family; bosses read heavier than their packs.
 
-An actor that fails a criterion twice after regeneration goes back to prompt and reference
-design, not to more sampling; an actor that fails three times goes to the stop decision.
+An actor that fails a gating criterion twice after regeneration goes back to prompt and
+reference design, not to more sampling; an actor that fails three times goes to the stop
+decision — trigger 4 of § F3.5, per actor, with the same three branches. Criterion 6 and
+every reported-only reading are outside this rule: they send the rig back to work.
 
 ### F3.5 The process as the owner sees it, and when it stops
 
@@ -357,7 +369,11 @@ Two decision points, each a yes or no from the owner on lit phone frames:
    subscription provider's allowance-months, whichever binds (`TECHNICAL.md` § T10.7) —
    wherever the cast stands: the same three branches — a budget the owner raises by name,
    a change of provider, or stop — and a mixed cast, accepted actors beside fallback ones,
-   is then a shipped state the owner approves by name, never a transient.
+   is then a shipped state the owner approves by name, never a transient. The same
+   approval by name covers a first test-track build that ships before the cast is complete
+   (a subscription winner's allowance paces P4 over months, README).
+4. **An actor that fails the gate three times** (§ F3.4): the same three branches, for
+   that actor.
 
 **Stop means**: the generated assets are shelved (their provenance kept), the fallback cast
 — the prototype's 43 actors' sheets captured at P0 (`TECHNICAL.md` § T10.9) — is the
@@ -410,16 +426,20 @@ budget line, as AI-generated planes; a plane has no actor-shaped gate, so a gene
 plane is judged by the scene rulers of `TECHNICAL.md` § T10.4 (the ground strips' values
 against the pools, the seat spread and the value order of dark figures on a lit ground,
 measured with the fallback cast planted at the six anchors), then by the critic and the
-owner; either way with the light wells, the second hue per biome, the bright mass behind
+owner, and only from a plane provider whose written commercial terms are verified into
+`assets/LICENSES.md` before the branch is taken (§ T10.2's rule, which the P0 check does
+not cover for a provider chosen months later); either way with the light wells, the second hue per biome, the bright mass behind
 the figures and the plate rules the full-frame critic asked for. VFX stay procedural (they are light, not pictures). Portraits are painted
 (§ F3.2).
 
 ## F4 Character changes — placeholder for the owner's details
 
-The owner will supply the changes once this plan is final. This section fixes what a
-change *is*, what it costs, and the questions the details must answer, so that the changes
-can be specified and built without a second planning round. Details supplied before P4's
-cast pass fold into it at no extra art cost; later ones cost as § F4.3 says.
+The owner will supply the changes once this plan is final — **and the deadline that
+matters is P0's exit**, when P4's cast pass starts (README, the P0 owner row): a brief
+supplied by then folds into the cast at no extra art cost; a hero changed after its
+sprites are accepted costs § F4.3's price and a consistency re-gate against the cast. This
+section fixes what a change *is*, what it costs, and the questions the details must
+answer, so that the changes can be specified and built without a second planning round.
 
 ### F4.1 What the contract fixes today
 
