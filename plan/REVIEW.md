@@ -329,3 +329,129 @@ is the approval surface and those are what the owner is approving; B6's calendar
 cadence and a range, not dates per phase, because the sizes are re-estimated twice (after P1
 and P2) and dates written now would be wrong by then; B27's QR code is kept as an option
 with its costs named rather than removed.
+
+## Round 3 — on revision 3 (commit `de4e6bd`)
+
+Four reviewers, 73 findings: 1 BLOCKING, 27 GAP, 13 NUMBERS, 32 MINOR. The one blocking
+finding was a platform fact: a fine-grained personal token cannot act for a collaborator on
+a repository owned by another user, so the "machine user" of D17 could not push (A1).
+Seven round-2 resolutions were found defective and are re-resolved below (A2/C1, A3/D1/C18,
+B1, B11, B12/D6, C7, C9). Between round 3 and revision 4 the owner also decided to **treat
+the prototype as disposable and start from scratch** (README D19); revision 4 therefore
+removes the migration machinery — the promotion phase, the Pages path filter, the export of
+the prototype's art as the parity baseline, the visual-parity band, the Vault transfer —
+and several round-3 findings are resolved by that removal rather than by a fix, marked
+"moot under the restart". The structural changes revision 4 made because of this round:
+the agents' identity is a **GitHub App** (A1, A13, B4, C10); approvals are pinned to the
+head commit with stale approvals dismissed (A3, C18, D1); tags and secrets are protected
+by a tag ruleset and a release environment (B2); `spec/**`'s contract clauses, `spec/art/`,
+the assets and the prototype are owner-reviewed (B3, D2); the runner lives in a private
+repository (B1); the environment is one recipe in two forms with the agents' cloud
+environment named as a `setup.sh` host and goldens honest about it (B5, C9, D12); **every
+image measurement is one TypeScript tool built at P0**, motion metrics and rulers included
+(A2, C1, C2, C3, B6); the golden set gained a stall fixture, a battle cell record and a
+machine-readable cell table (A4, A5, C5, C6, C20); `matrix.lock` was dropped for
+pull-request-scoped promotion (C7); the fixture schema got a notation (C8); the store
+set-up moved to P5 with the production-access step at P7 (B7, D3); the bake-off got a
+protocol its arithmetic follows (B12, D6); the session was recalibrated against the git
+history (B11); the owner's work is one table with an absence protocol (B8, D10); and the
+copyright position of generated art is disclosed (B10).
+
+### 3-A — adversarial, technical
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| A1 | BLOCKING | A collaborator's fine-grained token cannot act on a user-owned repository, so the machine user could not push or open pull requests | a **GitHub App** the owner installs (contents, pull requests, workflows; short-lived installation tokens); a classic-token machine user as the named fallback; the nightly status read through the API instead of a variable write (D17, § T1, § V5, § V9, P0 spike 6) |
+| A2 | GAP | The motion metrics and the in-scene rulers did not exist in `lineup.ts` and were scheduled in Kotlin from P1, yet P0 needed them | one TypeScript art tool at P0 with the full metric set, calibrated against the review's published values; no Kotlin re-implementation (§ T10.4, § V3.7) |
+| A3 | GAP | An approval survived a later push; nothing pinned it to the head commit | stale approvals dismissed on push; the check requires an owner review whose commit is the head and a sidecar matching the tree; the check runs on review events (§ V5) |
+| A4 | NUMBERS | `STALL` appeared in no golden cell | a tuned stall fixture cell (§ T5.3) |
+| A5 | NUMBERS | The lapper seeds reach lap 3, not 4 | laps 2–3 stated; one lapper seed chosen at P2 on which a lap-4 run occurs (§ T5.3) |
+| A6 | MINOR | The shafts are baked into the light map in the prototype, not drawn per frame | the law carried as "shafts baked into the light map" (§ T2.5, § T9.2) |
+| A7 | MINOR | `castSkill` never reaches `ask`; the prototype's `BATTLE` pending has no counterpart | the suspend set corrected; `BATTLE` never recorded, `HERO_TURN` emitted from the wrapped act (§ T2.3, § T5.3) |
+| A8 | MINOR | The snapshot omitted run-scoped rule state (the set pool, the dry streak, the accumulators) | the snapshot is the whole run context, enumerated in the `SAVE` clauses (§ T11) |
+| A9 | MINOR | `strong=1` forces an A3 run through the Vault floor | stated for the driver and the `RUN-FLOW` clauses (§ T4.2, § V3.2, § T7.4) |
+| A10 | MINOR | The macOS host for P0's spikes was unnamed; a Native test binary cannot run on an iPhone without an XCTest wrapper | the owner's Mac or a throwaway hosted-macOS workflow; the iPhone kept for benchmarks and Maestro, `iosSimulatorArm64` the Native arm64 proof (§ T1, § V2) |
+| A11 | MINOR | The Gradle timings were not this repository's | attributed to the round-2 scratch measurement (§ V1) |
+| A12 | MINOR | Kotlin/Native was not covered by the contraction argument | stated: no fast-math or contraction flags; the simulator hash is the proof (§ T5.2) |
+| A13 | MINOR | "The machine user cannot approve" was not a platform fact; an owner-authored PR on an owned path can never be approved | reworded; the owner never authors on an owned path, the logged override is the only other way (§ T1, § V5, D17) |
+
+### 3-B — adversarial, product and process
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | The runner fence stopped forks only; the agents' own pull requests could reach the owner's machine | the runner in a **separate private repository** the App cannot see, on a schedule (D18, § T1, § V5) |
+| B2 | GAP | Nothing protected the tags or the signing secrets from the agents' identity | a tag ruleset on `v*` and `oracle-*`; secrets only in a `release` environment; pull-request workflows carry no secrets (D15, § V5, § T12) |
+| B3 | GAP | Contract clauses outside goldens and balance were not owner-reviewed | the contract-clause check: a `contract` clause changes or is promoted only with the owner's review on the head commit; `spec/art/`, `spec/golden/`, `spec/balance/`, `assets/**` and `prototype/**` code-owned (§ V5, D7, D17) |
+| B4 | GAP | The owner could never merge an owner-authored change on an owned path | the rule that the owner never authors on an owned path; required approvals 0 with the code-owner review; said in question 7 (§ T1, § V5, README) |
+| B5 | GAP | The agents' cloud environment could not be assumed to run the image | one recipe in two forms (`env.Dockerfile`, `setup.sh`); the cloud environment runs the script; P0 spike 6 measures it; a self-hosted pool is question 9; goldens are L3's job (§ V4, § T1, § T14) |
+| B6 | GAP | The painted option could not pass a pixel-only gate | a reduced gate for look B; normalisation's quantisation and downscale skipped at the bake-off (`FUNCTIONAL.md` § F3.2, § T10.4, § T10.5) |
+| B7 | GAP | A closed test cannot roll out without the listing, the privacy policy, the data-safety form and content rating; production access needs an application | the store set-up at P5; the application at P7; fifteen to twenty testers; the reset rule (§ T12, § T14, README) |
+| B8 | GAP | The review load is daily in P4–P6, not "a few a week"; nothing said what happens when the owner is away | "What the owner does, by phase" and the absence protocol (README); batching per session (§ V5) |
+| B9 | GAP | No unwind if the port is abandoned | moot under the restart and stated: nothing has to be undone (§ T4.3) |
+| B10 | GAP | A licence to use is not ownership; wholly generated output is unprotectable | the copyright position and the options disclosed (`FUNCTIONAL.md` § F3.6; README D9, risks) |
+| B11 | NUMBERS | The v3 build was one fifteen-hour session, not three to six | the session redefined as 12–16 hours; the calibration stated from the git history; the aggregate a per-phase sum (README) |
+| B12 | NUMBERS | The bake-off's formula gave 2 500–5 800 images, not 1 000–1 500 | the protocol — eight key-pose stills per actor, two finalists animated in full — with its arithmetic ≈ 700 per-image generations ≈ $250 with re-rolls and a month's subscription (§ T10.7) |
+| B13 | NUMBERS | $100–300 per session at list prices was an order of magnitude low | the row says "covered by the owner's plan; measured on one real session after P1" (README) |
+| B14 | NUMBERS | The $4 000 ceiling cannot meter subscriptions or GPU time | the ceiling scoped to per-image API spend; the rest a separate named budget (§ T10.7, README) |
+| B15 | MINOR | Five inconsistent sentences (the critical path, P7's gate, two vs four defects, the questions closing at P0, the line count) | reconciled: P0 on the critical path; production access in P7's gate; four defects; five questions at P0; 4 900 lines |
+| B16 | MINOR | "The `:core` API can already run a battle with a policy on either side" was false | deleted; the asymmetry stated (`FUNCTIONAL.md` § F5.2) |
+| B17 | MINOR | The privacy manifest needs the user-defaults required-reason entry | added (§ T12, § T11) |
+| B18 | MINOR | Merges serialise at the merge lane's length under "branches up to date" | one pull request per track per session; stated (§ V5, § T13.5) |
+| B19 | MINOR | `STATUS.md`'s header still describes a draft pull request | corrected in the banner commit at P0 (§ T4.1) |
+| B20 | MINOR | Approving the plan approves P0's spend | said in "What you are approving" item 6 (README) |
+
+### 3-C — blind, the implementer
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| C1 | GAP | The P0 gate was scoped to sheet metrics while the bake-off needed motion metrics and rulers that did not exist | = A2 |
+| C2 | GAP | The alignment, part travel, crown rise and dead difference were undefined; the bands were both fixed and "recorded at P0"; `spec/art/` was written before the fork closed | the definitions and the band rule (`FUNCTIONAL.md` § F3.1); the bands recorded in the bake-off report and carried into `spec/art/` when it is written (§ T7.5, § T10.4) |
+| C3 | GAP | A painted candidate could never reach the owner | = B6 |
+| C4 | GAP | The bloom spike needed a prototype engine switch the plan did not list | moot under the restart: the bloom is decided at P5 on the real stage against a platform-blur fallback (§ T9.4, D11) |
+| C5 | GAP | P2's coverage gate had no producer at P2 and "appears" was undefined for sets and sigils | `prototype/sim/coverage.mjs` at P2, `sim coverage` at P3; "appears" defined per kind (§ T4.2, § T5.3) |
+| C6 | GAP | No record identified a battle cell; no machine-readable cell manifest | the battle `cell` record; `spec/golden/cells.md` as a `data:` table both harnesses read (§ T5.3, § T7.3) |
+| C7 | GAP | `spec/matrix.lock` could not be written at pre-commit time and conflicted across worktrees and rebases | dropped: promotion is pull-request-scoped and stateless, checked by the L3 binder run (§ T7.2, § V5) |
+| C8 | GAP | No notation declared a `ScreenState` for the fixture generator | the `schema:` block (§ T7.4, § T2.1, § T7.8) |
+| C9 | GAP | The environment image was assumed to be the agents' container with no mechanism; the pre-push hook could refuse every push outside it | = B5; SKIPPED-GOLDEN passes the hook with a report (§ V4, § V5) |
+| C10 | GAP | The ruleset named required checks before the workflows existed; the approvals count was unstated; the sole code owner could not approve their own change | V9 reordered (workflows and shim jobs first); approvals 0 with the code-owner review; the owner never authors on owned paths (§ V9, § V5, D15) |
+| C11 | NUMBERS | The Gradle timings attributed to this repository | = A11 |
+| C12 | NUMBERS | detekt's parse failure and slow type resolution were conflated | the two fallbacks made distinct (§ T3, § T15) |
+| C13 | NUMBERS | The Node pin did not exist and no step created it | created at P2 in `prototype/.nvmrc` and `engines`, plus the root `.nvmrc` for the art tool; read by the recipe, `pages.yml` and `diff-oracle` (§ T3, § T4.2) |
+| C14 | NUMBERS | "About sixteen frames" was fourteen | the ten first-ten-minutes screens plus six hit peaks = sixteen, stated once (§ T9.4) |
+| C15 | MINOR | The sidecar had no types; the stage flag, the study PNG and the unblurred-plane page were unnamed | the sidecar typed; `capture.mjs battle pixel=<dir>`; the study at cell resolution and ×4; the unblurred export dropped with the restart (§ T10.9, § T4.2) |
+| C16 | MINOR | Where spikes live and run, and how keys and the budget reach agents | `plan/spikes/<n>/REPORT.md`; a throwaway hosted-macOS workflow; keys as environment secrets; the counter in the tool (§ T14, § T10.1) |
+| C17 | MINOR | The refusal preamble preceded the freeze; the workflows' path filter did not include the workflows | the freeze is by `prototype/` ownership and the freeze check at P2; the filter includes `.github/workflows/**` and `ci/**` (§ T4.1, § V5) |
+| C18 | MINOR | Whether an approval survives a push; the sidecar named a pull request that does not exist yet | = A3; the sidecar names the branch (§ V3.5, § V5) |
+| C19 | MINOR | Small conventions an implementer would guess (the `paths` base, the id regex, untagged tests, the tables' module, `displayFullTestPath`, the `.sha256` format, the hash span, hex case, separators, `path=`) | each fixed in § T7.1, § T7.2, § T5.3 and § T6.2 |
+| C20 | MINOR | The rules version at P2; no seam-path flag; the fixtures and policies unnamed; the harness changes touch nothing frozen | the oracle tag as the version; `--path`; the eight fixtures and two policies named; stated (§ T7.3, § T4.2, § T5.3) |
+| C21 | MINOR | How the `minAscensionFor` vector is produced headlessly | by bundling `vault.ts` with the engine stubbed into a fixture (§ T5.1) |
+| C22 | MINOR | The synthetic module's home, its clauses and its deletion | inside `:core` under `spec/synthetic/`, deleted in P3's first commit (§ V9, § T14) |
+| C23 | MINOR | The baseline record, the cold-start budget, the second OS and the machine-class names | `plan/BASELINE.md`; ≤ 6 min; the owner's Mac; `agent-env`, `hosted-linux`, `hosted-macos-arm64`, `device-runner` (`FUNCTIONAL.md` § F1.5, § V4, § V7) |
+
+### 3-D — blind, the owner's advisor
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| D1 | GAP | A push after the owner's approval defeated the golden gate; the check had no review trigger | = A3 |
+| D2 | GAP | The paths where the owner's decision is promised were not machine-guarded (`spec/art/`, the assets, platform and meta clauses) | = B3; the manifest's accepter matched to the approving review (§ T10.6) |
+| D3 | GAP | The closed test started at P5 while the store pipeline and set-up were P7 deliverables | = B7 |
+| D4 | GAP | `Forfeit` was a player-facing action FUNCTIONAL never mentioned; round 2's claimed row did not exist | forfeit in the Combat row and the screens' PAUSE with QUIT (`FUNCTIONAL.md` § F1.1, § F1.2); the round-2 entry corrected by this log |
+| D5 | GAP | The plan decided on the owner's behalf that the known defects stay in the only playable build | moot under the restart and stated: the prototype is frozen with its defects, said in "What stands still" (README) |
+| D6 | NUMBERS | The bake-off count did not multiply out | = B12 |
+| D7 | NUMBERS | The bloom's frame set was undefined | = C14 |
+| D8 | NUMBERS | P0 was sized M with an M-sized tool inside it | P0 sized L (README, § T14) |
+| D9 | MINOR | The WebView alternative was named without a price | "Why not keep TypeScript" with every alternative's price (README item 2, D1) |
+| D10 | MINOR | The owner's own work was scattered; overnight sessions cannot merge owner-reviewed pull requests | "What the owner does, by phase" and the absence protocol (README) |
+| D11 | MINOR | The questions' closing phases and branch costs were missing | each question names its phase and its price (README) |
+| D12 | MINOR | The machine class was an image, not hardware; an absolute perf assertion on shared hosts would flake | machine classes named; the L2a assertion allocation-based and relative; absolute milliseconds on the hosted runner and the phones (§ V7, § T9.5) |
+| D13 | MINOR | Pushing workflows needs the Workflows permission | the App holds it (§ T1, D17) |
+| D14 | MINOR | Git hooks are bypassable; the critic's score is not a gate | both stated as discipline audited by L3; the critic's protocol (§ V1, `FUNCTIONAL.md` § F3.5) |
+| D15 | MINOR | Nine consistency items | reconciled where they survive the restart: the P2 gate names room type and ascension row; `perf` in the instruments; the canvas as rows × columns; question numbers checked; the scores named per use; the crash-report toggle removed until a reporter ships; the device class defined by a first-launch benchmark; the ceiling scoped; the timings attributed; the lock file dropped |
+| D16 | MINOR | No save/resume row; F2.1's "no" hid its cost; D6 depended on it; F4 details before P6 fold into the cast | the Persistence row; F2.1 recommended with the cost of "no"; D6 marked contingent; the F4 timing note (`FUNCTIONAL.md` § F1.1, § F2, § F4) |
+| D17 | MINOR | The status paragraph gave no trajectory | the three rounds' tallies in the status paragraph (README) |
+
+**Declined or only partly applied (MINOR):** A6's byte-comparable shafts — the law is
+carried, but nothing is byte-compared against the prototype under the restart; C19's
+`--dump` "over the result records" — adopted as written; D15's "the timings 'taken on this
+repository'" — attributed rather than removed, since the harness numbers are this
+repository's.

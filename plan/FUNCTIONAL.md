@@ -1,123 +1,143 @@
 # Functional plan — what the player gets
 
-The player-facing half of the plan. It says what moves unchanged (the parity baseline),
-what a native app changes whether we like it or not, which known defects the port fixes,
-what the mobile app proposes to add, how the AI-generated character and enemy art is judged
-and when it can be stopped, and it holds the two placeholders the owner will fill later:
-the character changes (§ F4) and PvP (§ F5). Every item here is a *specification* change;
-how it is built and verified is `TECHNICAL.md` and `VERIFICATION.md`.
+The player-facing half of the plan. The TypeScript game is a **prototype that validated
+the mechanics**; the game is now built from scratch on Kotlin Multiplatform. This document
+says which mechanics move unchanged (§ F1), what the new presentation decides for phones
+(§ F2), how the AI-generated character and enemy art is judged and when it can be stopped
+(§ F3), and it holds the two placeholders the owner will fill later: the character changes
+(§ F4) and PvP (§ F5). Every item here is a *specification* change; how it is built and
+verified is `TECHNICAL.md` and `VERIFICATION.md`.
 
-The rule that governs this document: **parity before change**. The port reproduces the
-v3 game of `DESIGN.md` exactly (§ F1), proven by the oracle traces and the storyboard
-drives. Only after the parity gates does anything in § F2–F5 land, each as its own change
-with its own spec clauses, tests and, where rules move, simulator guards.
+The rule that governs this document: **the mechanics are the baseline; the presentation
+is new.** The rules of `DESIGN.md`, as the prototype's simulator runs them, are rebuilt
+exactly (§ F1), proven by the oracle traces. The screens, the stage and the art are designed
+for phones, taking from the prototype only what it measured and validated (§ F1.2, § F3.1),
+and are accepted by the owner on a device (§ F1.5). Anything in § F2–F5 that changes a
+rule lands after the rules gate, as its own change with its own spec clauses, tests and,
+where numbers move, simulator guards.
 
-## F1 The parity baseline
+## F1 The mechanics baseline
 
 ### F1.1 The systems that move unchanged
 
-Everything `DESIGN.md` specifies, as it is implemented on `main` at the tag `ts-oracle-v3`
-— where the contract and the code disagree, **the code is the baseline** (the six items
-`STATUS.md` lists are reconciled into the spec at P2, `TECHNICAL.md` § T7.6). The inventory
-is the checklist the parity gate is signed against; the counts are the current content.
+Everything `DESIGN.md` specifies, as the prototype's rules core implements it at the tag
+`ts-oracle-v3` — where the contract and the code disagree, **the code is the baseline**
+(the six items `STATUS.md` lists are reconciled into the spec at P2, `TECHNICAL.md` § T7.6).
+The inventory is the checklist the rules gate is signed against; the counts are the
+current content.
 
 | System | Content that must survive |
 |---|---|
 | Party and stats | 3v3, eight stats (HP ATK DEF SPD flat; CRIT CDMG ACC RES points), the derivation with no compounding, mitigation `def / (def + 900)`, no caps but CRIT 100 at roll time |
 | Elements | FIRE ▸ WIND ▸ WATER ▸ FIRE, LIGHT ⇄ DARK; advantage = crit points, disadvantage = the glance; the GLANCE debuff |
-| Combat | the event-driven attack bar, the ten-step turn, cooldowns, seventeen statuses with their durations and stacking rule, the ACC/RES landing floor, the damage pipeline, counters, ENRAGE at turn 100, TURN_CAP 500 as a stall |
+| Combat | the event-driven attack bar, the ten-step turn, cooldowns, seventeen statuses with their durations and stacking rule, the ACC/RES landing floor, the damage pipeline, counters, ENRAGE at turn 100, TURN_CAP 500 as a stall; **forfeit** — quitting a battle from the pause overlay ends the run as a loss credited to RETREAT, the Vault banking as on any death |
 | Skills | 24 hero skills (six kits of three plus six awakened variants) and every enemy skill in the closed `SkillId` union |
 | Characters | six (EMBER, GALE, TIDE, BASALT, SABLE, LUMEN): bases, kits, awakenings, leader skills |
 | Enemies | 37 across six biomes (four or five normals, one elite, one boss each), their packs, the scale formula per act, kind, lap and ascension, `BOSS_HP`, `ACT_MULT`, `LAP_MULT`, `CLEAR_GROWTH` |
 | Relics | six slots, four rarities, `rollRelic`'s eight ordered draws, substats and the +2/+4/+6 events, drop levels by act, FORGE (+2, recast, rebrand), REST sharpen, sixteen sets (the run's set pool of 2 + 2 plus the Vault's), twelve sigils with kindling at +6, `compare` |
 | Run | the map generator (`STAGE_SIZES [2,3,1,3,2]`, landmarks, guarantees, links, adjacency), nine room types, the draft and the two SUMMONs, the leader seat and when it may change, six pacts, the ALTAR, laps under `LAP_MULT`, score |
-| Meta | the Vault (12, bank 2 + L − 1 on DESCEND, 1 on death), Vault equip raising the minimum ascension (today a screen rule, § F1.4), the A0–A10 ladder, the unlock at the first act-6 kill |
+| Meta | the Vault (12, bank 2 + L − 1 on DESCEND, 1 on death), Vault equip raising the minimum ascension (a screen rule in the prototype, a rule of the game here, § F1.4), the A0–A10 ladder, the unlock at the first act-6 kill |
+| Persistence | the prototype keeps only the Vault (browser storage); a closed tab loses the run. The app keeps the Vault, the settings and — if § F2.1 is approved, as recommended — the run itself |
 | Balance | the Balance state table of `DESIGN.md`: the ladder, the guards, the stall and enrage rates — reproduced exactly on the same seeds and run counts |
-| Presentation | 1280×720 logical landscape frame; the HD-2D stage — four planes with parallax, the key and fill lights, two foot pools derived from the stage anchors, the drifting fog banks, the seeded dust motes, the light shafts, the sky body, per-actor gain and rim, contact shadows with their cast lobe, bloom, grade, vignette; the per-biome ambient particle preset; the three quality tiers plus ARCADE; 43 actors with five poses of three frames; thirteen VFX archetypes; damage pops; the HUD face, the vector pictograms (status, slot and element marks) and the two bitmap fonts, with the contract's character limits re-validated in the bundled face; 24 sound effects |
 
-### F1.2 The screens and flows
+### F1.2 The screens, the flows and what the prototype's presentation established
 
-Ten screens over the run seam, exactly as `DESIGN.md` → *UI constraints* and the region
-table lay them out: title · Vault (EQUIP, BANK, DOORS) · draft and SUMMON (the four-column
-grid, the detail strip) · leader (the party columns) · map · room card · battle (ribbon, hero
-panels, enemy plates, command list, INSPECT, PAUSE) · relic cards and who-wears-it · node
-faces (REST, SHRINE, FORGE, ALTAR) · party · act clear · GAME OVER and VICTORY with the doors.
-Every tap target keeps its keyboard route (arrows to move focus, A to activate, B to back),
-so a desktop build is playable on a keyboard and a phone on touch.
+Ten screens over the run seam, in the order the run raises them: title · Vault (EQUIP,
+BANK, DOORS) · draft and SUMMON · leader · map · room card · battle (the command list,
+INSPECT, PAUSE with QUIT) · relic cards and who-wears-it · node faces (REST, SHRINE, FORGE,
+ALTAR) · party · act clear · GAME OVER and VICTORY with the doors. Every tap target keeps a
+keyboard route (arrows to move focus, A to activate, B to back), so the desktop build the
+agents drive is playable on a keyboard and a phone on touch.
 
-### F1.3 What a native app cannot keep identical
+The prototype's presentation is **not ported**; the screens and the stage are designed
+for a phone from the start. What the prototype established and the new design keeps as
+its inputs, because the numbers were measured and the owner's bar (Octopath Traveler's
+HD-2D) has not changed:
 
-These are the only differences the port is allowed to carry, besides § F1.4's defects.
-Each is a spec clause under `spec/platform/` so it is a decision, not drift.
+- the 16:9 logical frame with a mutable safe inset (landscape is question 2 of the README;
+  a portrait layout is a different design, costed there);
+- the stage's laws: small dense pixel figures on a lit ground, four planes with the
+  middle one sharp, two foot pools derived from where the ranks stand, per-actor light as
+  a gain rather than a wash, contact shadows with a cast lobe, three quality tiers plus
+  ARCADE; the per-biome ambient presets; the vector pictograms for statuses, slots and
+  elements; damage pops; 24 sound effects, rendered once from the prototype's synthesizer;
+- the screen inventory above with the contract's readability rules (arm's-length text,
+  the character limits per label, one focus model, `TAP_MIN` 96);
+- the feel items `STATUS.md` and the full-frame critic recorded, which become the
+  `kmp-quality` rubric (§ F1.5).
 
-| Difference | On the web today | In the app | Why |
+### F1.3 What the new presentation decides
+
+Each of these is a spec clause under `spec/platform/` so it is a decision, not drift.
+
+| Decision | The prototype | The app | Why |
 |---|---|---|---|
-| Installation and fullscreen | a page; an "add to Home Screen" hint on iPhone; a rotate prompt; fullscreen on first tap | an installed app, fullscreen by nature, landscape by manifest | the hints have no meaning in an app |
-| Where the Vault lives | `localStorage` under `ember-quest/vault` | the app's private storage with a schema version; a one-way transfer from the web (§ F2.4, if approved) | browser storage is not reachable from an app |
-| Host messages | `postMessage` to an embedding parent, a no-op standalone | none | there is no host |
-| The HUD face | a system font stack chosen by the browser | one bundled font, the same on every device | consistency across devices; the metrics need one face |
-| Bloom and halation | bloom is derived from the whole frame; ARCADE's halation is a blurred copy of the frame | bloom and halation come from the *bright layer* (VFX, prop glows, the sky body, pops) at quarter resolution, on every platform | one deterministic code path (`TECHNICAL.md` § T9.4); accepted only if a blind critic does not prefer the old frame on more than a quarter of the first-ten-minutes screens, and never on a hit peak |
-| Quality tier defaults | HIGH on every device (the auto-drop to LOW and the ARCADE toggle are the only changes) | by device class at first launch — MED on phones, HIGH on tablets and desktops — adjustable in settings; the auto-drop stays | a 2022 phone cannot hold HIGH at 60 Hz; the visual-parity band is measured at HIGH and reported at MED |
-| Input surface | mouse, touch, keyboard | touch and, where present, keyboard; **Android's back gesture and button act as B** (back / cancel); at the title, and on the map with a run open, back asks before leaving the app; a game controller is optional later | platform |
-| Windowing | a browser tab | split-screen, free-form and tablet windows letterbox the 16:9 frame; a resize pauses the game | platform |
-| Pixel crispness | the whole frame is scaled smooth by CSS | the actor plane draws with nearest sampling where the device scale makes one cell an integer number of device pixels, else smooth as today | a small win, never a loss |
+| Installation and fullscreen | a page; an "add to Home Screen" hint on iPhone; a rotate prompt; fullscreen on first tap | an installed app, fullscreen by nature, landscape by manifest (question 2) | the hints have no meaning in an app |
+| Where the Vault lives | browser storage under `ember-quest/vault` | the app's private storage with a schema version; the prototype's Vaults are not imported (§ F6) | nobody has a Vault worth moving; the prototype is disposable |
+| Host messages | `postMessage` to an embedding parent | none | there is no host |
+| The HUD face | a system font stack chosen by the browser | one bundled font, the same on every device; the contract's character limits re-validated in it | consistency; the metrics need one face |
+| Bloom and halation | derived from the whole frame; halation a blurred copy of the frame | from the *bright layer* (VFX, prop glows, the sky body, pops) at quarter resolution, on every platform, decided at P5 on the real stage (`TECHNICAL.md` § T9.4) | one deterministic code path |
+| Quality tier defaults | HIGH everywhere (the auto-drop to LOW and the ARCADE toggle) | by a first-launch benchmark — MED on a 2022 phone, HIGH where the stage holds 60 Hz — adjustable in settings; the auto-drop stays | a 2022 phone cannot hold HIGH at 60 Hz |
+| Input surface | mouse, touch, keyboard | touch and, where present, keyboard; **Android's back gesture and button act as B**; at the title, and on the map with a run open, back asks before leaving the app; a controller is optional later | platform |
+| Windowing | a browser tab | split-screen, free-form and tablet windows letterbox the frame; a resize pauses the game | platform |
+| Pixel crispness | the whole frame scaled smooth | the actor plane drawn with nearest sampling where the device scale makes one cell an integer number of device pixels, else smooth | a small win, never a loss |
 
-### F1.4 Known defects the port fixes
+### F1.4 What the prototype gets wrong, and the spec fixes
 
-The reviews of this plan found defects in the shipped web build that the port cannot
-reproduce without reproducing a bug. Each is a `known-divergence` clause written at P2; the
-oracle traces are unaffected because the harness never took the faulty path.
+The reviews found defects in the prototype's screens; the rules core and the simulator
+never take those paths, so the oracle traces are clean. The spec states the correct
+behaviour and the new screens are built to it; the prototype is frozen with its defects
+(README, "What stands still").
 
-| Defect on the web today | In the app | Clause |
+| In the prototype | In the spec and the app | Clause |
 |---|---|---|
-| The battle screen enumerates a hero's options *before* the turn's cooldown tick, while the rules re-enumerate at step 7 after it; when a skill comes off cooldown during the tick the committed index casts a different skill or target — a reviewer measured it on 16 % of hero turns | the hero's decision is asked at step 7 with the post-tick options, so what the player picks is what fires | `COMBAT-TURN` |
+| The battle screen enumerates a hero's options *before* the turn's cooldown tick while the rules re-enumerate at step 7 after it; when a skill comes off cooldown during the tick the committed index casts a different skill or target — measured on 16 % of hero turns | the hero's decision is asked at step 7 with the post-tick options, so what the player picks is what fires | `COMBAT-TURN` |
 | A skill greyed out in the command list at cooldown 1 is legal by the time the turn resolves | the list shows the post-tick legality | `SCREENS-BATTLE` |
 | A hero wearing the four-piece VIOLENT set gets an extra turn that asks the battle's policy, which the interactive screen never seats — a crash | the extra turn is a second decision asked of the player | `COMBAT-TURN` |
-| The Vault's minimum-ascension floor is enforced by the Vault screen, not by the rules | the same rule, with the same numbers, lives in the rules and is tested there; the player sees no change | `META-VAULT` |
+| The Vault's minimum-ascension floor is enforced by the Vault screen, not by the rules | the same rule, with the same numbers, lives in the rules and is tested there | `META-VAULT` |
 
-### F1.5 How parity is accepted
+### F1.5 How the mechanics and the presentation are accepted
 
-1. **Mechanically** (`VERIFICATION.md` § V3): the oracle traces are identical for every cell
-   of the golden coverage matrix; the balance table reproduces; the exported TypeScript
-   frames and the Kotlin frames of the same biome, tier and seat agree within the
-   visual-parity band (§ V3.11); the storyboard driver **reaches** every biome, every boss
-   and every screen with the strong-party fixture and the forcing hooks, and plays a
-   two-act run to a KO, through the real screens on the JVM, and two acts on Android and
-   iOS, and reports `PLAYFULL OK`.
-2. **By the owner, on a device.** The checklist has two kinds of rows. *Mechanical rows*
-   (every row of F1.1 except Presentation's look, and every screen's geometry) are signed by
-   the evidence above, with the report attached. *Felt rows* — at most eight — the owner
-   walks on a phone: the first ten minutes (below), a KO, INSPECT, PAUSE, a SHRINE, a
-   SUMMON with a full party, the map, the Vault's EQUIP and BANK faces. A felt row the
-   owner cannot sign stays open and P5 does not close.
-3. **The baseline.** Nobody has played the current game. At P0 the owner plays the web
-   build on a phone through the first ten minutes and a KO and records what they saw —
-   what read, what did not, what they tapped twice. Parity is judged against that record,
-   not against memory.
-4. **The first-ten-minutes test**: title → draft → the opening SUMMON → leader → map → a
-   crypt fight to a KO or a win → INSPECT → PAUSE → a SUMMON room → a SHRINE, on a phone.
-   It is scored against the **feel rubric** of the `kmp-quality` skill (`TECHNICAL.md`
-   § T13.2), written at P1 from `STATUS.md`'s "Playing it on a phone" section and the
-   full-frame critic's first-ten-minutes items — anything tapped twice, anything unreadable
-   at arm's length, a frame rate that does not hold through a hit, a hit without a pop, a
-   prompt that blinks off, a screen that swallows the run.
+1. **The mechanics, mechanically** (`VERIFICATION.md` § V3): the oracle traces are identical
+   for every cell of the golden coverage matrix and the balance table reproduces (P3's
+   gate). No screen is involved.
+2. **The presentation, by evidence**: the storyboard driver **reaches** every biome, every
+   boss and every screen with the strong-party fixture and the forcing hooks, plays a
+   two-act run to a KO through the real screens on the JVM and two acts on Android and
+   iOS, and reports `PLAYFULL OK`; every screen state has a golden; the budgets of
+   `TECHNICAL.md` § T9.5 hold on the reference phones.
+3. **The presentation, by the owner, on a device.** *Felt rows* — at most eight — the owner
+   walks on a phone at P5's end: the first ten minutes (below), a KO, INSPECT, PAUSE, a
+   SHRINE, a SUMMON with a full party, the map, the Vault's EQUIP and BANK faces. A felt row
+   the owner cannot sign stays open and P5 does not close. The rows are scored against the
+   **feel rubric** of the `kmp-quality` skill (`TECHNICAL.md` § T13.2), written at P1 from
+   `STATUS.md`'s "Playing it on a phone" section and the full-frame critic's
+   first-ten-minutes items — anything tapped twice, anything unreadable at arm's length, a
+   frame rate that does not hold through a hit, a hit without a pop, a prompt that blinks
+   off, a screen that swallows the run.
+4. **The reference.** Nobody has played the prototype on a phone. At P0 the owner plays it
+   through the first ten minutes and a KO and records, in `plan/BASELINE.md`, what a turn,
+   a hit and a draft *feel* like and what did not work — the record the felt rows are
+   judged against, so that "as good as the prototype" is a written bar, not a memory.
+5. **The first-ten-minutes test**: title → draft → the opening SUMMON → leader → map → a
+   crypt fight to a KO or a win → INSPECT → PAUSE → a SUMMON room → a SHRINE, on a phone,
+   at P7 on release builds.
 
-## F2 Mobile-native changes — proposed, the owner approves per row
+## F2 The presentation, designed for phones — the owner approves per row
 
-Each change is small, lands after the parity gates, and is written as spec clauses under
-`spec/platform/` and `spec/meta/` with tests. None changes a rule of the game. Nothing in
-this table is decided.
+Each row is a design decision of the new build, written as spec clauses under
+`spec/platform/`, `spec/meta/` or `spec/save/` with tests. None changes a rule of the game
+except where marked. Nothing in this table is decided by the plan.
 
 | # | Change | What the player gets | Notes | Size |
 |---|---|---|---|---|
-| F2.1 | **Resume anywhere** | Closing or being interrupted mid-run — mid-battle too — loses nothing; the app reopens on the same decision, or on the same hero turn | The run is saved after every decision, hero turns included, as `(rules version, seed, config, decisions)` and replayed on launch; a small state snapshot rides along so that an app update never abandons a run — when the installed rules differ from the save's, the run continues from the snapshot under the new rules and the player is told once — **unless the save names content the installed rules no longer have** (a removed character or skill), the one case that abandons a run with the Vault untouched (`TECHNICAL.md` § T11). Not a *rewind*: the player cannot undo a decision. The resume path is a rules-structure change with its own clauses. | M |
-| F2.2 | **Settings** | sound volume and mute; ARCADE on/off; quality tier (AUTO/HIGH/MED/LOW); a "reset the Vault" with a confirm; an opt-in crash-report toggle, off by default; credits | One screen, reachable from the title and the pause overlay. Haptics on hits is optional and off by default. | S |
-| F2.3 | **Orientation and safe areas** | landscape locked; the frame respects notches, rounded corners and the gesture-navigation edges | The mutable safe inset already exists (24 px, 40 px bottom on phones); it reads the platform's insets. Every edge target (PAUSE at the frame's right edge) is tested under gesture navigation. Portrait is question 2 and closes at P0. | S |
-| F2.4 | **Vault transfer** (optional) | the web build shows a copyable link on the Vault screen; the app receives it once and imports the banked relics, `vaultSlots` and the unlocked ascension | A full Vault is ≈ 3.5 KB as JSON, far too long to type; the transfer is a compact binary encoding of about 200 bytes (`TECHNICAL.md` § T11) carried by a deep link, with paste as the fallback; a QR code is optional and costs a camera permission, a scanner dependency and a privacy string. The web build gains an export (no rules touched). One-way, web → app. The owner may drop it: nobody has a Vault yet. | S |
-| F2.5 | **Interruptions** | a call or a switch to another app pauses the game and the sound; returning resumes on the pause overlay | The web build already auto-pauses on blur; the app does the same on lifecycle events and yields audio focus. | S |
-| F2.6 | **App identity** | icon, splash, store listing, a credits screen that names the AI art providers | Store metadata is copy the owner writes; the credits line is required by § F3.6. | S |
-| F2.7 | **Device tiers** | a 2022 mid-range phone runs MED at 60 Hz; older devices start LOW; the toggle in settings | The tiers are the contract's; only the *default* per device class is new (§ F1.3). | S |
-| F2.8 | **Bug reports from a release build** | a long-press on the title shares the current run's save file; the seed is shown on GAME OVER | So the owner's felt rows, the first-ten-minutes test and the twelve closed testers — all on release builds — can report a bug that replays (`TECHNICAL.md` § T11). The rest of the debug drawer stays debug-only. | S |
+| F2.1 | **Resume anywhere** (recommended) | Closing or being interrupted mid-run — mid-battle too — loses nothing; the app reopens on the same decision, or on the same hero turn | The run is saved after every decision, hero turns included, as `(rules version, seed, config, decisions)` and replayed on launch; a state snapshot rides along so that an app update never abandons a run — when the installed rules differ from the save's, the run continues from the snapshot under the new rules and the player is told once — **unless the save names content the installed rules no longer have** (a removed character or skill), the one case that abandons a run with the Vault untouched (`TECHNICAL.md` § T11). Not a *rewind*: the player cannot undo a decision. The resume path is a rules-structure change with its own clauses. A "no" leaves a permadeath run at the mercy of the platform killing the app in the background, which is why the plan recommends yes and D6 depends on it. | M |
+| F2.2 | **Settings** | sound volume and mute; ARCADE on/off; quality tier (AUTO/HIGH/MED/LOW); a "reset the Vault" with a confirm; credits | One screen, reachable from the title and the pause overlay. Haptics on hits is optional and off by default. A crash-report toggle appears only when a reporter ships (§ T12). | S |
+| F2.3 | **Orientation and safe areas** | landscape locked (question 2); the frame respects notches, rounded corners and the gesture-navigation edges | The mutable safe inset reads the platform's insets. Every edge target is tested under gesture navigation. | S |
+| F2.4 | **Interruptions** | a call or a switch to another app pauses the game and the sound; returning resumes on the pause overlay | The app pauses on lifecycle events and yields audio focus. | S |
+| F2.5 | **App identity** | icon, splash, store listing, a credits screen that names the AI art providers | Store metadata is copy the owner writes; the credits line is required by § F3.6. | S |
+| F2.6 | **Device tiers** | a 2022 mid-range phone runs MED at 60 Hz; older devices start LOW; the toggle in settings | The tiers are the contract's; the *default* comes from a three-second stage benchmark on first launch (§ F1.3). | S |
+| F2.7 | **Bug reports from a release build** | a long-press on the title shares the current run's save file; the seed is shown on GAME OVER | So the owner's felt rows, the first-ten-minutes test and the closed testers — all on release builds — can report a bug that replays (`TECHNICAL.md` § T11). The rest of the debug drawer stays debug-only. | S |
 
 Optional, not planned: controller support (cheap on the keyboard route), portrait layout,
 localisation beyond keeping strings in one place, cloud saves, accounts (PvP will decide).
@@ -127,16 +147,17 @@ localisation beyond keeping strings in one place, cloud saves, accounts (PvP wil
 ### F3.1 The bar and the bible
 
 The bar is unchanged: Octopath Traveler's HD-2D — small, dense pixel sprites under soft,
-lit, blurred dioramas. Fourteen critic rounds and a hand-drawn pixel study defined what that
-means in numbers; the bible below is what every generation prompt, every gate and every
-critic works from. It is carried into `spec/art/` as clauses **with each number's
-derivation recorded** (the study's crop rectangles from commit `98464a4`, the sheet
+lit, blurred dioramas. Fourteen critic rounds on the prototype and a hand-drawn pixel study
+defined what that means in numbers; the bible below is what every generation prompt, every
+gate and every critic works from. It is carried into `spec/art/` as clauses **with each
+number's derivation recorded** (the study's crop rectangles from commit `98464a4`, the sheet
 metrics of ART-REVIEW.md), because the reference frames themselves are the owner's
 screenshots, are not in the repository and never will be.
 
-- **Cell and size.** One cell is 2 screen px at 720p. A hero is 52–58 rows tall and at most
-  64 × 48 cells; an ordinary enemy 24–56 rows; a boss 84–96 rows on the 96-cell canvas.
-  Feet at the bottom centre; authored facing right (the battle mirrors heroes).
+- **Cell and size.** One cell is 2 screen px at 720p. A hero is 52–58 rows tall on a canvas
+  of at most 64 rows × 48 columns; an ordinary enemy 24–56 rows; a boss 84–96 rows on the
+  96-cell canvas. Feet at the bottom centre; authored facing right (the battle mirrors
+  heroes).
 - **Line and tone.** A full 1-px keyline that follows the material (near-black with a hue on
   garments and boots, the material's own dark step on light hair, dark brown on skin);
   interior lines where a form turns; three to four hard-edged tones per material, clean
@@ -145,18 +166,18 @@ screenshots, are not in the repository and never will be.
   shared across the cast.
 - **Proportion.** About three heads tall with a big readable head — the reference's chibi
   build, not a slim figure.
-- **Value.** The figure sits dark on a lit ground. *Pass* (the sheet criteria the repository
-  measures today, criteria 1–5): L* span p2 ≤ 15 and p98 ≥ 85; ≥ 20 % of body cells below
-  L 35 and ≥ 20 % of interior cells; ≥ 8 % above L 75; the top quarter ≥ 8 L* lighter than
-  the bottom (lit from above). *Pass, in scene* (the ruler the repository adopted after
-  round 14 in place of the old contrast-against-the-navy criterion, which is **retired**
-  because the shadow band the bar needs — L 35–48 — cannot clear 3:1 against the line-up's
-  navy): the actor's median value against the ground it stands on ≥ 1.5:1 at both ground
-  strips in a lit crypt frame at each stage anchor, and no seat's torso median more than
-  5 L* above the median seat's. The sheet's contrast columns stay reported for continuity.
-  *Target*, reported beside the pass and gating only P6's six heroes (§ F3.5): p50 L* 31–40
-  with ≥ 45 % of cells below L 35 (the reference crop reads 37 / 45 % / 11.5 % above L 75;
-  the hand-drawn study 31 / 51 %; the kit's EMBER 51 / 43 %).
+- **Value.** The figure sits dark on a lit ground. *Pass* (the sheet criteria the prototype
+  measures, criteria 1–5): L* span p2 ≤ 15 and p98 ≥ 85; ≥ 20 % of body cells below L 35
+  and ≥ 20 % of interior cells; ≥ 8 % above L 75; the top quarter ≥ 8 L* lighter than the
+  bottom (lit from above). *Pass, in scene* (the ruler the prototype adopted after round 14
+  in place of the old contrast-against-the-navy criterion, which is **retired** because the
+  shadow band the bar needs — L 35–48 — cannot clear 3:1 against a navy line-up ground):
+  the actor's median value against the ground it stands on ≥ 1.5:1 at both ground strips in
+  a lit crypt frame at each stage anchor, and no seat's torso median more than 5 L* above
+  the median seat's. The sheet's contrast columns stay reported for continuity. *Target*,
+  reported beside the pass and gating only P4's six heroes (§ F3.5): p50 L* 31–40 with
+  ≥ 45 % of cells below L 35 (the reference crop reads 37 / 45 % / 11.5 % above L 75; the
+  hand-drawn study 31 / 51 %; the prototype's EMBER 51 / 43 %).
 - **Element identity.** The dominant garment ramp is the element's (fire crimson, wind green,
   water teal, light gold, dark plum) over a neutral secondary; the five elements read apart
   in greyscale too.
@@ -165,40 +186,54 @@ screenshots, are not in the repository and never will be.
   actors under 25 %. *Target*: heroes ≤ 65 % against every other actor — a brim, a horned
   helm, a coat with tails, a half-cape.
 - **Motion.** Five poses — idle, attack, hurt, cast, dead — three frames each. The two
-  criteria the repository already defines are kept **as defined, as absolute differences**
-  (the review's convention, ART-REVIEW.md): idle changes ≥ 17 % of cells between frames
-  (a one-cell breath is a translation and counts); the settle band — attack 2 against idle
-  0 — 21–39 %. Three criteria are **new**, measured after best-fit alignment so a translated
-  copy scores nothing, and calibrated on the exported kit at P0 with their bands recorded
-  then: attack moves a *part* (a weapon, an arm, the torso) 4–8 cells relative to the body;
-  hurt's first frame recoils with the crown rising ≥ 1 cell; dead is a collapse to 25–57 %
-  of the idle height that differs from the idle by ≥ 90 % after alignment (never a rotated
-  or clipped idle). One 8-connected component per non-dead frame.
-- **What is never generated.** UI, text, VFX, the light rig, the fonts. Backdrops are the
-  exported planes until the scene phase (§ F3.7).
+  criteria the prototype already defines are kept **as defined, as absolute differences**
+  (ART-REVIEW.md's convention): idle changes ≥ 17 % of cells between frames (a one-cell
+  breath is a translation and counts); the settle band — attack 2 against idle 0 — 21–39 %.
+  Three criteria are **new** and measured after alignment, defined once so the numbers mean
+  one thing: *alignment* is the integer translation that maximises silhouette IoU against
+  idle 0; *part travel* is the displacement of the centroid of the largest 8-connected
+  component of the aligned XOR mask, 4–8 cells for attack; *crown rise* is measured
+  feet-anchored (the bottom opaque row aligned, never best-fit, or the recoil would be
+  aligned away), ≥ 1 cell on hurt's first frame; *dead* is a collapse to 25–57 % of the idle
+  height whose aligned XOR against idle covers ≥ 90 % of the union (never a rotated or
+  clipped idle). One 8-connected component per non-dead frame. **The band rule**: these
+  bands are provisional; at P0 the gate records the prototype's 43 actors' p10–p90 per
+  criterion, the bake-off gates on the bands above unless the prototype's p10–p90 lies
+  outside them, in which case the recorded band replaces the provisional one as a register
+  entry, and the bands carry into `spec/art/` when it is written (§ F3.2).
+- **What is never generated.** UI, text, VFX, the light rig, the fonts. Backdrops are
+  placeholders until the scene phase (§ F3.7).
 - **What is never fed to a provider.** Third-party artwork of any kind — no screenshot of
   another game goes in as a reference image. The reference set is the hand-drawn study
-  (`game/art/pixel/ember-study.ts`, licence-clean and the one asset that meets the value
-  target) and, as they are accepted, our own actors.
+  (`prototype/game/art/pixel/ember-study.ts`, licence-clean and the one asset that meets
+  the value target, exported at cell resolution and ×4 at P0) and, as they are accepted,
+  our own actors.
 
 ### F3.2 The fork the owner decides at the bake-off: pixel or painted
 
 | Option | The player sees | What it keeps | What it costs |
 |---|---|---|---|
-| **A — pixel sprites (recommended)** | HD-2D as today, with sprites that reach further toward the bar: dense, hand-drawn-looking pixel figures under the soft light | the entire scene rig, the contract's one-pixelated-plane rule, every instrument and criterion, the bar the owner set | the providers must produce clean pixel art at the cell; consistency across 15 frames is the hard part (`TECHNICAL.md` § T10.3) |
-| **B — painted characters** | illustrated figures (a Darkest Dungeon or Slay the Spire register) under the same light rig | the light rig and the screens | the identity: the contract's pixel plane, the value instruments and the composition criteria are written for pixel figures; every criterion would be re-derived; the bar changes from "Octopath" to something the owner has not named |
+| **A — pixel sprites (recommended)** | HD-2D as the prototype, with sprites that reach further toward the bar: dense, hand-drawn-looking pixel figures under the soft light | the stage's laws, every instrument and criterion, the bar the owner set | the providers must produce clean pixel art at the cell; consistency across 15 frames is the hard part (`TECHNICAL.md` § T10.3) |
+| **B — painted characters** | illustrated figures (a Darkest Dungeon or Slay the Spire register) under the same light | the light rig and the screens | the identity: the value instruments and the composition criteria are written for pixel figures; the bar changes from "Octopath" to something the owner has not named |
+
+**How B is judged at the bake-off.** A painted figure fails the keyline, colour-count,
+cell-alignment and component criteria by construction, so for look B those are *reported,
+not gating*, and the candidates skip the palette quantisation and integer downscale of
+normalisation; the value, silhouette, motion and in-scene criteria gate both looks. A B
+candidate reaches the owner on that reduced gate, so the fork can actually close.
 
 Recommendation: **A for sprites, with painted portraits** for the ribbon chips, party heads
 and cards, where a painted face reads better at 48 px than a sprite crop. The fork closes at
 the **end of the P0 bake-off**, on six actors shown both ways, with all their frames, in
-lit battle frames on a phone; `spec/art/` is not written until it closes.
+lit battle frames on a phone (the prototype's stage carries them, `TECHNICAL.md` § T10.4);
+`spec/art/` is written when it closes.
 
-**What the numbers cannot promise.** The current kit passes every sheet criterion at its
+**What the numbers cannot promise.** The prototype's kit passes every sheet criterion at its
 pass thresholds and has done so since round 11, at 9/10, and still does not reach the bar;
 the pixel study showed why (the kit's palette and construction, not its numbers). The gate
 is therefore a floor that keeps bad images away from the owner's eyes, not a proof of the
 bar. What proves the bar is the owner looking at lit frames on a phone. The plan makes that
-decision explicit twice (§ F3.5), gates P6's heroes on the value target the kit fails, and
+decision explicit twice (§ F3.5), gates P4's heroes on the value target the kit fails, and
 names what happens on a "no".
 
 ### F3.3 The cast and the frames
@@ -214,10 +249,10 @@ names what happens on a "no".
 ### F3.4 Acceptance criteria — what the player must be able to see
 
 Every generated actor passes the **numeric gate** first (§ F3.1's pass thresholds and the
-motion criteria, measured by the instruments of `TECHNICAL.md` § T10.4 with the targets
+motion criteria, measured by the art tool of `TECHNICAL.md` § T10.4 with the targets
 reported beside them), then a **critic** (an agent with eyes on a contact sheet and in a lit
-battle frame at 1:1 and 2×), then the **owner** on a phone. The criteria, in the order they
-are checked:
+battle frame at 1:1 and 2×, under the protocol of § F3.5), then the **owner** on a phone.
+The criteria, in the order they are checked:
 
 1. Readable at arm's length on a phone: a hero at 13–17 % of the frame's height; the face two
    dark clusters with a highlight; the weapon held.
@@ -243,35 +278,56 @@ design, not to more sampling; an actor that fails three times goes to the stop d
 Per actor: a contact sheet of candidates (colour, greyscale, silhouette, the pose sheet, and
 the actor standing in a lit crypt frame at 1:1 and 2×) with the gate's table under it; the
 critic's verdict; the owner's yes or no on the sheet. Order: the six heroes first (they are
-on every screen), then the EMBER CRYPT (the first ten minutes), then the six bosses, then the
-remaining packs by act. The owner never sees an actor that has not passed the gate.
+on every screen), then the EMBER CRYPT pack (the first ten minutes), then the six bosses,
+then the remaining packs by act. The owner never sees an actor that has not passed the
+gate. The cast is built in **P4**, in parallel with the rules, because nothing in it
+depends on Kotlin: the tool, the providers and the owner's decisions.
+
+**The critic's protocol** (a model's score is not a measurement unless it is repeatable):
+the same model and the same prompt every time, blind — the critic is not told which
+candidate is which, nor what changed — three runs per verdict and the median score; a
+verdict below the bar names the failing criterion by number. The protocol is a clause in
+`spec/art/`.
 
 Two decision points, each a yes or no from the owner on lit phone frames:
 
 1. **After the bake-off (P0's exit):** six actors, both looks, all frames, through the
    calibrated gate. *Continue* with the chosen provider and look; *change provider* (one
    more bake-off); or *stop*.
-2. **After the six heroes (in P6):** the party on the stage in three biomes, the six meeting
-   the value target the kit fails (§ F3.1) and scored by the full-frame critic above the
-   kit's 8 on the sprite axis on the same frames. *Continue* to the enemies; *change
-   provider*; or *stop*.
+2. **After the six heroes (in P4):** the party on the prototype's stage in three biomes,
+   the six meeting the value target the prototype's kit fails (§ F3.1) and scored by the
+   full-frame critic **at or above 8 on the sprite axis** under the protocol above.
+   *Continue* to the enemies; *change provider*; or *stop*. The cast is judged once more on
+   the real stage at P5's end; a miss there is a light or composition fault and is worked in
+   the scene phase, not by regenerating the cast.
 
-**Stop means**: the generated assets are shelved (their provenance kept), the current kit
-stays the shipped art, the remaining art budget moves to the scene phase (P6b), and the
-heroes and bosses fall back to the owner's option B (hand-drawn pixel grids at the cell,
-`.claude/prompts/pixel-pipeline.md`) if the owner still wants them redrawn. Nothing else in
-the plan depends on the art succeeding.
+**Stop means**: the generated assets are shelved (their provenance kept), the fallback cast
+— the prototype's 43 actors' sheets captured at P0 (`TECHNICAL.md` § T10.9) — is the
+shipped art, the remaining art budget moves to the scene phase (P6), and the heroes and
+bosses fall back to the owner's option B (hand-drawn pixel grids at the cell, the process
+of `prototype/.claude/prompts/pixel-pipeline.md`) if the owner still wants them redrawn.
+Nothing else in the plan depends on the art succeeding.
 
 ### F3.6 Credits, licensing, disclosure and continuity
 
 Only providers whose written terms grant commercial rights to the outputs are used
 (`TECHNICAL.md` § T10.2 names the current candidates and their terms, verified at P0 and
-recorded in `kmp/assets/LICENSES.md`); every asset's provenance (provider, model and version,
+recorded in `assets/LICENSES.md`); every asset's provenance (provider, model and version,
 prompt hash, references, seed where the provider has one, date, licence, the gate result,
-who accepted) is recorded in a manifest committed with it. Prompts describe the style in
-our own bible's words and never name a third-party game, character or artist, and no
-third-party artwork is ever used as a reference image. The credits screen names the
-providers; the store listings disclose AI-generated art where the store asks.
+who accepted — matched by the merge lane to the approving review) is recorded in a manifest
+committed with it. Prompts describe the style in our own bible's words and never name a
+third-party game, character or artist, and no third-party artwork is ever used as a
+reference image. The credits screen names the providers; the store listings disclose
+AI-generated art where the store asks.
+
+**What a licence does not give.** A licence is the right to *use* the outputs. Under the US
+Copyright Office's 2025 guidance, output that is wholly machine-generated is not
+copyrightable; protection attaches to perceptible human authorship (a recorded hand pass,
+a creative arrangement), not to a prompt. The cast can therefore be copied by anyone, and
+§ T10.5 forbids the unrecorded hand edits that would add authorship. The owner approves D9
+knowing this; the options, if it matters, are recorded human passes over the accepted
+frames (a normalisation step with its own manifest entry), a style model trained on the
+hand-drawn study, or accepting the exposure for a free game.
 
 Continuity: providers retire models on a scale of months, and a character added in a later
 year must match a cast made by a specific model. Every accepted asset, prompt and reference
@@ -282,20 +338,21 @@ later character is in § F4.3.
 
 ### F3.7 Backdrops, VFX and portraits
 
-Backdrops are not regenerated during the port: the six biomes' painted planes are exported
-from the TypeScript pipeline as bitmaps and lit at boot by the same rig, driven by the
-exported light data, so the foot pools still follow the stage anchors. The scene work the
-full-frame critic asks for (light wells with an interior, a second hue per biome, the bright
-mass behind the figures, the plate rules) has its own post-parity phase, **P6b**, in which
-the painters are ported or re-authored as data-driven painters — with AI-generated backdrops
-as the owner's option, through the same gate-then-critic process. VFX stay procedural (they
-are light, not pictures). Portraits are painted (§ F3.2).
+The stage is built at P5 over **placeholder backdrops**: one flat, lit frame per biome and
+tier captured from the running prototype at P0 (`TECHNICAL.md` § T10.9), drawn as a single
+plane, plus the light data each biome needs (the pools follow the stage anchors). The real
+backdrops are the **scene phase, P6**: four planes per biome as data-driven painters or as
+AI-generated planes through the same gate-then-critic process, with the light wells, the
+second hue per biome, the bright mass behind the figures and the plate rules the full-frame
+critic asked for. VFX stay procedural (they are light, not pictures). Portraits are painted
+(§ F3.2).
 
 ## F4 Character changes — placeholder for the owner's details
 
 The owner will supply the changes once this plan is final. This section fixes what a
 change *is*, what it costs, and the questions the details must answer, so that the changes
-can be specified and built without a second planning round.
+can be specified and built without a second planning round. Details supplied before P4's
+cast pass fold into it at no extra art cost; later ones cost as § F4.3 says.
 
 ### F4.1 What the contract fixes today
 
@@ -351,10 +408,10 @@ before code moves: every status needs a source, a sim interpretation and a scree
 ### F4.4 When
 
 Character changes can be *specified* at any time (a spec is text); they are *built* after
-the P5 parity gate so that the balance table is a known baseline to measure them against —
+the P3 rules gate so that the balance table is a known baseline to measure them against —
 before or after the store release as the owner decides (question 5 below). Their art
 follows their spec (a kit decides a weapon and a pose) and is generated against the
-accepted cast.
+accepted cast; details supplied before P4 fold into the cast pass.
 
 ### F4.5 Questions the details will need to answer
 
@@ -396,15 +453,15 @@ functional item that will reopen the technical plan — a server, accounts, a ne
   information cheating. A client that knows the seed can simulate every candidate action to
   the end of the battle before choosing. For any competitive mode the seed must not be known
   to a client ahead of use: either the server holds the rng and streams draws, or each side
-  commits to a seed half and reveals it after the turn. The rules already take the rng as an
-  injected stream (`() -> Double`), so this is a transport decision, not a rules change —
-  but it is why a PvP design cannot simply reuse the single-player save.
+  commits to a seed half and reveals it after the turn. The rules take the rng as an
+  injected stream, so this is a transport decision, not a rules change — but it is why a
+  PvP design cannot simply reuse the single-player save.
 - A side-symmetric audit of the rules before PvP is specified: today's rules assume heroes
   versus enemies (enemies wear no sets, ENRAGE and the AI are enemy-only, FOCUS aims at a
-  leader, elements alternate by biome). A hero party as the *enemy* side is a rules change,
-  and the audit lists every clause that assumes the asymmetry.
-- The `:core` API can already run a battle with a policy on either side; the defender-
-  played-by-a-policy of async defence is the smallest extension.
+  leader, elements alternate by biome; a battle takes one hero-side policy and the enemies
+  act through their own AI). A hero party as the *enemy* side is a rules change, and the
+  audit lists every clause that assumes the asymmetry. The defender-played-by-a-policy of
+  async defence is the smallest such extension.
 
 ### F5.3 Rules questions PvP will force
 
@@ -424,9 +481,11 @@ single-player permadeath keeps its teeth.
 
 ## F6 Out of scope now
 
-Music (the contract has none), monetisation, cloud saves, accounts until PvP, portrait
-layout, localisation beyond keeping strings in one table, AI backdrops before P6b,
-controller support (optional), tablet-specific layouts (the 16:9 frame letterboxes).
+Porting anything of the prototype but its mechanics, its sounds and its measured laws;
+importing the prototype's browser Vaults; fixing the prototype's screen defects (it is
+frozen); music (the contract has none); monetisation; cloud saves; accounts until PvP;
+portrait layout; localisation beyond keeping strings in one table; AI backdrops before the
+scene phase; controller support (optional); tablet-specific layouts (the frame letterboxes).
 
 ## F7 Functional acceptance
 
