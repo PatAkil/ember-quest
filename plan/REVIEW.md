@@ -1689,3 +1689,94 @@ with no producer (D2). Revision 16 resolves all of them and declines none.
 | D10 | MINOR | The aggregate under a "no" to question 6 unstated | 17–34 without P4's L, option B outside it (README question 6) |
 
 **Declined or only partly applied:** none declined.
+
+## Round 15 — on revision 16 (commit `f1cf52b`)
+
+Four reviewers on a lighter model, 48 findings: 0 BLOCKING, 16 GAP, 10 NUMBERS, 22 MINOR —
+the second round with no blocking finding. The gaps: the seat spread was called gated but
+no lane measured it, and its two producers planted different populations (A1, C4); the
+rig's tuned constants, which the bars were achieved with, were in no export (A2); LOW's
+frame omitted the vignette map it draws (A3) and its bar was recorded on a floor P5 never
+draws (A4); the hand-written workflows' `changes` jobs could share a check name (A6); the
+cell line's slug came from no flag (C1); the Vault file's root was a list the grammar
+cannot express (C2); a fixture row's lap and pacts fought the knobs (C3); and on the
+owner's side the steady state's recurring compute was misstated (B1), the device lane
+could not assemble on an arm64 guest (B2), the store identity had no refresh once the
+cast lands (B3), a provider that cannot cap was still allowed (B4, A5), an existing Play
+account might predate the rule the whole test plan rests on (D1), and the ruler bars and
+P6's acceptance had no rework bound (D2). The numbers: the measured pace was an estimate
+from a day of rounds (B5); the outermost ceiling omitted the second bake-off (A7, B6,
+D3); the admin hours and the review sittings were short (B8, B9); question 1's residency
+lever was unsized (B10); the slowest branch was cut against nothing (B11); and the icon
+could not reach 1 024 px at 4× (B12). Revision 17 resolves all of them; one is declined
+with the evidence (B7).
+
+### 15-A — adversarial, technical
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| A1 | GAP | The seat spread "gated" but measured by no lane; two producers, two populations | reported, not gated — the rig's own measure with one id at all six anchors, `seat=<id>` and `frames --seat <id>` (§ F3.1, § T10.4, § V2, § V3.3) |
+| A2 | GAP | The rig's tuned constants in no table or export | exported once as `rig.json` with the light data and bound as `spec/platform/` constants (§ T4.2, § T2.5) |
+| A3 | GAP | LOW's frame stated without the vignette-only grade map it draws | "plus the vignette-only grade map every frame" (§ F3.1, § T9.2, § T10.4) |
+| A4 | GAP | The LOW bar recorded on `bakeFlat`'s resampled floor | recorded through the `flat=1 tier=LOW` path over the committed composite, as MED (§ F3.1, § T10.4, § T4.2, § T9.2) |
+| A5 | GAP | The no-cap branch left the ceiling unenforced | = B4: prepaid or provider-capped is a requirement; the counter is never the ceiling (§ T10.1, § T10.7, README) |
+| A6 | GAP | Hand-written workflows' `changes` jobs could share a check name | prefixed like the generated ones — `prototype-changes`, `env-image-changes` (§ V5, § T13.5) |
+| A7 | NUMBERS | The outermost ceiling omitted the second bake-off | ≈ $6 700–7 700 (README; = B6, D3) |
+| A8 | MINOR | The 3(c) fix promised an interactive second decision the frozen `run.ts` cannot ask | a synchronous auto-choice in the prototype; the second decision is the seam's (§ F1.4) |
+| A9 | MINOR | The neutrals enumeration two ramps short; § F3.3's sentence garbled | `ramps.json`'s `neutrals` list; the sentence repaired (§ T10.4, § F3.3) |
+| A10 | MINOR | The klib dumps named no runner | on the macOS job, inside its budget (§ T3, § V2) |
+| A11 | MINOR | The third stop trigger stated two ways | once, per key at 90 % (§ F3.5) |
+| A12 | MINOR | Removing a required check had no order | the owner drops the rule first, then the job leaves (§ V5, § T13.5) |
+
+### 15-B — adversarial, product and process
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | The steady state's "only recurring compute" false under the farm or pool branches; 8(b)'s metered CI outside the recurring total | the farm's or the pool's monthly cost continues after P7; 8(b) adds ≈ $150–300 a month while the programme runs; a budget of two out-of-cycle sessions shared by three triggers (README money table) |
+| B2 | GAP | The Android lane cannot assemble on an arm64 guest — Google ships no build-tools for it | the lane assembles nothing: it downloads the merge lane's APKs (the token's `actions: read`) and runs them by `adb`; M7 proves one `connectedCheck` that way (README D18, D17, § T1, § V9) |
+| B3 | GAP | The store identity cut from the fallback hero had no refresh | re-cut from the accepted hero before the P7 tag, a listing update and one owner sitting on the P7 row (§ F2.5, README) |
+| B4 | GAP | The cap rule stated three incompatible ways | prepaid or provider-capped is a requirement — a provider that is neither is not used; the counter is a mirror (§ T10.1, § T10.7, README) |
+| B5 | NUMBERS | "The one to two a week this review measured" unsupported — all rounds inside a day | the cap suggests, not measures; *n* is measured at P1 (README, three places; "estimated pace") |
+| B6 | NUMBERS | The outermost ceiling short by the second bake-off | = A7 (README) |
+| B7 | NUMBERS | GitHub's Linux rate claimed at $0.008 | declined: GitHub cut Linux 2-core from $0.008 to $0.006 on 2026-01-01 (its changelog; verified in round 13); $0.006 stands |
+| B8 | NUMBERS | The admin hours short of the plan's own list | ≈ 25–45 hours (README, twice) |
+| B9 | NUMBERS | P4's sittings allowed no taste round; P0's six carried too much | P0 ≈ 8, P4 ≈ 12–18; 59–74 sittings, 46–59 to the first build, nine to twelve weeks, thirteen to sixteen with the stores, ≈ 60–125 hours (README, five places) |
+| B10 | NUMBERS | Question 1's painted branch a third calendar mover, its residency lever unsized | named in the effort paragraph: ≈ 1 session inside P4's L, the residency change inside P5's XL (README) |
+| B11 | NUMBERS | "A year or more below one" priced nowhere while the checks are cut against 38 weeks | below one session a week the plan is not priced and P1's stop is the answer (README) |
+| B12 | NUMBERS | The icon master cannot reach 1 024 px at 4× | 16×, nearest-neighbour (§ F2.5) |
+| B13 | MINOR | "About a month before the build" only at one session a week | lined up from P2's exit, invited at P3's gate — one to four weeks by pace (README, § T12) |
+| B14 | MINOR | The closed test's trigger omitted what precedes the build | = D5 (README, § T12) |
+| B15 | MINOR | The bake-off's paid month a third absence exception | named (README) |
+| B16 | MINOR | Three triggers claimed the one out-of-cycle session | a budget of two, shared (README; = B1) |
+| B17 | MINOR | Option (a) cannot move to the per-image providers | the clause dropped; dropping (a) costs the consistency mitigation (§ T10.7) |
+
+### 15-C — blind, the implementer
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| C1 | GAP | The cell line's slug came from no flag | `--cell <id>` on both harnesses, passed by `cells.mjs` (§ T5.4, § T14) |
+| C2 | GAP | A list-rooted schema the grammar cannot express | the root has one field, `relics: list<object:VaultRelic>` (§ T5.3, § T7.4) |
+| C3 | GAP | The fixture row's lap and pacts against the `--lap`/`--pacts` knobs | `--party <row>` takes both from the row and refuses the flags; `battle-fixtures` means lap 1, no pacts (§ T5.3) |
+| C4 | GAP | Two producers planted different seat populations; the seat list in no file | the per-biome seat list recorded in `spec/art/bible.md`; `seat=all` and `--seats all` plant it, `seat=<id>` and `--seat <id>` one id (§ T4.2, § V3.3, § F3.1, § T10.4) |
+| C5 | MINOR | "The one engine change" beside a second; a private branch the capture cannot call | two engine changes; the `unlit` flag returns the composite with the crisp floor inside it (§ T4.2) |
+| C6 | MINOR | The lifted metrics omitted the contrast columns | added (§ T10.4) |
+| C7 | MINOR | The producers' definitions named no masks | `<frame>.masks/<seat>.png` in both (§ V3.3, § T4.2) |
+| C8 | MINOR | The second reader had no module or lane; the calibration golden absent from L2b | a JVM test in `tools/instruments/` in L2b; the golden and its reader in L2b's contents (§ T10.4, § V2, § V9) |
+| C9 | MINOR | The icon had a reviewer but no producer or ground value | `frames --icon` over the bible's recorded ground colour (§ F2.5, § V3.3) |
+| C10 | MINOR | The protocol freeze ordered against the bake-off, not spike 8 | before spike 7 or 8, whichever runs first (§ F3.5) |
+| C11 | MINOR | Held art pull requests would conflict on one spend file | one row file per generation call under `assets/spend/`, summed by the counter (§ T10.1, README, § T2.1) |
+| C12 | MINOR | "Their P5 bars" ambiguous | "the P0-recorded LOW and MED bars" (§ F3.1, § T10.4, § T14, README) |
+| C13 | MINOR | The art fixtures validated by nothing | spec-lint validates `spec/fixtures/art/**` against its root schema (§ T7.5) |
+
+### 15-D — blind, the owner's advisor
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| D1 | GAP | Never asked whether a Play account predating November 2023 exists | confirmed with its creation date at P0; an older account drops the closed-test rule and the recruitment (README P0 row, § T12) |
+| D2 | GAP | The ruler bars and P6's acceptance had no rework bound | the cast-miss shape: one rework of the rig or the planes, then a recorded miss or the phase held (§ F3.1, § T14, README P6 row) |
+| D3 | NUMBERS | The outermost ceiling omitted the second bake-off | = A7 (README) |
+| D4 | MINOR | Out-of-band items undercounted | every one listed in the effort paragraph (README) |
+| D5 | MINOR | The closed test's trigger omitted the last stop, the store set-up and the invitations | named in the trigger's three statements (README, § T12) |
+| D6 | MINOR | Question 5 costed on phones the owner may not own | "holds, or buys at P0" (README) |
+
+**Declined or only partly applied:** B7 declined with the evidence above.

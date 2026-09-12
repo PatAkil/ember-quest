@@ -94,7 +94,7 @@ behaviour and the new screens are built to it; the prototype is frozen with its 
 |---|---|---|
 | The battle screen enumerates a hero's options *before* the turn's cooldown tick while the rules re-enumerate at step 7 after it; when a skill comes off cooldown during the tick the committed index casts a different skill or target — measured on 16 % of hero turns | the hero's decision is asked at step 7 with the post-tick options, so what the player picks is what fires | `COMBAT-TURN` |
 | A skill greyed out in the command list at cooldown 1 is legal by the time the turn resolves | the list shows the post-tick legality | `SCREENS-BATTLE` |
-| A hero wearing the four-piece VIOLENT set gets an extra turn that asks the battle's policy, which the interactive screen never seats — a crash | the extra turn is a second decision asked of the player | `COMBAT-TURN` |
+| A hero wearing the four-piece VIOLENT set gets an extra turn that asks the battle's policy, which the interactive screen never seats — a crash | the prototype fix seats a synchronous auto-choice for the extra turn, since the frozen `run.ts` asks the policy inside `runTurn`; the interactive second decision is the seam's (`TECHNICAL.md` § T2.3) | `COMBAT-TURN` |
 | The Vault's minimum-ascension floor is enforced by the Vault screen, not by the rules | the same function, with the same numbers, lives in the rules and is tested there; the screens apply it before a run starts, and the run itself still accepts any `RunConfig` — as the oracle does — so the golden cells recorded at A0 with three Vault relics replay | `META-VAULT` |
 
 ### F1.5 How the mechanics and the presentation are accepted
@@ -148,7 +148,7 @@ phase named in the Phase column.
 | F2.2 | **Settings** | sound volume and mute; ARCADE on/off; quality tier (AUTO/HIGH/MED/LOW); a "reset the Vault" with a confirm; credits | One screen, reachable from the title and the pause overlay. Haptics on hits is optional and off by default. A crash-report toggle appears only when a reporter ships (§ T12). | S | P5 |
 | F2.3 | **Orientation and safe areas** | landscape locked (question 2); the frame respects notches, rounded corners and the gesture-navigation edges | The mutable safe inset reads the platform's insets. Every edge target is tested under gesture navigation. | S | P5 |
 | F2.4 | **Interruptions** | a call or a switch to another app pauses the game and the sound; returning resumes on the pause overlay | The app pauses on lifecycle events and yields audio focus. | S | P5 |
-| F2.5 | **App identity** | the app icon (a 1024 × 1024 master — a normalised crop of an accepted hero's idle frame at 4×, the fallback hero's until the cast is accepted, over the ember ground colour, drawn by the UI pipeline and never generated — from which the platforms' sizes and Android's adaptive layers are derived by the build), the splash (the icon on the ground colour through each platform's own launch screen), Play's 1024 × 500 feature graphic (the same crop over a stage capture); all three under `assets/store/`, an owned path the owner reviews on the P5 row; store listing, a credits screen that names the AI art providers and every bundled asset's licence (the HUD face's OFL or Apache notice; the sounds and the glyph tables are the prototype's own) | Store metadata is copy the owner writes; the credits line is required by § F3.6. | S | P5 (identity and the listing copy, which Play needs before a closed-track release); P7 (the credits and disclosure copy) |
+| F2.5 | **App identity** | the app icon (a 1024 × 1024 master — a normalised crop of an accepted hero's idle frame at 16×, nearest-neighbour, the fallback hero's until the cast is accepted and re-cut from the accepted hero before the P7 tag — a listing update on both stores, an S, and one owner sitting on the P7 row — over the bible's ground colour, recorded at P0 in `spec/art/bible.md`, produced by `frames --icon` (`VERIFICATION.md` § V3) and never generated — from which the platforms' sizes and Android's adaptive layers are derived by the build), the splash (the icon on the ground colour through each platform's own launch screen), Play's 1024 × 500 feature graphic (the same crop over a stage capture); all three under `assets/store/`, an owned path the owner reviews on the P5 row; store listing, a credits screen that names the AI art providers and every bundled asset's licence (the HUD face's OFL or Apache notice; the sounds and the glyph tables are the prototype's own) | Store metadata is copy the owner writes; the credits line is required by § F3.6. | S | P5 (identity and the listing copy, which Play needs before a closed-track release); P7 (the credits and disclosure copy) |
 | F2.6 | **Device tiers** | a 2022 mid-range phone runs MED at 60 Hz; older devices start LOW; the toggle in settings | The tiers are the contract's; the *default* comes from a three-second stage benchmark run behind the title on first launch — the title needs no stage, so the ≤ 2 s boot budget of `TECHNICAL.md` § T9.5 holds and the tier is decided before the first battle (§ F1.3). | S | P5 |
 | F2.7 | **Bug reports from a release build** (the save share contingent on question 10's yes; built with the first test-track build so the felt rows and the closed testers have it) | a long-press on the title shares the current run's save file; the seed is shown on GAME OVER | So the owner's felt rows, the first-ten-minutes test and the closed testers — all on release builds — can report a bug that replays (`TECHNICAL.md` § T11). The rest of the debug drawer stays debug-only. | S | P5, with the first test-track build |
 
@@ -198,25 +198,31 @@ screenshots, are not in the repository and never will be.
   ≥ 1.5:1 (over an L* 41.6 ground that admits an actor above L* 53.5 or below 31.3, as
   ART-REVIEW.md records; an L* ratio would be a different gate) — measured on **one fixed
   set**: the six seats of the resting frame of every biome — 36 seats, 72 strip readings
-  — the seat list fixed at P0, an excluded seat counted as a miss, never dropped, and the
+  — the seat list (which fallback actor stands in each of the six seats of each biome) recorded in `spec/art/bible.md` at P0 beside the bars, an excluded seat counted as a miss, never dropped, and the
   fallback cast planted as a fixed reference at P0, P5 and P6; **three bars, all recorded
   at P0 under this rule**, one per tier, each a count — the number of the 72 readings at
   ≥ 1.5:1 the rig achieves at P0 for that tier, the shape of the record's 106 of 108; a
   frame set counting below it fails: P5 is gated at LOW — the key light and the grade
-  baked into the one flat plane and nothing else, the prototype's LOW over the same
-  composite, so its bar is the prototype's LOW frame — and at the tier the reference
+  baked into the one flat plane plus the vignette-only grade map every frame, the
+  prototype's LOW over the same composite, so its bar is recorded through the same
+  `flat=1 tier=LOW` path over the committed composite (`TECHNICAL.md` § T4.2), not on
+  `bakeFlat`'s own frame, whose floor is resampled — and at the tier the reference
   phone's first-launch benchmark picks, MED on the 2022 phone (§ F2.6), the frame the felt
   rows and the testers see, whose bar is recorded over the flat composite lit by the
   prototype's rig at MED (`TECHNICAL.md` § T4.2's `flat=1 tier=MED` look), not over the
   four-plane diorama, which is not the scene P5 draws; and P6 at HIGH on the landed rig,
-  with LOW and MED not below their P5 bars (the record under the older strip rule was
+  with LOW and MED not below the P0-recorded LOW and MED bars (the record under the older strip rule was
   106 of 108, quoted for scale only); ARCADE — LOW with the CRT pass over it, a
   stylisation the player chooses — is exempt, since its scanlines, halation and lift are
-  one transform over every biome, not a light rig; and the **seat spread** — the largest excess of a seat's torso median (rows
+  one transform over every biome, not a light rig; a ruler below its bar at a phase exit
+  has the cast-miss shape — one rework of the rig at P5 or of the planes at P6, then the
+  owner's decision, a recorded miss carried forward or the phase held — and so does P6's
+  acceptance on a phone; and the **seat spread** — the largest excess of a seat's torso median (rows
   0.33–0.72 of the silhouette's height) over the median seat **of the same biome frame**,
-  reported as the maximum over the six frames — an L* value whose bars are likewise the
-  rig's per tier (the rig's own 4.5 L was measured with one sprite at all six anchors, the cast's
-  differences removed, so 5 L* is the intent, not the bar). Both are
+  reported as the maximum over the six frames — an L* value that is **reported, not gated**: the rig's own
+  measure, taken with one id planted at all six anchors (`seat=<id>` in the prototype,
+  `frames --seat <id>` in Kotlin; the rig's 4.5 L was measured that way, the cast's
+  differences removed, and 5 L* is the intent). The count is
   **reported** on every sprite's contact sheet and **gated** at P5
   and P6 against the rig over the biome frame goldens (a miss is a light or shadow fault,
   worked in the scene, never by regenerating a sprite). The sheet's contrast columns stay
@@ -306,7 +312,7 @@ names what happens on a "no".
 | Heroes | 6 | 64 × 64 cells | five poses × three frames = 15 frames each; authored facing right |
 | Normal and elite enemies | 31 | 64 × 64 | same poses; creatures (a raptor, a jelly, a coil) are exempt from the mirror-IoU rule |
 | Bosses | 6 | 96 × 96 | same poses; heavier and taller by the size rule |
-| Portraits | 43 | painted, ≥ 256 px, cropped to 48-px chips | one per actor; the element mark is drawn by the UI, not painted. **Their own criteria** (the sprite metrics do not apply): crop-safe at 48 px (the face inside the chip's safe area); the face reads as two dark clusters and a highlight at 48 px; the element's hue is present — at least 15 % of the chip's cells within ΔE 12 of the element ramp's accent or glow colours, skin, hair and the other the neutral ramps the element does not share permitted and uncounted, each cell assigned to its nearest ramp; consistent with the sprite's hair, headgear and colours; no text, no watermark — the tool measures the first three with the formulas of `TECHNICAL.md` § T10.4, the critic judges the last two. **Fallback**: a normalised head crop of the sprite, generated by the tool, which the screens are designed to accept from P5 so no screen ever depends on a portrait |
+| Portraits | 43 | painted, ≥ 256 px, cropped to 48-px chips | one per actor; the element mark is drawn by the UI, not painted. **Their own criteria** (the sprite metrics do not apply): crop-safe at 48 px (the face inside the chip's safe area); the face reads as two dark clusters and a highlight at 48 px; the element's hue is present — at least 15 % of the chip's cells within ΔE 12 of the element ramp's accent or glow colours, the neutral ramps the element does not share — `ramps.json`'s `neutrals` list — permitted and uncounted, each cell assigned to its nearest ramp; consistent with the sprite's hair, headgear and colours; no text, no watermark — the tool measures the first three with the formulas of `TECHNICAL.md` § T10.4, the critic judges the last two. **Fallback**: a normalised head crop of the sprite, generated by the tool, which the screens are designed to accept from P5 so no screen ever depends on a portrait |
 | Total sprite frames | 645 | stored at cell resolution | the budget model is in `TECHNICAL.md` § T10.7 |
 
 ### F3.4 Acceptance criteria — what the player must be able to see
@@ -357,7 +363,7 @@ the same model and the same prompt every time, blind — the critic is not told 
 candidate is which, nor what changed — three runs per verdict and the median score; a
 verdict below the bar names the failing criterion by number. The prompt, the five axes,
 the scoring **and the model with its version** are frozen in `plan/spikes/7/CRITIC.md`
-before the first verdict of the bake-off and promoted unchanged into `spec/art/` at P0's
+before the first verdict of spike 7 or spike 8, whichever runs first, and promoted unchanged into `spec/art/` at P0's
 exit **with the per-axis baselines and the calibration sheet beside it** — `spec/art/` is
 an owned path, so the bar an agent's work is judged by is not the agent's to move; every verdict records the model and version; at P0 the pinned critic scores the
 frozen calibration sheet — the prototype's round-14 cast in lit frames, committed as
@@ -392,8 +398,9 @@ Four stop triggers — the first two decision points, each a yes or no from the 
    bound: one rig rework, then the owner's decision, a recorded miss carried into the scene
    phase (which only the planes can then answer) or P7 held for it; never by regenerating
    the cast.
-3. **When the cast's ceiling is reached** — the $4 000 of per-image spend held as the
-   providers' own caps, or, for a subscription winner, a month that ends with the cast
+3. **When a key's cap is reached** — the counter's refusal at 90 % of that key's own cap
+   ($3 150 on the sprite key, $450 on the portrait key; the $4 000 ceiling is the two caps
+   together) or, for a subscription winner, a month that ends with the cast
    incomplete (`TECHNICAL.md` § T10.7) — wherever the cast stands: the same three branches — a budget the owner raises by name,
    a change of provider, or stop — and a mixed cast, accepted actors beside fallback ones,
    is then a shipped state the owner approves by name, never a transient. The same
