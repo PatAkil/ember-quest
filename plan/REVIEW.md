@@ -490,3 +490,89 @@ checked and holding, one defective (3-B2's tag pattern → C1).
 | C19 | MINOR | L2b's storyboard step measured at P1 in one place and P5 in another | the storyboard step at P1 on the synthetic storyboard; the content-scaled steps at P4/P5 (§ V2) |
 | C20 | MINOR | `ART` clauses had no owner the Kotlin binder could serve; look-B measurement resolution unstated | `owner: tools/art`, the tool parsing its tables and reporting JUnit XML; look B resampled to the cell canvas for measurement (§ T7.1, § T10.5, `FUNCTIONAL.md` § F3.2) |
 | C21 | MINOR | No cell id; a runs cell not regenerable from its line; sets and sigils not computable from `config`/`result`; the stall fixture without knobs or an exit | an `id` column and slug; asc/vault/spd on the runs `cell` line; the `party` record; `prototype/sim/fixtures.mjs`; the 200-tunings exit (§ T5.3) |
+
+Part 2 — A, B and D on **revision 5** (commit `f5c3def`), on a lighter model: A 2 BLOCKING,
+4 GAP, 2 NUMBERS, 8 MINOR; B 0 BLOCKING, 7 GAP, 6 NUMBERS, 9 MINOR; D 1 BLOCKING, 3 GAP,
+1 NUMBERS, 7 MINOR. Round 4 in total: 71 findings — 5 BLOCKING, 19 GAP, 12 NUMBERS, 35
+MINOR — resolved in **revision 6**. Both new blocking findings were defective round-4 part-1
+resolutions: the prototype workflow that D1 shows would block every other pull request, and
+the unlit placeholder that A2 shows cannot come from the render path. The structural changes
+revision 6 made: the prototype workflow runs on every pull request with its heavy job
+conditionally skipped (D1, A1, A11); the placeholder backdrop is one unlit composite per
+biome from the bake path (A2, A8); the plan's own owned-path check is the primary gate on
+owned paths with `CODEOWNERS` as a verified second layer (B2), and the art tool is owned
+with its calibration a golden (B3); the owner's admin acts at P1 and P5 are in the owner's
+table (B1); App Review, the closed-testing track and TestFlight's kinds are in the release
+path (D2); the § F2 rows have phases and F2.1 is question 10, closed at P0 (D3, B11); the
+character changes and option B are sized and the calendar is a function of capacity (D4,
+B5, B9); the portraits have criteria and a fallback, the reference rule is mechanical and
+the critic's model is pinned (B4, B6, B7).
+
+### 4-A — adversarial, technical (revision 5)
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| A1 | BLOCKING | `prototype-check` as specified cannot pass in CI: the smoke gate needs a running server and `npm ci` installs no browser | the command names `playwright install`, a preview server and `SMOKE_URL` (§ V5) |
+| A2 | BLOCKING | A `light=0` switch in the render path cannot produce an unlit, four-painter, padded composite: LOW's light is baked, the near painter is not in the flat bake, the render path crops the pad | an `unlit` flag on the bake path; one composite per biome — far, mid and floor at the LOW blur — read from the padded bake canvas; six images for every tier (§ T4.2, § T10.9, § T9.2, D16, `FUNCTIONAL.md` § F3.7) |
+| A3 | GAP | A nested `.claude/` is discovered as directory-scoped skills, so the archived prototype skills would still be offered | `prototype/.claude-archive/` (§ T4.1, § T13.2, `FUNCTIONAL.md` § F3.5) |
+| A4 | GAP | The fast lanes run on `agent-env`, whose rows never reach a CI artifact, so their budgets had no data source after P1 | the pull-request-opening step pastes the session's rows into the pull request body; L3 re-runs L0–L2 timed on `hosted-linux` (§ T13.5, § V2, § V7) |
+| A5 | GAP | The font export dropped `caseFold`, `baseline` and `outlineMinScale` and misnamed `name` | every field exported verbatim (§ T4.2, § T9.6, § T10.9) |
+| A6 | GAP | Forfeit is a third rule the oracle cannot cover, and "credited to RETREAT" is presentation, not rules | the split stated (`WIPE` with `forfeit` in the rules, `RETREAT` the screens' label); bound by clause tests; never in a golden (§ T2.3, § T5.3, `FUNCTIONAL.md` § F1.1) |
+| A7 | NUMBERS | A set has one bonus at one piece count, so "four pieces also grants the two-piece bonus" was wrong and the cell failed its own coverage definition; room types appear only in `result` | eight 2-piece sets at two, eight 4-piece sets at four; rooms from `result`'s list (§ T5.3) |
+| A8 | NUMBERS | Twenty-four placeholders at 6 MB against single planes at 15–40 MB; ARCADE's composite is LOW's | six composites, ≈ 4–10 MB, measured at P0 (§ T9.7, § T4.2) |
+| A9 | MINOR | The derived phase had no `DONE` | added (§ T2.4) |
+| A10 | MINOR | `working-directory` alone leaves the Pages deploy broken | the three edits named (§ T4.1) |
+| A11 | MINOR | The checks were "from P1" in three places and P2 in two; "the P0 captures" cannot be gated; the Node pin arrives at P2 | both required from P1, vacuous until the tag; "the P1 and P2 changes"; Node 22.x until P2 (§ T4.1, § T4.2, § V5, README) |
+| A12 | MINOR | The two palette-overlap metrics were conflated and one attributed to `lineup.ts` | the cast and frame-to-frame metrics named; both new (§ T10.4, `FUNCTIONAL.md` § F3.1) |
+| A13 | MINOR | 64 × 48 against the 64 × 64 canvas | the canvas 64 × 64; the figure ≤ 48 columns (`FUNCTIONAL.md` § F3.1) |
+| A14 | MINOR | No denominator for the motion criteria; "must reproduce" with none | differing cells ÷ the union of the masks; "reproduces, or the definition is recorded as changed" (`FUNCTIONAL.md` § F3.1, § T10.4) |
+| A15 | MINOR | The prototype's self-check compares two mechanisms, not three | stated (§ T2.3) |
+| A16 | MINOR | Pitch by resampling is not the prototype's pitch; the offline shim must report `running` and avoid the cooldowns | stated: no resampling; the shim's state; one context per (name, seed) (§ T9.8, § T4.2) |
+
+### 4-B — adversarial, product and process (revision 5)
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | The owner-only admin acts of P1 and P5 were missing from the owner's table | the rows name them; an absent owner blocks P1 and the first test-track build (README) |
+| B2 | GAP | Code-owner review at zero required approvals is contested; the enforcement rested on it | the owned-path check is the primary gate; `CODEOWNERS` a second layer verified in V9's first step (§ V5, § V9, § T1, D15, D17) |
+| B3 | GAP | The art tool was not owner-reviewed and its calibration was a one-off report | `tools/art/**` owned; `spec/art/calibration.json` asserted in the commit lane (§ T10.4, § V5, § V6) |
+| B4 | GAP | Forty-three portraits with no criteria and no fallback | their criteria; the sprite-head-crop fallback the screens accept (`FUNCTIONAL.md` § F3.3, § T10.4) |
+| B5 | GAP | Option B, the stop rule's branch, was unsized | ≈ 8–16 sessions outside the aggregate; question 6 priced both ways; a money-table row (README, `FUNCTIONAL.md` § F3.5) |
+| B6 | GAP | The no-third-party-references rule was discipline only | `art generate` accepts only committed asset ids; the gate fails unknown references (`FUNCTIONAL.md` § F3.1, § T10.1, § V1, § V6) |
+| B7 | GAP | The critic's model was unpinned and contradicted "the strongest available" | pinned with its version; re-scoring on a change (`FUNCTIONAL.md` § F3.5, § T13.1, § T15, § V6) |
+| B8 | NUMBERS | The calibration quoted round-13 ranges against the round-14 tree | the round-14 ranges; palette overlap re-measured; the tag as the reference tree (§ T10.4) |
+| B9 | NUMBERS | The three-sessions-a-week calendar was unsupported by capacity the review itself exceeded | the calendar as a function of sessions per week; P1 measures a session; an agent-capacity risk row (README) |
+| B10 | NUMBERS | "16–32 sessions to the test tracks" was the number to production access | 11–22 to a test-track build, 16–32 to production access (README item 6) |
+| B11 | NUMBERS | P7 was charged with § F2 rows built in P5 | each row assigned a phase; P7 keeps F2.7 (`FUNCTIONAL.md` § F2, § T14, README) |
+| B12 | NUMBERS | The alternatives were priced as migrations against a total that includes the rig and the art | the like-for-like note; the rig-in-TypeScript alternative priced (README item 2, D1) |
+| B13 | NUMBERS | No Mac row; questions 5 and 6 unpriced | the Mac row; both priced (README) |
+| B14 | MINOR | "The ledger" undefined after its file was removed; a re-run's reason had no home | defined once; the reason as a pull request comment or the nightly's issue (§ T13.5, § V2, § V5, § V7) |
+| B15 | MINOR | § F4.4's question reference | = D9 |
+| B16 | MINOR | Question 3 mixed the demo and the web target | split into (a) and (b) with their phases (README) |
+| B17 | MINOR | The Pages workflow's three edits | = A10 |
+| B18 | MINOR | "The only irreversible spend" omitted the sessions, the hours and the tester clock | stated (§ T4.3, README) |
+| B19 | MINOR | The demo's fixable screen defects were disclosed without the option | question 3(a) offers the fix; "What stands still" says so (README) |
+| B20 | MINOR | `STATUS.md`'s three balance diagnoses were not carried | `spec/balance/` proposals with `known-divergence` notes (§ T7.6) |
+| B21 | MINOR | A sprite axis ≥ 8 is already met by the rejected kit | ≥ 9 for P4; the discriminators named (`FUNCTIONAL.md` § F3.5, § T14, README) |
+| B22 | MINOR | "An absence costs calendar, never rework" ignored the stack's rebase | stated; one pull request per owner-gated path (README) |
+
+### 4-D — blind, the owner's advisor (revision 5)
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| D1 | BLOCKING | A required check whose workflow triggers only on `prototype/**` stays pending on every other pull request | the workflow runs on every pull request; the freeze check unconditional; `prototype-check` a conditionally skipped job (§ T4.1, § V2, § V5) |
+| D2 | GAP | No App Store submission or App Review; the internal track does not run the closed test's clock; TestFlight's kind unstated | App Review at P7 in the deliverables, the gate and the owner's row; Play's closed-testing track; TestFlight internal (§ T12, § T14, README) |
+| D3 | GAP | The § F2 rows had no decision moment, and F2.1 must be settled before P3 designs the save format | question 10 at P0; a Phase column per row; P3 designs the `SAVE` clauses around it (README, `FUNCTIONAL.md` § F2, § T14) |
+| D4 | GAP | The character changes, the one announced functional change, had no effort price | a Size column in § F4.3; the "Then" row sized (`FUNCTIONAL.md`, README) |
+| D5 | NUMBERS | "Ten screens" followed by twelve items | twelve screen states in nine files (`FUNCTIONAL.md` § F1.2, README) |
+| D6 | MINOR | The three-second benchmark against the two-second boot budget | the benchmark runs behind the title (`FUNCTIONAL.md` § F2.6) |
+| D7 | MINOR | The ceiling equated with a worst case that includes costs outside it | the two numbers separated (§ T10.7, README) |
+| D8 | MINOR | The unwind lived only in TECHNICAL | "If the owner stops" in the README |
+| D9 | MINOR | § F4.4 cited the wrong question; D3 had no closing moment | § F4.5 cited; D3 approved with item 1 (`FUNCTIONAL.md`, README) |
+| D10 | MINOR | No accessibility position | stated in § F6 |
+| D11 | MINOR | The status under-reported the disposition and silently set the exit bar | the status names the minor findings' disposition and the bar, and the owner's stricter option (README) |
+| D12 | MINOR | The rig-in-TypeScript alternative unpriced | = B12 |
+
+**Declined or only partly applied (MINOR):** A8's "cut the set to 18" — moot, the set is
+six; D11's stricter bar — offered to the owner, not adopted by the loop, since a round with
+zero minor findings from four reviewers is not a bar any document meets.

@@ -30,7 +30,7 @@ current content.
 |---|---|
 | Party and stats | 3v3, eight stats (HP ATK DEF SPD flat; CRIT CDMG ACC RES points), the derivation with no compounding, mitigation `def / (def + 900)`, no caps but CRIT 100 at roll time |
 | Elements | FIRE ▸ WIND ▸ WATER ▸ FIRE, LIGHT ⇄ DARK; advantage = crit points, disadvantage = the glance; the GLANCE debuff |
-| Combat | the event-driven attack bar, the ten-step turn, cooldowns, seventeen statuses with their durations and stacking rule, the ACC/RES landing floor, the damage pipeline, counters, ENRAGE at turn 100, TURN_CAP 500 as a stall; **forfeit** — quitting a battle from the pause overlay ends the run as a loss credited to RETREAT, the Vault banking as on any death |
+| Combat | the event-driven attack bar, the ten-step turn, cooldowns, seventeen statuses with their durations and stacking rule, the ACC/RES landing floor, the damage pipeline, counters, ENRAGE at turn 100, TURN_CAP 500 as a stall; **forfeit** — quitting a battle from the pause overlay ends the battle as a lost battle (`WIPE` in the rules, `forfeit` set on the result) and the run with it, the Vault banking as on any death; the screens credit the death to RETREAT, a presentation label the rules never carry |
 | Skills | 24 hero skills (six kits of three plus six awakened variants) and every enemy skill in the closed `SkillId` union |
 | Characters | six (EMBER, GALE, TIDE, BASALT, SABLE, LUMEN): bases, kits, awakenings, leader skills |
 | Enemies | 37 across six biomes (four or five normals, one elite, one boss each), their packs, the scale formula per act, kind, lap and ascension, `BOSS_HP`, `ACT_MULT`, `LAP_MULT`, `CLEAR_GROWTH` |
@@ -42,10 +42,11 @@ current content.
 
 ### F1.2 The screens, the flows and what the prototype's presentation established
 
-Ten screens over the run seam, in the order the run raises them: title · Vault (EQUIP,
-BANK, DOORS) · draft and SUMMON · leader · map · room card · battle (the command list,
-INSPECT, PAUSE with QUIT) · relic cards and who-wears-it · node faces (REST, SHRINE, FORGE,
-ALTAR) · party · act clear · GAME OVER and VICTORY with the doors. Every tap target keeps a
+Twelve screen states, in nine screen files in the prototype, in the order the run raises
+them: title · Vault (EQUIP, BANK, DOORS) · draft and SUMMON · leader · map · room card ·
+battle (the command list, INSPECT, PAUSE with QUIT) · relic cards and who-wears-it · node
+faces (REST, SHRINE, FORGE, ALTAR) · party · act clear · GAME OVER and VICTORY with the
+doors. Every state is a fixture and a golden at P5. Every tap target keeps a
 keyboard route (arrows to move focus, A to activate, B to back), so the desktop build the
 agents drive is playable on a keyboard and a phone on touch.
 
@@ -127,17 +128,19 @@ behaviour and the new screens are built to it; the prototype is frozen with its 
 
 Each row is a design decision of the new build, written as spec clauses under
 `spec/platform/`, `spec/meta/` or `spec/save/` with tests. None changes a rule of the game
-except where marked. Nothing in this table is decided by the plan.
+except where marked. Nothing in this table is decided by the plan; **F2.1 is README
+question 10 and closes at P0**, because the save format is designed around it in P3; the
+other rows are approved with the plan and built in the phase named in the Phase column.
 
-| # | Change | What the player gets | Notes | Size |
-|---|---|---|---|---|
-| F2.1 | **Resume anywhere** (recommended) | Closing or being interrupted mid-run — mid-battle too — loses nothing; the app reopens on the same decision, or on the same hero turn | The run is saved after every decision, hero turns included, as `(rules version, seed, config, decisions)` and replayed on launch; a state snapshot rides along so that an app update never abandons a run — when the installed rules differ from the save's, the run continues from the snapshot under the new rules and the player is told once — **unless the save names content the installed rules no longer have** (a removed character or skill), the one case that abandons a run with the Vault untouched (`TECHNICAL.md` § T11). Not a *rewind*: the player cannot undo a decision. The resume path is a rules-structure change with its own clauses. A "no" leaves a permadeath run at the mercy of the platform killing the app in the background, which is why the plan recommends yes and D6 depends on it. | M |
-| F2.2 | **Settings** | sound volume and mute; ARCADE on/off; quality tier (AUTO/HIGH/MED/LOW); a "reset the Vault" with a confirm; credits | One screen, reachable from the title and the pause overlay. Haptics on hits is optional and off by default. A crash-report toggle appears only when a reporter ships (§ T12). | S |
-| F2.3 | **Orientation and safe areas** | landscape locked (question 2); the frame respects notches, rounded corners and the gesture-navigation edges | The mutable safe inset reads the platform's insets. Every edge target is tested under gesture navigation. | S |
-| F2.4 | **Interruptions** | a call or a switch to another app pauses the game and the sound; returning resumes on the pause overlay | The app pauses on lifecycle events and yields audio focus. | S |
-| F2.5 | **App identity** | icon, splash, store listing, a credits screen that names the AI art providers | Store metadata is copy the owner writes; the credits line is required by § F3.6. | S |
-| F2.6 | **Device tiers** | a 2022 mid-range phone runs MED at 60 Hz; older devices start LOW; the toggle in settings | The tiers are the contract's; the *default* comes from a three-second stage benchmark on first launch (§ F1.3). | S |
-| F2.7 | **Bug reports from a release build** | a long-press on the title shares the current run's save file; the seed is shown on GAME OVER | So the owner's felt rows, the first-ten-minutes test and the closed testers — all on release builds — can report a bug that replays (`TECHNICAL.md` § T11). The rest of the debug drawer stays debug-only. | S |
+| # | Change | What the player gets | Notes | Size | Phase |
+|---|---|---|---|---|---|
+| F2.1 | **Resume anywhere** (recommended; question 10) | Closing or being interrupted mid-run — mid-battle too — loses nothing; the app reopens on the same decision, or on the same hero turn | The run is saved after every decision, hero turns included, as `(rules version, seed, config, decisions)` and replayed on launch; a state snapshot rides along so that an app update never abandons a run — when the installed rules differ from the save's, the run continues from the snapshot under the new rules and the player is told once — **unless the save names content the installed rules no longer have** (a removed character or skill), the one case that abandons a run with the Vault untouched (`TECHNICAL.md` § T11). Not a *rewind*: the player cannot undo a decision. The resume path is a rules-structure change with its own clauses. A "no" leaves a permadeath run at the mercy of the platform killing the app in the background, which is why the plan recommends yes and D6 depends on it. | M | decided P0; the save format and `SAVE` clauses in P3; the resume path in P5 |
+| F2.2 | **Settings** | sound volume and mute; ARCADE on/off; quality tier (AUTO/HIGH/MED/LOW); a "reset the Vault" with a confirm; credits | One screen, reachable from the title and the pause overlay. Haptics on hits is optional and off by default. A crash-report toggle appears only when a reporter ships (§ T12). | S | P5 |
+| F2.3 | **Orientation and safe areas** | landscape locked (question 2); the frame respects notches, rounded corners and the gesture-navigation edges | The mutable safe inset reads the platform's insets. Every edge target is tested under gesture navigation. | S | P5 |
+| F2.4 | **Interruptions** | a call or a switch to another app pauses the game and the sound; returning resumes on the pause overlay | The app pauses on lifecycle events and yields audio focus. | S | P5 |
+| F2.5 | **App identity** | icon, splash, store listing, a credits screen that names the AI art providers | Store metadata is copy the owner writes; the credits line is required by § F3.6. | S | P5 (identity), P7 (copy) |
+| F2.6 | **Device tiers** | a 2022 mid-range phone runs MED at 60 Hz; older devices start LOW; the toggle in settings | The tiers are the contract's; the *default* comes from a three-second stage benchmark run behind the title on first launch — the title needs no stage, so the ≤ 2 s boot budget of `TECHNICAL.md` § T9.5 holds and the tier is decided before the first battle (§ F1.3). | S | P5 |
+| F2.7 | **Bug reports from a release build** | a long-press on the title shares the current run's save file; the seed is shown on GAME OVER | So the owner's felt rows, the first-ten-minutes test and the closed testers — all on release builds — can report a bug that replays (`TECHNICAL.md` § T11). The rest of the debug drawer stays debug-only. | S | P7 |
 
 Optional, not planned: controller support (cheap on the keyboard route), portrait layout,
 localisation beyond keeping strings in one place, cloud saves, accounts (PvP will decide).
@@ -154,9 +157,9 @@ number's derivation recorded** (the study's crop rectangles from commit `98464a4
 metrics of ART-REVIEW.md), because the reference frames themselves are the owner's
 screenshots, are not in the repository and never will be.
 
-- **Cell and size.** One cell is 2 screen px at 720p. A hero is 52–58 rows tall on a canvas
-  of at most 64 rows × 48 columns; an ordinary enemy 24–56 rows; a boss 84–96 rows on the
-  96-cell canvas. Feet at the bottom centre; authored facing right (the battle mirrors
+- **Cell and size.** One cell is 2 screen px at 720p. The canvas is 64 × 64 cells (96 × 96
+  for a boss). A hero is 52–58 rows tall and occupies at most 48 of the 64 columns; an
+  ordinary enemy 24–56 rows; a boss 84–96 rows on the 96-cell canvas. Feet at the bottom centre; authored facing right (the battle mirrors
   heroes).
 - **Line and tone.** A full 1-px keyline that follows the material (near-black with a hue on
   garments and boots, the material's own dark step on light hair, dark brown on skin);
@@ -182,13 +185,15 @@ screenshots, are not in the repository and never will be.
   water teal, light gold, dark plum) over a neutral secondary; the five elements read apart
   in greyscale too.
 - **Silhouette.** *Pass*: no two actors' idle silhouettes overlap above 78 % (feet-aligned,
-  centred); a humanoid with a stance has a mirror IoU under 85 %; palette overlap between
-  actors under 25 %. *Target*: heroes ≤ 65 % against every other actor — a brim, a horned
+  centred); a humanoid with a stance has a mirror IoU under 85 %; the *cast* palette
+  overlap between any two actors under 25 % (a different metric from § F3.4's
+  frame-to-frame overlap within one actor). *Target*: heroes ≤ 65 % against every other actor — a brim, a horned
   helm, a coat with tails, a half-cape.
 - **Motion.** Five poses — idle, attack, hurt, cast, dead — three frames each. The two
   criteria the prototype already defines are kept **as defined, as absolute differences**
-  (ART-REVIEW.md's convention): idle changes ≥ 17 % of cells between frames (a one-cell
-  breath is a translation and counts); the settle band — attack 2 against idle 0 — 21–39 %.
+  (ART-REVIEW.md's convention), with one denominator: **differing cells ÷ cells in the
+  union of the two masks**: idle changes ≥ 17 % between frames (a one-cell breath is a
+  translation and counts); the settle band — attack 2 against idle 0 — 21–39 %.
   Three criteria are **new** and measured after alignment, defined once so the numbers mean
   one thing: *alignment* is the integer translation that maximises silhouette IoU against
   idle 0; *part travel* is the displacement of the centroid of the largest 8-connected
@@ -204,7 +209,10 @@ screenshots, are not in the repository and never will be.
 - **What is never generated.** UI, text, VFX, the light rig, the fonts. Backdrops are
   placeholders until the scene phase (§ F3.7).
 - **What is never fed to a provider.** Third-party artwork of any kind — no screenshot of
-  another game goes in as a reference image. The reference set is the hand-drawn study
+  another game goes in as a reference image; `art generate` accepts only committed asset
+  ids under `assets/` as references and the gate fails a manifest naming any other, so the
+  owner's reference frames in `tools/ref/` cannot enter a prompt by accident (the rule is
+  mechanical, not discipline). The reference set is the hand-drawn study
   (`prototype/game/art/pixel/ember-study.ts`, licence-clean and the one asset that meets
   the value target, exported at cell resolution and ×4 at P0) and, as they are accepted,
   our own actors.
@@ -244,7 +252,7 @@ names what happens on a "no".
 | Heroes | 6 | 64 × 64 cells | five poses × three frames = 15 frames each; authored facing right |
 | Normal and elite enemies | 31 | 64 × 64 | same poses; creatures (a raptor, a jelly, a coil) are exempt from the mirror-IoU rule |
 | Bosses | 6 | 96 × 96 | same poses; heavier and taller by the size rule |
-| Portraits | 43 | painted, ≥ 256 px, cropped to 48-px chips | one per actor; the element mark is drawn by the UI, not painted |
+| Portraits | 43 | painted, ≥ 256 px, cropped to 48-px chips | one per actor; the element mark is drawn by the UI, not painted. **Their own criteria** (the sprite metrics do not apply): crop-safe at 48 px (the face inside the chip's safe area); the face reads as two dark clusters and a highlight at 48 px; the palette agrees with the actor's element ramp; consistent with the sprite's hair, headgear and colours; no text, no watermark — the tool measures the first three, the critic judges the last two. **Fallback**: a normalised head crop of the sprite, generated by the tool, which the screens are designed to accept from P5 so no screen ever depends on a portrait |
 | Total sprite frames | 645 | stored at cell resolution | the budget model is in `TECHNICAL.md` § T10.7 |
 
 ### F3.4 Acceptance criteria — what the player must be able to see
@@ -287,9 +295,12 @@ depends on Kotlin: the tool, the providers and the owner's decisions.
 **The critic's protocol** (a model's score is not a measurement unless it is repeatable):
 the same model and the same prompt every time, blind — the critic is not told which
 candidate is which, nor what changed — three runs per verdict and the median score; a
-verdict below the bar names the failing criterion by number. The prompt, the five axes
-and the scoring are frozen in `plan/spikes/7/CRITIC.md` before the first verdict of the
-bake-off and promoted unchanged into `spec/art/` at P0's exit.
+verdict below the bar names the failing criterion by number. The prompt, the five axes,
+the scoring **and the model with its version** are frozen in `plan/spikes/7/CRITIC.md`
+before the first verdict of the bake-off and promoted unchanged into `spec/art/` at P0's
+exit; every verdict records the model and version; if the model must change during the
+programme, the new one re-scores a frozen calibration sheet (the prototype's round-14
+cast, whose scores are published) and the offset is recorded as a register decision.
 
 Two decision points, each a yes or no from the owner on lit phone frames:
 
@@ -298,7 +309,9 @@ Two decision points, each a yes or no from the owner on lit phone frames:
    more bake-off); or *stop*.
 2. **After the six heroes (in P4):** the party on the prototype's stage in three biomes,
    the six meeting the value target the prototype's kit fails (§ F3.1) and scored by the
-   full-frame critic **at or above 8 on the sprite axis** under the protocol above.
+   full-frame critic **at or above 9 on the sprite axis** under the protocol above — the
+   rejected kit already scored 8, so 8 would prove nothing; the value target and the
+   owner's eye are the discriminating criteria, the score a floor.
    *Continue* to the enemies; *change provider*; or *stop*. The cast is judged once more on
    the real stage at P5's end; a miss there is a light or composition fault and is worked in
    the scene phase, not by regenerating the cast.
@@ -307,8 +320,11 @@ Two decision points, each a yes or no from the owner on lit phone frames:
 — the prototype's 43 actors' sheets captured at P0 (`TECHNICAL.md` § T10.9) — is the
 shipped art, the remaining art budget moves to the scene phase (P6), and the heroes and
 bosses fall back to the owner's option B (hand-drawn pixel grids at the cell, the process
-of `prototype/.claude/prompts/pixel-pipeline.md`) if the owner still wants them redrawn.
-Nothing else in the plan depends on the art succeeding.
+of `prototype/.claude-archive/prompts/pixel-pipeline.md`) if the owner still wants them
+redrawn — **≈ 8–16 sessions for the twelve, outside the aggregate** (README money table;
+question 6). If that is not affordable, stop means shipping the fallback cast as it is.
+Nothing else in the plan depends on the art succeeding; the portraits have their own
+fallback (§ F3.3) so the screens never depend on them either.
 
 ### F3.6 Credits, licensing, disclosure and continuity
 
@@ -396,13 +412,13 @@ The closed unions a kit is built from — anything outside them is a *mechanics*
 
 ### F4.3 What a change costs
 
-| Class | Spec | Tests | Simulator | Art | Screens |
-|---|---|---|---|---|---|
-| NEW character | clauses under `spec/characters/<id>.md`; roster and `validateData` clauses | data validity, kit behaviour per skill, awakening, leader | every policy must be able to draft and play it; the ladder and the guards re-measured; "every character leads ≥ 5 %" | 15 frames + portrait through the gate against the accepted cast: ≈ 90–150 generated images, one critic round, the owner's sheet — ≈ $20–60 at the per-image price including re-rolls, plus a portrait, a whole-cast re-gate after a provider change (§ F3.6) | the draft grid and detail strip must fit (the four-column grid holds twelve) |
-| KIT change | the skill clauses | the skill's behaviour, the awakening | the ladder and the guards | any pose the kit changes (a new weapon) | none |
-| NUMBERS | the Balance state | none new | the ladder and the guards | none | none |
-| ART | `spec/art/` | the gate | none | the frames | none |
-| REMOVAL | roster clauses | validity | the guards | none | the draft grid; a saved run that names the removed character is abandoned with the Vault untouched — § F2.1's one exception |
+| Class | Size | Spec | Tests | Simulator | Art | Screens |
+|---|---|---|---|---|---|---|
+| NEW character | S–M each; a batch of six ≈ L | clauses under `spec/characters/<id>.md`; roster and `validateData` clauses | data validity, kit behaviour per skill, awakening, leader | every policy must be able to draft and play it; the ladder and the guards re-measured; "every character leads ≥ 5 %" | 15 frames + portrait through the gate against the accepted cast: ≈ 90–150 generated images, one critic round, the owner's sheet — ≈ $20–60 at the per-image price including re-rolls, plus a portrait, a whole-cast re-gate after a provider change (§ F3.6) | the draft grid and detail strip must fit (the four-column grid holds twelve) |
+| KIT change | S | the skill clauses | the skill's behaviour, the awakening | the ladder and the guards | any pose the kit changes (a new weapon) | none |
+| NUMBERS | S | the Balance state | none new | the ladder and the guards | none | none |
+| ART | S per actor | `spec/art/` | the gate | none | the frames | none |
+| REMOVAL | S | roster clauses | validity | the guards | none | the draft grid; a saved run that names the removed character is abandoned with the Vault untouched — § F2.1's one exception |
 
 A NEW character with a new status kind, target spec or scale is a *mechanics* change and
 goes through the clause-first discipline of `TECHNICAL.md` § T7.7 with the owner's decision
@@ -412,7 +428,7 @@ before code moves: every status needs a source, a sim interpretation and a scree
 
 Character changes can be *specified* at any time (a spec is text); they are *built* after
 the P3 rules gate so that the balance table is a known baseline to measure them against —
-before or after the store release as the owner decides (question 5 below). Their art
+before or after the store release as the owner decides (§ F4.5, question 5). Their art
 follows their spec (a kit decides a weapon and a pose) and is generated against the
 accepted cast; details supplied before P4 fold into the cast pass.
 
@@ -489,6 +505,10 @@ importing the prototype's browser Vaults; fixing the prototype's screen defects 
 frozen); music (the contract has none); monetisation; cloud saves; accounts until PvP;
 portrait layout; localisation beyond keeping strings in one table; AI backdrops before the
 scene phase; controller support (optional); tablet-specific layouts (the frame letterboxes).
+Accessibility, deliberately: no screen-reader support, no dynamic type and no reduce-motion
+setting are planned; what the readability rules already cover — arm's-length text, the
+`TAP_MIN` 96 targets, elements that read apart in greyscale, no flashing above the
+hit-flash's mix — stays, and a later request is a § F2 row.
 
 ## F7 Functional acceptance
 
