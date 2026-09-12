@@ -381,9 +381,10 @@ real one. From that commit:
   workflow carries a path filter: each begins with a `changes` job that computes the paths
   changed against the merge base and outputs booleans — `prototype` (`prototype/**`), `plan`
   (`plan/**`), `spec` (`spec/**`), `assets` (`assets/**`), `art` (`tools/art/**`), `env`
-  (`ci/env/**`), `docs` (`docs/**`), one per Gradle module — `core`, `engine`, `ui`, `sim`,
-  `tools`, `app` — and `build` (`build-logic/**`, `gradle/**`, `ci/**` outside `env`, the
-  root build files) — and every heavy job carries `needs: changes`
+  (`ci/env/**`), `docs` (`docs/**`), one per Gradle module — `core` (with `core-testing/**`), `engine`, `ui`, `sim`,
+  `tools`, `app`, `ios` (`iosApp/**`) — and `build` (`build-logic/**`, `gradle/**`,
+  `config/**`, `.github/**`, `ci/**` outside `env`, the root build files); a path in no
+  glob is a generator error, caught by a test that walks the tree — and every heavy job carries `needs: changes`
   and an `if:` on them — a job skipped by its
   condition reports "skipped" and satisfies a required check. There are no separate shim
   jobs; the skipped job is the shim. The generator names every job after its workflow (`merge-changes`, `merge-jvm`, …), so
@@ -672,7 +673,7 @@ names:
 | `battles`: the eight act-1 fixtures (`BATTLE_FIXTURES`: five fights, two elites, the boss) × the two act policies (`random`, `balanced`) × 100 battles | 1 600 | the turn, statuses, counters |
 | `battles`: every pack of every biome (`fights`, `elites`, the boss — 48 packs) at its home act, A0 and A5, the strong-party fixture, `balanced` × 20 battles | 1 920 | every enemy, every boss's fourth skill; the strong party survives late acts |
 | `battles`: a long fixture (the strong party with three GUARD relics against the act-6 boss at A10), tuned at P2 until an ENRAGED turn appears | 20 | ENRAGE |
-| `battles`: a **stall fixture** (a party that cannot kill — healers under a VEIL boss at A10 — run to `TURN_CAP`), tuned at P2 until a `STALL` appears; if none appears within 200 tunings, `STALL` is recorded as unreachable in its `GOLDEN-NN` clause and exempted from the coverage gate | 20 | `STALL`, which no other cell produces (0 in 830 runs; the contract's stall rate is 0.0–0.1 %) |
+| `battles`: a **stall fixture** (a party that cannot kill — healers under a VEIL boss at A10 — run to `TURN_CAP`), tuned at P2 until a `STALL` appears; if none appears within 200 tunings, `STALL` is recorded as unreachable in its `GOLDEN-NN` clause and exempted from the coverage gate | 20 | `STALL`, which no other cell produces (0 in 910 runs; the contract's stall rate is 0.0–0.1 %) |
 | `battles`: a **set-and-sigil family** — the strong party wearing each of the eight 2-piece sets at two pieces and each of the eight 4-piece sets at four (a set has one bonus at one piece count), and each of the twelve sigils kindled, against the act-1 boss at A0, `balanced` × 20 | 28 × 20 = 560 | every set bonus and every sigil effect, which the run cells cannot guarantee |
 | the balance snapshot: `balanced` and `random`, seed 1, 200 runs each | 400 | § T5.5 |
 
@@ -1437,7 +1438,7 @@ the flat backdrops; P4 replaces the actors behind the gate; P6 replaces the back
   **`resumeRun(snapshot)`** — entering `runSteps` at an arbitrary map position with a
   reconstructed context — is a rules-structure change the oracle does not contain; it is a
   post-gate `:core` change with its own `SAVE-NN` clauses (which state is authoritative,
-  what an open battle does) and is why `FUNCTIONAL.md` sizes F2.1 at M.
+  what an open battle does) and is why `FUNCTIONAL.md` sizes F2.1 at M–L.
 - **`RULES_VERSION`** is an explicit constant in `:core`'s `version` package, bumped by the
   clause-change protocol (§ T7.7) whenever a rule-bearing clause changes — never by a golden
   re-recording or a trace-format change. A corpus of saves under `spec/fixtures/saves/v<N>/`
@@ -1609,7 +1610,7 @@ fast lanes. The CI workflows are **generated from `lanes.yaml`** (a `build-logic
 the committed `kmp-*.yml` differ from what the head's generator writes; the hand-written
 workflows are outside the diff, `VERIFICATION.md` § V5; the generator also writes
 `ci/required-checks.txt` — the generated job names plus a committed literal block for the
-hand-written jobs (`prototype.yml`'s two, `env-image`) and the three gate-App checks —
+hand-written jobs (`prototype.yml`'s three — the freeze check, `prototype-check` and its `changes` job — and `env-image`'s two) and the three gate-App checks —
 and an L3 job reads the branch's active rules through the API and fails when a listed
 job is not required; adding one is the owner's act, named in every phase that adds a job
 (5b's arm64 leg, P5's device and size jobs, P8's wasm), taken when no owner-gated pull

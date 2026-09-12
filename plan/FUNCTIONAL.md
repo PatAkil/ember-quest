@@ -141,7 +141,7 @@ phase named in the Phase column.
 
 | # | Change | What the player gets | Notes | Size | Phase |
 |---|---|---|---|---|---|
-| F2.1 | **Resume anywhere** (recommended; question 10) | Closing or being interrupted mid-run — mid-battle too — loses nothing; the app reopens on the same decision, or on the same hero turn | The run is saved after every decision, hero turns included, as `(rules version, seed, config, decisions)` and replayed on launch; a state snapshot rides along so that an app update never abandons a run — when the installed rules differ from the save's, the run continues from the snapshot under the new rules and the player is told once — **unless the save names content the installed rules no longer have** (a removed character or skill), the one case that abandons a run with the Vault untouched (`TECHNICAL.md` § T11). Not a *rewind*: the player cannot undo a decision. The resume path (`resumeRun`, `TECHNICAL.md` § T11) is a rules-structure change with its own clauses — an S inside this row's M, after the P3 gate — so the row's one price is the save format and `SAVE` clauses inside P3, ≈ 1–2 sessions in P5, and that S after the gate. A "no" leaves a permadeath run at the mercy of the platform killing the app in the background, which is why the plan recommends yes and D6 depends on it. | M–L (the `SAVE` clauses inside P3's size, ≈ 1–2 sessions in P5, the post-gate `resumeRun` S) | decided P0; the save format and `SAVE` clauses in P3; the resume path in P5 |
+| F2.1 | **Resume anywhere** (recommended; question 10) | Closing or being interrupted mid-run — mid-battle too — loses nothing; the app reopens on the same decision, or on the same hero turn | The run is saved after every decision, hero turns included, as `(rules version, seed, config, decisions)` and replayed on launch; a state snapshot rides along so that an app update never abandons a run — when the installed rules differ from the save's, the run continues from the snapshot under the new rules and the player is told once — **unless the save names content the installed rules no longer have** (a removed character or skill), the one case that abandons a run with the Vault untouched (`TECHNICAL.md` § T11). Not a *rewind*: the player cannot undo a decision. The resume path (`resumeRun`, `TECHNICAL.md` § T11) is a rules-structure change with its own clauses — an S inside this row's M–L, after the P3 gate — so the row's one price is the save format and `SAVE` clauses inside P3, ≈ 1–2 sessions in P5, and that S after the gate. A "no" leaves a permadeath run at the mercy of the platform killing the app in the background, which is why the plan recommends yes and D6 depends on it. | M–L (the `SAVE` clauses inside P3's size, ≈ 1–2 sessions in P5, the post-gate `resumeRun` S) | decided P0; the save format and `SAVE` clauses in P3; the resume path in P5 |
 | F2.2 | **Settings** | sound volume and mute; ARCADE on/off; quality tier (AUTO/HIGH/MED/LOW); a "reset the Vault" with a confirm; credits | One screen, reachable from the title and the pause overlay. Haptics on hits is optional and off by default. A crash-report toggle appears only when a reporter ships (§ T12). | S | P5 |
 | F2.3 | **Orientation and safe areas** | landscape locked (question 2); the frame respects notches, rounded corners and the gesture-navigation edges | The mutable safe inset reads the platform's insets. Every edge target is tested under gesture navigation. | S | P5 |
 | F2.4 | **Interruptions** | a call or a switch to another app pauses the game and the sound; returning resumes on the pause overlay | The app pauses on lifecycle events and yields audio focus. | S | P5 |
@@ -180,7 +180,7 @@ screenshots, are not in the repository and never will be.
 - **Proportion.** About three heads tall with a big readable head — the reference's chibi
   build, not a slim figure.
 - **Value.** The figure sits dark on a lit ground. *Pass* (the sheet criteria the prototype
-  measures, criteria 1–5): L* span p2 ≤ 15 and p98 ≥ 85; ≥ 20 % of body cells below L 35
+  measures — ART-REVIEW.md's criterion 1 and the lit-from-above delta): L* span p2 ≤ 15 and p98 ≥ 85; ≥ 20 % of body cells below L 35
   and ≥ 20 % of interior cells; ≥ 8 % above L 75; the top quarter ≥ 8 L* lighter than the
   bottom (lit from above). *In scene — reported for a sprite, gating the stage* (the ruler the prototype adopted
   after round 11 in place of the old contrast-against-the-navy criterion, which is
@@ -244,7 +244,7 @@ screenshots, are not in the repository and never will be.
 - **What is never fed to a provider.** Third-party artwork of any kind — no screenshot of
   another game goes in as a reference image; `art generate` accepts only committed asset
   ids under `assets/` as references and the gate fails a manifest naming any other, so the
-  owner's reference frames in `tools/ref/` cannot enter a prompt by accident (the rule is
+  owner's reference frames in `prototype/tools/ref/` cannot enter a prompt by accident (the rule is
   mechanical, not discipline). The reference set is the hand-drawn study
   (`prototype/game/art/pixel/ember-study.ts`, licence-clean and the one asset that meets
   the value target, exported at cell resolution and ×4 at P0) and, as they are accepted,
