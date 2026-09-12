@@ -79,11 +79,11 @@ The new game is the repository root from the first commit; the prototype lives u
 ├── app/android/  app/ios/  app/desktop/  app/web/   thin shells
 ├── iosApp/                the Xcode project
 ├── assets/                actors, portraits, backdrops, fallback (the prototype's sheets and flat backdrops), fonts, sfx, LICENSES.md
-├── ci/                    env/ (env.Dockerfile, setup.sh), lanes.yaml, gate.sh, lanes.json
+├── ci/                    env/ (env.Dockerfile, setup.sh), lanes.yaml, gate.sh
 ├── spec/                  the executable specification: clauses, tables, goldens, fixtures, synthetic (P1 only)
 ├── plan/                  this plan; spikes/<n>/REPORT.md
 ├── prototype/             the TypeScript game, frozen: game/ engine/ sim/ tools/ its docs, prompts and skills, package.json, .nvmrc
-├── .github/               workflows: pages.yml (builds prototype/), the generated kmp-*.yml; CODEOWNERS
+├── .github/               workflows: pages.yml (builds prototype/), prototype.yml (the freeze check and the prototype's gates), the generated kmp-*.yml; CODEOWNERS
 ├── CLAUDE.md              the agents' conventions for this tree (a stub at P0, written at P1)
 └── .claude/               the new skills, hooks and agents (P1)
 ```
@@ -268,7 +268,7 @@ large enough to port.
 | Gradle | 9.x (the current 9 at P1) | build | configuration cache and build cache on; `--warning-mode=fail` |
 | Android Gradle Plugin | 9.3 | Android target and app | the KMP Android library plugin (`com.android.kotlin.multiplatform.library`) for `:core`, `:engine`, `:ui`; its host tests run on the JVM, its device tests on an emulator or phone |
 | JDK | 21 LTS | toolchain | Gradle toolchains pin it |
-| Node | 22.x, the exact version pinned in `prototype/.nvmrc` and `prototype/package.json`'s `engines` (created at P2, before the goldens) and in the root `.nvmrc` for the art tool; the environment recipe, `pages.yml` and `diff-oracle` read them | the oracle's runtime; the art tool's | the `pow` table and every golden are recorded on the pinned version |
+| Node | 22.x, **one** exact version: pinned in the root `.nvmrc` and mirrored in `prototype/.nvmrc` and `prototype/package.json`'s `engines` (created at P2, before the goldens; a lint fails when they differ); the environment recipe, `pages.yml` and `diff-oracle` read it | the oracle's runtime; the art tool's | the `pow` table and every golden are recorded on the pinned version |
 | TypeScript, typescript-eslint (strict, type-checked), Vitest | current | the art tool's language and its own tests and lint | the tool is small and measured, not a second codebase to govern |
 | Kotest | 6.x with its `io.kotest` Gradle plugin (KSP-based) | tests on every target, property testing | annotation configuration is JVM-only, so configuration is by code |
 | detekt | 1.23.x stable, 2.0 when it leaves alpha | smells, complexity, custom purity rules, Compose rules | syntax-only rules in L0 on changed files; type resolution over the tree in L2a, never in a fast lane. **Fallbacks, distinct**: if detekt cannot *parse* the Kotlin 2.4 syntax `:core` uses, detekt is dropped — Konsist enforces function length and parameter count, the complexity budgets are suspended and the loss is recorded in the README's risk register; if only type resolution is too slow, the syntax-only rules stay and type resolution is dropped |
@@ -295,10 +295,12 @@ removed together with a replacement for its catch.
 
 In one commit at P0, with history preserved by `git mv`: everything that is the prototype
 — `game/`, `engine/`, `sim/`, `tools/`, `index.html`, `smoke.mjs`, `package.json` and its
-lockfile, `vite.config.*`, `tsconfig.json`, `DESIGN.md`, `STATUS.md`, `ART-REVIEW.md`,
+lockfile, `vite.config.*`, `tsconfig.json`, `.gitignore` (its paths kept, now relative to
+`prototype/`), `README.md`, `DESIGN.md`, `DESIGN-REVIEW.md`, `STATUS.md`, `ART-REVIEW.md`,
 `CLAUDE.md`, `.claude/` (skills, agents, prompts) — moves under `prototype/`. The root
-receives the plan, a stub `CLAUDE.md` that says what the tree is and routes every game
-request to `plan/` until P1's real one, and an empty `.claude/`. From that commit:
+receives the plan, a new `README.md` for the tree, a root `.gitignore`, and a stub
+`CLAUDE.md` that says what the tree is and routes every game request to `plan/` until P1's
+real one. From that commit:
 
 - **The prototype is frozen.** `prototype/**` is code-owned; the only changes ever made to
   it are § T4.2's list, each in a named pull request. Its documents get one banner each
@@ -310,9 +312,14 @@ request to `plan/` until P1's real one, and an empty `.claude/`. From that commi
 - **The Pages deploy keeps serving the demo.** `.github/workflows/pages.yml` gains
   `working-directory: prototype` and a path filter on `prototype/**`, so the live URL keeps
   serving the prototype, with its defects, until the owner retires it or the Wasm build
-  replaces it (README question 3). The KMP workflows path-filter on everything except
-  `prototype/**` and `plan/**`, and include `.github/workflows/**` and `ci/**` so a workflow
-  change tests itself.
+  replaces it (README question 3).
+- **The prototype has its own workflow.** `.github/workflows/prototype.yml` runs on every
+  pull request that touches `prototype/**`, with no shim job: the prototype-freeze check and
+  `prototype-check`, the prototype's own gates (`VERIFICATION.md` § V5), both required from
+  P1. The KMP workflows path-filter on everything except `prototype/**` and `plan/**`, and
+  include `.github/workflows/**` and `ci/**` so a workflow change tests itself; a pull
+  request that touches only `prototype/**` therefore meets the prototype workflow and the
+  shim jobs, never an unchecked merge.
 - **`main` is protected** from P1 by the ruleset of `VERIFICATION.md` § V5 for the whole
   repository, because GitHub protects branches, not paths; there is no merge queue (it
   exists only for organization-owned repositories, and a transfer would move the Pages
@@ -328,19 +335,39 @@ The prototype's harness (`prototype/sim/run.mjs` over `prototype/game/sim/**`) i
 oracle for the rules. **At P0**, tooling only, nothing under the rules:
 
 - `prototype/tools/capture.mjs sheets frames=1`: writes every actor's fifteen bakes as
-  individual PNGs at cell resolution with a typed sidecar (§ T10.9) into `assets/fallback/
-  actors/`, and the hand-drawn study at cell resolution and ×4;
-- `prototype/tools/capture.mjs backdrops flat=1`: one lit frame per biome and tier with no
-  actors (the existing `actors=0` capture) into `assets/fallback/backdrops/`, with each
-  biome's light data (`light.json`: key, fill, the pools' pad and alpha, the grade, fog,
-  motes, shafts, the sky body, the rim colour, the ambient preset) and the stage anchors;
-- `prototype/tools/render-sfx.mjs`: the 24 effects rendered offline through the
-  prototype's synthesizer (an `OfflineAudioContext` under Playwright) to WAV, two or three
-  seeded variants each, into `assets/sfx/` (§ T9.8);
+  individual PNGs at cell resolution, each with its typed sidecar `<pose>-<frame>.json`
+  beside it (§ T10.9), into `assets/fallback/actors/`;
+- `prototype/tools/capture.mjs backdrops flat=1`: `tools/backdrops.ts` gains `light=0` — a
+  dev switch in `engine/light.ts`'s render path that skips the light map, the fog, the
+  motes, the bloom, the grade, the vignette and the sky body — and the capture writes the
+  four painters composited at the tier's blur, **unlit**, at the padded plane size 1360 × 800,
+  into `assets/fallback/backdrops/<BIOME>-<tier>.png`, with `light.json` per biome: the
+  biome's `BiomeLook` value minus its four painter functions, serialised in declaration
+  order (key and fill with their `actorWeight`, the pools' pad and alpha, the grade, the fog,
+  the motes, the shafts, the sky body, the rim colour, the ambient preset and colour), plus
+  `anchors: {hero: HERO_FEET, enemy: ENEMY_FEET}` from `layout.ts` and
+  `pools: {padX: 250, padY: 92, overlapMax: 60}` from `backdrops.ts`, so the rig applies
+  every light pass itself and nothing is lit twice;
+- `prototype/tools/render-sfx.mjs`: before boot it installs an `OfflineAudioContext`-backed
+  shim as `globalThis.AudioContext` and `Math.random = mulberry32(seed)` in the page, then
+  renders each of the 24 effects through the prototype's own synthesizer three times (seeds
+  1–3) to 48 kHz 16-bit mono `<name>-<k>.wav` into `assets/sfx/` with a manifest
+  `{commit, name, seed, sha256}`; no engine edit (§ T9.8);
 - the **`PixelActor` registry** (`prototype/game/art/actors.ts`) and `capture.mjs battle
-  pixel=<dir>`: a PNG actor with a sidecar stands on the prototype's real crypt stage at
-  each anchor, so the bake-off's candidates are seen in lit frames and the in-scene rulers
-  can be read from them (§ T10.4). A presentation change; the rules are untouched.
+  pixel=<dir> party=<ids> pack=<ids> [phone=1] [seat=all] anchors=1`: a stage-only crypt
+  capture with no run drive — `<dir>` holds § T10.9's layout under `<dir>/<ID>/`; the named
+  ids are drawn from their PNGs and missing ids fall back to the prototype's recipes; each
+  pose is stepped to fixed ticks and written as one frame per (pose, tier); `seat=all`
+  plants one id at all six anchors for the seat-spread ruler; the hit flash on a PNG actor
+  is an alpha-masked white overlay at the rig's mix; `anchors=1` writes the anchors file
+  of § T10.4 beside every frame. The bake-off's candidates are thus seen in lit frames and
+  the in-scene rulers read from them. A presentation change; the rules are untouched;
+- the **banner commit** of § T4.1 (the documents' banners and `STATUS.md`'s corrected
+  header);
+- `prototype/tools/export-fonts.mjs`: the two `BitmapFont` tables (`id`, `glyphH`,
+  `glyphs`, `fallbackW`) verbatim to `assets/fonts/<id>.json`, and the hand-drawn study to
+  `assets/fallback/study/ember-study.png` and `ember-study-x4.png` with the sidecar of
+  § T10.9.
 
 **At P2**, in this sequence: (1) the harness gains `--trace` (§ T5.3; built on the exposed
 `runSteps`, `answerWith`, `createBattle`, `nextReady`, `runTurn` and `Battle.events`, so
@@ -436,16 +463,41 @@ the parity currency. One record per line; the record kinds and their fields, in 
 |---|---|
 | `trace 1` | the format version |
 | `mode <runs\|battles\|selfcheck>` | which harness mode produced it |
-| `cell …` | for runs: `cell seed=<uint32> policy=<name> runs=<N> path=<a\|b\|c>` — a cell is N runs on **one** rng stream in run order, as the harness runs them, and the golden path is **b**; for battles: `cell mode=battles pack=<id> act=<n> asc=<A> party=<fixture> policy=<name> n=<N>` — N battles on one stream |
+| `cell …` | for runs: `cell id=<slug> seed=<uint32> policy=<name> runs=<N> asc=<A> vault=<n> spd=<d> path=<a\|b\|c>` — a cell is N runs on **one** rng stream in run order, as the harness runs them, and the golden path is **b**; for battles: `cell id=<slug> mode=battles pack=<id> act=<n> asc=<A> party=<fixture> policy=<name> n=<N>` — N battles on one stream; the slug is the golden file's name and `diff-oracle` regenerates a cell from this line alone |
 | `config` | every `RunConfig` field **as passed**: `ascension`, `vaultSlots`, `roster` (empty allowed), `spdDelta`, and each Vault relic in the compact relic encoding |
 | `run <k>` | the k-th run (or battle) of the cell (from 0); the `draw` index continues across the cell's runs |
 | `draw <i> <hex64>` | the i-th rng output of the cell as the raw bits of the double, sixteen lowercase hex digits |
-| `pending <KIND> <fields>` | the pending's kind and its data (offers, cards, options as ids and indices); `ENEMY_TURN` is **not** recorded, and the prototype's `BATTLE` pending — which has no Kotlin counterpart — is not recorded either: the prototype's `--trace` emits `HERO_TURN` from inside the wrapped act |
-| `answer <KIND> <fields> draws=<n>` | the answer given and the draws its answerer consumed; `answer HERO_TURN option=<k> draws=<n>`; `answer FORFEIT draws=0` |
+| `pending <KIND> <fields>` | the pending's kind and its data, per kind in the table below; `ENEMY_TURN` is **not** recorded, and the prototype's `BATTLE` pending — which has no Kotlin counterpart — is not recorded either: the prototype's `--trace` emits `HERO_TURN` from inside the wrapped act |
+| `answer <KIND> <fields> draws=<n>` | the answer given, per kind in the table below, and the draws its answerer consumed |
+| `party H<slot>=<id> relics=<compact>;… E<slot>=<id>;…` | one per battle start, after `createBattle`'s draws: every hero with the relics worn (the compact encoding) and every enemy; what the coverage report reads sets and sigils from |
 | `event <KIND> <fields>` | one per `BattleEvent`, fields per kind: `TURN_START actor enraged` · `TURN_END actor` · `CAST caster skill targets` · `HIT attacker target dealt absorb crit glance killed` · `STATUS_APPLIED\|RESISTED\|EXPIRED target status turns` · `HEAL target amount source` · `ATB_CHANGE actor delta(bits) reason` · `COUNTER actor target` · `DEATH actor` · `BURN_TICK actor amount` · `VEIL actor` · `STALL` — actors as `H<slot>` / `E<slot>`, skills and enemies by id |
 | `result` | every `RunResult` (or `BattleResult`) field in the order `types.ts` declares them; list fields joined with `,`, heroes separated by `;`, `-` for null, `PACT:true` for a taken pact; relics in the compact encoding |
 | `probe <n>` | one per `Probe`, every field, doubles as bits |
 | `end <draws> <sha256>` | closes a run; the per-run hash is over that run's records from `run <k>` through the last record before `end` |
+
+**The fields per pending and answer kind**, lists `,`-joined, `-` for null or none:
+
+| Kind | `pending` fields | `answer` fields |
+|---|---|---|
+| `DRAFT` | `roster=<ids>` | `pick=<i>` |
+| `VAULT_EQUIP` | `slots=<n> vault=<compact relics>` | `equip=<indices>` |
+| `SUMMON` | `full=<0\|1> opening=<0\|1> offers=<id>:<compact relic or ->,…` | `take=<i>` or `swap=<i> out=<j>` or `-` |
+| `LEADER` | `party=<ids>` | `seat=<i>` |
+| `ROUTE` | `stage=<n> offered=<idx>:<TYPE>,…` | `route=<i>` |
+| `RELIC` | `source=<src> cards=<compact relics>` | `card=<i> onto=<j>` or `-` |
+| `REST` | `candidates=<indices>` | `heal` or `sharpen=<i>` |
+| `SHRINE` | `pact=<id> untaken=<n>` | `take=<0\|1>` |
+| `FORGE` | `worn=<compact relics> options=<relic>:<MODE>,… pool=<sets> levels=<n> rebrand=<sets>;…` | `relic=<i> mode=<MODE> substat=<k or -> set=<SET or ->` or `-` |
+| `ALTAR` | `candidates=<indices>` | `awaken=<i>` |
+| `HERO_TURN` | `actor=H<slot> options=<skill>:<target>,…` | `option=<k>` |
+| `LAP` | `banked=<n>` | `descend` or `lap` |
+| `BANK` | `n=<n> worn=<compact relics> vault=<compact relics> size=<n>` | `take=<indices> drop=<indices>` |
+| `FORFEIT` | — | `forfeit` (a `HERO_TURN` or `ENEMY_TURN` answered by the player's quit) |
+
+**Flush order**, so two correct implementations produce one file: a `draw` line at the draw;
+`event` lines are drained from `battle.events` inside each wrapped act immediately before
+that turn's `pending HERO_TURN`, and once more after `battleOutcome`; `pending` and `answer`
+at the ask; `party` after `createBattle` returns.
 
 Integers print as integers only when the prototype's value passes `Number.isInteger` and
 the Kotlin value round-trips through `toLong()`; every other double prints as bits.
@@ -454,7 +506,7 @@ the SHA-256 over the `result` records of a cell.
 
 **The golden set** (recorded at P2 from the oracle on the pinned Node; replayed by the
 Kotlin harness). The cells are one machine-readable table, `spec/golden/cells.md`
-(`data: GOLDEN_CELLS` — mode, seed, policy, runs, ascension, vault, spd, pack, act, party),
+(`data: GOLDEN_CELLS` — id, mode, seed, policy, runs, ascension, vault, spd, pack, act, party),
 that the binder generates into constants and both harnesses read, so the two enumerate the
 same set and `diff-oracle` regenerates a cell from its own `cell` line:
 
@@ -462,19 +514,22 @@ same set and `diff-oracle` regenerates a cell from its own `cell` line:
 |---|---|---|
 | `runs`: seeds {1, 2, 3, 7, 4242} × nine policies × 10 runs | 450 | the baseline |
 | `runs`: `balanced` at A0, A5, A10 × `--vault 0/3` × `--spd 0/+10/−10`, seed 1 × 10 runs | 180 | ascension rows, the Vault, SPD deltas |
+| `runs`: `balanced` seed 1 × 10 runs at each of A1–A4 and A6–A9 | 80 | the eight ascension rows the row above skips |
 | `runs`: `lapper` seeds {1, 2} × 100 runs, plus one lapper seed chosen at P2 on which a lap-4 run occurs | 200 + 100 | laps 2–3 on the fixed seeds (exponents 0–2 of the `pow` table); the chosen seed puts exponent 3 in the goldens |
-| `battles`: the eight act-1 fixtures × the two act policies (`random`, `balanced`) × 100 battles | 1 600 | the turn, statuses, counters |
+| `battles`: the eight act-1 fixtures (`BATTLE_FIXTURES`: five fights, two elites, the boss) × the two act policies (`random`, `balanced`) × 100 battles | 1 600 | the turn, statuses, counters |
 | `battles`: every pack of every biome (`fights`, `elites`, the boss — 48 packs) at its home act, A0 and A5, the strong-party fixture, `balanced` × 20 battles | 1 920 | every enemy, every boss's fourth skill; the strong party survives late acts |
 | `battles`: a long fixture (the strong party with three GUARD relics against the act-6 boss at A10), tuned at P2 until an ENRAGED turn appears | 20 | ENRAGE |
-| `battles`: a **stall fixture** (a party that cannot kill — healers under a VEIL boss at A10 — run to `TURN_CAP`), tuned at P2 until a `STALL` appears | 20 | `STALL`, which no other cell produces (0 in 830 runs; the contract's stall rate is 0.0–0.1 %) |
+| `battles`: a **stall fixture** (a party that cannot kill — healers under a VEIL boss at A10 — run to `TURN_CAP`), tuned at P2 until a `STALL` appears; if none appears within 200 tunings, `STALL` is recorded as unreachable in its `GOLDEN-NN` clause and exempted from the coverage gate | 20 | `STALL`, which no other cell produces (0 in 830 runs; the contract's stall rate is 0.0–0.1 %) |
+| `battles`: a **set-and-sigil family** — the strong party wearing each of the sixteen sets at four pieces (which also grants its two-piece bonus) and each of the twelve sigils kindled, against the act-1 boss at A0, `balanced` × 20 | 28 × 20 = 560 | every set bonus and every sigil effect, which the run cells cannot guarantee |
 | the balance snapshot: `balanced` and `random`, seed 1, 200 runs each | 400 | § T5.5 |
 
 `coverage.mjs` at P2 and `sim coverage` at P3 report every `BattleEvent` kind, status,
 set bonus, sigil effect, pending kind, room type and ascension row that **appears** in
 the set — an event, status, pending or room appears when a record of that kind exists; a
-set bonus when a `config` or `result` relic set is worn by a party member in a battle at
-the piece count of the bonus; a sigil when a kindled relic with it is worn; an ascension
-row when a `config` carries it. **P2's gate requires every kind to appear at least once**,
+set bonus when a `party` record shows a hero wearing the set at the bonus's piece count; a
+sigil when a `party` record shows a kindled relic with it worn; an ascension row when a
+`cell` line carries it. The fixtures — party, relics, act, ascension, policy — live in
+`prototype/sim/fixtures.mjs` with those knobs, so the tuned ones are data, not prose. **P2's gate requires every kind to appear at least once**,
 and a cell is added until it does. Storage: `spec/golden/<cell>.sha256` holds one
 `run <k> <hex>` line per run or battle and a final `set <hex>` line, the SHA-256 of the
 concatenated run hashes; the full text of one run per policy at seed 1 and one battle per
@@ -637,8 +692,10 @@ types: enum:StatusKind, int
 - `status` is `proposed` (written, not yet bound), `contract` (bound to passing tests) or
   `retired`; a `known-divergence` note may accompany `proposed` (§ T7.6).
 - `owner` names the module whose tests bind it and whose generated `commonTest` receives
-  its tables; `paths`, relative to the repository root, lists the source files that
-  implement it, so the binder can map a changed file to its clauses. `paths` must exist
+  its tables — or `tools/art` for `ART` clauses, whose `data:` tables the art tool parses
+  itself and whose tests report as JUnit XML the binder reads like any other task's;
+  `paths`, relative to the repository root, lists the source files that implement it, so
+  the binder can map a changed file to its clauses. `paths` must exist
   for a `contract` clause; a `proposed` clause may name files that do not exist yet.
 - A table marked `data: NAME` with a `types:` line is extracted by the binder into
   `SpecTables.kt` as a typed value, so the document's numbers are the tests' numbers.
@@ -824,8 +881,9 @@ baked feathered sprites; effect blits; damage pops; the bloom (§ T9.4); the gra
 (`Multiply`) with the vignette; the sky body after the grade. Everything blurred is baked
 **once per (biome, tier)** from the unblurred planes with a separable CPU box blur ×3 into
 `ImageBitmap`s at boot or on biome entry; no platform blur effect is used in the frame
-path. Until the scene phase a biome is one flat placeholder plane (§ T10.9) and the light
-data, so the whole path exists from P5 with nothing to bake but the light map.
+path. Until the scene phase a biome is one flat, unlit placeholder plane at the padded size
+(§ T10.9) and its light data, so the whole path exists from P5 with nothing to bake but the
+light map and the grade.
 **Residency**: at most two biomes' bakes are held (the current and the previous); entering
 a third releases the oldest. Bakes run off the main thread at the platform's discretion.
 
@@ -875,9 +933,9 @@ The HUD face is one bundled open font (Inter or Roboto; chosen in P1 for its ren
 18 px on Skia), drawn through `TextMeasurer`/`drawText` in the stage and `Text` in the HUD
 composables; letter spacing and sizes are `Layout`'s, and the contract's character limits
 are re-validated in the bundled face at P5 when the screens are designed. The two bitmap
-fonts are baked to glyph atlases from their glyph tables (the prototype's `draw.ts` is the
-source of the tables, exported once as data at P0); damage pops and the logo draw from
-them with nearest sampling.
+fonts are baked to glyph atlases from their glyph tables (`assets/fonts/<id>.json`, the
+prototype's `BitmapFont` tables exported verbatim at P0 by `export-fonts.mjs`, § T4.2);
+damage pops and the logo draw from them with nearest sampling.
 
 ### T9.7 Memory and size (re-derived at P5 from the accepted cast)
 
@@ -892,11 +950,12 @@ them with nearest sampling.
 ### T9.8 Audio
 
 The synthesizer is not ported. At P0 `prototype/tools/render-sfx.mjs` renders the 24
-effects through the prototype's own synthesizer offline (an `OfflineAudioContext` under
-Playwright) to WAV — two or three seeded variants for the clips whose source draws
-`Math.random` at play time (the start offset, the partials' timing, the noise) — into
+effects through the prototype's own synthesizer offline — a page-level shim puts an
+`OfflineAudioContext` behind `globalThis.AudioContext` and a seeded `mulberry32` behind
+`Math.random`, so the clips whose source draws at play time (the start offset, the
+partials' timing, the noise) get three seeded variants — to 48 kHz 16-bit mono WAV in
 `assets/sfx/`, hashed and committed as assets with the prototype's commit in their
-manifest. `SfxPlayer` (`expect`) has one implementation per platform (Android `SoundPool`,
+manifest (§ T4.2). `SfxPlayer` (`expect`) has one implementation per platform (Android `SoundPool`,
 iOS `AVAudioEngine`, desktop `javax.sound.sampled`) with `play(clip, gain)`; pitch is
 applied by resampling in common code before the platform player; the per-name cooldowns,
 variant choice (seeded presentation rng), volume and mute are common (D12).
@@ -978,17 +1037,24 @@ metrics (the absolute settle band and idle change; the aligned part travel, crow
 dead height and dead-vs-idle difference, with the alignment defined in `FUNCTIONAL.md`
 § F3.1), the 8-connected component count, the frame-to-frame palette overlap and height
 consistency, the halo check, and the **in-scene rulers** — the seat ruler, the two ground
-strips, the seat spread — over any battle frame whose anchors are known: the prototype's
-`capture.mjs battle pixel=<dir>` frames at P0 (a candidate standing on the real crypt
-stage through the `PixelActor` registry, § T4.2) and the Kotlin `frames` instrument's from
-P5. There is no Kotlin re-implementation to keep in step; the Kotlin side only produces
-PNGs and anchors.
+strips, the seat spread — over any battle frame that carries an **anchors file**
+`<frame>.anchors.json` = `{frame: {w, h}, seats: [{seat: 'H0'…'E2', id, feet: {x, y}, box:
+{x, y, w, h}}], strips: [{y0, y1}, {y0, y1}]}`, the two strips where ART-REVIEW.md measures
+them: the prototype's `capture.mjs battle pixel=<dir> … anchors=1` frames at P0 (a
+candidate standing on the real crypt stage through the `PixelActor` registry, § T4.2) and
+the Kotlin `frames` instrument's from P5, which writes the same file. There is no Kotlin
+re-implementation to keep in step; the Kotlin side only produces PNGs and anchors files.
 
 **Calibration** (P0, in the bake-off report): the sheet metrics reproduce the prototype's
 `metrics.md` cell for cell on the fallback sheets; the value targets read the study at
 31 / 51 % and the prototype's EMBER at 51 / 43 %; the motion and consistency metrics are
-run over the prototype's 43 actors and the review's published per-actor values are the
-check; the p10–p90 per criterion is recorded and the **band rule** of § F3.1 applied.
+run over the prototype's 43 actors and must reproduce ART-REVIEW.md's round-13 recorded
+ranges and maxima — settle 20.4–38.8 %, idle 17.9–55.8 %, crown rise 1–3 cells on all 43,
+dead height 25–56 %, one 8-connected component in all 516 non-dead bakes, nearest
+silhouette IoU max 76.7 %, mirror IoU max 80.2 %, palette overlap max 18.4 % — and its
+named per-actor values; the p10–p90 per criterion is recorded and the **band rule** of
+§ F3.1 applied. The fallback cast is exempt-and-reported, so a settle of 20.4 % on one of
+the 43 is a recorded calibration point, not a P0 failure.
 
 **The metrics and their status.** *Sheet, pass* (criteria 1–5 as the prototype measures
 them). *Sheet, reported only*: contrast against the line-up ground — criterion 6 is
@@ -1013,7 +1079,8 @@ repainting content, upscaling, blur, any per-pixel edit an agent makes by hand w
 recording it as a normalisation step. Normalisation is deterministic and idempotent
 (`normalise` twice is a no-op), so it can be re-run over the whole cast when a rule
 changes. At the bake-off, look-B candidates skip the quantisation and the integer
-downscale (they are judged as painted figures at the cell's scale).
+downscale and are resampled bilinear to the cell canvas before measurement, so the
+per-cell value, silhouette and motion metrics run on both looks at one resolution.
 
 ### T10.6 Provenance, licensing and continuity
 
@@ -1061,14 +1128,18 @@ manifests, and never regenerated:
 - **`assets/fallback/actors/<ID>/<pose>-<frame>.png`** — every actor's fifteen bakes at cell
   resolution with a sidecar `{ id, canvas: 64|96, cell: 2, element, pose: idle|attack|hurt|
   cast|dead, frame: 0..2, feet: {x, y} in cells from the canvas origin, hitRect: {x, y, w,
-  h} in cells }`, plus the hand-drawn study at cell resolution and ×4. Three uses: the
-  gate's calibration set (§ T10.4), the stage's placeholder actors from P1 until the cast
-  lands, and the base of option B if the owner stops the AI programme.
-- **`assets/fallback/backdrops/<BIOME>-<tier>.png`** — one flat, lit frame per biome and
-  tier with no actors, drawn by the stage as a single far plane until the scene phase, with
-  `light.json` and the stage anchors per biome so the pools follow the ranks.
+  h} in cells }` named `<pose>-<frame>.json` beside each PNG. Three uses: the gate's
+  calibration set (§ T10.4), the stage's placeholder actors from P1 until the cast lands,
+  and the base of option B if the owner stops the AI programme.
+- **`assets/fallback/study/ember-study.png`** and **`ember-study-x4.png`** — the hand-drawn
+  study at cell resolution and ×4 with the same sidecar: the reference image every prompt
+  starts from.
+- **`assets/fallback/backdrops/<BIOME>-<tier>.png`** — one flat, unlit composite of the
+  prototype's four painters per biome and tier at the padded plane size, drawn by the stage
+  as a single plane and lit by the rig from `light.json` (§ T4.2) until the scene phase, the
+  pools following the anchors it carries.
 - **`assets/sfx/`** — the 24 rendered effects (§ T9.8).
-- **`assets/fonts/`** — the two bitmap fonts' glyph tables as data, and the bundled HUD face.
+- **`assets/fonts/`** — the two bitmap fonts' glyph tables as data (`<id>.json`), and the bundled HUD face.
 
 P5 ships the screens over the fallback actors where the cast is not yet accepted and over
 the flat backdrops; P4 replaces the actors behind the gate; P6 replaces the backdrops.
@@ -1210,9 +1281,10 @@ against a tree another agent is editing — the lesson the prototype's STATUS.md
 `commit` — L2a then L2b —, `merge`, `nightly`), the Gradle tasks and script steps in
 order, the tags they select, the budget in seconds and the machine class the budget is
 for, and the environment image's digest. `gate.sh <lane>` runs a lane exactly as CI does,
-prints the lane's time against its budget, appends `{lane, sha, machine, seconds, result,
-failed step}` to `ci/lanes.json`, and writes the review bundle (`VERIFICATION.md`
-§ V3.10). The CI workflows are **generated from `lanes.yaml`** (a `build-logic` task writes
+prints the lane's time against its budget, writes `{lane, sha, machine, seconds, result,
+failed step}` as `lanes.json` inside the review bundle (`VERIFICATION.md` § V3.10), which
+CI uploads as a workflow artifact — nothing in the tree is a ledger, since `ci/**` is
+owner-reviewed and pull-request workflows cannot push. The CI workflows are **generated from `lanes.yaml`** (a `build-logic` task writes
 `.github/workflows/kmp-*.yml`; a check fails when the committed workflows differ from the
 generated ones), so "a tool silently disabled" is a diff, not a new analyser. An agent
 commits when L1 is green (the pre-commit hook), pushes when the commit lane is green (the
@@ -1229,12 +1301,16 @@ and the seed on GAME OVER (§ T11).
 ## T14 Phase sequence
 
 Sizes and the aggregate are in the README (S ≤ 1, M 1–2, L 2–4, XL 4–8 sessions). Spike
-code and reports live under `plan/spikes/<n>/` with a `REPORT.md` each.
+code and reports live under `plan/spikes/<n>/` with a `REPORT.md` each, as standalone
+builds never included in the root `settings.gradle.kts`. Spike 6 (the environment) runs
+first, since spikes 1, 4 and 5 run on the environment it proves; spike 4 runs over spike
+2's tree; spike 5's hash test is defined — `mulberry32` on seeds {1, 2, 7, 4242,
+0xFFFFFFFF} × 10 000 raw bits and the `jsRound` table, against Node-generated expectations.
 
 | Phase | Entry | Deliverables | Exit gate |
 |---|---|---|---|
 | **P0 Decide, spike, freeze, bake-off** (L) | this plan approved | the owner's answers to questions 1, 2, 6, 7 and 8; the Apple and Google accounts opened and fifteen to twenty testers' recruitment started; **the owner plays the prototype on a phone and records `plan/BASELINE.md`**; the move to `prototype/`, the banners, the Pages workflow, the stub `CLAUDE.md`; the captures of § T4.2 (the fallback sheets, the flat backdrops with light data, the study, the sounds, the glyph tables); the `PixelActor` registry; **the art tool** with the full metric set, calibrated, the bands recorded; provider terms verified into `LICENSES.md`; spikes: (1) headless JVM capture of a Compose stage to PNG at k = 1 and its time, on `agent-env`; (2) `RunSession` on intrinsics with a toy generator, `HERO_TURN` at step 7, `ENEMY_TURN`, and the three paths of the self-check with draw burning; (3) Pitest on a KMP JVM target; (4) detekt 1.x and 2.0 on Kotlin 2.4 syntax with type resolution timed on a KMP tree; (5) Kotest 6 running one hash test on the iOS simulator (a throwaway hosted-macOS workflow or the owner's Mac), as an Android device test on an x86-64 emulator with KVM, and on wasmJs; (6) the environment: `setup.sh` on `agent-env` with its cold start, and an agent session minting an App token and opening a pull request; (7) the sprite bake-off on six actors, options (a) and (b), both looks, under § T10.7's protocol, through the calibrated gate, shown in lit phone frames from the prototype's stage | spike reports with frames, numbers and a recommendation each; the look fork closed; the decisions recorded in the register; the sizes re-estimated |
-| **P1 The rig** (M) | P0 | the environment image and `setup.sh` proven equivalent; the App installed, the ruleset, `CODEOWNERS`, the tag ruleset, the `release` environment, the shim jobs, the private device-runner repository; every module present and empty with the convention plugins, every analyser at full strength, the spec binder and its tests, `lanes.yaml`, `gate.sh` and the generated workflows, the hooks, `CLAUDE.md`, the `kmp-quality` rubric and the other skills; the hello-world stage (one fallback sprite over one flat backdrop, one button, one screen test, one golden recorded in the image and compared on the owner's Mac, one storyboard step in both modes); **a synthetic `:core`-sized module** generated from the prototype rules' function-size histogram (5 000 lines, 300 tests with property tests) and **a synthetic storyboard** that the lane budgets are measured on | every lane green and inside its P1-measurable budget on the synthetic module, timings recorded in `ci/lanes.json` with machine classes; the sizes re-estimated |
+| **P1 The rig** (M) | P0 | the environment image built to its registry with its digest in `lanes.yaml`, and `setup.sh` proven equivalent; the App installed, the ruleset, `CODEOWNERS`, the tag ruleset, the `release` environment, the shim jobs, the prototype workflow (the freeze check and `prototype-check`, required), the private device-runner repository; every module present and empty with the convention plugins, every analyser at full strength, the spec binder and its tests, `lanes.yaml`, `gate.sh` and the generated workflows, the hooks, `CLAUDE.md`, the `kmp-quality` rubric and the other skills; the hello-world stage (one fallback sprite over one flat backdrop, one button, one screen test, one golden recorded in the image and compared on the owner's Mac, one storyboard step in both modes); **a synthetic `:core`-sized module** generated from the prototype rules' function-size histogram (5 000 lines, 300 tests with property tests) and **a synthetic storyboard** that the lane budgets are measured on | every lane green and inside its P1-measurable budget on the synthetic module, timings recorded in the bundles' `lanes.json` with machine classes; the sizes re-estimated |
 | **P2 The spec and the oracle** (L) | P1 | `--trace`, `--ascension`, `--path`, the canonical `--dump`, the strong-party and stall fixtures, `coverage.mjs` and `strong=1` in the prototype's harness and driver; the Node pin; tag `ts-oracle-v3`; the prototype-freeze check; the golden set recorded on the pinned Node under `cells.md` and hashed, with the coverage report; the contract reconciled with the code, then folded into `spec/` clauses (status `proposed`), the `known-divergence` notes of `FUNCTIONAL.md` § F1.4 among them; the clause count per area | spec-lint clean; every clause has an id, an owner, `paths` and a status; goldens frozen; every event, status, set, sigil, pending kind, room type and ascension row appears in the golden set; P3 re-sized against the clause count |
 | **P3 The rules** (L) | P2 | `:core` test-first in § T5.1's order; `:sim` with every command; `:core-testing`; the cross-platform hash test; the ABI dumps; the port exemption zeroed at the end | `diff-oracle` clean on the golden set; the balance tables reproduced; the hash test green on the JVM, the x86-64 Android emulator and the iOS simulator, and once on an arm64 phone or farm device; matrix 100 % (no weak clauses) for the rules areas; coverage and mutation at threshold or the fallback recorded |
 | **P4 The cast** (L, parallel with P2–P3) | P0's bake-off | the pipeline at full strength; the cast generated in `FUNCTIONAL.md` § F3.5's order with the stop decision after the six heroes, judged on the prototype's stage frames; portraits; every accepted actor committed with its manifest under the owner's review | every actor passes the gate; the six heroes meet the value targets; the full-frame critic's sprite axis ≥ 8 under the protocol; the owner accepts on a phone |

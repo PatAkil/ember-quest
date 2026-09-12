@@ -455,3 +455,38 @@ carried, but nothing is byte-compared against the prototype under the restart; C
 `--dump` "over the result records" — adopted as written; D15's "the timings 'taken on this
 repository'" — attributed rather than removed, since the harness numbers are this
 repository's.
+
+## Round 4 — on revision 4 (commit `8c22896`)
+
+Round 4 ran in two parts. The first attempt lost three of its four reviewers to the model's
+usage limit; the blind implementer (C) completed on revision 4 and its 21 findings were
+resolved into **revision 5**, on which the adversarial technical (A), the adversarial
+product (B) and the owner's advisor (D) reviewers then ran on a lighter model at the
+owner's request. Part 1, C: 2 BLOCKING, 5 GAP, 3 NUMBERS, 11 MINOR; 46 round-3 resolutions
+checked and holding, one defective (3-B2's tag pattern → C1).
+
+### 4-C — blind, the implementer (revision 4)
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| C1 | BLOCKING | The tag ruleset's pattern `oracle-*` does not match the tag it exists to protect, `ts-oracle-v3` | the pattern is `ts-oracle-*` (D15, § V5) |
+| C2 | BLOCKING | A pull request touching only `prototype/**` triggers no KMP workflow, so the freeze check is shimmed green or can never run; nothing ran the prototype's own gates on the P0 and P2 changes | a separate `prototype.yml` on `prototype/**` with no shim: the freeze check and `prototype-check` (`npm ci`, check, build, smoke, `--selfcheck`), both required from P1 (§ T4.1, § V2, § V5, § T14, README) |
+| C3 | GAP | The placeholder backdrop was a lit frame that the rig would light again; the plane size and `light.json`'s content were unstated | the capture is the four painters composited **unlit** at the padded 1360 × 800 through a `light=0` dev switch; `light.json` is the `BiomeLook` minus its painters plus the anchors and the pool constants (§ T4.2, § T10.9, § T9.2, D16, `FUNCTIONAL.md` § F3.7) |
+| C4 | GAP | The trace's `pending` and `answer` fields were unspecified for twelve kinds, and the interleaving of `draw` and `event` lines was undefined | a per-kind field table, a `party` record and a flush order (§ T5.3) |
+| C5 | GAP | The rulers needed anchors no capture wrote, in no schema | the anchors file `<frame>.anchors.json` with its schema, written by `capture.mjs battle … anchors=1` at P0 and by `frames` from P5 (§ T10.4, § T4.2, § V3.3) |
+| C6 | GAP | `pixel=<dir>` left the seats, the frames, the flash, the spread ruler's input and `phone=1` to guess | `capture.mjs battle pixel=<dir> party=<ids> pack=<ids> [phone=1] [seat=all] anchors=1` as a stage-only capture, defined (§ T4.2) |
+| C7 | GAP | `ci/lanes.json` could not be written by CI or pushed by agents (an owned path, no write token) | the ledger is `lanes.json` in the review bundle, uploaded as a CI artifact and aggregated by the nightly; nothing in the tree (§ T13.5, § T2.1, § V2, § V7, § T14) |
+| C8 | NUMBERS | Eight ascension rows and every set bonus and sigil could not "appear" in the listed cells | cells added: `balanced` at A1–A4 and A6–A9 (80 runs) and a set-and-sigil fixture family (28 × 20 battles) (§ T5.3) |
+| C9 | NUMBERS | ART-REVIEW.md publishes cast ranges, not a per-actor table; its settle minimum 20.4 % is below the band | the calibration restated against the recorded ranges and maxima; the fallback cast exempt-and-reported (§ T10.4) |
+| C10 | NUMBERS | A later character at 90–150 images is $20–60, not $50–150 | corrected (`FUNCTIONAL.md` § F4.3, README money) |
+| C11 | MINOR | The move list omitted `README.md`, `DESIGN-REVIEW.md` and `.gitignore`; an empty `.claude/` cannot be committed; the banner commit was unlisted | added; a new root README; the banner commit listed (§ T4.1, § T4.2) |
+| C12 | MINOR | The offline sound render needed a page-level shim and unstated formats | the `AudioContext` and `Math.random` shims, three seeds, 48 kHz 16-bit mono, the manifest (§ T4.2, § T9.8) |
+| C13 | MINOR | The glyph-table export and the study's path were unnamed | `export-fonts.mjs` → `assets/fonts/<id>.json`; the study under `assets/fallback/study/` (§ T4.2, § T9.6, § T10.9) |
+| C14 | MINOR | The band rule was undefined for a partially overlapping interval | p10 below the low or p90 above the high replaces the band (`FUNCTIONAL.md` § F3.1) |
+| C15 | MINOR | Only the owner can create the tag and add the required check, and the P2 row did not say so | added to the owner's P2 row (README) |
+| C16 | MINOR | The critic's protocol lived in a clause written after the bake-off that needs it | frozen in `plan/spikes/7/CRITIC.md` before the first verdict, promoted at P0's exit (`FUNCTIONAL.md` § F3.5) |
+| C17 | MINOR | The spikes' order, spike 4's tree, spike 5's content and the spikes' builds | spike 6 first; spike 4 on spike 2's tree; spike 5's hash defined; standalone builds (§ T14) |
+| C18 | MINOR | Two `.nvmrc` files with no agreement rule; `setup.sh` only for Linux; the registry, the digest's route and the image marker unnamed | one version with a lint; `setup.sh` on Linux and macOS; `ghcr.io/<owner>/ember-quest-env`, the digest written by the image workflow's pull request, the marker file (§ T3, § V4) |
+| C19 | MINOR | L2b's storyboard step measured at P1 in one place and P5 in another | the storyboard step at P1 on the synthetic storyboard; the content-scaled steps at P4/P5 (§ V2) |
+| C20 | MINOR | `ART` clauses had no owner the Kotlin binder could serve; look-B measurement resolution unstated | `owner: tools/art`, the tool parsing its tables and reporting JUnit XML; look B resampled to the cell canvas for measurement (§ T7.1, § T10.5, `FUNCTIONAL.md` § F3.2) |
+| C21 | MINOR | No cell id; a runs cell not regenerable from its line; sets and sigils not computable from `config`/`result`; the stall fixture without knobs or an exit | an `id` column and slug; asc/vault/spd on the runs `cell` line; the `party` record; `prototype/sim/fixtures.mjs`; the 200-tunings exit (§ T5.3) |

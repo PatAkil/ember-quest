@@ -198,9 +198,9 @@ screenshots, are not in the repository and never will be.
   height whose aligned XOR against idle covers ≥ 90 % of the union (never a rotated or
   clipped idle). One 8-connected component per non-dead frame. **The band rule**: these
   bands are provisional; at P0 the gate records the prototype's 43 actors' p10–p90 per
-  criterion, the bake-off gates on the bands above unless the prototype's p10–p90 lies
-  outside them, in which case the recorded band replaces the provisional one as a register
-  entry, and the bands carry into `spec/art/` when it is written (§ F3.2).
+  criterion; the bake-off gates on the bands above, except that where the prototype's p10
+  is below a band's low or its p90 above its high, the recorded [p10, p90] replaces that
+  band as a register entry; the bands carry into `spec/art/` when it is written (§ F3.2).
 - **What is never generated.** UI, text, VFX, the light rig, the fonts. Backdrops are
   placeholders until the scene phase (§ F3.7).
 - **What is never fed to a provider.** Third-party artwork of any kind — no screenshot of
@@ -219,7 +219,8 @@ screenshots, are not in the repository and never will be.
 **How B is judged at the bake-off.** A painted figure fails the keyline, colour-count,
 cell-alignment and component criteria by construction, so for look B those are *reported,
 not gating*, and the candidates skip the palette quantisation and integer downscale of
-normalisation; the value, silhouette, motion and in-scene criteria gate both looks. A B
+normalisation (they are resampled to the cell canvas for measurement only); the value,
+silhouette, motion and in-scene criteria gate both looks. A B
 candidate reaches the owner on that reduced gate, so the fork can actually close.
 
 Recommendation: **A for sprites, with painted portraits** for the ribbon chips, party heads
@@ -286,8 +287,9 @@ depends on Kotlin: the tool, the providers and the owner's decisions.
 **The critic's protocol** (a model's score is not a measurement unless it is repeatable):
 the same model and the same prompt every time, blind — the critic is not told which
 candidate is which, nor what changed — three runs per verdict and the median score; a
-verdict below the bar names the failing criterion by number. The protocol is a clause in
-`spec/art/`.
+verdict below the bar names the failing criterion by number. The prompt, the five axes
+and the scoring are frozen in `plan/spikes/7/CRITIC.md` before the first verdict of the
+bake-off and promoted unchanged into `spec/art/` at P0's exit.
 
 Two decision points, each a yes or no from the owner on lit phone frames:
 
@@ -338,9 +340,10 @@ later character is in § F4.3.
 
 ### F3.7 Backdrops, VFX and portraits
 
-The stage is built at P5 over **placeholder backdrops**: one flat, lit frame per biome and
-tier captured from the running prototype at P0 (`TECHNICAL.md` § T10.9), drawn as a single
-plane, plus the light data each biome needs (the pools follow the stage anchors). The real
+The stage is built at P5 over **placeholder backdrops**: one flat, unlit composite of the
+prototype's four painters per biome and tier, captured once at P0 (`TECHNICAL.md` § T10.9),
+drawn as a single plane and lit by the rig from the biome's light data (the pools follow
+the stage anchors). The real
 backdrops are the **scene phase, P6**: four planes per biome as data-driven painters or as
 AI-generated planes through the same gate-then-critic process, with the light wells, the
 second hue per biome, the bright mass behind the figures and the plate rules the full-frame
@@ -395,7 +398,7 @@ The closed unions a kit is built from — anything outside them is a *mechanics*
 
 | Class | Spec | Tests | Simulator | Art | Screens |
 |---|---|---|---|---|---|
-| NEW character | clauses under `spec/characters/<id>.md`; roster and `validateData` clauses | data validity, kit behaviour per skill, awakening, leader | every policy must be able to draft and play it; the ladder and the guards re-measured; "every character leads ≥ 5 %" | 15 frames + portrait through the gate against the accepted cast: ≈ 90–150 generated images, one critic round, the owner's sheet — ≈ $50–150 at listed prices, a whole-cast re-gate after a provider change (§ F3.6) | the draft grid and detail strip must fit (the four-column grid holds twelve) |
+| NEW character | clauses under `spec/characters/<id>.md`; roster and `validateData` clauses | data validity, kit behaviour per skill, awakening, leader | every policy must be able to draft and play it; the ladder and the guards re-measured; "every character leads ≥ 5 %" | 15 frames + portrait through the gate against the accepted cast: ≈ 90–150 generated images, one critic round, the owner's sheet — ≈ $20–60 at the per-image price including re-rolls, plus a portrait, a whole-cast re-gate after a provider change (§ F3.6) | the draft grid and detail strip must fit (the four-column grid holds twelve) |
 | KIT change | the skill clauses | the skill's behaviour, the awakening | the ladder and the guards | any pose the kit changes (a new weapon) | none |
 | NUMBERS | the Balance state | none new | the ladder and the guards | none | none |
 | ART | `spec/art/` | the gate | none | the frames | none |
