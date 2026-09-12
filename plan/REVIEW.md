@@ -1495,3 +1495,100 @@ hero's art priced as free (D3). Revision 14 resolves all of them and declines no
 | D13 | MINOR | The whole-cast re-gate priced in money, not sessions | 2–4 sessions beside its money (question 6, money row) |
 
 **Declined or only partly applied (MINOR):** none declined.
+
+## Round 13 — on revision 14 (commit `c0d4641`)
+
+Four reviewers on a lighter model, 52 findings: 0 BLOCKING, 21 GAP, 7 NUMBERS, 24 MINOR —
+the first round with no blocking finding. The gaps sit on the plan's edges rather than in
+its core: the tag ruleset's bypass list was never stated, and a ruleset exempts nobody
+implicitly (A6); the Gradle wrapper was a second toolchain pin outside every gate (A5,
+B1); the golden-recording job re-posted the merge lane's required checks onto the head
+commit (A4); the forcing hooks had no firing point, so a forced storyboard save still
+replayed differently (A2); the in-scene bars covered LOW and HIGH while the testers see
+MED over the placeholder (A3); the nightly carve-out said "confined to" where the rule it
+copies says "intersect" (A7); the seat spread's median had no population (A1); the
+calibration's "must be exact" reached criteria with no reference implementation in the
+tree (C1); a multi-schema area file had no root (C2, A13); Renovate's own configuration
+would have failed the generator's tree test (C3); the placeholder plane had no depth (C4);
+and on the owner's side the character brief's design time and the plan's own reading were
+in no hours line (B2, D2), the phone-in-a-VM path was unproven (B3), the opted-in count
+had no observer (B4), the accepted cast was never gated on the stage it ships on (B5),
+the steady state's upgrade debt and the programme's own attrition had no risk row (B6,
+B7), the App Store name's reservation had no stated lifetime (B8), the private branch
+lost a gate it did not name (B10), D11's minSdk decision was off the P5 owner row (D1),
+and the re-gate's money was outside the worst case (B11). Revision 15 resolves all of
+them; one is applied in part with the evidence (B9).
+
+### 13-A — adversarial, technical
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| A1 | GAP | The seat spread's "median seat" had no population | the median seat of the same biome frame, reported as the maximum over the six frames (§ F3.1, § T10.4) |
+| A2 | GAP | Three of the five forcing hooks are point-in-time; "applied before the first decision" cannot replay them | each hook carries its firing point — `room@<stage>`, `pack@<battle>`, `hp@<decision>`; act and lap before the first decision (§ T5.3, § V3.2) |
+| A3 | GAP | P5's bar was LOW while the shipped app runs MED or HIGH over the placeholder | three bars at P0, one per tier; P5 gated at LOW and at the reference phone's default tier (MED), P6 at HIGH (§ F3.1, § T10.4, § V2, § T14, README P5 row) |
+| A4 | GAP | `record-goldens` dispatched the merge workflow and re-posted every required check, red by construction | its own `workflow_dispatch`-only workflow with job names outside `ci/required-checks.txt` (§ V4, § T1) |
+| A5 | GAP | `gradlew*` and `gradle/wrapper/**` outside the owned paths | `gradle/**` and `gradlew*` owned; the wrapper's `distributionUrl` in § T3's version lint (§ V5, § T3; = B1) |
+| A6 | GAP | The tag ruleset's bypass list unstated; an empty one makes every tag uncreatable | the tag ruleset's bypass list holds the owner as repository admin, the one bypass in the repository (§ V5, README D15) |
+| A7 | GAP | The nightly carve-out said "confined to" where the red-`main` rule says "intersect" | "intersect" in both (§ V5) |
+| A8 | NUMBERS | A standard enemy 40–50 rows against the review's 11–16 % (40–58) | 40–58 rows, the review's band (§ F3.1) |
+| A9 | NUMBERS | The counter refused at 90 % of the kind's $4 000 while the sprite key caps at $3 500 | the counter refuses at 90 % of each key's own cap — $3 150 sprites, $450 portraits (§ T10.1, § T10.7, README) |
+| A10 | MINOR | The band rule added an upper bound to one-sided criteria | only the stated side of a one-sided criterion moves (§ F3.1) |
+| A11 | MINOR | Two flush positions open: the final `event` drain against `party`, and `probe` | `party` before any `event` of its battle; the post-outcome drain before the next `party` or `result`; `probe` after `result`, before `end` (§ T5.3) |
+| A12 | MINOR | `root` was a literal list, so the next root file fails the generator test again | `root` is the residual for the root and `.claude/**`; the generator error is for paths below the root (§ T4.1) |
+| A13 | MINOR | `tools/art` is no Gradle module to receive ART fixtures; a multi-schema file had no top type | ART fixtures read by `tools/art` outside the binder; the first `schema:` block is the root (§ T2.1, § T7.4; = C2) |
+
+### 13-B — adversarial, product and process
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | The Gradle wrapper a second unowned pin executed by every lane | = A5 (§ V5, § T3) |
+| B2 | GAP | The character brief's design time in no hours line | named, with the plan's reading and the ten questions, as owner time the plan does not size; missing P0's exit costs § F4.3's price (README, twice) |
+| B3 | GAP | The phone-in-a-Linux-VM path unproven on an Apple-silicon Mac | M7 proves the path with the real phone before question 5 closes; the farm is the answer if it fails (README question 5, § V9) |
+| B4 | GAP | The opted-in count — the tripwire's number — had no observer | Play Console's testing-requirement tracker read weekly on the P5 and P7 owner rows (README) |
+| B5 | GAP | The accepted cast never gated on the stage it ships on | P5's exit: the sprite axis not below its P4 reading, a miss the rig's to fix inside P5 (§ T14, README, § F3.5, § T15) |
+| B6 | GAP | No risk row for the steady state's upgrade debt against a store-mandated bump | a risk row with § T3's fallback and the out-of-cycle session; § T3 says a mandated bump does not wait for the quarter (README, § T3) |
+| B7 | GAP | No risk row for the programme's own attrition; nothing playable until P5 | a risk row with a month-without-a-session tripwire; the interim gap stated as an accepted cost; the stops also ask whether the game is still wanted (README) |
+| B8 | GAP | The App Store name's reservation lifetime never asked | a build-less record keeps its name today (Apple's 180-day limit is gone), confirmed at P0's terms check; if a limit has returned, only the ids are chosen at P0 (§ T12, README P0 row) |
+| B9 | NUMBERS | 8(b)'s rate $0.008, allowance 3 000 on Pro, Pro's own price missing | the allowance (3 000 on Pro) and Pro's ≈ $4 a month applied; the rate stays $0.006 — GitHub cut Linux 2-core from $0.008 to $0.006 on 2026-01-01 (README question 8(b)) |
+| B10 | NUMBERS | A private repository loses the `release` environment's required reviewer (GitHub Enterprise only) | stated in 8(b), § V5 and the P5 owner row: the private branch ships behind the tag ruleset alone (README, § V5) |
+| B11 | NUMBERS | The whole-cast re-gate's ≈ $1 500–2 500 outside the cell and the worst case | in the Image-generation cell and the worst-case line, ≈ $6 400–7 400 with it (README money table) |
+| B12 | NUMBERS | The six felt-row reworks counted, not priced | six S-sized reworks inside P5's XL, each re-walked in P5's next sitting inside its 8–12 (§ F1.5) |
+| B13 | MINOR | "Prepaid or capped" put $4 000 out before the P1 and P2 stops | capped is the default; prepaying is the owner's choice with its exposure named (README P0 row; = D6) |
+| B14 | MINOR | The three-or-more-sessions branch had no all-in recurring figure | ≈ $200–400 a month on that branch in the total row (README) |
+| B15 | MINOR | `CODEOWNERS` and the check's list could drift | one list in the check's code, `CODEOWNERS` generated from it, a test asserting they agree (§ V5) |
+
+### 13-C — blind, the implementer
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| C1 | GAP | "Must be exact" reached criteria with no reference implementation; a disagreement's effect on P0's exit unstated | exact for the seven criteria the committed instrument computes; the scratch-decoder criteria adjudicated with the recorded value as context; an undecided disagreement, not a non-zero one, holds P0 (§ T10.4) |
+| C2 | GAP | A multi-schema area file had no root block | the first `schema:` block is the root; later blocks are nested, reachable through `object:<Name>` (§ T2.1, § T7.4) |
+| C3 | GAP | Renovate's configuration in no glob; `gradlew.bat` uncovered | `.github/renovate.json`, written at P1, in the tree and the `build` boolean; `gradlew*` (§ T2.1, § T3, § T4.1) |
+| C4 | GAP | The placeholder plane's depth and parallax a guess | drawn as the flat tiers draw their merged plane — at `-PLANE_PAD`, no parallax, no shake lag — until P6 (§ T9.2) |
+| C5 | NUMBERS | The cast's first pass priced at 645 frames though option (b) generates 559 | 645 under (a), 559 under (b): ≈ 3 400–3 900 images ≈ $600–700, re-derived at P0's exit (§ T10.7, README) |
+| C6 | MINOR | "As the prototype's seam does" was wrong for `deathBy` | `deathBy` empty by decision; the prototype's `findDeathBy` would name a fallen hero's killer (§ T2.3) |
+| C7 | MINOR | The Pages copy step's source resolved under the `prototype` working directory | `$GITHUB_WORKSPACE/docs/…` (§ T4.1) |
+| C8 | MINOR | The `set` hash's input unstated | over the run hashes' lowercase hex, in order, no separator (§ T5.3) |
+| C9 | MINOR | The cell table's `runs` column against the battles record's `n=` | in battles mode `runs` is emitted as `n=` and no `path=` is written (§ T5.3) |
+| C10 | MINOR | The gate App's three check-run names never fixed | `owner/owned-path`, `owner/goldens`, `owner/contract-clause`, spelled identically in the ruleset, the list and the workflow (§ V5, § V2) |
+| C11 | MINOR | M6's golden step had no pass condition | it asserts SKIPPED-GOLDEN with the tolerance diff in the bundle, never a green or a hard failure (§ V9) |
+
+### 13-D — blind, the owner's advisor
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| D1 | GAP | D11's minSdk decision off the P5 owner row; the Android 10–11 share unstated | on the P5 row, the share read from the Play Console's device catalogue at the decision (README) |
+| D2 | GAP | The brief's design time and the plan's reading in no hours line | = B2 (README) |
+| D3 | MINOR | Question 8(b) omitted `plan/**` from what public exposes | added (README) |
+| D4 | MINOR | Two consecutive risk rows each claimed the bottleneck | the review queue binds at three or more sessions a week, agent capacity below (README) |
+| D5 | MINOR | "Four known defects" stated as the default against 3(c)'s recommendation | "one, if question 3(c) takes the fix" in both places (README) |
+| D6 | MINOR | $4 000 loaded at P0 before the providers are named | the bake-off's keys at P0's start, the cast's after the bake-off names the providers (README P0 row; = B13) |
+| D7 | MINOR | Question 2's 4.5–6.5 sessions outside the aggregate sentence | added, with the calendar moving (README) |
+| D8 | MINOR | "Rebuilt bit for bit" against the three rules the oracle lacks | the exception named in item 3 (README) |
+| D9 | MINOR | The device lane SKIPPED in an absence while the runner stays on | "when the phones travel with the owner" (README) |
+| D10 | MINOR | The demo-unusable branch unpriced on the approval surface | ≈ half a session outside the aggregate (README P0 row) |
+| D11 | MINOR | Item 4 promised a runner question 5 may not take | "a device lane out of the agents' reach (the runner or the farm — question 5)" (README) |
+| D12 | MINOR | The owner "sets up" the privacy page on an owned path | the owner dictates it; an agent commits it from the owner's copy (README P5 row) |
+| D13 | MINOR | The farm branch's recurring owner walk in no steady-state line | on the "Always" row, conditional on question 5, about half an hour per tag (README) |
+
+**Declined or only partly applied:** B9 in part — the $0.008 rate was declined with the evidence above; the allowance and Pro's price were applied.

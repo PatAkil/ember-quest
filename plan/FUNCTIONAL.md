@@ -112,7 +112,7 @@ behaviour and the new screens are built to it; the prototype is frozen with its 
    SHRINE, a SUMMON with a full party, the map, the Vault's EQUIP and BANK faces. A felt row
    the owner cannot sign stays open and P5 does not close — with a bound: a row reworked
    twice and still unsigned goes to the owner's decision, accept it as a recorded known
-   miss or stop; the priced worst case is two reworks per row and six in all across the eight, and a third rework on a row or a seventh overall is the branch trigger. The rows are scored against the
+   miss or stop; the priced worst case is two reworks per row and six in all across the eight — six S-sized reworks inside P5's XL, each re-walked in P5's next sitting inside its 8–12 — and a third rework on a row or a seventh overall is the branch trigger. The rows are scored against the
    **feel rubric** of the `kmp-quality` skill (`TECHNICAL.md` § T13.2), written at P1 from
    `STATUS.md`'s "Playing it on a phone" section and the full-frame critic's
    first-ten-minutes items — anything tapped twice, anything unreadable at arm's length, a
@@ -168,7 +168,7 @@ screenshots, are not in the repository and never will be.
 - **Cell and size.** One cell is 2 screen px at 720p. The canvas is 64 × 64 cells (96 × 96
   for a boss). The bands are the review's recorded ones: a hero 52–60 rows tall, any width
   the 64 columns allow (the contract's `ACTOR_PART = 64` cells — `ACTOR_W` is its 128 screen px; measured heroes run to 53 columns); a
-  standard enemy 40–50 rows; an elite 50–56; a boss at least 60 on the 96-cell canvas (the
+  standard enemy 40–58 rows (11–16 % of the frame, the review's recorded band); an elite 50–56; a boss at least 60 on the 96-cell canvas (the
   six measured 65–93). A taller boss band is a change
   the owner may make at the bake-off, recorded as such — never a silent renumbering. Feet at the bottom centre; authored facing right (the battle mirrors
   heroes).
@@ -197,14 +197,16 @@ screenshots, are not in the repository and never will be.
   ART-REVIEW.md records; an L* ratio would be a different gate) — measured on **one fixed
   set**: the six seats of the resting frame of every biome — 36 seats, 72 strip readings
   — the seat list fixed at P0, an excluded seat counted as a miss, never dropped, and the
-  fallback cast planted as a fixed reference at P0, P5 and P6; **two bars, both recorded
-  at P0 under this rule** on the prototype's landed rig: at its LOW tier (one flat plane
-  with the key light and grade baked in, the closest match to the placeholder stage P5
-  draws), which is P5's bar, and at HIGH, which is P6's (the record under the older strip
-  rule was 106 of 108, quoted for scale only); and the **seat spread** — the
-  largest excess of a seat's torso median (rows 0.33–0.72 of the silhouette's height) over
-  the median seat's — an L* value over the 36 seats whose bars are likewise the rig's at LOW and
-  HIGH (the rig's own 4.5 L was measured with one sprite at all six anchors, the cast's
+  fallback cast planted as a fixed reference at P0, P5 and P6; **three bars, all recorded
+  at P0 under this rule** on the prototype's landed rig, one per tier: P5 is gated at LOW
+  (one flat plane with the key light and grade baked in, the closest match to the
+  placeholder stage it draws) and at the tier the reference phone's first-launch benchmark
+  picks — MED on the 2022 phone (§ F2.6), the frame the felt rows and the testers see —
+  and P6 at HIGH (the record under the older strip rule was 106 of 108, quoted for scale
+  only); and the **seat spread** — the largest excess of a seat's torso median (rows
+  0.33–0.72 of the silhouette's height) over the median seat **of the same biome frame**,
+  reported as the maximum over the six frames — an L* value whose bars are likewise the
+  rig's per tier (the rig's own 4.5 L was measured with one sprite at all six anchors, the cast's
   differences removed, so 5 L* is the intent, not the bar). Both are
   **reported** on every sprite's contact sheet and **gated** at P5
   and P6 against the rig over the biome frame goldens (a miss is a light or shadow fault,
@@ -241,7 +243,8 @@ screenshots, are not in the repository and never will be.
   bands are provisional; at P0 the gate records the prototype's 43 actors' p10–p90 per
   criterion; the bake-off gates on the bands above, except that where the prototype's p10
   is below a band's low or its p90 above its high, the recorded [p10, p90] replaces that
-  band as a register entry; the bands carry into `spec/art/` when it is written (§ F3.2).
+  band as a register entry — for a one-sided criterion (idle ≥ 17 %, crown rise ≥ 1 cell,
+  the dead XOR) only its stated side moves; the bands carry into `spec/art/` when it is written (§ F3.2).
 - **What is never generated.** UI, text, VFX, the light rig, the fonts. Backdrops are
   placeholders until the scene phase (§ F3.7).
 - **What is never fed to a provider.** Third-party artwork of any kind — no screenshot of
@@ -376,7 +379,8 @@ Two decision points, each a yes or no from the owner on lit phone frames:
    *Continue* to the enemies; *change provider* (the whole-cast re-gate, README money
    table); or *stop*. The cast is judged once more on
    the real stage at P5's end; a miss there is a light or composition fault and is worked in
-   the scene phase, not by regenerating the cast.
+   the rig inside P5 — its gain, pools and cast lobe are P5 code — or, if only the planes can
+   carry it, in the scene phase; never by regenerating the cast.
 3. **When the cast's ceiling is reached** — the $4 000 of per-image spend held as the
    providers' own caps, or, for a subscription winner, a month that ends with the cast
    incomplete (`TECHNICAL.md` § T10.7) — wherever the cast stands: the same three branches — a budget the owner raises by name,
