@@ -383,7 +383,7 @@ real one. From that commit:
   (`plan/**`), `spec` (`spec/**`), `assets` (`assets/**`), `art` (`tools/art/**`), `env`
   (`ci/env/**`), `docs` (`docs/**`), one per Gradle module — `core` (with `core-testing/**`), `engine`, `ui`, `sim`,
   `tools`, `app`, `ios` (`iosApp/**`) — `build` (`build-logic/**`, `gradle/**`,
-  `config/**`, `.github/**`, `ci/**` outside `env`, the root build files) and `meta`
+  `config/**`, `.github/**`, `ci/**` outside `env`, the root build files) and `root`
   (`CLAUDE.md`, `.claude/**`, `.nvmrc`, `LICENSE`, `.editorconfig`, the root `README.md`
   and `.gitignore`); a path in no glob is a generator error, caught by a test that walks
   the tree — and every heavy job carries `needs: changes`

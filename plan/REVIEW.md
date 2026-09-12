@@ -1424,7 +1424,7 @@ hero's art priced as free (D3). Revision 14 resolves all of them and declines no
 |---|---|---|---|
 | A1 | GAP | The nightly-red rule blocked the `:core` fix that clears it | the same carve-out as the red-`main` rule: a pull request confined to the failing area, or naming the red run, merges (§ V5) |
 | A2 | GAP | Red `main` published per-job booleans while L3's jobs span every module | the post-merge run publishes the module booleans of its failing tasks, cross-module jobs attributed by convention (hash test and `diff-oracle` to `core`, storyboard to `ui`) (§ V5; = C5) |
-| A3 | GAP | Root files in no `changes` glob — a generator error by § T4.1's own rule | a `meta` boolean: `CLAUDE.md`, `.claude/**`, `.nvmrc`, `LICENSE`, `.editorconfig`, the root `README.md` and `.gitignore` (§ T4.1; = C1) |
+| A3 | GAP | Root files in no `changes` glob — a generator error by § T4.1's own rule | a `root` boolean: `CLAUDE.md`, `.claude/**`, `.nvmrc`, `LICENSE`, `.editorconfig`, the root `README.md` and `.gitignore` (§ T4.1; = C1) |
 | A4 | GAP | `prototype-check` skipped the one change that can break the oracle harness | `prototype-check` and `diff-oracle` gated on `prototype || spec` from P2 (§ V5, § V2) |
 | A5 | GAP | A fixture's declaring file was unresolvable in the screens area | `spec/fixtures/<area>/<file-stem>/<name>.json` → `SpecFixtures.<Area>.<FileStem>.<name>` (§ T2.1; = C7) |
 | A6 | GAP | Forced storyboard state was not a decision, so the save replayed differently | the forcing hooks recorded as a `debug:` preamble the replay applies; such a save is not portable across `RULES_VERSION` (§ V3) |
@@ -1462,7 +1462,7 @@ hero's art priced as free (D3). Revision 14 resolves all of them and declines no
 
 | # | Sev. | Finding | Resolution |
 |---|---|---|---|
-| C1 | BLOCKING | Root files in no `changes` glob fail the generator's own test from the first commit | = A3: the `meta` boolean (§ T4.1) |
+| C1 | BLOCKING | Root files in no `changes` glob fail the generator's own test from the first commit | = A3: the `root` boolean (§ T4.1) |
 | C2 | BLOCKING | The harness exits non-zero on the stall cell it is meant to record | `--no-stall-gate` added to the P2 harness change and the flag list; golden recording and `diff-oracle` pass it (§ T4.2, § T5.4) |
 | C3 | GAP | The stage capture had no biome selector, so the 72 readings could not be taken at P0 | `biome=<BIOME>` and `tier=` in the capture's flags; "a stage-only capture in any biome" (§ T4.2) |
 | C4 | GAP | `battle-fixtures` had no builder; the boss cell could not be regenerated | its party from any `BATTLE_FIXTURES` row's `make()`, which draws nothing, the pack from the cell line's `pack=` (§ T5.3) |
