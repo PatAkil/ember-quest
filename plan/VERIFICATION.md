@@ -25,7 +25,8 @@ module the size of the rules and a synthetic storyboard, not on a hello-world.
 **Airtight** means every failure class the project can name has a gate that catches it
 (§ V6), and the gates are enforced by machines wherever a machine can: a ruleset on `main`
 with required checks and an empty bypass list, a tag ruleset, a release environment that
-holds the signing secrets, two identities so that no author approves their own change, code
+holds the signing secrets, separate identities so that no author approves their own change and no workflow's own
+token can post the owner-review checks, code
 the plan's own owned-path check — an approving review by the owner on the head commit,
 read through GitHub's API — on the gates' own configuration, the goldens, the art, the
 tool that measures the art, the prototype and the contract — run from `main`'s copy of
@@ -35,7 +36,8 @@ verifies rather than assumes, the art tool refusing any reference image that is 
 committed asset, and the environment's two forms checked against one version manifest.
 Five things stay with discipline and are audited by the next machine gate: **P0's
 artefacts** — the move and the banner, the capture tools, the art tool and its calibration
-golden, the fallback captures and the sound hashes — land before any machine gate exists,
+golden, the critic's protocol (`plan/spikes/7/CRITIC.md`) and the per-axis baselines it
+produces, the fallback captures and the sound hashes — land before any machine gate exists,
 so the owner looks at those commits and P1 re-asserts the calibration golden against a
 second, independently written reader; the edit hook (L0) reports and cannot block; the git hooks (L1, L2) can be
 skipped with `--no-verify`, so L3 re-runs everything they run; the review bundle is read by
@@ -49,9 +51,9 @@ says so and names the slower gate that covers it.
 |---|---|---|---|---|
 | **L0 edit** | ≤ 8 s (`agent-env`, warm Gradle and Kotlin daemons, a configuration-cache hit; one run per two seconds at most) | the `PostToolUse` hook after every edit of `*.kt`, `spec/**`, `tools/art/**` or `ci/env/**`; `gate.sh edit` | ktlint on the file; detekt's syntax-only rules on the changed files; spec-lint on changed clauses; `gate.sh env-check` when `ci/env/**` changed; the touched module's incremental `compileKotlinJvm` — if P1's measurement shows the compile does not fit on this machine class, it moves to L1 and the hook says so; for the art tool, `tsc` on the file | it compiles, it is formatted, it has no new smell |
 | **L1 module** | ≤ 90 s (`agent-env`) | the pre-commit hook; by the agent after each milestone; `gate.sh module` | the touched modules' `jvmTest` (`Fast` tag: unit, property at 100 cases, table-driven, screen semantics with virtual time); Konsist scoped to the touched modules; the JVM ABI dump check; the spec matrix for the clauses whose `paths` intersect the touched modules; the art tool's own tests when it changed | the rules and screens do what their clauses say; the architecture holds |
-| **L2a commit** (`commit-a`), measured at P1 | ≤ 5 min (`agent-env`) | the pre-push hook (`gate.sh commit`), which runs L2a and L2b | the whole JVM test set; the committed golden hash lists; the reduced balance snapshot; detekt with type resolution over the tree; Konsist over the tree; Kover thresholds; the desktop perf test on the stage (allocation-based and relative to a same-run baseline, § T9.5) | nothing observable changed unless a clause changed |
+| **L2a commit** (`commit-a`), measured at P1 on the synthetic module and re-measured at P3 against the recorded goldens and the reduced snapshot, which the synthetic module cannot carry | ≤ 5 min (`agent-env`) | the pre-push hook (`gate.sh commit`), which runs L2a and L2b | the whole JVM test set; the committed golden hash lists; the reduced balance snapshot; detekt with type resolution over the tree; Konsist over the tree; Kover thresholds; the desktop perf test on the stage (allocation-based and relative to a same-run baseline, § T9.5) | nothing observable changed unless a clause changed |
 | **L2b commit** (`commit-b`), content-scaled | target ≤ 5 min; its storyboard step measured at P1 on the synthetic storyboard, its content-scaled steps first measured at P4 (the asset gate over the cast) and P5 (frames, goldens, the real storyboard); if it outgrows the target at P5 the storyboard moves to L3 and § V6's rows move with it, as a README decision | the pre-push hook | screenshot goldens — byte-exact inside the environment image, SKIPPED-GOLDEN with a tolerance report outside it, which the hook accepts (§ V4); the storyboard in **skip-playback mode** (every biome, boss and screen reached with the strong party and the forcing hooks, once by tag and once by the keyboard route; a two-act run to a KO); the `vfx` and `backdrops` goldens; the asset gate over `assets/actors/**`; the review bundle | the screens and the assets did not change unless approved |
-| **L3 merge** | ≤ 30 min wall-clock across parallel jobs (`hosted-linux`; one `hosted-macos-arm64` job ≤ 20 min for the iOS simulator) | the pull request (required checks whose heavy jobs skip themselves by path condition; a ruleset, no queue, no up-to-date rule) | L2a and L2b re-run in the environment image (the byte-exact goldens); every target compiles (Android, the iOS framework, wasmJs); the klib ABI dumps; the cross-platform hash test on the JVM, on an x86-64 Android emulator with KVM, on the iOS simulator and — if P0's spike 5b passes — on the JVM of a free `ubuntu-24.04-arm` runner, the arm64 arithmetic truth in the merge lane (wasm informative); `diff-oracle` on the probe subset (Node pinned); the full-playback storyboard with frames; Android Lint; `buildHealth`; the size test; the emulator and simulator boot smoke with the audio-plays assertion; workflow and script lint; the generated-workflows check; `gate.sh env-check`; the approval check on the head commit through GitHub's review data; the contract-clause check; the owned-path check; the prototype workflow (the freeze check unconditional, `prototype-check` skipped by its condition when `prototype/**` did not change); the nightly status read from the last nightly run; the rules-change golden-diff check (§ V5) | it ships on every platform |
+| **L3 merge** | ≤ 30 min wall-clock across parallel jobs (`hosted-linux`; one `hosted-macos-arm64` job ≤ 20 min for the iOS simulator) | the pull request (required checks whose heavy jobs skip themselves by path condition; a ruleset, no queue, no up-to-date rule) | L2a and L2b re-run in the environment image (the byte-exact goldens); every target compiles (Android, the iOS framework, wasmJs); the klib ABI dumps; the cross-platform hash test on the JVM, on an x86-64 Android emulator with KVM, on the iOS simulator and — if P0's spike 5b passes — on the JVM of a free `ubuntu-24.04-arm` runner, the arm64 arithmetic truth in the merge lane (wasm informative); `diff-oracle` on the probe subset (Node pinned); the full-playback storyboard with frames; Android Lint; `buildHealth`; the size test; the emulator and simulator boot smoke with the audio-plays assertion; workflow and script lint; the generated-workflows check; `env-check` on the bare runner (§ V4); the approval check on the head commit through GitHub's review data; the contract-clause check; the owned-path check; the prototype workflow (the freeze check unconditional, `prototype-check` skipped by its condition when `prototype/**` did not change); the nightly status read from the last nightly run; the rules-change golden-diff check (§ V5) | it ships on every platform |
 | **L4 nightly** | ≤ 3 h (`hosted-linux` and `hosted-macos-arm64`; the device lane on `device-runner` in its own private repository, or the farm) | schedule; `workflow_dispatch` on `main`; never a pull request | the full Monte Carlo at the contract's basis (≈ 135 000 runs, 10–15 min); `diff-oracle` on the whole golden set; property tests at 10 000 cases; Pitest on `:core` and `:engine`'s pure packages; the storyboard on emulator and simulator (two acts); Maestro flows (the first ten minutes, every edge target under gesture navigation, the forced tier drop); the device benchmarks (frame time, peak memory, boot) and the arm64 hash test on the reference Android phone, or on Firebase Test Lab physical devices when the phone is offline — the **arm64 ART truth** (the farm runs instrumentation tests and the benchmarks, never Maestro, so the Maestro rows report SKIPPED whenever the phone is unavailable); the iPhone for benchmarks and Maestro (a Kotlin/Native test binary needs an XCTest wrapper to run on a device, which is not scheduled: `iosSimulatorArm64` in L3 already proves Native arm64 arithmetic); iOS screenshot goldens (informative); the lane-budget check over the ledger | the slow truths: balance, mutation, devices, arm64 |
 
 A lane's contents may grow; its budget may not, without a README decision. `gate.sh` writes
@@ -146,14 +148,18 @@ tables are what it argues with. The Kotlin instruments live in `:tools:instrumen
   at P2), the bundled fonts, warmed caches where the host allows — for a host that cannot
   run the image, on Linux with `apt` and on macOS with `brew`, since the owner's Mac runs
   P0's iOS spike and P1's golden comparison). **They agree by construction and by check**:
-  both read one `ci/env/versions.env`, both end by writing `ci/env/manifest.json` (the
-  installed versions of the JDK, Gradle, Node, every Android SDK package, the fonts, the
-  marker), and `gate.sh env-check` compares the two: the image's build writes
-  `ci/env/manifest.image.json`, committed in the pull request that pins the digest; a host
-  writes `build/env/manifest.json` (gitignored); the check fails when any field but
-  `marker` differs — the marker only records which form produced the manifest — and runs
-  in L0 on `ci/env/**` edits, in L3 and in the image workflow; "proven equivalent" at P1
-  means that check passing on `agent-env` and on the owner's Mac. The agents' cloud
+  both read one `ci/env/versions.env` and both end by writing a manifest of the installed
+  versions (the JDK, Gradle, Node, every Android SDK package, the fonts, and a `marker`
+  naming which form wrote it): the image's build writes `ci/env/manifest.image.json`,
+  committed in the pull request that pins the digest; a host writes
+  `build/env/manifest.json` (gitignored); `gate.sh env-check` compares a host's manifest
+  with the committed image manifest and fails when any field but `marker` differs. It has
+  three venues, each comparing two *different* forms: L0 on `ci/env/**` edits, on the
+  agent's host; L3, where a dedicated `env-check` job runs `setup.sh` on the **bare**
+  `hosted-linux` runner — not in the image — and compares, the one machine-gated venue; and
+  the image workflow, which compares the freshly built image's manifest with the committed
+  one, so a recipe edit that changes the image without re-pinning fails there. "Proven
+  equivalent" at P1 means the check passing on `agent-env`, on the owner's Mac and in L3. The agents' cloud
   environment is such a host: it is provisioned by a session-start script, not by an
   image, so it runs `setup.sh`, and P0's environment spike measures its cold start (budget
   ≤ 6 min to a warm L0; the alternative, costed in the README, is a self-hosted agent pool
@@ -177,30 +183,44 @@ tables are what it argues with. The Kotlin instruments live in `:tools:instrumen
 ## V5 Gates and enforcement
 
 Three checks read the owner's approving reviews — the owned-path check, the goldens check
-and the contract-clause check. All three are **one workflow that runs only under
-`pull_request_target`**, from `main`'s copy of the workflow, checking out the pull
-request's head only to compute its diff and never executing anything from it — so a pull
-request cannot rewrite the check that gates it — and they post their verdict as a **commit
-status on the head SHA**, which is what the ruleset requires. Because `pull_request_target`
-has no review-event trigger, a second, tiny workflow on `pull_request_review` (`submitted`,
-`dismissed`) — which runs the pull request's own copy and is therefore trusted with nothing
-— does one thing: it re-dispatches the `main`-defined check for that pull request through
-`workflow_dispatch` on `main`. So an approval given after the check ran turns it green
-without a new push, and no head-branch edit can weaken the gate; P1's second throwaway
-pull request proves both halves. The owner never authors a change on an owned path **or a
-contract clause**, since an author's own review never counts — with one exception the
-bootstrap needs: the owner creates `CODEOWNERS` and the provisional ruleset directly at
-P1, before the checks exist.
+and the contract-clause check. All three are **one workflow,
+`.github/workflows/owner-review.yml`**, with exactly two triggers: `pull_request_target`
+(`opened`, `synchronize`, `reopened`, `ready_for_review`) and `workflow_dispatch` with one
+input, the pull request number. Under either trigger it runs `main`'s copy of the file,
+looks the pull request up through the API, checks out its head only to compute the diff
+and never executes anything from it — so a pull request cannot rewrite the check that
+gates it — and posts its three verdicts as **check runs on the head commit** through a
+dedicated **gate App** (`checks: write` and nothing else; its private key is a secret of
+an environment `gates` whose deployment-branch rule allows `main` only, which a
+`pull_request_target` job may read because that event's environment rules are evaluated
+against the default branch, and a `pull_request` or `pull_request_review` job may not,
+because theirs are evaluated against `refs/pull/N/merge`). The ruleset requires the three
+checks **from that App**, so a check run of the same name posted by any workflow's own
+token — the GitHub Actions app — does not count; the agents' App has no `checks`
+permission. Because `pull_request_target` has no review-event activity type, a second,
+four-line workflow, `.github/workflows/owner-review-redispatch.yml`, on
+`pull_request_review` (`submitted`, `dismissed`) does one thing: it dispatches
+`owner-review.yml` on `main` with the pull request's number. That workflow runs in the
+merge-commit context and may be the pull request's own copy of the file, so it is trusted
+with nothing: it holds no secrets, asks for `actions: write` only, and the gate re-reads
+the head commit from the API rather than taking it as an input, so the worst a rewritten
+copy can do is fail to dispatch, which leaves the checks pending, never green. So an
+approval given after the check ran turns it green without a new push, and no head-branch
+edit can weaken the gate; P1's second throwaway pull request proves both halves, and § V9
+creates both files beside `lanes.yaml`. The owner never authors a change on an owned path
+**or a contract clause**, since an author's own review never counts — with one exception
+the bootstrap needs: the owner creates `CODEOWNERS` and the provisional ruleset directly
+at P1, before the checks exist.
 
 | Gate | Enforced by | What it refuses |
 |---|---|---|
 | L0 | the `PostToolUse` hook (synchronous per edit, ≤ 8 s, one run per two seconds; reports, cannot block an edit); the agent's discipline in `CLAUDE.md`; audited by L1 | — |
 | L1 | the pre-commit git hook, installed by `SessionStart` (skippable with `--no-verify`; audited by L3) | a commit whose touched modules fail |
 | L2a + L2b | the **pre-push git hook** (`gate.sh commit`), installed by `SessionStart` (skippable; re-run by L3 on the runner, which is the gate) | a push that changes behaviour without a clause |
-| L3 | a **ruleset** on `main`: a pull request required; **required approvals 0**; stale approvals dismissed on push (the owned-path check itself pins the approval to the head commit, so the "most recent push" setting is not used); required checks — every generated workflow runs on every pull request, a first `changes` job computes the changed paths against the merge base, and each heavy job carries `needs: changes` with an `if:` on its outputs, because a job skipped by its condition satisfies a required check while a workflow filtered out by paths leaves it pending forever (there are no separate shim jobs: the skipped job is the shim); linear history; an **empty bypass list** — the owner included; **no up-to-date requirement**, because updating a branch pushes a commit that dismisses the owner's approval, so every unrelated merge would cost a fresh review — a semantic conflict between two green pull requests is caught instead by the post-merge run of the merge lane on `main`: that run publishes, as a commit status on `main`, the `changes` booleans its failed jobs depend on, and while it is red the L3 workflow fails every pull request whose own `changes` outputs do not intersect them (a fix touches the failing area; anything else waits); the **owned-path check**, a required check that reads the pull request's approving reviews through the API and fails any pull request touching an owned path without the owner's approving review on the head commit — the primary gate on owned paths, independent of `CODEOWNERS` semantics (whether GitHub enforces a code-owner review at zero approvals is contested, and P1's first throwaway pull request verifies it; `CODEOWNERS` stays as the second layer either way); **two identities**: agents commit, push and open pull requests as a **GitHub App** the owner installs on the repository (contents, pull requests, workflows; short-lived installation tokens), the owner is the only code owner and the only reviewer; **the owner never authors a change on an owned path** — an agent authors, the owner reviews — because an author's own review never counts; no merge queue (unavailable on a user-owned repository). the owned paths, in `CODEOWNERS` and in the check's list alike, as literal globs: `ci/**`, `build-logic/**`, `config/**` (detekt, ktlint and Konsist configuration live there), `.editorconfig`, `gradle/libs.versions.toml`, `.github/**`, `spec/golden/**` and its sidecars, `spec/balance/**`, `spec/art/**`, `assets/**`, `tools/art/**` and `prototype/**` | a merge that fails on any platform, or touches the gates, the goldens, the art, the art tool or the prototype without the owner |
+| L3 | a **ruleset** on `main`: a pull request required; **required approvals 0**; stale approvals dismissed on push (the owned-path check itself pins the approval to the head commit, so the "most recent push" setting is not used); required checks — every generated workflow runs on every pull request, a first `changes` job computes the changed paths against the merge base, and each heavy job carries `needs: changes` with an `if:` on its outputs, because a job skipped by its condition satisfies a required check while a workflow filtered out by paths leaves it pending forever (there are no separate shim jobs: the skipped job is the shim); linear history; an **empty bypass list** — the owner included; **no up-to-date requirement**, because updating a branch pushes a commit that dismisses the owner's approval, so every unrelated merge would cost a fresh review — a semantic conflict between two green pull requests is caught instead by the post-merge run of the merge lane on `main`: that run publishes, as a commit status on `main`, the `changes` booleans its failed jobs depend on, and while it is red the L3 workflow fails every pull request whose own `changes` outputs do not intersect them (a fix touches the failing area; anything else waits); the **owned-path check**, a required check that reads the pull request's approving reviews through the API and fails any pull request touching an owned path without the owner's approving review on the head commit — the primary gate on owned paths, independent of `CODEOWNERS` semantics (whether GitHub enforces a code-owner review at zero approvals is contested, and P1's first throwaway pull request verifies it; `CODEOWNERS` stays as the second layer either way); **the identities**: agents commit, push and open pull requests as a **GitHub App** the owner installs on the repository (contents, pull requests, workflows; short-lived installation tokens; no `checks`), the gate App posts the three owner-review checks and nothing else, the owner is the only code owner and the only reviewer; **the owner never authors a change on an owned path** — an agent authors, the owner reviews — because an author's own review never counts; no merge queue (GitHub offers it to organization-owned repositories only, at writing). The owned paths, in `CODEOWNERS` and in the check's list alike, as literal globs: `ci/**`, `build-logic/**`, `config/**` (detekt, ktlint and Konsist configuration live there), `.editorconfig`, `gradle/libs.versions.toml`, `.github/**`, `spec/golden/**` and its sidecars, `spec/balance/**`, `spec/art/**`, `assets/**`, `tools/art/**`, `prototype/**`, and — because the bar an agent's work is judged by must not be the agent's to move — `plan/**` except `plan/spikes/**` (the register, the questions, the money, `BASELINE.md`), `.claude/**` and `CLAUDE.md` (the rubric, the hooks, the budget table) | a merge that fails on any platform, or touches the gates, the goldens, the art, the art tool or the prototype without the owner |
 | Tags and secrets | a **tag ruleset**: `v*` and `ts-oracle-*` can be created, moved or deleted only by the owner; the signing material lives only in a **`release` environment** with the owner as required reviewer, so no pull-request workflow can read it; pull-request workflows run with no secrets at all | a moved oracle tag; a store upload or a secret read from an agent's branch |
-| L4 | a nightly job that files an issue and pings the owner on failure; the L3 workflow reads the **last nightly run's conclusion** through the API (`actions: read` on the built-in token) and fails any pull request that touches `:core` or the rules areas of `spec/` while a `Sim` or `Mutation` check is red | a slow truth ignored |
-| Goldens | `instruments approve <golden>` writes a sidecar `{golden, old sha, new sha, clause id, branch, reason}`; the L3 check resolves the pull request from the branch, reads its **approving reviews through the GitHub API**, and fails a golden change unless an approving review by the owner's login has `commit_id` equal to the pull request's head and the sidecar's `new sha` matches the golden in that tree; the check runs on `pull_request_review` events as well as pushes, so an approval given after the check ran turns it green. An approving review by the App satisfies neither the code-owner rule nor the owner-login check | a self-certified visual or rules change; an approval outrun by a later push |
+| L4 | a nightly job that files an issue and pings the owner on failure; the L3 workflow reads the **last nightly run's conclusion** through the API (`actions: read` on the built-in token) and fails any pull request that touches `:core` or the rules areas of `spec/` while the nightly's `Sim` job or its Pitest job is red | a slow truth ignored |
+| Goldens | `instruments approve <golden>` writes a sidecar `{golden, old sha, new sha, clause id, branch, reason}`; the L3 check resolves the pull request from the branch, reads its **approving reviews through the GitHub API**, and fails a golden change unless an approving review by the owner's login has `commit_id` equal to the pull request's head and the sidecar's `new sha` matches the golden in that tree; the check is the owner-review workflow above, re-dispatched on review events, so an approval given after it ran turns it green. An approving review by the App satisfies neither the code-owner rule nor the owner-login check | a self-certified visual or rules change; an approval outrun by a later push |
 | Contract clauses | the **contract-clause check**: a pull request whose diff changes the text or the status of a clause with `status: contract`, or promotes a clause to `contract`, needs the owner's approving review on the head commit, read as above; `proposed` clauses move freely, so the P2 fold is not throttled | a rule of the game changed without the owner |
 | Rules changes | a pull request that bumps `RULES_VERSION` must name, in its clause, the golden cells it expects to change; the L3 check verifies that every other cell's hashes are unchanged and prints the first divergent line of each changed cell into the bundle | a bug frozen into a golden beside a legitimate change |
 | Suppressions | Konsist budgets and expiry; the dated port exemption (`TECHNICAL.md` § T8.1) | an unexplained exception |
@@ -256,11 +276,12 @@ README ("What the owner does").
 | A spec clause nobody tests | the binder | L1 |
 | A golden changed to make a test pass | the approval check on the head commit and the clause-change rule; the expected-cells check on rules changes | L3 |
 | A contract clause changed by a writer alone | the contract-clause check | L3 |
-| The gates' own configuration changed by a writer | `CODEOWNERS` review by the owner; the App has no admin rights | L3 |
+| The gates' own configuration changed by a writer | `CODEOWNERS` review by the owner; the App has no admin rights; a forged check run does not count, since the ruleset requires the checks from the gate App | L3 |
+| The plan, the rubric or the hooks rewritten by a writer | `plan/**` (but the spike reports), `.claude/**` and `CLAUDE.md` are owned paths | L3 |
 | A tool silently disabled | the generated-workflows check, run from `main`'s definition | L3 |
 | The gate's own workflow rewritten by the pull request it gates | the owner-review checks run under `pull_request_target` from `main`; `.github/**` and `ci/**` are owned paths | L3 |
 | A semantic conflict between two green pull requests (no up-to-date requirement) | the post-merge run of the merge lane on `main`; a red `main` fails unrelated pull requests | L3 (post-merge) |
-| The environment's two forms drift | `gate.sh env-check` over the version manifest | L0 (on `ci/env/**` edits) · L3 · the image workflow |
+| The environment's two forms drift | `gate.sh env-check` over the version manifests: a host form against the committed image manifest in L0 and in L3's bare-runner job; the rebuilt image against the committed manifest in the image workflow | L0 (on `ci/env/**` edits) · L3 · the image workflow |
 | An edge target unreachable under gesture navigation, with the phone unavailable | not covered by the farm: the Maestro rows report SKIPPED, never green, until the phone is back | L4 |
 | The oracle tag moved; a store upload from a branch | the tag ruleset; the release environment | L3 |
 | An agent's or a fork's pull request reaching the owner's machine | the runner in a private repository the App cannot see | — (configuration, reviewed by the owner) |
@@ -305,7 +326,7 @@ a one-page summary monthly; the budgets are revisited then and only then.
 ## V9 Bootstrapping the rig (P1)
 
 In order, each proven before the next, in about eight review milestones (the owner's
-review load for P1): the environment recipe — the image built from P0's spike and
+review load for P1): the environment recipe — the image built at P0's spike 6 and
 `setup.sh` running on `agent-env` and on the owner's Mac; the digest pin, `env-check` and
 the cold-start row come later, once `lanes.yaml` and `gate.sh` exist → an agent session
 opening a pull request with the App installed at P0 → the owner's
@@ -315,7 +336,8 @@ every step lands as a pull request — and **the first throwaway pull request**,
 proves whether a code-owner review is enforced at zero required approvals → the
 convention plugins and the empty modules with the edge assertions → `lanes.yaml`,
 `gate.sh`, the generated workflows (every one running on every pull request with its
-`changes` job) and the prototype workflow, and with them the image's digest pinned in
+`changes` job), the prototype workflow, and the owner-review workflow with its
+review-event re-dispatch (§ V5; hand-written, not generated), and with them the image's digest pinned in
 `lanes.yaml`, `env-check` green on `agent-env` and the Mac, and the cold start in the
 ledger → the required checks added to the ruleset, the tag ruleset and the `release`
 environment → **the second throwaway pull request**, which proves the owned-path check

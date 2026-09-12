@@ -1,6 +1,6 @@
 # Ember Quest, rebuilt on Kotlin Multiplatform — the plan
 
-**Status: revision 8, under review (2026-09-12).** This folder is the plan for building
+**Status: revision 9, under review (2026-09-12).** This folder is the plan for building
 Ember Quest again, from scratch, as one Kotlin Multiplatform (KMP) codebase that ships
 native Android and iOS apps, runs on the desktop JVM as the developers' and the agents'
 fastest platform, and can later take the web back. The TypeScript + Canvas 2D web build is
@@ -10,12 +10,12 @@ sheets, flat backdrops, sounds, glyph tables and hand-drawn study are captured o
 fallback art and the placeholders, and nothing else of it is migrated — the owner's
 decision of 2026-09-12, which this revision carries.
 Nothing here is built yet. The plan has been reviewed by adversarial and blind reviewer
-agents in six rounds (112, 97, 73, 71, 54 and 59 findings; every blocking, gap and
+agents in seven rounds (112, 97, 73, 71, 54, 59 and 69 findings; every blocking, gap and
 numbers finding of each round was resolved in the next revision, every minor one applied
-or listed in `REVIEW.md` with the reason it was declined); this is revision 8, after round
-6, whose blocking findings were five mechanical defects in text the previous revision
-introduced (an anchors schema, an environment check, a cell record, a version file, a
-workflow trigger).
+or listed in `REVIEW.md` with the reason it was declined); this is revision 9, after round
+7, whose three blocking findings were a source file named wrong for the ramps export, a
+leftover trigger contradiction in the owner-review checks, and an in-scene ruler that the
+prototype's own record had moved from the sprites to the stage.
 `REVIEW.md` is the log of every round. The loop's own bar is a round that returns zero
 blocking and zero gap findings — minor findings are treated as residual — and the owner may
 hold it to the brief's stricter "no more findings"; this README will say when a round
@@ -67,7 +67,8 @@ module); `TECHNICAL.md` § T16 is the empty seat it will take.
    specified, tested and gated on its own (principles 2–3, `FUNCTIONAL.md` § F1).
 4. **The rig before the rules.** Lanes with budgets measured on a module the size of the
    rules, executable specifications bound to tests, the analyser set, and an enforcement
-   model built on a GitHub App for the agents, the owner as the only reviewer, a ruleset,
+   model built on a GitHub App for the agents, a gate App that alone can post the
+   owner-review checks, the owner as the only reviewer, a ruleset,
    a tag ruleset, a release environment and a device runner the agents cannot reach — all
    before the rules move (principle 4, `VERIFICATION.md`, D15, D17–D18).
 5. **AI-generated character and enemy art** through a measured gate built at P0 as one
@@ -77,7 +78,10 @@ module); `TECHNICAL.md` § T16 is the empty seat it will take.
 6. **What it costs and what stands still** (below): about 13–26 sessions of agent
    capacity to a build on the stores' test tracks (the critical path P0–P3 and P5 is
    11–22 deep, and P4's cast runs beside it but is not free) and 16–32 to production
-   access (P7, the scene phase included); the demo stands still with its known defects. **Approving the plan
+   access (P7, the scene phase included) — on a calendar that is the largest of three
+   terms: agent capacity, the owner's fifty to sixty review sittings, and the stores' lead
+   time of about four weeks from the first test-track build; the demo stands still with
+   its known defects. **Approving the plan
    approves P0's spend**: the bake-off (≈ $250 including a month's subscription), the two
    developer accounts (≈ $124), and reference handsets if the owner does not own them.
 7. **Ten open questions** that are the owner's to answer, listed at the end, each with the
@@ -175,9 +179,12 @@ that takes the Pages URL from the prototype once it passes the same gates.
    carry a reason and an expiry — and one dated exemption, the oracle transcriptions in
    `:core` until the rules gate.
 10. **Enforcement is by machines where a machine can do it, and the plan says where it
-    cannot.** Two identities, rulesets, a release environment, required checks and code
-    ownership; what is left to discipline (the edit hook, the git hooks, the critic) is
-    audited by the next machine gate.
+    cannot.** Separate identities, rulesets, a release environment, required checks that only
+    the gate App can post, and code ownership; what is left to discipline — P0's artefacts,
+    which land before any machine gate exists (the move, the capture tools, the art tool
+    and its calibration golden, the critic's protocol and its per-axis baselines, the
+    fallback captures and the sound hashes), the edit hook, the git hooks, the review
+    bundle and the critic — is audited by the next machine gate (`VERIFICATION.md` § V1).
 
 ## Decision register
 
@@ -188,7 +195,7 @@ Each decision names the alternatives it beat and whether the owner must sign it 
 |---|---|---|---|---|---|---|
 | D1 | Stack | Kotlin Multiplatform with Compose Multiplatform for every screen; the battle stage on a Compose `Canvas` through Skia (§ T2) | keep TypeScript in a WebView shell (≈ 2–4 sessions, migration only); keep TypeScript and build the brief's rig there (≈ 10–16 sessions); React Native + Skia via Expo (≈ 8–14 sessions, the rules kept verbatim); Flutter + Flame; native Swift and Kotlin; Lynx | the language the owner reviews in; the richest analysis and architecture-rule set; a JVM core for PvP; Google- and JetBrains-backed; stable on the three products' platforms; first-class test APIs, screenshot testing, hot reload with an MCP server for agents | `:core` and `spec/` are framework-free; the alternatives stay costed here | **yes** (decided 2026-09-12, recorded here) |
 | D2 | Repository | This repository: the new game at the root from the first commit, the prototype under `prototype/` with history, frozen and code-owned; the rules frozen as the oracle at tag `ts-oracle-v3` with a freeze check from P2 (§ T4) | a new repository for the game (the oracle by submodule, a second Pages site); an organization transfer | the oracle and the demo stay next to the game with no promotion phase; a transfer would move the Pages URL | one afternoon | **yes** (question 8) |
-| D3 | Platforms | Android **minSdk 29** (Android 10) and iOS 16.0+ as products; desktop JVM for agents; web as a stretch (§ T1) | minSdk 26 with a LOW-only build below 29 (a second render path, rejected); web first | Compose's `ColorDodge` and `Multiply` blend modes (the stage's gain and grade) fall back to source-over below API 29 — verified in P0's spike 1, which renders the stage on the Android emulator; Android 8–9 are a low single-digit share of active devices in 2026, and Android 10 covers the phones the product targets | one phase | **yes** (by approving this plan — "What you are approving", item 1) |
+| D3 | Platforms | Android **minSdk 29** (Android 10) and iOS 16.0+ as products; desktop JVM for agents; web as a stretch (§ T1) | minSdk 26 with a LOW-only build below 29 (a second render path, rejected); web first | Compose's `ColorDodge` and `Multiply` blend modes (the stage's gain and grade) — `ColorDodge` has no PorterDuff equivalent below API 29 and falls back to source-over there, while `Multiply` maps to a PorterDuff mode that also multiplies alpha — are to be verified by P0's spike 1, which renders the stage on the Android emulator at API 28 and 29, a surprise there confirming or lowering the floor as a register decision, never a second render path; Android 8–9 are a low single-digit share of active devices in 2026, and Android 10 covers the phones the product targets | one phase | **yes** (by approving this plan — "What you are approving", item 1) |
 | D4 | Rules method | Test-first from the clauses, with the oracle's canonical traces over a coverage matrix as the acceptance test; arithmetic transcribed in the prototype's evaluation order (§ T5) | a rewrite checked only statistically against the balance table | the oracle is exact and free, and the mechanics are the one thing the prototype validated | n/a | no |
 | D5 | The seam | `RunSession` on the standard library's coroutine intrinsics; **hero turns are decisions** raised at step 7 of the turn; enemy turns stepped one at a time; forfeit a decision (§ T2.3) | a hand-written state machine; kotlinx.coroutines | reproduces the generator; a uniform decision log; the self-check paths the prototype's harness actually compares | one phase | no |
 | D6 | Saves and replays | A run is `(RULES_VERSION, seed, RunConfig, decision log)` plus a snapshot of the whole run context after every decision; replay when versions match, resume from the snapshot when they differ (§ T11) — **contingent on question 10's yes** (`FUNCTIONAL.md` § F2.1); on "no", no run is persisted at all (the Vault and the settings only, as the prototype), the decision log lives in memory for a bug report, and the replay corpus and the save clauses are not built | state only; abandon runs on a version change | replay is exact and cheap and is the bug report and the PvP message; the snapshot keeps a permadeath run alive across a store update | one phase | **yes** (question 10) |
@@ -200,11 +207,11 @@ Each decision names the alternatives it beat and whether the owner must sign it 
 | D12 | Audio | The 24 effects rendered once at P0 from the prototype's own synthesizer to WAV, three seeded variants each; no runtime pitching — a pitched variant, if ever wanted, is rendered offline the same way (§ T9.8) | port the synthesizer; runtime synthesis per platform | identical sound everywhere; nothing to port | one phase | no |
 | D13 | Test framework | Kotest 6 with property testing (§ T3) | kotlin.test; JUnit 5 | one DSL for `:core` and `:ui`; tags for lanes | one phase | no |
 | D14 | Build | Gradle with version catalogs, configuration cache, build cache; Amper not adopted (§ T3) | Amper | lowest risk for the analyser set | one phase | no |
-| D15 | Branch model and releases | `main` protected by a **ruleset** — a pull request required, required approvals 0, stale approvals dismissed on push, required checks (every workflow runs on every pull request with its heavy jobs skipped by path conditions, since a skipped job satisfies a required check and a filtered-out workflow does not), linear history, an empty bypass list, and **no up-to-date requirement** (it would dismiss every owner approval at every unrelated merge; a semantic conflict is caught by the post-merge run of the merge lane on `main`, which turns `main` red and blocks unrelated merges until fixed) — and the plan's own **owned-path check** (an approving review by the owner on the head commit, read through the API, required on every pull request that touches an owned path, and run from `main`'s copy of the workflow so the pull request it gates cannot rewrite it), with `CODEOWNERS` as a second layer whose enforcement at zero approvals is verified by P1's first throwaway pull request; a **tag ruleset** on `v*` and `ts-oracle-*`; the signing secrets only in a **`release` environment** the owner approves; **no merge queue** (unavailable on a user-owned repository) (§ T4.1, § V5) | a long-lived branch; an organization transfer for a queue | protection is per branch, so it covers the frozen prototype too; a transfer would move the live URL | one phase | **yes** (question 7) |
+| D15 | Branch model and releases | `main` protected by a **ruleset** — a pull request required, required approvals 0, stale approvals dismissed on push, required checks (every workflow runs on every pull request with its heavy jobs skipped by path conditions, since a skipped job satisfies a required check and a filtered-out workflow does not), linear history, an empty bypass list, and **no up-to-date requirement** (it would dismiss every owner approval at every unrelated merge; a semantic conflict is caught by the post-merge run of the merge lane on `main`, which turns `main` red and blocks unrelated merges until fixed) — and the plan's own **owned-path check** (an approving review by the owner on the head commit, read through the API, required on every pull request that touches an owned path, and run from `main`'s copy of the workflow so the pull request it gates cannot rewrite it), with `CODEOWNERS` as a second layer whose enforcement at zero approvals is verified by P1's first throwaway pull request; a **tag ruleset** on `v*` and `ts-oracle-*`; the signing secrets only in a **`release` environment** the owner approves; **no merge queue** (GitHub offers it to organization-owned repositories only, checked 2026-09-12; were that to change, a queue would make the post-merge conflict machinery optional) (§ T4.1, § V5) | a long-lived branch; an organization transfer for a queue | protection is per branch, so it covers the frozen prototype too; a transfer would move the live URL | one phase | **yes** (question 7) |
 | D16 | Backdrops | One flat, unlit composite of the prototype's far, mid and floor painters per biome, baked once through the prototype's own bake path at the padded plane size as the placeholder for every tier, drawn as one plane and lit at boot by the rig from the biome's light data; the scene phase makes four planes per biome as data-driven painters or AI-generated planes (§ T9.2, § T10.9) | port the prototype's painters; no placeholders | the stage exists from P5 with nothing to bake; the scene is designed for the new cast, not inherited | one phase | no |
-| D17 | Identities and approvals | Agents commit, push and open pull requests as a **GitHub App** the owner installs (contents, pull requests, workflows; short-lived tokens); the owner is the only code owner and the only reviewer; **the owner never authors a change on an owned path or a contract clause**; goldens, gate configuration, workflows, the spec's art, goldens and balance, the assets, the art tool, the prototype and every contract clause need the owner's review on the head commit, verified through GitHub's review data by the owned-path check, never by `CODEOWNERS` semantics alone (§ T1, § V5) | a machine user with a fine-grained token (does not work on a user-owned repository); one identity; a reviewing agent identity | GitHub never counts an author's own review; an agent-identity approval is the coordinator approving itself | — | **yes** (question 7) |
+| D17 | Identities and approvals | Agents commit, push and open pull requests as a **GitHub App** the owner installs (contents, pull requests, workflows; short-lived tokens; no `checks` permission); a second **gate App** (`checks: write` only, its key in a `main`-only environment) is the only identity that can post the owner-review checks, so no workflow's own token can forge them; Renovate is a third app whose monthly pull request is reviewed like any other; the owner is the only code owner and the only reviewer; **the owner never authors a change on an owned path or a contract clause**; goldens, gate configuration, workflows, the spec's art, goldens and balance, the assets, the art tool, the prototype, the plan itself (`plan/**` but the spike reports), the agents' conventions and rubric (`.claude/**`, `CLAUDE.md`) and every contract clause need the owner's review on the head commit, verified through GitHub's review data by the owned-path check, never by `CODEOWNERS` semantics alone (§ T1, § V5) | a machine user with a fine-grained token (does not work on a user-owned repository); one identity; a reviewing agent identity | GitHub never counts an author's own review; an agent-identity approval is the coordinator approving itself | — | **yes** (question 7) |
 | D18 | Where the device lane runs | A self-hosted runner on the owner's machine with the two reference phones, registered in a **separate private repository** the App cannot see, running nightly on a schedule; a device farm (Firebase Test Lab) as the fallback for the hash test and the benchmarks when the phone is offline (it cannot run the Maestro flows); GitHub's free arm64 Linux runners for the arm64 JVM hash test in the merge lane if P0's spike 5b passes; emulator and simulator lanes on hosted runners (§ T1) | hosted runners only; a farm only; the runner in this repository (reachable by an agent's pull request) | real hardware is the only truth for frame budgets, memory and ART-specific arithmetic; the runner must be out of the agents' reach | one phase | **yes** (question 5) |
-| D19 | The prototype's role | Frozen at P0: the oracle for the rules, the live demo, the source of the spec, and — captured once — the fallback cast, the flat backdrops, the sounds and the glyph tables; nothing else moves; its defects stay (§ T4) | migrate the engine and screens incrementally (the plan's revisions 1–3); delete it | the mechanics are what it validated; a port of its presentation would carry a look the owner does not want and machinery the restart does not need | it is history either way | **yes** (decided 2026-09-12) |
+| D19 | The prototype's role | Frozen at P0: the oracle for the rules, the live demo, the source of the spec, and — captured once — the fallback cast, the flat backdrops, the sounds, the glyph tables and the hand-drawn study; nothing else moves; its defects stay (§ T4) | migrate the engine and screens incrementally (the plan's revisions 1–3); delete it | the mechanics are what it validated; a port of its presentation would carry a look the owner does not want and machinery the restart does not need | it is history either way | **yes** (decided 2026-09-12) |
 | D20 | Presentation direction | The stage's measured laws (dark figures on a lit ground, four planes with the middle one sharp, two derived foot pools, a gain not a wash, the tier ladder) kept as the art direction; every screen designed fresh for a phone against a written baseline (§ T2.5, `FUNCTIONAL.md` § F1.2) | an open art direction | the bar has not changed and the laws were paid for; the screens had never been on a phone | the laws are data | **yes** (with question 1) |
 
 ## What this costs and what stands still
@@ -221,22 +228,34 @@ midpoints; without the scene phase 14–28; the web stretch adds 1–2. The crit
 P0 → P1 → P2 → P3 → P5 → P7 is 12–24 of them (14–28 if P7 waits for P6, question 4); the
 first test-track build arrives *during* P5 (the closed test starts on the first build that
 passes the merge lane) after 11–22 sessions of depth and 13–26 of capacity, P4's cast
-included, and P5's felt rows close it. **The calendar is the larger of two terms.** The
-first is agent capacity, which the subscription's limits bound: at *n* sessions a week the
+included, and P5's felt rows close it. **The calendar is the largest of three terms.** The first is
+agent capacity, which the subscription's limits bound: at *n* sessions a week the
 programme takes 16/*n* to 32/*n* weeks — three a week gives five to eleven, one a week
 sixteen to thirty-two; this review's own rounds hit those limits twice, so the low case is
 real. The second is the owner's review latency: every owned-path change and every contract
-clause waits for the owner's review on its head commit (D17), and the roadmap has about
-**fifty to sixty** such pull requests — P1 ≈ 8 milestones, P2 ≈ 8–10, P3 ≈ 6–8, P4 ≈ 12
-(the bake-off, the per-axis approvals, the cast in batches), P5 ≈ 4–8, P6 ≈ 6 — so at one
-review sitting a day the programme cannot finish in fewer than about **ten to twelve
-weeks** whatever the agents' capacity, and P1 alone takes about a week and a half; a
-sitting that clears several pull requests shortens it, a week's absence lengthens it by a
-week (the absence protocol under *What the owner does, by phase*). P1's exit measures one
-real session against the plan's limits and one real review week against the owner's, and
-re-derives both terms; the closed test's fourteen days run inside P5–P7. The sizes are
-re-estimated three times: after P0's spikes, after P1 measures the lanes on a
-`:core`-sized module, and after P2 counts the clauses.
+clause waits for the owner's review on its head commit (D17). Counted in **review
+sittings**, where one sitting clears one milestone of one to a few pull requests that land
+together: P0 ≈ 3 (the spike reports, the calibration's adjudication, the prototype commits),
+P1 ≈ 8 (about fifteen pull requests), P2 ≈ 8–10, P3 ≈ 6–8, P4 ≈ 12 (the bake-off, the
+per-axis approvals, the cast in batches), P5 ≈ 4–8, P6 ≈ 6, P7 ≈ 3 — **fifty to sixty
+sittings** (50–58) — so at one sitting a weekday the programme cannot finish in fewer than
+about **ten to twelve weeks** whatever the agents' capacity, and P1 alone takes about a
+week and a half; a sitting that clears several milestones shortens it, a week's absence
+lengthens it by a week (the absence protocol under *What the owner does, by phase*). **The
+third is the stores' lead time**, which runs from the first test-track build: the fifteen
+to twenty testers (about a month's lead, started at P0), Play's review of the first
+closed-testing release (days), the fourteen continuous days, Google's review of the
+production-access application (up to about a week by Google's own statement, longer in
+exceptional cases) and App Review (one to three days, longer on a rejection) — so **P7
+closes no sooner than about four weeks after the first test-track build** whatever the
+agents and the owner do, and in the three-sessions-a-week case that term sets the end
+date, since P5 → P7 is only two to three weeks of capacity. P1's exit measures one real
+session against the plan's limits and one real review week against the owner's and
+re-derives the first two terms; the third is re-read from the stores' current rules at P5.
+The sizes are re-estimated three times: after P0's spikes, after P1 measures the lanes on a
+`:core`-sized module, and after P2 counts the clauses — and each re-estimate is the
+owner's to accept or to stop on (P1's exit gate, below), never a number that lands in
+`plan/` unread.
 
 **Money (to be confirmed at P0).**
 
@@ -245,9 +264,11 @@ re-estimated three times: after P0's spikes, after P1 measures the lanes on a
 | Agent compute | — | covered by the owner's subscription plan, whose limits bound the cadence (this review's own sessions hit them); a session of this size at API list prices would be an order of magnitude above a single agent run — measured on one real session after P1 and recorded here, not guessed |
 | Apple Developer Program | — | ≈ $99 / year |
 | Google Play developer account | ≈ $25 | a personal account created after November 2023 must run a closed test with ≥ 12 opted-in testers for 14 continuous days per app before production access, and the count may not dip — the owner recruits and holds **fifteen to twenty** people (lead time about a month); the test starts on the first P5 build that passes the merge lane |
-| Image generation | the bake-off ≈ $250 including one month of the subscription provider (the protocol and the arithmetic in `TECHNICAL.md` § T10.7); the cast ≈ $700 base, $1 500–2 500 expected; the tool caps per-image API spend at **$4 000**; the worst case that ends in a self-hosted style model adds GPU time outside that counter, ≈ $300–800, which with any subscription is a separate budget the owner approves by name | ≈ $20–60 per later character at the per-image price including re-rolls and a portrait; ≈ $1 500–2 500 to regenerate the cast if the provider or its model is retired |
+| Image generation | the bake-off ≈ $250 including one month of the subscription provider, whose plan, price and allowance are confirmed at P0's terms check (the protocol and the arithmetic in `TECHNICAL.md` § T10.7); the cast ≈ $700 base, $1 500–2 500 expected; the tool caps per-image API spend at **$4 000** — a counter persisted in `assets/spend.json` under the owner's review, behind provider-side budget caps or prepaid credits on every key the owner sets, and reaching it is a third stop trigger with the stop rule's branches (`TECHNICAL.md` § T10.7); the worst case that ends in a self-hosted style model adds GPU time outside that counter, ≈ $300–800, which with any subscription is a separate budget the owner approves by name | ≈ $20–60 per later character at the per-image price including re-rolls and a portrait; ≈ $1 500–2 500 to regenerate the cast if the provider or its model is retired |
 | Reference handsets | ≈ $400–900 if not already owned (a 2022 mid-range Android, an iPhone 12 class) | — |
 | A Mac | assumed owned; it runs P0's iOS spike, P1's golden comparison and, under question 5's recommended branch, the device runner and the iPhone lane; ≈ $600–1 200 if it must be bought | — |
+| AI-generated backdrop planes (P6, only if question 4 approves them by name) | ≈ 24 planes × ten candidates, 240–500 per-image generations ≈ $50–150 at the per-image prices, under its own **$500** ceiling in the counter | — |
+| Keeping the listings alive (after P7) | — | about one session a quarter of agent capacity for Google Play's annual target-API bump, Apple's SDK minimum for submissions, the stores' policy re-attestations and the dependency batches, plus the two developer accounts above |
 | Option B, if the art stops | not in the aggregate: the twelve heroes' and bosses' master frames ≈ 8–12 sessions at the study's measured rate (one hand-drawn idle frame took a session), the other fourteen frames per actor **unmeasured** — measured at P0 by drawing EMBER's remaining frames only if the owner wants option B priced before deciding; otherwise "stop" means shipping the fallback cast as it is (question 6) | — |
 | CI | none on a public repository's hosted runners (arm64 Linux included); macOS minutes cost more on a private one | Firebase Test Lab if the self-hosted runner is not used: the free tier's five physical runs a day cannot be exceeded at all, so the farm branch is the Blaze plan — 30 physical device-minutes a day free, then about $5 per device-hour — and the plan's nightly of about ten short physical runs is ≈ $100–200 a month; a self-hosted agent pool ≈ $50–150 / month only if question 9 chooses it |
 | The owner's review | — | by phase, below |
@@ -256,14 +277,14 @@ re-estimated three times: after P0's spikes, after P1 measures the lanes on a
 
 | When | The owner |
 |---|---|
-| P0 | answers questions 1, 2, 3(b), 3(c), 6, 7, 8 and 10; opens the two developer accounts; starts recruiting fifteen to twenty testers; plays the prototype on a phone and writes `plan/BASELINE.md`; **creates the GitHub App, installs it on this repository and stores its key as the agents' secret** (spike 6 needs the installation); sets the provider keys and the bake-off budget; looks at the prototype's P0 commits — the move, the banner and the capture tools, about seven — and at the calibration's adjudication, since no machine gates them yet (`VERIFICATION.md` § V1); decides the look on lit phone frames at the bake-off's end (one sitting). An absent owner blocks the environment spike |
-| P1 | answers questions 5 and 9; **does the admin acts no agent can**: creates the provisional ruleset and `CODEOWNERS` (the one owned-path change the owner authors, before the checks exist), approves the two throwaway pull requests that prove the review mechanics, adds the required checks, creates the tag ruleset and the `release` environment, creates the private runner repository and registers the runner if chosen; lends the Mac for one golden comparison; reviews the rig's owned-path pull requests — about fifteen, batched into about eight milestones that `VERIFICATION.md` § V9 names, each proven before the next. An absent owner blocks P1, not only its review queue |
+| P0 | answers questions 1, 2, 3(b), 3(c), 6, 7, 8 and 10; opens the two developer accounts; starts recruiting fifteen to twenty testers; plays the prototype on a phone and writes `plan/BASELINE.md`; **creates the GitHub App, installs it on this repository and stores its key as the agents' secret** (spike 6 needs the installation); sets the provider keys and the bake-off budget; looks at the prototype's P0 commits — the move, the banner, the capture tools and the fixture pages, about nine, ten with question 3(c) — at the calibration's adjudication, and at the critic's protocol (`plan/spikes/7/CRITIC.md`) with the three baseline sheets before the bake-off's first verdict, since no machine gates them yet (`VERIFICATION.md` § V1); decides the look on lit phone frames at the bake-off's end (one sitting). An absent owner blocks the environment spike |
+| P1 | answers questions 5 and 9; **does the admin acts no agent can**: creates the provisional ruleset and `CODEOWNERS` (the one owned-path change the owner authors, before the checks exist), approves the two throwaway pull requests that prove the review mechanics, adds the required checks, creates the tag ruleset, the `release` environment, the gate App and the `gates` environment holding its key (`VERIFICATION.md` § V5), installs Renovate, creates the private runner repository and registers the runner if chosen; lends the Mac for one golden comparison; reviews the rig's owned-path pull requests — about fifteen, batched into about eight milestones that `VERIFICATION.md` § V9 names, each proven before the next; **accepts the re-estimated sizes and calendar at P1's exit, or stops** — the one continue/stop decision before P2–P5's spend. An absent owner blocks P1, not only its review queue |
 | P2 | reviews the prototype harness pull requests (about five to seven, one per allowed change, each on an owned path); creates the tag `ts-oracle-v3` (only the owner can, under the tag ruleset); reviews the golden set's commits (two or three pull requests); no clause reviews — the fold writes proposals |
 | P3 | reviews the contract promotions, one pull request per rules module (six to eight) |
-| P4 | says yes or no to 43 contact sheets on a phone, in the order of `FUNCTIONAL.md` § F3.5 (a few minutes each, batched per pack into about ten pull requests), and takes the two stop decisions |
-| P5 | reviews the goldens and the `screens` and `platform` clause promotions, batched into one pull request per session (four to eight); walks the felt rows on a device; sets up the store listings, the privacy-policy page, the data-safety form and the content rating; **creates the Apple certificates repository and the Play upload key and stores both in the `release` environment** (no agent can); answers question 4. An absent owner blocks the first test-track build |
+| P4 | says yes or no to 43 contact sheets on a phone, in the order of `FUNCTIONAL.md` § F3.5 (a few minutes each, batched per pack into about twelve pull requests, the bake-off report and the per-axis baselines among them), and takes the stop decisions |
+| P5 | reviews the goldens and the `screens` and `platform` clause promotions, batched into one pull request per session (four to eight); walks the felt rows on a device; sets up the store listings, the privacy-policy page (`docs/privacy.md`, published beside the demo by the Pages workflow, `TECHNICAL.md` § T12), the data-safety form and the content rating; names the testers' channel in the listing and reads it weekly with the agents' triage, alongside the stores' own crash reports; **creates the Apple certificates repository and the Play upload key and stores both in the `release` environment** (no agent can); answers question 4. An absent owner blocks the first test-track build |
 | P6 | reviews the six biomes' sheets and their clause promotions (about six pull requests) |
-| P7 | runs the first-ten-minutes test on release builds; cuts the tag; submits the iOS build for App Review and answers its questions; applies for Play production access; answers question 3(a) |
+| P7 | runs the first-ten-minutes test on release builds; reads the closed test's feedback and the stores' crash reports with the agents' triage; cuts the tag; submits the iOS build for App Review and answers its questions; applies for Play production access; answers question 3(a) |
 | Monthly | reads the one-page summary; reviews the dependency batch |
 | Always | keeps the runner machine on, if chosen |
 
@@ -296,15 +317,16 @@ in `TECHNICAL.md` § T14, which this table summarises.
 
 | Phase | Delivers | Gate | Size |
 |---|---|---|---|
-| P0 Decide, spike, freeze, bake-off | The owner's answers to questions 1, 2, 3(b), 6, 7, 8 and 10; the accounts and the tester recruitment started; the App created and installed; **the owner plays the prototype on a phone and writes the baseline**; the prototype moved under `prototype/` and frozen, the demo still deploying; the fallback cast, the flat backdrops, the sounds and the glyph tables captured once; the art tool built in TypeScript with the full metric set and calibrated; eight spikes (headless JVM capture with the blend modes on the Android emulator; the coroutine seam with hero-turn pendings and the three self-check paths; Pitest; detekt; Kotest 6 on the iOS simulator, an x86-64 Android emulator and wasm, and the hash test on a free arm64 Linux runner; the agents' environment and the GitHub App; the sprite bake-off on six actors, both looks, both animation options, through the calibrated gate, shown in lit phone frames; the pinned critic scoring the prototype's cast as the baseline the P4 bar is set against) | Spike reports with frames and numbers; the look fork closed; the critic's baseline recorded; the decisions recorded in the register; the sizes re-estimated | L |
-| P1 The rig | The environment recipe proven on the agents' machine with its two forms checked against one version manifest; the ruleset, `CODEOWNERS` and the two throwaway pull requests that prove the review mechanics, the tag ruleset, the release environment, the prototype's own workflow (the freeze check and its gates), the private runner repository; every module wired; every lane with its budget measured on a synthetic `:core`-sized module and a synthetic storyboard; the analyser set; the spec binder; hooks and skills including the `kmp-quality` rubric | Every lane green and inside its P1-measurable budget on the synthetic module and storyboard, timings in the ledger; L2b's content-scaled steps measured at P4/P5 | M |
-| P2 The spec and the oracle | The prototype's harness gains `--trace`, `--ascension`, `--path`, a canonical `--dump`, the strong-party and stall fixtures and the coverage report; the Node pin; tag `ts-oracle-v3`; the freeze check; the golden set recorded under the cell table with a coverage report; the contract reconciled with the code, then folded into `spec/` clauses; the clause count and the re-estimate | Spec-lint clean; every clause has an id, an owner and a status; goldens frozen; every event, status, set, sigil, pending kind, room type and ascension row appears in the golden set | L |
+| P0 Decide, spike, freeze, bake-off | The owner's answers to questions 1, 2, 3(b), 3(c), 6, 7, 8 and 10; the accounts and the tester recruitment started; the App created and installed; **the owner plays the prototype on a phone and writes the baseline**; the prototype moved under `prototype/` and frozen, the demo still deploying; the fallback cast, the flat backdrops, the sounds, the glyph tables and the hand-drawn study captured once; the art tool built in TypeScript with the full metric set and calibrated; eight spikes (headless JVM capture with the blend modes on the Android emulator; the coroutine seam with hero-turn pendings and the three self-check paths; Pitest; detekt; Kotest 6 on the iOS simulator, an x86-64 Android emulator and wasm, and the hash test on a free arm64 Linux runner; the agents' environment and the GitHub App; the sprite bake-off on six actors, both looks, both animation options, through the calibrated gate, shown in lit phone frames; the pinned critic scoring the prototype's cast as the baseline the P4 bar is set against) | Spike reports with frames and numbers; the look fork closed; the critic's baseline recorded; the decisions recorded in the register; the sizes re-estimated | L |
+| P1 The rig | The environment recipe proven on the agents' machine with its two forms checked against one version manifest; the ruleset, `CODEOWNERS` and the two throwaway pull requests that prove the review mechanics, the tag ruleset, the release environment, the prototype's own workflow (the freeze check and its gates), the private runner repository; every module wired; every lane with its budget measured on a synthetic `:core`-sized module and a synthetic storyboard; the analyser set; the spec binder; hooks and skills including the `kmp-quality` rubric | Every lane green and inside its P1-measurable budget on the synthetic module and storyboard, timings in the ledger; L2b's content-scaled steps measured at P4/P5; the sizes and the calendar re-derived and **accepted by the owner, or the programme stops here** | M |
+| P2 The spec and the oracle | The prototype's harness gains `--trace`, `--ascension`, `--path`, a canonical `--dump`, the strong-party and stall fixtures and the coverage report; the Node pin; tag `ts-oracle-v3`; the freeze check; the golden set recorded under the cell table with a coverage report; the contract reconciled with the code, then folded into `spec/` clauses; the clause count and the re-estimate | Spec-lint clean; every clause has an id, an owner, `paths` and a status; goldens frozen; every event, status, set, sigil, pending kind, room type and ascension row appears in the golden set | L |
 | P3 The rules | `:core` test-first, module by module; the `:sim` harness | Traces identical to the oracle on the golden set; the balance tables reproduced; the hash test green on the JVM, an x86-64 Android emulator and the iOS simulator, and once on an arm64 phone or a farm device; spec matrix 100 % for the rules areas with no weak clause; coverage and mutation at threshold | L |
-| P4 The cast (parallel with P2–P3) | The pipeline at full strength; the cast generated in `FUNCTIONAL.md` § F3.5's order with the stop decision after the six heroes, judged on the prototype's stage; portraits through their own criteria | Every actor passes the gate; the six heroes meet the value targets the rejected kit fails; the full-frame critic's sprite axis at least **one above the prototype cast's baseline** scored under the same pinned protocol at P0, capped at 9 (expected 9 against 8; an unrecalibrated 8 would prove nothing); the owner accepts on a phone | L |
-| P5 The stage and the screens | The frame, the stage over the flat backdrops with the light data, VFX, pops, audio, tiers and ARCADE, the bloom decision; every run screen as Compose UI over the seam, designed for the phone; `FUNCTIONAL.md` § F2.2–F2.7 (settings, safe areas, interruptions, identity, tiers, the bug-report export with the first test-track build) and, if question 10 said yes, F2.1's resume path; fixtures, semantics tests, goldens; the storyboard driver; the Android and iOS shells; the store set-up and the signed build pipeline; the closed test started on Play's closed-testing track and TestFlight | The storyboard **reaches** every biome, every boss and every screen with the strong party and forcing hooks, and plays a two-act run to a KO, on the JVM; two acts on Android and iOS; every fixture has a golden; the desktop and reference-phone budgets met; the felt rows signed by the owner on a device | XL |
-| P6 The scene | The six biomes' planes as data-driven painters or AI-generated planes; the light wells, hues and composition items of `STATUS.md`'s round-5 brief; the placeholders retired | The full-frame critic at least one above P0's baseline on every axis under the pinned protocol, capped at 9 (the rejected look scored 8 · 8 · 8 · 8 · 7, so an absolute 8 would be met before P6 starts); the owner accepts on a phone | L |
-| P7 Ship | Credits and disclosure; the App Store submission and App Review; the Play production-access application | Installed from both test tracks; the first-ten-minutes test passes on the owner's phones; App Review passed; Play production access granted | M |
+| P4 The cast (parallel with P2–P3) | The pipeline at full strength; the cast generated in `FUNCTIONAL.md` § F3.5's order with the stop decision after the six heroes, judged on the prototype's stage; portraits through their own criteria | Every actor passes the gate; the six heroes meet the value targets the rejected kit fails; the full-frame critic's sprite axis at least **one above the prototype cast's baseline** scored under the same pinned protocol at P0, capped at 9 (expected 9 against 8; an unrecalibrated 8 would prove nothing; a baseline already at 9 leaves the cap nothing to give, so that axis's bar is an owner decision recorded in the register before P4 starts); the owner accepts on a phone | L |
+| P5 The stage and the screens | The frame, the stage over the flat backdrops with the light data, VFX, pops, audio, tiers and ARCADE, the bloom decision; every run screen as Compose UI over the seam, designed for the phone; `FUNCTIONAL.md` § F2.2–F2.7 (settings, safe areas, interruptions, identity, tiers, the bug-report export with the first test-track build) and, if question 10 said yes, F2.1's resume path; fixtures, semantics tests, goldens; the storyboard driver; the Android and iOS shells; the store set-up (the privacy page, the testers' channel, the stores' own crash signal — no SDK) and the signed build pipeline; the closed test started on Play's closed-testing track and TestFlight | The storyboard **reaches** every biome, every boss and every screen with the strong party and forcing hooks, and plays a two-act run to a KO, on the JVM; two acts on Android and iOS; every fixture has a golden; the desktop and reference-phone budgets met; the full-frame critic's UI and VFX axes at least one above P0's per-axis baseline, capped at 9, with all five axes recorded (the sprite axis is P4's, the scene and composition axes P6's); the felt rows signed by the owner on a device | XL |
+| P6 The scene | The six biomes' planes as data-driven painters (the default, inside the L) or, if question 4 approved them by name with their own budget line, AI-generated planes judged by the scene rulers, the critic and the owner (`FUNCTIONAL.md` § F3.7); the light wells, hues and composition items of `STATUS.md`'s round-5 brief; the placeholders retired | The full-frame critic's **scene and composition axes** at least one above P0's per-axis baseline under the pinned protocol, capped at 9 (the rejected look scored 8 · 8 · 8 · 8 · 7, so an absolute 8 would be met before P6 starts; a baseline already at 9 makes that axis's bar an owner decision recorded before the phase), and the sprite, UI and VFX axes not below their P4 and P5 readings; the owner accepts on a phone | L |
+| P7 Ship | Credits and disclosure; the closed test's feedback triaged (an S inside the M); the App Store submission and App Review; the Play production-access application after the fourteen days — the stores' clock, about four weeks from the first test-track build, is the calendar's third term | Installed from both test tracks; the first-ten-minutes test passes on the owner's phones; App Review passed; Play production access granted | M |
 | P8 Web (stretch) | The wasmJs target through the same gates; Pages switches from the prototype when it passes | The P5 gates on the Wasm build | M |
+| Steady state (after P7) | Keeping the two listings alive: Google Play's annual target-API bump and Apple's SDK minimum for submissions, the stores' policy re-attestations, Renovate's monthly batch through the full lanes, a store-side fix when one is needed | The lanes, unchanged; a `v*` tag per release | ≈ one session a quarter, plus the annual target-SDK bump (S) |
 | Then | The owner's character changes (built after P3, before or after P7 as the owner decides; sized per class in `FUNCTIONAL.md` § F4.3 — S–M per new character, a batch of six ≈ L), then PvP (`FUNCTIONAL.md` § F5; unsized until the brief arrives, re-planned in `TECHNICAL.md` § T16) | Their own gates | S–L; PvP — |
 
 **Parallel:** P4 (the cast) runs beside P2 → P3 from P0's exit; P5 needs P3 and, for its
@@ -323,8 +345,9 @@ felt rows, P4's heroes; P6 needs P5. Whether P7 waits for P6 is question 4.
 | AI art cannot hold consistency across 15 frames | A posable-skeleton or reference-conditioned provider; the finalists animated in full at the bake-off; consistency criteria after alignment; one provider for the cast | Gate rejection above 60 % after the bake-off tuning |
 | The provider or its model is retired, or the output's copyright position matters later | Accepted assets, prompts and references archived; the accepted cast conditions later actors; a new provider means a whole-cast re-gate, priced; the copyright position stated up front with its options | A provider notice; a new actor failing consistency against the cast |
 | The rig is red on the first honest `:core` commit (budgets sized on a toy) | Budgets measured on a synthetic `:core`-sized module and a synthetic storyboard at P1; `:core`'s transcriptions exempt until the gate; type-resolved detekt, the klib ABI check and full Konsist out of the fast lanes | A lane over budget in the ledger for a week |
-| The team is one owner plus agents | The spec and the tests are the memory; every decision is in this register or the spec; the App, the rulesets and the owned-path check keep the gates, the art and the contract out of the agents' hands; the owner's load and absence protocol are stated | A change without a spec id or a test |
+| The team is one owner plus agents | The spec and the tests are the memory; every decision is in this register or the spec; the App, the rulesets and the owned-path check keep the gates, the art, the contract, the plan and the rubric out of the agents' hands; the owner's load and absence protocol are stated | A change without a spec id or a test |
 | Agent capacity is the bottleneck (the subscription's limits stopped two of this plan's own review rounds) | The calendar is stated as a function of sessions per week; P1 measures one real session against the limits; a slower cadence changes dates, not phases | A week with fewer sessions than the calendar assumed |
+| A store rejection, or a closed test that resets (App Review rejects the build; production access is refused; the opted-in count dips below twelve, which restarts the fourteen days) | The P5 store set-up with the owner's checklist and the privacy manifest entries; fifteen to twenty testers recruited for a floor of twelve; the testers' channel read weekly; the stores' own crash reports | Opted-in testers below fourteen; any rejection notice |
 
 ## Open questions for the owner
 
@@ -334,8 +357,10 @@ the price of each branch are stated so nothing waits on a question nobody knew w
 1. **The look (D10)** — closes at P0's exit. Pixel sprites at the contract's cell under the
    stage's light (recommended), or painted characters under the same light, judged on a
    reduced gate? Decided on the bake-off's lit phone frames (`FUNCTIONAL.md` § F3.2).
-   Painted means re-deriving the value criteria at P4 (about one extra session) and a bar
-   the owner has not named.
+   Painted means re-deriving the value criteria at P4 (about one extra session), a bar the
+   owner has not named, and a different asset model: painted frames ship at twice the cell
+   canvas with atlases about four times the size (≈ 50 MB resident against 12–14), inside
+   the 100 MB install budget but re-derived at P0's exit (`FUNCTIONAL.md` § F3.2).
 2. **Orientation** — closes at P0's start, before the art tool's in-scene rulers are
    calibrated. Landscape (recommended: the stage's laws and every measured number are
    16:9), or portrait? Portrait is a different stage composition and a different ruler for
@@ -345,7 +370,9 @@ the price of each branch are stated so nothing waits on a question nobody knew w
    (about half a session more).
 3. **The demo and the web (D2, D19, D3)** — three parts. (a) *The demo*, closes at P7:
    keep the Pages URL serving the frozen prototype until the Wasm build passes the same
-   gates (recommended, free) or retire it when the app ships. (b) *The web as a target*,
+   gates (recommended, free) or retire it when the app ships — the Pages site itself stays
+   up either way, because it publishes the privacy-policy page the stores require for as
+   long as the app is listed (`TECHNICAL.md` § T12). (b) *The web as a target*,
    closes at P0: keep wasmJs as the stretch target (recommended; it costs about a minute of
    compile in every merge lane until P8) or drop it, which removes P8 and that minute and
    nothing else. (c) *The demo's two screen defects*, closes at P0 before the move commit:
@@ -354,7 +381,13 @@ the price of each branch are stated so nothing waits on a question nobody knew w
    leave them; it is a prototype, and the demo has them from P0 either way until fixed).
 4. **Ship before or after the scene phase** — closes at P5's end. Ship over the flat
    placeholder backdrops after P5 and run P6 after (recommended: a playable app 2–4
-   sessions sooner), or hold P7 until P6 reaches 8 on every axis?
+   sessions sooner — knowing that the placeholder stage is one unlit composite of the
+   prototype's far, mid and floor painters per biome, lit by the rig but with no plane
+   separation, no depth of field and no near-plane curtains, flatter than the demo the
+   owner judged, D16), or hold P7 until P6 clears its gate (the scene and composition axes
+   at least one above P0's baseline, capped at 9)? The same answer closes P6's backdrop
+   fork: data-driven painters (the default, inside P6's size) or AI-generated planes, which
+   the owner approves by name with their own budget line (`FUNCTIONAL.md` § F3.7).
 5. **The device lane (D18)** — closes at P1. A self-hosted runner on the owner's machine in
    a private repository (recommended: no recurring cost, the phones the owner already
    holds, about half a session to set up — and it must be a Mac for the iPhone lane, which
@@ -373,15 +406,25 @@ the price of each branch are stated so nothing waits on a question nobody knew w
    unmeasured, outside the aggregate; if that price is not acceptable, "stop" means
    shipping the fallback cast as it is, and the owner should approve that sentence
    knowingly. The fallback cast exists either way.
-7. **The release path and the identities (D15, D17)** — closes at P0, because P1 builds it.
-   Confirm the GitHub App for the agents, the ruleset with the owner as the only reviewer,
-   and the rule that the owner never authors a change on an owned path. A "no" means a
-   long-lived protected `kmp` branch with the same rules and `main` left to the prototype:
-   about one extra session and a weaker gate on the prototype's freeze.
+7. **The identities and the release path (D15, D17)** — two parts, both closing at P0,
+   because P1 builds them. (a) *The identities*: the agents' GitHub App, the gate App that
+   alone posts the owner-review checks, and Renovate — three apps the owner creates or
+   installs in about half an hour. A "no" to the agents' App means a classic-token machine
+   user with the same review rules (`TECHNICAL.md` § T1; about a quarter of a session to
+   swap, and a long-lived token to rotate by hand); a "no" to the gate App means the checks
+   are posted by the workflow's own token, which any workflow in the tree could forge, so
+   that gate becomes discipline (`VERIFICATION.md` § V5). (b) *The release path*: the
+   ruleset on `main` with the owner as the only reviewer and the rule that the owner never
+   authors a change on an owned path. A "no" means a long-lived protected `kmp` branch with
+   the same rules and `main` left to the prototype: about one extra session and a weaker
+   gate on the prototype's freeze.
 8. **The repository (D2)** — closes at P0. The prototype under `prototype/` in this
    repository (recommended: the oracle and the demo stay beside the game), or a new
-   repository for the game with the prototype left where it is (the oracle by submodule, a
-   second Pages site, about half a session of extra plumbing)?
+   repository for the game with the prototype left where it is — the oracle by submodule,
+   pinned in L3 and the nightly, a second Pages site, and a second ruleset, `CODEOWNERS`,
+   App installation, tag ruleset and freeze workflow on the prototype's repository: about
+   one to two sessions of extra plumbing, or half a session if the prototype's repository
+   is left unprotected and its freeze becomes discipline?
 9. **The agents' environment** — closes at P1, after P0's spike. If the session-start
    script's cold start is over six minutes on the cloud environment: accept it (every
    session starts slower, nothing else changes), or fund a self-hosted agent pool that runs
@@ -389,8 +432,10 @@ the price of each branch are stated so nothing waits on a question nobody knew w
 10. **Resume anywhere (D6, `FUNCTIONAL.md` § F2.1)** — closes at P0, because P3 designs
    the save format and the `SAVE` clauses around the answer. Yes (recommended): a run
    survives a closed app, a call and a store update; the save carries a snapshot of the
-   whole run context; ≈ 1–2 sessions inside P5's estimate plus the resume path as a
-   post-gate `:core` change. No: no run is persisted at all — the Vault and the settings
+   whole run context; one price, `FUNCTIONAL.md` § F2.1's M — the save format and the
+   `SAVE` clauses inside P3's size, ≈ 1–2 sessions in P5 for the persistence and the
+   screens, and the post-gate `resumeRun` change in `:core` (an S inside the M) with its
+   corpus. No: no run is persisted at all — the Vault and the settings
    only, as the prototype — § F2.7's share-the-save and § T11's replay corpus are not
    built, so no release build can export a run and a closed tester's bug report is a seed
    and a description (the seed on GAME OVER stays either way), and a permadeath run is

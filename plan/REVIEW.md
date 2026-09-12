@@ -789,3 +789,128 @@ P0's move commit; question 3 is three questions.
 | D12 | MINOR | "D15–D18" cited D16, which is backdrops | "D15, D17–D18" (README) |
 
 **Declined or only partly applied (MINOR):** none declined.
+
+## Round 7 — on revision 8 (commit `a54341b`)
+
+Four reviewers on a lighter model, 69 findings: 3 BLOCKING, 27 GAP, 9 NUMBERS, 30 MINOR.
+The count rose because the reviewers reached ground the plan had not covered, not because
+revision 8 broke: the three blocking rows are one wrong source file (the ramps export named
+`parts.ts`, which holds only the type; C1), one leftover trigger contradiction (a
+`workflow_dispatch` re-dispatch with no such trigger, and a Goldens row still on review
+events; C2, A4), and one criterion the prototype's own record had moved — the in-scene
+contrast ruler, which ART-REVIEW's coordinator decision after round 13 makes the scene
+owner's number and which revision 8 still gated every generated sprite on (A1). The gaps
+fall in four groups. The stores and the testers: the calendar had no term for the closed
+test's lead time (B1), there was no crash or usage signal and no tester channel (B7, D3),
+no host for the privacy policy (B8), no steady-state row (B9). The art programme's money
+and bars: the $4 000 counter had no home and no stop branch (B2), a baseline already at 9
+made the cap the bar (B3), the critic's protocol was not on the discipline list (B4),
+P6's planes had neither criteria nor a budget (B6, D2), the painted branch had no shipping
+resolution (D4). Enforcement: `plan/**`, `.claude/**` and `CLAUDE.md` were not owned paths
+(B5, D1) and the re-estimates were nobody's decision (D5). The specification:
+`BattleResult`'s record was unwritable (A2, C4), the ground strips sampled the next seat's
+body (A3), the Vault floor as a rule of the game would have refused the golden cells (C3),
+the sheet metrics had no p50 (C5), the sound render had no page (C6), the emulator spikes
+no host (C7), the accepted actors no sidecar (C8), the gate workflow no tree entry (C9),
+and L3's `env-check` nothing to compare (C10, A6). Revision 9 resolves all of them and
+declines one minor (D17). The structural changes: the owner-review checks post as check
+runs through a dedicated gate App whose key only a `main`-only environment holds and are
+required from that App, with `pull_request_target` plus `workflow_dispatch` as the only
+triggers; the calendar is the largest of three terms, counted in review sittings; every
+axis of the critic has an owning phase; the in-scene ruler is the stage's; the spend
+counter is a committed file behind provider-side caps; the plan and the rubric are owned
+paths; the stores' own crash signal and a testers' channel replace "crash reporting:
+none".
+
+### 7-A — adversarial, technical
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| A1 | BLOCKING | Every generated sprite was gated on actor-median-vs-ground ≥ 1.5:1, which the prototype's record after round 13 makes the scene owner's number: over the derived pools' ground no ramp clears it without breaking the enemy ceiling | the in-scene ruler is reported for a sprite and gated for the stage at P5 and P6; its bar is re-derived at P0 on the landed rig (`FUNCTIONAL.md` § F3.1, § F3.4, § T10.4) |
+| A2 | GAP | `BattleResult` has `probe` (singular) and a `Party` object, so the battles `result` record was undefined | `won stall enraged actorTurns`; `probe` via the `probe` record; `party` via a closing `party` record with `:<hp>` per hero (§ T5.3) |
+| A3 | GAP | The ground strips never excluded the neighbouring seats' masks, which the 68-px row pitch puts inside them | every cell under another seat's mask is excluded; a seat keeping under half its columns is reported, never gated (§ T10.4) |
+| A4 | GAP | The Goldens row still ran the check on `pull_request_review` events | the row names the owner-review workflow, re-dispatched on review events (§ V5) |
+| A5 | GAP | P6's gate spanned five axes of which P6 delivers two; P5 had no critic gate | P5 owns the UI and VFX axes, P6 the scene and composition axes, each with a no-regression rule on the rest; all five recorded at P5's end (README, § T14, `FUNCTIONAL.md` § F3.5) |
+| A6 | GAP | The manifest was named two ways and L3's `env-check`, inside the image, had nothing to compare | one manifest sentence; L3's `env-check` job runs `setup.sh` on the bare runner (§ V4, § V2, § V6) |
+| A7 | NUMBERS | The merge-lane p95 budget was justified by medians, on a runner row 1 exempts from absolute milliseconds | the row records the absolute p95 against a provisional median × 1.25 and asserts only the relative rule; the device lane asserts absolutes (§ T9.5) |
+| A8 | MINOR | "`__eq` is read-only" is false | "`__eq` exposes a live run's objects but cannot compose a stage" (§ T4.2) |
+| A9 | MINOR | The calibration named a tag that exists two phases later | "at P0's frozen tree — the round-14 cast, the tree P2 tags `ts-oracle-v3`" (§ T10.4) |
+| A10 | MINOR | A `PostToolUse` matcher selects tools, not paths | the hook matches the `Edit` and `Write` tools and filters the edited path itself (§ T13.3) |
+| A11 | MINOR | The image build was in § V9's first step but in no spike | spike 6 builds the image once; P1 rebuilds it by its own workflow and pins the digest (§ T14, § V9) |
+| A12 | MINOR | The merge queue's absence on a user-owned repository was uncertain | verified against GitHub's documentation (organization-owned repositories only) and dated; a queue, if ever offered, would make the post-merge machinery optional (README D15, § V5) |
+| A13 | MINOR | `<MAIN><value>` did not say base or derived | `<MAIN><base>` is `Relic.main.base`, never `mainValue()` (§ T5.3) |
+| A14 | MINOR | L2a's budget was measured at P1 on content it does not have until P3 | re-measured at P3 against the recorded goldens and the reduced snapshot (§ V2) |
+
+### 7-B — adversarial, product and process
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | The calendar had no term for the stores: the testers' lead, Play's first review, the fourteen days, the production-access review and App Review put P7 about four weeks after the first test-track build whatever the agents do | the third calendar term, stated with its parts; P7 no sooner than about four weeks after the first test-track build (README effort, item 6, P7 rows; § T14) |
+| B2 | GAP | The $4 000 counter "lives in the tool" across worktrees with no provider cap and no branch for reaching it | provider-side caps or prepaid credits per key; the counter is `assets/spend.json` under the owner's review; reaching it is a third stop trigger and a mixed cast is approved by name (§ T10.1, § T10.7, `FUNCTIONAL.md` § F3.5, README money table) |
+| B3 | GAP | "Baseline + 1, capped at 9" equals the baseline when an axis comes back at 9 | a baseline already at 9 makes that axis's bar an owner decision recorded before the phase (README P4 and P6 rows, § T14, `FUNCTIONAL.md` § F3.5) |
+| B4 | GAP | The critic's protocol and the per-axis baselines, which set every later bar, were on neither § V1's list nor the P0 owner row | both on § V1's list, README principle 10 and the P0 owner row |
+| B5 | GAP | `.claude/**` and `CLAUDE.md`, which hold the rubric the felt rows are scored against, were not owned paths | `.claude/**`, `CLAUDE.md` and `plan/**` (except `plan/spikes/**`) are owned paths (§ V5, § V6, README D17, the risk row) |
+| B6 | GAP | P6's "painters or AI-generated planes" was never scheduled as a decision, had no plane-shaped gate and no money line | painters are the default; generated planes only if question 4 approves them by name, judged by the scene rulers, the critic and the owner, under a $500 ceiling with a money-table line (`FUNCTIONAL.md` § F3.7, README question 4, money table, P6 rows, § T10.7, § T14) |
+| B7 | GAP | Twelve to twenty testers on unknown handsets with no crash signal and no reporting path | the stores' own crash signal — Android vitals, the pre-launch report, TestFlight's crash logs — with no SDK; the testers' channel named in the listing; triage an S inside P5 and P7 (§ T12, § T14, README P5 and P7 rows) |
+| B8 | GAP | The privacy policy needs a public host for the app's whole life and the only web property is the frozen demo question 3(a) may retire | `docs/privacy.md` published by the Pages workflow at `/privacy/`; the site stays up either way (§ T12, § T4.1, § T2.1, README question 3 and the P5 owner row) |
+| B9 | GAP | Nothing after P8 keeps two listings alive | a steady-state roadmap row (≈ one session a quarter plus the annual target-SDK bump) and a recurring money line (README, § T14) |
+| B10 | NUMBERS | § T1 still said the five-run quota could be paid past | § T1 carries the Spark and Blaze terms (§ T1) |
+| B11 | NUMBERS | The per-phase enumeration summed to 44–52, mixed milestones with pull requests, and omitted P0, P7 and the cadence | counted in review sittings, P0 and P7 included, 50–58 at one sitting a weekday (README) |
+| B12 | NUMBERS | The subscription provider's price and allowance were never named and option (a) rested on unconfirmed terms | the plan, price and allowance are read at P0's terms check; the arithmetic's assumption is stated; option (a) is in the bake-off only if the terms pass (§ T10.7, § T10.2, README money table) |
+| B13 | NUMBERS | Question 8's "half a session" omitted the second repository's ruleset, `CODEOWNERS`, App, tag ruleset, freeze workflow and the submodule pin | one to two sessions with the plumbing named, or half a session with the prototype unprotected (README question 8) |
+| B14 | MINOR | 3(c) was absent from both P0 rows; the study from D19 and the P0 capture list | added (README, § T14) |
+| B15 | MINOR | P6's five-axis gate | = A5 |
+| B16 | MINOR | No store row in the README's risks | a store row with the tripwire "opted-in testers below fourteen; any rejection notice" (README; § T15's tripwire) |
+| B17 | MINOR | Question 10's yes was priced two ways | one price (README question 10, `FUNCTIONAL.md` § F2.1) |
+
+### 7-C — blind, the implementer
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| C1 | BLOCKING | `export-ramps.mjs` read `parts.ts`, which holds only the `Ramp` type; the ramps are private constants in `actors.ts` | `ELEMENT_RAMPS` and `NEUTRAL` from `game/art/actors.ts`, exported in the same pull request (§ T4.2) |
+| C2 | BLOCKING | "Only under `pull_request_target`" beside a `workflow_dispatch` re-dispatch and a Goldens row on review events | one trigger set — `pull_request_target` plus `workflow_dispatch` with the pull request number — and the Goldens row's clause removed; both workflow files named (§ V5) |
+| C3 | GAP | The Vault floor "as a rule of the game" would refuse the golden cells recorded at A0 with three Vault relics | `minAscensionFor` is a pure function the screens clamp with; `runSteps` accepts any `RunConfig`, as the oracle does (§ T2.2, `FUNCTIONAL.md` § F1.1, § F1.4) |
+| C4 | GAP | The battles `result` record | = A2 |
+| C5 | GAP | The P4 target reads p50, which no lifted metric computes | p50 added to the metric list (§ T10.4) |
+| C6 | GAP | `render-sfx.mjs` had no page exposing the synthesizer | `prototype/tools/sfx.html`, a fixture page exposing `render(name, seed)` (§ T4.2) |
+| C7 | GAP | Spikes 1 and 5 need an Android emulator and § T1 named a P0 host only for macOS | a throwaway hosted-Linux workflow with KVM (§ T1, § T14) |
+| C8 | GAP | Accepted actors had a manifest but no per-frame sidecar, which the gate, the atlas and the stage need | `assets/actors/<ID>/` carries the same `<pose>-<frame>.json` sidecar, written by `art accept` (§ T10.6) |
+| C9 | GAP | The owner-review workflow and its re-dispatch were in no tree listing and no § V9 step | named in § T2.1's tree and created beside `lanes.yaml` in § V9 |
+| C10 | GAP | L3's `env-check` compared the image with itself | L3's job runs `setup.sh` on the bare runner; the image workflow compares the rebuilt image with the committed manifest (§ V4, § V6) |
+| C11 | NUMBERS | The sittings arithmetic | = B11 |
+| C12 | MINOR | 3(c) in the P0 lists; `paths` in the README's P2 gate | added (README, § T14) |
+| C13 | MINOR | The 64 columns cited `ACTOR_W`, which is 128 screen px | `ACTOR_PART = 64` cells, `ACTOR_W` its 128 px (`FUNCTIONAL.md` § F3.1) |
+| C14 | MINOR | `PoolLight` has no pad field | "the pools' colour, ellipse, alpha and `actorWeight`" (§ T4.2) |
+| C15 | MINOR | `pack=<id>` for a `+`-joined list, and a fixture name with a space | `pack=<enemy ids '+'-joined>`; every field and the slug space-free (§ T5.3) |
+| C16 | MINOR | Base or derived main | = A13 |
+| C17 | MINOR | The calibration example (20.4 %) is inside the 20–39 band | a settle of 19 %, outside it (§ T10.4) |
+| C18 | MINOR | Written `strips` values versus the rule | the values are the rule applied; `art rulers` recomputes and fails on a mismatch (§ T10.4) |
+| C19 | MINOR | The `schema:` block was defined for screens only | any area file may carry one; `spec/meta/vault.md` carries the vector types (§ T7.4) |
+| C20 | MINOR | Spike 6 read a `.nvmrc` the move commit creates, with no order stated | the move commit lands before any spike runs (§ T14) |
+| C21 | MINOR | `Mutation` is not a tag | "the nightly's `Sim` job or its Pitest job" (§ V5) |
+
+### 7-D — blind, the owner's advisor
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| D1 | GAP | `plan/**` and `.claude/**` unowned | = B5 |
+| D2 | GAP | P6's planes had no number and no ceiling | = B6 |
+| D3 | GAP | Nobody reads or triages what the testers report | = B7 |
+| D4 | GAP | The painted branch had no shipping resolution and its atlas and install consequences were unpriced | 128 × 128 px per frame, ≈ 50 MB resident, re-derived at P0's exit, in § F3.2's fork table and question 1's price (`FUNCTIONAL.md` § F3.2, README question 1) |
+| D5 | GAP | The three re-estimates turned into no decision | P1's exit gate and owner row: the owner accepts the re-estimated sizes and calendar or stops (README, § T14) |
+| D6 | NUMBERS | The sittings arithmetic | = B11 |
+| D7 | NUMBERS | Question 10's price | = B17 |
+| D8 | NUMBERS | "About seven" prototype commits against nine or ten | "about nine, ten with question 3(c)" (README P0 owner row) |
+| D9 | MINOR | 3(c) in the P0 rows | = B14 |
+| D10 | MINOR | D3 said "verified" of a spike not yet run, and `Multiply` maps to a PorterDuff mode below API 29 | D3 and § T1 say what falls back (`ColorDodge`), what maps (`Multiply`, alpha included) and that spike 1 verifies both at API 28 and 29 (README D3, § T1, § T14) |
+| D11 | MINOR | Principle 10 named three of § V1's five | carries the five (README) |
+| D12 | MINOR | Question 7 bundled three decisions with one price | split into (a) the identities and (b) the release path, each priced (README question 7) |
+| D13 | MINOR | No store row in the risks | = B16 |
+| D14 | MINOR | The study absent from D19 | added (README D19) |
+| D15 | MINOR | Question 4 did not say what the placeholder stage lacks | said (README question 4) |
+| D16 | MINOR | Renovate is a third writing identity in a "two identities" model, installed in no phase | named in D17, § T1's identities, P1's deliverables and the P1 owner row (README, § T1, § T14) |
+| D17 | MINOR | The re-dispatch workflow "runs the pull request's own copy" was called wrong | **declined**: a `pull_request_review` run executes in the merge-commit context (`refs/pull/N/merge`) — GitHub's events reference, and its 2025-11-07 changelog on environment branch protections, say so — so the pull request's copy can run; the sentence was reworded so the design depends on neither copy (§ V5) |
+
+**Declined or only partly applied (MINOR):** D17, declined for the reason in its row. A12's
+P1 check was not adopted: the merge queue's availability was verified against GitHub's
+documentation and dated instead, and nothing in the plan depends on it.

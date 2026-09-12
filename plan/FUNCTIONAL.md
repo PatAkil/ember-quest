@@ -36,7 +36,7 @@ current content.
 | Enemies | 37 across six biomes (four or five normals, one elite, one boss each), their packs, the scale formula per act, kind, lap and ascension, `BOSS_HP`, `ACT_MULT`, `LAP_MULT`, `CLEAR_GROWTH` |
 | Relics | six slots, four rarities, `rollRelic`'s eight ordered draws, substats and the +2/+4/+6 events, drop levels by act, FORGE (+2, recast, rebrand), REST sharpen, sixteen sets (the run's set pool of 2 + 2 plus the Vault's), twelve sigils with kindling at +6, `compare` |
 | Run | the map generator (`STAGE_SIZES [2,3,1,3,2]`, landmarks, guarantees, links, adjacency), nine room types, the draft and the two SUMMONs, the leader seat and when it may change, six pacts, the ALTAR, laps under `LAP_MULT`, score |
-| Meta | the Vault (12, bank 2 + L − 1 on DESCEND, 1 on death), Vault equip raising the minimum ascension (a screen rule in the prototype, a rule of the game here, § F1.4), the A0–A10 ladder, the unlock at the first act-6 kill |
+| Meta | the Vault (12, bank 2 + L − 1 on DESCEND, 1 on death), Vault equip raising the minimum ascension (a screen rule in the prototype; here `minAscensionFor` is a pure rules function the screens clamp the chosen ascension with before a run starts, never enforced inside the run itself, so the oracle's cells at A0 with three Vault relics replay unchanged — `TECHNICAL.md` § T2.2, § F1.4), the A0–A10 ladder, the unlock at the first act-6 kill |
 | Persistence | the prototype keeps only the Vault (browser storage); a closed tab loses the run. The app keeps the Vault, the settings and — if § F2.1 is approved, as recommended — the run itself |
 | Balance | the Balance state table of `DESIGN.md`: the ladder, the guards, the stall and enrage rates — reproduced exactly on the same seeds and run counts |
 
@@ -95,7 +95,7 @@ behaviour and the new screens are built to it; the prototype is frozen with its 
 | The battle screen enumerates a hero's options *before* the turn's cooldown tick while the rules re-enumerate at step 7 after it; when a skill comes off cooldown during the tick the committed index casts a different skill or target — measured on 16 % of hero turns | the hero's decision is asked at step 7 with the post-tick options, so what the player picks is what fires | `COMBAT-TURN` |
 | A skill greyed out in the command list at cooldown 1 is legal by the time the turn resolves | the list shows the post-tick legality | `SCREENS-BATTLE` |
 | A hero wearing the four-piece VIOLENT set gets an extra turn that asks the battle's policy, which the interactive screen never seats — a crash | the extra turn is a second decision asked of the player | `COMBAT-TURN` |
-| The Vault's minimum-ascension floor is enforced by the Vault screen, not by the rules | the same rule, with the same numbers, lives in the rules and is tested there | `META-VAULT` |
+| The Vault's minimum-ascension floor is enforced by the Vault screen, not by the rules | the same function, with the same numbers, lives in the rules and is tested there; the screens apply it before a run starts, and the run itself still accepts any `RunConfig` — as the oracle does — so the golden cells recorded at A0 with three Vault relics replay | `META-VAULT` |
 
 ### F1.5 How the mechanics and the presentation are accepted
 
@@ -134,7 +134,7 @@ other rows are approved with the plan and built in the phase named in the Phase 
 
 | # | Change | What the player gets | Notes | Size | Phase |
 |---|---|---|---|---|---|
-| F2.1 | **Resume anywhere** (recommended; question 10) | Closing or being interrupted mid-run — mid-battle too — loses nothing; the app reopens on the same decision, or on the same hero turn | The run is saved after every decision, hero turns included, as `(rules version, seed, config, decisions)` and replayed on launch; a state snapshot rides along so that an app update never abandons a run — when the installed rules differ from the save's, the run continues from the snapshot under the new rules and the player is told once — **unless the save names content the installed rules no longer have** (a removed character or skill), the one case that abandons a run with the Vault untouched (`TECHNICAL.md` § T11). Not a *rewind*: the player cannot undo a decision. The resume path is a rules-structure change with its own clauses. A "no" leaves a permadeath run at the mercy of the platform killing the app in the background, which is why the plan recommends yes and D6 depends on it. | M | decided P0; the save format and `SAVE` clauses in P3; the resume path in P5 |
+| F2.1 | **Resume anywhere** (recommended; question 10) | Closing or being interrupted mid-run — mid-battle too — loses nothing; the app reopens on the same decision, or on the same hero turn | The run is saved after every decision, hero turns included, as `(rules version, seed, config, decisions)` and replayed on launch; a state snapshot rides along so that an app update never abandons a run — when the installed rules differ from the save's, the run continues from the snapshot under the new rules and the player is told once — **unless the save names content the installed rules no longer have** (a removed character or skill), the one case that abandons a run with the Vault untouched (`TECHNICAL.md` § T11). Not a *rewind*: the player cannot undo a decision. The resume path (`resumeRun`, `TECHNICAL.md` § T11) is a rules-structure change with its own clauses — an S inside this row's M, after the P3 gate — so the row's one price is the save format and `SAVE` clauses inside P3, ≈ 1–2 sessions in P5, and that S after the gate. A "no" leaves a permadeath run at the mercy of the platform killing the app in the background, which is why the plan recommends yes and D6 depends on it. | M | decided P0; the save format and `SAVE` clauses in P3; the resume path in P5 |
 | F2.2 | **Settings** | sound volume and mute; ARCADE on/off; quality tier (AUTO/HIGH/MED/LOW); a "reset the Vault" with a confirm; credits | One screen, reachable from the title and the pause overlay. Haptics on hits is optional and off by default. A crash-report toggle appears only when a reporter ships (§ T12). | S | P5 |
 | F2.3 | **Orientation and safe areas** | landscape locked (question 2); the frame respects notches, rounded corners and the gesture-navigation edges | The mutable safe inset reads the platform's insets. Every edge target is tested under gesture navigation. | S | P5 |
 | F2.4 | **Interruptions** | a call or a switch to another app pauses the game and the sound; returning resumes on the pause overlay | The app pauses on lifecycle events and yields audio focus. | S | P5 |
@@ -159,7 +159,7 @@ screenshots, are not in the repository and never will be.
 
 - **Cell and size.** One cell is 2 screen px at 720p. The canvas is 64 × 64 cells (96 × 96
   for a boss). The bands are the review's recorded ones: a hero 52–60 rows tall, any width
-  the 64 columns allow (the contract's `ACTOR_W`; measured heroes run to 53 columns); a
+  the 64 columns allow (the contract's `ACTOR_PART = 64` cells — `ACTOR_W` is its 128 screen px; measured heroes run to 53 columns); a
   standard enemy 40–50 rows; an elite 50–56; a boss at least 60 on the 96-cell canvas (the
   six measured 65–93). A taller boss band is a change
   the owner may make at the bake-off, recorded as such — never a silent renumbering. Feet at the bottom centre; authored facing right (the battle mirrors
@@ -175,12 +175,20 @@ screenshots, are not in the repository and never will be.
 - **Value.** The figure sits dark on a lit ground. *Pass* (the sheet criteria the prototype
   measures, criteria 1–5): L* span p2 ≤ 15 and p98 ≥ 85; ≥ 20 % of body cells below L 35
   and ≥ 20 % of interior cells; ≥ 8 % above L 75; the top quarter ≥ 8 L* lighter than the
-  bottom (lit from above). *Pass, in scene* (the ruler the prototype adopted after round 14
-  in place of the old contrast-against-the-navy criterion, which is **retired** because the
-  shadow band the bar needs — L 35–48 — cannot clear 3:1 against a navy line-up ground):
-  the actor's median value against the ground it stands on ≥ 1.5:1 at both ground strips in
-  a lit crypt frame at each stage anchor, and no seat's torso median more than 5 L* above
-  the median seat's. The sheet's contrast columns stay reported for continuity. *Target*,
+  bottom (lit from above). *In scene — reported for a sprite, gating the stage* (the ruler the prototype adopted
+  after round 11 in place of the old contrast-against-the-navy criterion, which is
+  **retired** because the shadow band the bar needs — L 35–48 — cannot clear 3:1 against
+  a navy line-up ground; after round 13 the prototype's own record makes it **the scene
+  owner's number, not a sprite criterion**: over the derived pools' ground at L 40–49 no
+  ramp clears 1.5:1 without breaking the enemy value ceiling from the other side, and the
+  rig's cast shadow is what took it from 66 to 106 of 108 seat readings): the actor's
+  median value against the ground it stands on ≥ 1.5:1 at both ground strips in a lit
+  crypt frame at each stage anchor, and no seat's torso median more than 5 L* above the
+  median seat's — **reported** on every sprite's contact sheet, **gated** at P5 and P6
+  against the rig (a miss is a light or shadow fault, worked in the scene, never by
+  regenerating a sprite), with its bar re-derived at P0's calibration on the prototype's
+  landed rig and again at P5 on the new stage. The sheet's contrast columns stay reported
+  for continuity. *Target*,
   reported beside the pass and gating only P4's six heroes (§ F3.5): p50 L* 31–40 with
   ≥ 45 % of cells below L 35 (the reference crop reads 37 / 45 % / 11.5 % above L 75; the
   hand-drawn study 31 / 51 %; the prototype's EMBER 51 / 43 %).
@@ -229,7 +237,7 @@ screenshots, are not in the repository and never will be.
 | Option | The player sees | What it keeps | What it costs |
 |---|---|---|---|
 | **A — pixel sprites (recommended)** | HD-2D as the prototype, with sprites that reach further toward the bar: dense, hand-drawn-looking pixel figures under the soft light | the stage's laws, every instrument and criterion, the bar the owner set | the providers must produce clean pixel art at the cell; consistency across 15 frames is the hard part (`TECHNICAL.md` § T10.3) |
-| **B — painted characters** | illustrated figures (a Darkest Dungeon or Slay the Spire register) under the same light | the light rig and the screens | the identity: the value instruments and the composition criteria are written for pixel figures; the bar changes from "Octopath" to something the owner has not named |
+| **B — painted characters** | illustrated figures (a Darkest Dungeon or Slay the Spire register) under the same light | the light rig and the screens | the identity: the value instruments and the composition criteria are written for pixel figures; the bar changes from "Octopath" to something the owner has not named; and the asset model: a painted actor ships at 128 × 128 px per frame (twice the cell canvas, bilinear on the actor plane, no hard-pixel path), so the cast's atlases are ≈ 50 MB resident against 12–14 (`TECHNICAL.md` § T9.7) and the install budget is re-derived at P0's exit; about one extra session in P4 (README question 1) |
 
 **How B is judged at the bake-off.** A painted figure fails the keyline, colour-count,
 cell-alignment and component criteria by construction, so for look B those are *reported,
@@ -282,7 +290,9 @@ The criteria, in the order they are checked:
 5. Alive: the motion criteria of § F3.1, judged on the pose sheet and in play — a dead pose
    is a collapse, an attack travels.
 6. In scene: standing on the stage under the biome's light, the in-scene value rule holds and
-   the party plane reads above the enemy plane, as the round-4 full-frame critic requires.
+   the party plane reads above the enemy plane, as the round-4 full-frame critic requires —
+   read on the sprite's sheet, owed by the rig (§ F3.1), so a miss here sends the light and
+   the shadow back to work, not the sprite.
 7. One cast: the six heroes beside each other read as one palette; each biome's pack reads
    as one family; bosses read heavier than their packs.
 
@@ -326,15 +336,21 @@ Two decision points, each a yes or no from the owner on lit phone frames:
    expected to be 9; the old 8 was a single verdict under no protocol and proves nothing;
    a baseline above 8 is recorded as a register decision and the cap keeps the gate
    reachable); the value target and the owner's eye are the discriminating criteria, the
-   score a floor. The scene phase's bar is the same rule on every axis (`TECHNICAL.md`
-   § T14).
+   score a floor. P5 owns the UI and VFX axes and P6 the scene and composition axes under the
+   same rule, each with a no-regression rule on the others (`TECHNICAL.md` § T14); an axis
+   whose P0 baseline is already 9 has no bar the cap can give it, so its bar is an owner
+   decision recorded in the register before that phase starts.
    *Continue* to the enemies; *change provider*; or *stop*. The cast is judged once more on
    the real stage at P5's end; a miss there is a light or composition fault and is worked in
    the scene phase, not by regenerating the cast.
+3. **When the per-image counter reaches its $4 000 ceiling** (`TECHNICAL.md` § T10.7),
+   wherever the cast stands: the same three branches — a budget the owner raises by name,
+   a change of provider, or stop — and a mixed cast, accepted actors beside fallback ones,
+   is then a shipped state the owner approves by name, never a transient.
 
 **Stop means**: the generated assets are shelved (their provenance kept), the fallback cast
 — the prototype's 43 actors' sheets captured at P0 (`TECHNICAL.md` § T10.9) — is the
-shipped art, the remaining art budget moves to the scene phase (P6), and the heroes and
+shipped art, the unspent per-image budget funds P6's planes only if question 4 approves them by name, and the heroes and
 bosses fall back to the owner's option B (hand-drawn pixel grids at the cell, the process
 of `prototype/.claude-archive/prompts/pixel-pipeline.md`) if the owner still wants them
 redrawn — the twelve master frames ≈ 8–12 sessions at the study's measured rate, the
@@ -377,10 +393,14 @@ The stage is built at P5 over **placeholder backdrops**: one flat, unlit composi
 prototype's far, mid and floor painters per biome — six images, one per biome, drawn at
 every tier — captured once at P0 (`TECHNICAL.md` § T10.9), drawn as a single plane and lit
 by the rig from the biome's light data (the pools follow the stage anchors). The real
-backdrops are the **scene phase, P6**: four planes per biome as data-driven painters or as
-AI-generated planes through the same gate-then-critic process, with the light wells, the
-second hue per biome, the bright mass behind the figures and the plate rules the full-frame
-critic asked for. VFX stay procedural (they are light, not pictures). Portraits are painted
+backdrops are the **scene phase, P6**: four planes per biome as data-driven painters — the
+default, inside P6's size — or, where README question 4 approves it by name with its own
+budget line, as AI-generated planes; a plane has no actor-shaped gate, so a generated
+plane is judged by the scene rulers of `TECHNICAL.md` § T10.4 (the ground strips' values
+against the pools, the seat spread and the value order of dark figures on a lit ground,
+measured with the fallback cast planted at the six anchors), then by the critic and the
+owner; either way with the light wells, the second hue per biome, the bright mass behind
+the figures and the plate rules the full-frame critic asked for. VFX stay procedural (they are light, not pictures). Portraits are painted
 (§ F3.2).
 
 ## F4 Character changes — placeholder for the owner's details
