@@ -367,7 +367,7 @@ prototype's own capture output is not in the repository — three times, and the
 during the programme, the new one re-scores the sheet and the offset is recorded as a
 register decision.
 
-Two decision points, each a yes or no from the owner on lit phone frames:
+Four stop triggers — the first two decision points, each a yes or no from the owner on lit phone frames, the last two thresholds:
 
 1. **After the bake-off (P0's exit):** six actors, both looks, all frames, through the
    calibrated gate. *Continue* with the chosen provider and look; *change provider* (one
