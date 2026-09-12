@@ -265,7 +265,7 @@ and the baseline play, the felt rows and the first-ten-minutes test about five m
 alone takes about a week and a half; a sitting that clears several milestones shortens
 it, a week's absence lengthens it by a week (the absence protocol under *What the owner
 does, by phase*). **The third is the stores' lead time, and it starts only at the first
-test-track build**: the fifteen to twenty testers (about a month's lead), Play's review
+test-track build**: the twenty to twenty-five testers (about a month's lead), Play's review
 of the first closed-testing release (days), the fourteen continuous days, Google's review
 of the production-access application (up to about a week by Google's own statement,
 longer in exceptional cases) and App Review (one to three days, longer on a rejection) —
