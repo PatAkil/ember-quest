@@ -1140,3 +1140,131 @@ counter's rows land in every pull request behind per-key caps.
 
 **Declined or only partly applied (MINOR):** B18 and B23, each declined with GitHub's own
 page quoted in the plan.
+
+## Round 10 — on revision 11 (commit `5c87c9a`)
+
+Four reviewers on a lighter model, 72 findings: 2 BLOCKING, 28 GAP, 10 NUMBERS, 32 MINOR.
+Both blocking rows are in the plumbing revision 11 added: the agents' App lacked the
+`actions` permission the `record-goldens` job needs (A1), and a pull request editing the
+environment recipe could never pass `env-check`, because the image manifest it is compared
+against could only exist after its own merge (C1, A16). The gaps show that the last two
+revisions' mechanisms had grown baroque — the spend ledger needed a row schema and a join
+key to be enforceable (C4, A8), its per-key caps sat below the counter's ceiling so the
+stop trigger could never fire (A10, B12), the allowance-months ceiling assumed a metering
+no finalist may have (B7), and the in-scene ruler had a moving denominator, two
+re-derivation points, no frame set and no tier (A4, A5, C5, C12). Revision 12 therefore
+simplifies as much as it fixes: the art spend's hard ceiling is the providers' own caps
+($3 500 and $500, the counter a mirror that refuses at 90 %), a subscription winner is
+paid in months, and the in-scene bar is the share of one fixed set of 72 readings —
+each biome's resting frame at HIGH — measured once at P0 under the tool's own strip rule.
+The other gaps are of the familiar kinds. Owner commitments: the testers' platform split
+and a fallback if twelve cannot be held (B1, B2), the go or no-go as P0's first act before
+any spend (B3), the character brief already at P0 (B4 held), a sized response to what the
+testers report (B5), orientation decided after the baseline play (D1), the Firebase billing
+account and the pool's host (D2), a bound on felt-row rework (D3), USB passthrough for the
+runner VM (D4), `docs/**` owned (D5), a root `LICENSE` and the bundled font's licence
+(B8), a sanctioned repair to `prototype-check` (B9), the first tag and the release
+approvals as owner acts (D12). Mechanisms: the required-check list generated and checked
+(C3), the halo criterion unpassable as worded (A2), a second portrait clause left beside
+the new one (A3), the red-`main` rule's `kmp` boolean too coarse to block anything (A9),
+the platform-blur fallback a no-op below API 31 (A7), spec-lint's line cap against the
+cell table (A6), the storyboard's two save formats (C7), `clears` missing from the pack
+knobs and the cell line, and the act-1 fixtures' party unowned (C2, C6, A13). Numbers:
+sittings to the build (41–47) against the whole (52–60), the depth to the build (12–24),
+the two-a-week band (12–19), the programme total ($1 900–3 000) and its recurring extras,
+private-repository pricing and GitHub Pro for rulesets (B10, B11, B13, B14, C8, D6, D7,
+D8, D10, D11, B19). Revision 12 resolves all of them and declines none.
+
+### 10-A — adversarial, technical
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| A1 | BLOCKING | The App's permissions did not include `actions`, so no agent could dispatch `record-goldens` or read its artifact | `actions` added to the App in D17, § T1 and § V5 |
+| A2 | GAP | "No cell elsewhere on the frame above p50 + 20" is contradicted by the value pass itself | the halo reads the one-cell ring and stray opaque cells outside the silhouette only (§ T10.4) |
+| A3 | GAP | Two portrait palette clauses, one unpassable | the 60 % clause deleted; the 15 % element-hue clause stands in § T10.4 and § F3.3 |
+| A4 | GAP | The share's denominator moved with seat exclusion | the seat list is fixed at P0 and an excluded seat is a miss (`FUNCTIONAL.md` § F3.1, § T10.4) |
+| A5 | GAP | The bar was re-derived at P5 from the frames it gates | one bar, measured at P0, used unchanged by P5 and P6 (`FUNCTIONAL.md` § F3.1, § T10.4) |
+| A6 | GAP | Spec-lint's 60-line cap against the cell and skill tables | prose capped, `data:` tables exempt (§ T7.1, § T7.8) |
+| A7 | GAP | `Modifier.blur` is a no-op below API 31 with minSdk 29 | choosing the fallback raises minSdk to 31 as a register decision (§ T9.4) |
+| A8 | GAP | A spend row carried no key to a manifest | every call has an id, stamped on the row and the manifest (§ T10.1) |
+| A9 | GAP | The `kmp` boolean made the red-`main` rule block nothing | per-module booleans (§ T4.1, § V5) |
+| A10 | NUMBERS | The per-key caps ($3 500) sat below the $4 000 ceiling | the caps are the ceiling: $3 500 + $500; the counter refuses at 90 % (§ T10.1, § T10.7, README) |
+| A11 | MINOR | `PACT:true` beside "booleans `0\|1`" | `<PACT>:1` (§ T5.3) |
+| A12 | MINOR | The round row's reason was wrong | ties-to-even and `Int` overflow named (§ T5.2) |
+| A13 | MINOR | `spawnPack`'s sixth argument and the fixture-selecting flag were unnamed | `--clears` and `--fixture` (§ T4.2) |
+| A14 | MINOR | `spec/fixtures/meta/` unowned | `spec/fixtures/**` owned (§ V5) |
+| A15 | MINOR | "Pull-request workflows run with no secrets" is false of `owner-review.yml` | scoped to the generated lanes and the signing material (§ V5) |
+| A16 | MINOR | `env-image.yml`'s trigger unstated | = C1 |
+
+### 10-B — adversarial, product and process
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | "The same testers" for Play and TestFlight; a tester with one phone serves one store | twenty to twenty-five with a platform mix: at least twelve Android, at least three iPhone (README, § T12) |
+| B2 | GAP | No branch if twelve Android testers cannot be held | iOS first with Android left in closed testing, or a paid testing service priced at P5 (README money table and risks) |
+| B3 | GAP | The go or no-go sat at P0's exit, after the bake-off's spend | P0's first act, before the spend; two or three people on the public demo as a second signal (README, `FUNCTIONAL.md` § F1.5, § T14) |
+| B4 | GAP | The character brief's free-fold deadline | already at P0's exit since revision 11; held |
+| B5 | GAP | Tester feedback was budgeted as triage only | presentation fixes inside P7's M; rule-touching reports decided by the owner, an S–M in the first steady-state session (README, § T14) |
+| B6 | GAP | Question 8(a) had no moment before the move commit | "closes at P0's start, before the move commit" (README) |
+| B7 | GAP | The allowance-months ceiling assumed a metering no finalist may have | a subscription winner is paid in months; P0's terms check records the metering, so one ceiling applies (§ T10.7, README, `FUNCTIONAL.md` § F3.5) |
+| B8 | GAP | The bundled font's licence and a root `LICENSE` | the credits name every bundled asset's licence; the move commit adds a root `LICENSE` the owner chooses (`FUNCTIONAL.md` § F2.5, § T4.1, § T9.6, README P0 row) |
+| B9 | GAP | `prototype-check` is required and nothing sanctioned repairing it | a repair to the build, lockfile or CI is an allowed change (§ T4.2) |
+| B10 | NUMBERS | Item 6 put all sittings before the build and counted all of P5 as depth | 41–47 sittings to the build, 52–60 over the programme; 12–24 deep to the build, 14–28 to P5's end (README) |
+| B11 | NUMBERS | 19–38 weeks labelled "one to two a week" | twelve to nineteen at two, nineteen to thirty-eight at one (README) |
+| B12 | NUMBERS | The caps below the ceiling | = A10 |
+| B13 | NUMBERS | The programme total did not follow from its items and omitted the farm and the pool | ≈ $1 900–3 000; the recurring extras named (README) |
+| B14 | NUMBERS | Every minute is metered on a private repository, and rulesets need Pro | question 8(b) priced accordingly; the CI row points at it (README) |
+| B15 | MINOR | § T12 stated the closed test's trigger without the window | restated (§ T12) |
+| B16 | MINOR | P6's plane key conditioned a P0 act on question 4(b) | moved to the P5 owner row (README) |
+| B17 | MINOR | "A month before P5's first build" names no observable trigger | "when P3's gate goes green" (README, § T12) |
+| B18 | MINOR | "An order of magnitude" had no comparand | about ten times the month's subscription, measured at P1 (README) |
+| B19 | MINOR | Question 2's parts summed to 4.5–6.5 | "five to six and a half" (README) |
+| B20 | MINOR | The runner's status token was a fifth, unnamed credential | named in D17, § T1 and the P1 owner row |
+
+### 10-C — blind, the implementer
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| C1 | BLOCKING | A recipe edit could never pass `env-check`: the committed image manifest exists only after the merge | `env-image.yml` runs on the pull request, pushes the image tagged by the head and hands back the manifest and digest to commit in the same pull request (§ V4, § V9) |
+| C2 | GAP | `spawnPack` scales by `clearsThisAct`, which no knob, field or column carried | `--clears`, a `clears` column and the `cell` field (§ T4.2, § T5.3) |
+| C3 | GAP | Nothing kept the ruleset's required checks in step with the jobs the lanes grow | the generator writes `ci/required-checks.txt` and an L3 job checks the branch's active rules; adding a check is an owner act named per phase (§ T13.5, § V9, § T14, README P5 row) |
+| C4 | GAP | The spend row could not express the ceilings, the allowance or the manifest check | the row has an id and a kind; the ceilings are the providers' caps; the allowance is gone (§ T10.1, § T10.7) |
+| C5 | GAP | The in-scene gate named no frame set, tier or denominator | each biome's resting frame at HIGH, 72 readings (`FUNCTIONAL.md` § F3.1, § T10.4, § V2, § T14, README) |
+| C6 | GAP | The act-1 cells' party, lap and pacts had no owner | a `party` value resolves against `spec/fixtures/golden/`, else `BATTLE_FIXTURES` with its defaults recorded (§ T5.3) |
+| C7 | GAP | Two formats for one round trip; `replay` contingent on question 10 | the storyboard writes the canonical save; the encoding and `sim replay` exist either way (§ V3, § T11, README D6) |
+| C8 | NUMBERS | Depth to the first build | = B10 |
+| C9 | MINOR | "From this line alone" beside "never from the line alone" | reconciled (§ T5.3) |
+| C10 | MINOR | Bare `AREA-TOPIC` ids | a family, never a clause (§ T7.1) |
+| C11 | MINOR | `light.json`'s path and a `path` column | `<BIOME>.light.json`; the golden path is always `b` (§ T4.2, § T5.3) |
+| C12 | MINOR | 106/108 as the bar versus "context, not a target" | the bar is P0's measurement under the new rule; 106/108 is scale only (§ T10.4, `FUNCTIONAL.md` § F3.1) |
+| C13 | MINOR | The L0 hook never fired on the files three of its linters read | the path set widened (§ T13.3, § V2) |
+| C14 | MINOR | The ledger block was written at open only | re-written on every push (§ T13.5) |
+| C15 | MINOR | Spike 3's tree and the root Gradle files | named (§ T14, § T2.1) |
+| C16 | MINOR | `wait-on` undeclared; the exact Node version unnamed | a `curl --retry` loop; the latest 22.x at the move commit (§ V5, § T3) |
+| C17 | MINOR | The forcing hooks equated with `ko=1` | listed as P5's `spec/platform/` clauses (§ V3, § T14) |
+
+### 10-D — blind, the owner's advisor
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| D1 | GAP | Orientation decided before the owner has held the game | question 2 closes after the baseline play, P0's first act (README) |
+| D2 | GAP | The Firebase billing account and the pool's host were nobody's act | the P1 owner row and question 5 (README) |
+| D3 | GAP | A felt row that never passes had no bound | one more rework, then accept as a recorded miss or stop (`FUNCTIONAL.md` § F1.5, README, § T14) |
+| D4 | GAP | A phone cannot reach a macOS VM | a Linux VM with USB passthrough for the Android lane; the iPhone lane under a separate user account or on the farm (README D18 and question 5, § T1) |
+| D5 | GAP | `docs/**` unowned | owned (§ V5, README D17) |
+| D6 | NUMBERS | Item 6's sittings before the build | = B10 |
+| D7 | NUMBERS | The programme total's band | = B13 |
+| D8 | NUMBERS | The steady state's compute and the runner's power unpriced | priced (README money table) |
+| D9 | MINOR | § F6 contradicted questions 2 and 3(c) | qualified (`FUNCTIONAL.md` § F6) |
+| D10 | MINOR | The two-a-week band | = B11 |
+| D11 | MINOR | Sessions and sittings to the build counted P5 differently | both count P5's first half (README) |
+| D12 | MINOR | The first tag and the release approvals were absent from the owner's acts | in the P5 row and the steady state (README) |
+| D13 | MINOR | § T12's trigger statement | = B15 |
+| D14 | MINOR | The `port` budget zeroed at the gate yet split after it | the split is the gate's last task (§ T5.1, § T8.1) |
+| D15 | MINOR | A wasm break would block every merge | the wasm compile is informative until P8 (README question 3(b), § V2) |
+| D16 | MINOR | The painted branch's money | re-derived at P0's exit (README question 1) |
+| D17 | MINOR | A rejection's re-apply cost | named (README risks) |
+| D18 | MINOR | The export-compliance key | `ITSAppUsesNonExemptEncryption` (§ T12) |
+| D19 | MINOR | Question 8(a)'s moment | = B6 |
+
+**Declined or only partly applied (MINOR):** none declined.

@@ -110,15 +110,17 @@ behaviour and the new screens are built to it; the prototype is frozen with its 
 3. **The presentation, by the owner, on a device.** *Felt rows* — at most eight — the owner
    walks on a phone at P5's end: the first ten minutes (below), a KO, INSPECT, PAUSE, a
    SHRINE, a SUMMON with a full party, the map, the Vault's EQUIP and BANK faces. A felt row
-   the owner cannot sign stays open and P5 does not close. The rows are scored against the
+   the owner cannot sign stays open and P5 does not close — with a bound: a row reworked
+   twice and still unsigned gets one more rework (an S) and then the owner's decision,
+   accept it as a recorded known miss or stop; the aggregate assumes one rework per row. The rows are scored against the
    **feel rubric** of the `kmp-quality` skill (`TECHNICAL.md` § T13.2), written at P1 from
    `STATUS.md`'s "Playing it on a phone" section and the full-frame critic's
    first-ten-minutes items — anything tapped twice, anything unreadable at arm's length, a
    frame rate that does not hold through a hit, a hit without a pop, a prompt that blinks
    off, a screen that swallows the run.
-4. **The reference.** Nobody has played the prototype on a phone. At P0 the owner plays it
-   through the first ten minutes and a KO — after README question 3(c)'s fix if it was
-   taken — and records, in `plan/BASELINE.md`, what a turn, a hit and a draft *feel* like
+4. **The reference.** Nobody has played the prototype on a phone. At P0, as its first act
+   and before the bake-off's spend, the owner plays it through the first ten minutes and a
+   KO — after README question 3(c)'s fix if it was taken — and records, in `plan/BASELINE.md`, what a turn, a hit and a draft *feel* like
    and what did not work, with the battle screen's two hero-turn defects (§ F1.4) recorded
    as excluded from the bar, since the app must not reproduce them — the record the felt
    rows are judged against, so that "as good as the prototype" is a written bar, not a
@@ -143,7 +145,7 @@ phase named in the Phase column.
 | F2.2 | **Settings** | sound volume and mute; ARCADE on/off; quality tier (AUTO/HIGH/MED/LOW); a "reset the Vault" with a confirm; credits | One screen, reachable from the title and the pause overlay. Haptics on hits is optional and off by default. A crash-report toggle appears only when a reporter ships (§ T12). | S | P5 |
 | F2.3 | **Orientation and safe areas** | landscape locked (question 2); the frame respects notches, rounded corners and the gesture-navigation edges | The mutable safe inset reads the platform's insets. Every edge target is tested under gesture navigation. | S | P5 |
 | F2.4 | **Interruptions** | a call or a switch to another app pauses the game and the sound; returning resumes on the pause overlay | The app pauses on lifecycle events and yields audio focus. | S | P5 |
-| F2.5 | **App identity** | icon, splash, store listing, a credits screen that names the AI art providers | Store metadata is copy the owner writes; the credits line is required by § F3.6. | S | P5 (identity), P7 (copy) |
+| F2.5 | **App identity** | icon, splash, store listing, a credits screen that names the AI art providers and every bundled asset's licence (the HUD face's OFL or Apache notice; the sounds and the glyph tables are the prototype's own) | Store metadata is copy the owner writes; the credits line is required by § F3.6. | S | P5 (identity), P7 (copy) |
 | F2.6 | **Device tiers** | a 2022 mid-range phone runs MED at 60 Hz; older devices start LOW; the toggle in settings | The tiers are the contract's; the *default* comes from a three-second stage benchmark run behind the title on first launch — the title needs no stage, so the ≤ 2 s boot budget of `TECHNICAL.md` § T9.5 holds and the tier is decided before the first battle (§ F1.3). | S | P5 |
 | F2.7 | **Bug reports from a release build** (the save share contingent on question 10's yes; built with the first test-track build so the felt rows and the closed testers have it) | a long-press on the title shares the current run's save file; the seed is shown on GAME OVER | So the owner's felt rows, the first-ten-minutes test and the closed testers — all on release builds — can report a bug that replays (`TECHNICAL.md` § T11). The rest of the debug drawer stays debug-only. | S | P5, with the first test-track build |
 
@@ -191,15 +193,17 @@ screenshots, are not in the repository and never will be.
   contrast** — the WCAG relative-luminance ratio `(Y_hi + 0.05) / (Y_lo + 0.05)` between
   the median of the actor's masked cells and the median of the strip's surviving cells,
   ≥ 1.5:1 (over an L* 41.6 ground that admits an actor above L* 53.5 or below 31.3, as
-  ART-REVIEW.md records; an L* ratio would be a different gate) — in a lit crypt frame at
-  each stage anchor, the **bar being the share of seat readings the landed rig achieved at
-  P0** (106 of 108 on the round-13 tree, recorded by the calibration), never every seat;
-  and the **seat spread**: no seat's torso median (rows 0.33–0.72 of the silhouette's
-  height) more than 5 L* above the median seat's. Both are **reported** on every sprite's
-  contact sheet and **gated** at P5 and P6 against the rig over the biome frame goldens (a
-  miss is a light or shadow fault, worked in the scene, never by regenerating a sprite),
-  with the bars re-derived at P0's calibration on the prototype's landed rig and again at
-  P5 on the new stage. The sheet's contrast columns stay reported for continuity. *Target*,
+  ART-REVIEW.md records; an L* ratio would be a different gate) — measured on **one fixed
+  set**: the six seats of the resting frame of every biome at HIGH, 72 readings, the seat
+  list fixed at P0 and an excluded seat counted as a miss, never dropped; the **bar is the
+  share of those readings the prototype's landed rig achieves under this rule at P0's
+  calibration** (its own record under the older strip rule was 106 of 108, quoted for
+  scale only), recorded once and used unchanged by P5 and P6; and the **seat spread**: no
+  seat's torso median (rows 0.33–0.72 of the silhouette's height) more than 5 L* above the
+  median seat's. Both are **reported** on every sprite's contact sheet and **gated** at P5
+  and P6 against the rig over the biome frame goldens (a miss is a light or shadow fault,
+  worked in the scene, never by regenerating a sprite). The sheet's contrast columns stay
+  reported for continuity. *Target*,
   reported beside the pass and gating only P4's six heroes (§ F3.5): p50 L* 31–40 with
   ≥ 45 % of cells below L 35 (the reference crop reads 37 / 45 % / 11.5 % above L 75; the
   hand-drawn study 31 / 51 %; the prototype's EMBER 51 / 43 %).
@@ -365,9 +369,9 @@ Two decision points, each a yes or no from the owner on lit phone frames:
    table); or *stop*. The cast is judged once more on
    the real stage at P5's end; a miss there is a light or composition fault and is worked in
    the scene phase, not by regenerating the cast.
-3. **When the counter reaches its ceiling** — the $4 000 of per-image spend, or the
-   subscription provider's allowance-months, whichever binds (`TECHNICAL.md` § T10.7) —
-   wherever the cast stands: the same three branches — a budget the owner raises by name,
+3. **When the cast's ceiling is reached** — the $4 000 of per-image spend held as the
+   providers' own caps, or, for a subscription winner, a month that ends with the cast
+   incomplete (`TECHNICAL.md` § T10.7) — wherever the cast stands: the same three branches — a budget the owner raises by name,
    a change of provider, or stop — and a mixed cast, accepted actors beside fallback ones,
    is then a shipped state the owner approves by name, never a transient. The same
    approval by name covers a first test-track build that ships before the cast is complete
@@ -570,8 +574,8 @@ single-player permadeath keeps its teeth.
 
 Porting anything of the prototype but its mechanics, its measured laws and — captured once at P0 — its sprite sheets, flat backdrops, sounds, glyph tables and hand-drawn study;
 importing the prototype's browser Vaults; fixing the prototype's screen defects (it is
-frozen); music (the contract has none); monetisation; cloud saves; accounts until PvP;
-portrait layout; localisation beyond keeping strings in one table; AI backdrops before the
+frozen — unless question 3(c) takes the one named fix); music (the contract has none); monetisation; cloud saves; accounts until PvP;
+portrait layout (unless question 2 chooses it); localisation beyond keeping strings in one table; AI backdrops before the
 scene phase; controller support (optional); tablet-specific layouts (the frame letterboxes).
 Accessibility, deliberately: no screen-reader support, no dynamic type and no reduce-motion
 setting are planned; what the readability rules already cover — arm's-length text, the
