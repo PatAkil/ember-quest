@@ -124,13 +124,14 @@ behaviour and the new screens are built to it; the prototype is frozen with its 
    crypt fight to a KO or a win → INSPECT → PAUSE → a SUMMON room → a SHRINE, on a phone,
    at P7 on release builds.
 
-## F2 The presentation, designed for phones — the owner approves per row
+## F2 The presentation, designed for phones — approved with the plan, row by row
 
 Each row is a design decision of the new build, written as spec clauses under
 `spec/platform/`, `spec/meta/` or `spec/save/` with tests. None changes a rule of the game
-except where marked. Nothing in this table is decided by the plan; **F2.1 is README
-question 10 and closes at P0**, because the save format is designed around it in P3; the
-other rows are approved with the plan and built in the phase named in the Phase column.
+except where marked. Each row is the owner's to approve: **F2.1 is README question 10 and
+closes at P0**, because the save format is designed around it in P3; the other six rows
+are approved with the plan (README, "What you are approving", item 3) and built in the
+phase named in the Phase column.
 
 | # | Change | What the player gets | Notes | Size | Phase |
 |---|---|---|---|---|---|
@@ -237,14 +238,20 @@ screenshots, are not in the repository and never will be.
 | Option | The player sees | What it keeps | What it costs |
 |---|---|---|---|
 | **A — pixel sprites (recommended)** | HD-2D as the prototype, with sprites that reach further toward the bar: dense, hand-drawn-looking pixel figures under the soft light | the stage's laws, every instrument and criterion, the bar the owner set | the providers must produce clean pixel art at the cell; consistency across 15 frames is the hard part (`TECHNICAL.md` § T10.3) |
-| **B — painted characters** | illustrated figures (a Darkest Dungeon or Slay the Spire register) under the same light | the light rig and the screens | the identity: the value instruments and the composition criteria are written for pixel figures; the bar changes from "Octopath" to something the owner has not named; and the asset model: a painted actor ships at 128 × 128 px per frame (twice the cell canvas, bilinear on the actor plane, no hard-pixel path), so the cast's atlases are ≈ 50 MB resident against 12–14 (`TECHNICAL.md` § T9.7) and the install budget is re-derived at P0's exit; about one extra session in P4 (README question 1) |
+| **B — painted characters** | illustrated figures (a Darkest Dungeon or Slay the Spire register) under the same light | the light rig and the screens | the identity: the value instruments and the composition criteria are written for pixel figures; the bar changes from "Octopath" to something the owner has not named; and the asset model: a painted actor ships at 128 × 128 px per frame (twice the cell canvas, bilinear on the actor plane, no hard-pixel path), so the cast's atlases are ≈ 50 MB resident against 12–14, which with two biomes' bakes presses § T9.5's 250 MB peak-memory budget (one biome resident is the lever), and ≈ 8–15 MB on disk as PNG inside the install budget (`TECHNICAL.md` § T9.7) — both re-derived at P0's exit; about one extra session in P4 for the value targets (README question 1) |
 
 **How B is judged at the bake-off.** A painted figure fails the keyline, colour-count,
 cell-alignment and component criteria by construction, so for look B those are *reported,
 not gating*, and the candidates skip the palette quantisation and integer downscale of
 normalisation (they are resampled to the cell canvas for measurement only); the value,
-silhouette, motion and in-scene criteria gate both looks. A B
-candidate reaches the owner on that reduced gate, so the fork can actually close.
+silhouette and motion criteria gate both looks unchanged, and the in-scene ruler is
+reported for both (§ F3.1); if B wins, P4 re-derives the value *targets* (p50 31–40 and
+≥ 45 % below L 35 were measured on pixel figures and the reference crop) on B's own
+reference, about one extra session, while the pass thresholds stay. A B candidate reaches
+the owner on that reduced gate, so the fork can actually close. **B's display path**: a
+painted frame is a 128 × 128 px PNG with the sidecar `canvas: 128, cell: 1`, drawn by the
+prototype's `PixelActor` registry at 1:1 on the stage (`TECHNICAL.md` § T4.2, § T10.9)
+and by the Kotlin stage bilinear, so the bake-off's lit phone frames exist for both looks.
 
 Recommendation: **A for sprites, with painted portraits** for the ribbon chips, party heads
 and cards, where a painted face reads better at 48 px than a sprite crop. The fork closes at
@@ -267,7 +274,7 @@ names what happens on a "no".
 | Heroes | 6 | 64 × 64 cells | five poses × three frames = 15 frames each; authored facing right |
 | Normal and elite enemies | 31 | 64 × 64 | same poses; creatures (a raptor, a jelly, a coil) are exempt from the mirror-IoU rule |
 | Bosses | 6 | 96 × 96 | same poses; heavier and taller by the size rule |
-| Portraits | 43 | painted, ≥ 256 px, cropped to 48-px chips | one per actor; the element mark is drawn by the UI, not painted. **Their own criteria** (the sprite metrics do not apply): crop-safe at 48 px (the face inside the chip's safe area); the face reads as two dark clusters and a highlight at 48 px; the palette agrees with the actor's element ramp; consistent with the sprite's hair, headgear and colours; no text, no watermark — the tool measures the first three with the formulas of `TECHNICAL.md` § T10.4, the critic judges the last two. **Fallback**: a normalised head crop of the sprite, generated by the tool, which the screens are designed to accept from P5 so no screen ever depends on a portrait |
+| Portraits | 43 | painted, ≥ 256 px, cropped to 48-px chips | one per actor; the element mark is drawn by the UI, not painted. **Their own criteria** (the sprite metrics do not apply): crop-safe at 48 px (the face inside the chip's safe area); the face reads as two dark clusters and a highlight at 48 px; the palette agrees with the actor's element ramp and the shared neutrals (skin, hair and bone are neutrals); consistent with the sprite's hair, headgear and colours; no text, no watermark — the tool measures the first three with the formulas of `TECHNICAL.md` § T10.4, the critic judges the last two. **Fallback**: a normalised head crop of the sprite, generated by the tool, which the screens are designed to accept from P5 so no screen ever depends on a portrait |
 | Total sprite frames | 645 | stored at cell resolution | the budget model is in `TECHNICAL.md` § T10.7 |
 
 ### F3.4 Acceptance criteria — what the player must be able to see
@@ -284,8 +291,8 @@ The criteria, in the order they are checked:
 3. Consistent: the same character in every frame — palette, proportions and keyline do not
    drift between poses (a frame-to-frame palette overlap ≥ 75 % and a bounding-box height
    within ± 3 cells across idle, attack and cast, after alignment).
-4. Lit: the value pass holds on the sheet and in scene; no halo of light pixels around the
-   keyline (a background-removal artefact); nothing pure black, nothing pure white outside
+4. Lit: the value pass holds on the sheet, and the in-scene reading is reported (§ F3.1);
+   no halo of light pixels around the keyline (a background-removal artefact); nothing pure black, nothing pure white outside
    a specular of ≤ 6 cells.
 5. Alive: the motion criteria of § F3.1, judged on the pose sheet and in play — a dead pose
    is a collapse, an attack travels.
@@ -315,7 +322,8 @@ candidate is which, nor what changed — three runs per verdict and the median s
 verdict below the bar names the failing criterion by number. The prompt, the five axes,
 the scoring **and the model with its version** are frozen in `plan/spikes/7/CRITIC.md`
 before the first verdict of the bake-off and promoted unchanged into `spec/art/` at P0's
-exit; every verdict records the model and version; at P0 the pinned critic scores the
+exit **with the per-axis baselines and the calibration sheet beside it** — `spec/art/` is
+an owned path, so the bar an agent's work is judged by is not the agent's to move; every verdict records the model and version; at P0 the pinned critic scores the
 frozen calibration sheet — the prototype's round-14 cast in lit frames, committed as
 `spec/art/calibration-sheet/*.png` with its capture command in the spike report, since the
 prototype's own capture output is not in the repository — three times, and the medians,
@@ -327,7 +335,8 @@ Two decision points, each a yes or no from the owner on lit phone frames:
 
 1. **After the bake-off (P0's exit):** six actors, both looks, all frames, through the
    calibrated gate. *Continue* with the chosen provider and look; *change provider* (one
-   more bake-off); or *stop*.
+   more bake-off, ≈ $250 and half a session to a session, from P0's re-estimate); or
+   *stop*.
 2. **After the six heroes (in P4):** the party on the prototype's stage in three biomes,
    the six meeting the value target the prototype's kit fails (§ F3.1) and scored by the
    full-frame critic **at least one point above the prototype cast's baseline** on the
@@ -340,10 +349,12 @@ Two decision points, each a yes or no from the owner on lit phone frames:
    same rule, each with a no-regression rule on the others (`TECHNICAL.md` § T14); an axis
    whose P0 baseline is already 9 has no bar the cap can give it, so its bar is an owner
    decision recorded in the register before that phase starts.
-   *Continue* to the enemies; *change provider*; or *stop*. The cast is judged once more on
+   *Continue* to the enemies; *change provider* (the whole-cast re-gate, README money
+   table); or *stop*. The cast is judged once more on
    the real stage at P5's end; a miss there is a light or composition fault and is worked in
    the scene phase, not by regenerating the cast.
-3. **When the per-image counter reaches its $4 000 ceiling** (`TECHNICAL.md` § T10.7),
+3. **When the counter reaches its ceiling** — the $4 000 of per-image spend, or the
+   subscription provider's allowance-months, whichever binds (`TECHNICAL.md` § T10.7) —
    wherever the cast stands: the same three branches — a budget the owner raises by name,
    a change of provider, or stop — and a mixed cast, accepted actors beside fallback ones,
    is then a shipped state the owner approves by name, never a transient.

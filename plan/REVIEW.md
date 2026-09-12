@@ -914,3 +914,120 @@ none".
 **Declined or only partly applied (MINOR):** D17, declined for the reason in its row. A12's
 P1 check was not adopted: the merge queue's availability was verified against GitHub's
 documentation and dated instead, and nothing in the plan depends on it.
+
+## Round 8 — on revision 9 (commit `4ccdfbc`)
+
+Four reviewers on a lighter model, 62 findings: 2 BLOCKING, 27 GAP, 7 NUMBERS, 26 MINOR.
+Both blocking rows are residue of revision 9's own fixes: § F3.2 and § F3.4 still gated
+the painted look on the in-scene ruler that § F3.1 had just made the stage's (C1), and the
+generated-workflows check, moved under `pull_request_target` in an earlier round, would
+have had to execute the pull request's own generator with the privileged token (A1, B8).
+Four more round-7 resolutions were found defective the same way — the spend ceiling in
+`art gate` reds the lanes for good and forbids the stop branch it exists for (A5), the
+privacy page's route cannot serve the URL the stores are given and its edits never trigger
+the deploy (A6, B13, C5), the store term was composed as a parallel term when it is serial
+(B9), and 11.5 × 1.25 is 14.4, not 13 (C9). The gaps are of three kinds. Owner commitments
+absent from the approval surface: the sittings' hours and the subscription's tier (B4,
+D1), the repository's visibility (D3), that non-owned code merges unreviewed and reaches
+the owner's Mac (D4), the accounts' identity verification (D5), the analyser fallbacks
+(D2), the closed test during an absence (B3), the owner's route into `plan/**` after P1
+(B1), a stop at P2 (B2), the change-provider branch's price (B5), the subscription
+provider's missing ceiling (B6), the baselines in the unowned spikes folder (B7).
+Mechanisms: the `changes` job not itself required (A2), the image built with no
+`packages` permission (C3), a floating Node version failing `env-check` (C4), no digest
+in `:core-testing` (C7), no `issues` permission (C8), the gate App absent from § V9's
+order (C2). And the specification: the P2 harness knobs and fixtures the golden cells
+need (A3, C6), the portrait ΔE measured against a ramp with no skin tones (A4), the
+silhouette target unreachable beside the fallback cast (A7), the painted look's display
+path (D6). Revision 10 resolves all of them and declines none; the structural changes: P0
+is XL and P1 L, so the aggregate is 19–38 sessions with a calendar floor of twelve to
+fourteen weeks; the generated-workflows job runs the head's generator as an ordinary
+pull-request job behind the owned paths; every `changes` job is a required check; § V9 is
+marked in eight milestones with the gate App in its place; the Node version is exact from
+P0; the art programme's counter covers a subscription winner; and the owner's commitments
+— hours, identity verification, a public repository, unreviewed non-owned merges — are on
+the approval surface.
+
+### 8-A — adversarial, technical
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| A1 | BLOCKING | The generated-workflows check under `pull_request_target` would run the head's generator with the privileged token, or with `main`'s generator could never pass the pull requests that add it | an ordinary `pull_request` job over the head's generator, no secrets, required like any lane job; its defeat needs an owned-path change (§ V5, § V6, § T13.5, § T2.1) |
+| A2 | GAP | A job skipped because `changes` failed satisfies a required check too | every workflow's `changes` job is itself a required check (§ V5, § T4.1, README D15) |
+| A3 | GAP | The golden cells need packs at home acts, ascensions and a stall fixture the prototype's harness cannot build, and § T4.2's P2 list did not allow the changes | `fixtures.mjs`, the pack generator and the `--act --ascension --lap --pacts` knobs into the existing `BattleCtx` (§ T4.2, § T5.3) |
+| A4 | GAP | The portrait ΔE criterion measured a face against a ramp of accents and glows with no skin tones | the union of the element ramp and the shared neutrals; `ramps.json` records both (§ T10.4, `FUNCTIONAL.md` § F3.3) |
+| A5 | GAP | The ceiling in `art gate` reds the lanes for good once reached and forbids the stop branch | the ceiling refuses in `art generate`; `art gate` only reports the counter (§ T10.1) |
+| A6 | GAP | The Pages filter on `prototype/**` never deploys a `docs/**` change, and a copied `.md` serves as raw Markdown | the filter covers `docs/**` and the workflow; `docs/privacy/index.html` is copied into `dist/privacy/` (§ T4.1, § T12, § T2.1, README) |
+| A7 | GAP | The silhouette target as a P4 gate is unreachable beside the 37 fallback actors | reported at P4 and never a gate; the value target alone gates the six heroes (§ T10.4) |
+| A8 | NUMBERS | The balance basis double-counted two verification seeds | seeds 1, 2, 3 and 4242; 11 000 per policy, ≈ 99 000 runs, 8–10 minutes (§ T5.5, § V2) |
+| A9 | MINOR | Three of the four defects live in `battle.ts` | "three, two root causes" (README, § T4.2) |
+| A10 | MINOR | `sim replay` rendering the storyboard breaks `:sim`'s edge | `sim replay` prints the trace; `instruments storyboard --replay` renders it (§ T11) |
+| A11 | MINOR | A JSON file tagged as a `data:` table | a fixture typed by a `schema: Ramps` block (§ T4.2, § T10.4) |
+| A12 | MINOR | The empty string had no encoding | prints as `-` (§ T5.3) |
+| A13 | MINOR | The ruleset before `CODEOWNERS` refuses the owner's own push | `CODEOWNERS` first, then the ruleset (§ V5, § V9, README P1 row) |
+| A14 | MINOR | L0's `env-check` cannot see the edit that triggers it | it re-asserts the last install only; the edit is unverified until L3 (§ V2, § V4) |
+
+### 8-B — adversarial, product and process
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | After P1 the owner had no route to put their own words into `plan/**` | an agent commits what the owner dictates and the owner reviews it (README, § V5) |
+| B2 | GAP | Three re-estimates but one stop, taken before the clause count | P2's exit is an accept-or-stop on the re-sized P3 and P5; "the one" dropped (README, § T14) |
+| B3 | GAP | The absence protocol ignored the closed test, the one thing an absence can reset | the build is promoted to the closed track only when the owner can cover the window; the reset is named as the one rework an absence causes (README) |
+| B4 | GAP | The subscription's tier and the sittings' hours were never sized | the tier and price recorded at P0 with the low case named; sittings at an hour to an hour and a half with per-phase bands, ≈ 60–90 hours (README) |
+| B5 | GAP | "Change provider" was priced nowhere | a second bake-off ≈ $250 and half a session to a session at P0's exit; the whole-cast re-gate mid-cast (README question 6 and money table, `FUNCTIONAL.md` § F3.5, § T10.7) |
+| B6 | GAP | A subscription winner had no counter, no ceiling and no cast price | the cast priced in months with an allowance-months ceiling in the same counter; trigger 3 is whichever binds (§ T10.7, README money table, `FUNCTIONAL.md` § F3.5) |
+| B7 | GAP | The per-axis baselines lived in `plan/spikes/`, the one unowned subtree | committed to `spec/art/` beside the protocol and the sheet (`FUNCTIONAL.md` § F3.5, § T14, README P0 gate) |
+| B8 | GAP | The generated-workflows check had no posting identity and no file | = A1 |
+| B9 | NUMBERS | The store term was composed as parallel; the floor was two weeks short | serial: eight to ten weeks to the first build plus four, a floor of twelve to fourteen weeks; item 6 says "during P5" (README) |
+| B10 | NUMBERS | P0's L held an M art tool, eight spikes, the bake-off and the calibration; P1's M held twenty steps | P0 XL and P1 L, the aggregate re-derived: 19–38 sessions, the critical path 15–30, depth 14–28 (README, § T14) |
+| B11 | NUMBERS | The painted branch's resident figure was checked against the install budget | priced against the peak-memory budget with one biome resident as the lever, and ≈ 8–15 MB on disk (README question 1, `FUNCTIONAL.md` § F3.2) |
+| B12 | MINOR | Question 1 and § F3.2 disagreed on whether B's value criteria are re-derived | the pass thresholds gate both looks; B re-derives the value targets at P4 (README question 1, `FUNCTIONAL.md` § F3.2) |
+| B13 | MINOR | Raw Markdown in a Vite artifact | = A6 |
+| B14 | MINOR | The binding calendar term had no risk row | a review-queue row with the tripwire "waiting more than five weekdays" (README) |
+
+### 8-C — blind, the implementer
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| C1 | BLOCKING | § F3.2 and § F3.4 still gated look B on the in-scene ruler, so no candidate could pass and the fork could not close | B is gated on value, silhouette and motion, the in-scene ruler reported; criterion 4 reads "on the sheet; in scene reported" (`FUNCTIONAL.md` § F3.2, § F3.4) |
+| C2 | GAP | § V9 never created the gate App, its environment or Renovate | M3 creates the gate App and its environment before the owner-review workflow; Renovate in M4; the README's P1 row in the same order (§ V9, README) |
+| C3 | GAP | The image build from an agent session had no `packages` permission | spike 6 builds it by a throwaway workflow with `packages: write` (§ T14, § T1, § V9) |
+| C4 | GAP | A floating `22` reds `env-check` between P0's image and P1's host | the exact version in `versions.env` and both `.nvmrc` files from P0's move commit; P2 confirms it (§ T2.1, § T3, § T4.1, § V4, § V5, README) |
+| C5 | GAP | The Pages route | = A6 |
+| C6 | GAP | The tuned fixtures and the Vault relics were JS literals the Kotlin harness could not build the cells from | exported to `spec/fixtures/golden/*.json` under a `schema:` block both harnesses read (§ T4.2, § T5.3, § T2.1) |
+| C7 | GAP | Neither `:core` nor `:core-testing` had a digest for the hash test | a hand-written SHA-256 in `:core-testing`, checked against the NIST vectors and `MessageDigest` (§ T2.1, § T5.2) |
+| C8 | GAP | Agents must file issues and the App had no `issues` permission | added (README D17, § T1, § V5) |
+| C9 | NUMBERS | 11.5 × 1.25 is 14.4 | ≤ 14 ms (§ T9.5) |
+| C10 | MINOR | `--path a\|b` never mapped to the prototype's mechanisms | a is `simulateRun`, b is `createRun` (§ T4.2) |
+| C11 | MINOR | § V2's `lanes.json` record omitted `started_at` | added (§ V2) |
+| C12 | MINOR | The ramps as a `data:` table | = A11 |
+| C13 | MINOR | The eight milestones were nowhere marked | § V9 marked M1–M8 (§ V9) |
+| C14 | MINOR | `prototype.yml` called generated | hand-written, outside the diff (§ T4.1, § T2.1) |
+| C15 | MINOR | The study export had no renderer or canvas rule | `export-study.mjs`, a Node rasteriser with the canvas and padding rule (§ T4.2) |
+| C16 | MINOR | The `pixel=` bullet never named the page it drives | it names `stage.html`; "above" (§ T4.2) |
+
+### 8-D — blind, the owner's advisor
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| D1 | GAP | A sitting had no length and the owner's hours no total | = B4 |
+| D2 | GAP | The analyser fallbacks were in no risk row, and principle 9 and D8 did not qualify themselves | a risk row; principle 9 and D8 qualified (README) |
+| D3 | GAP | The repository's visibility was never stated, and everything free depends on it | public, and staying public, in D2 and question 8 with the private alternative's cost (README) |
+| D4 | GAP | Non-owned code merges unread and runs nightly on the owner's Mac | D15 says so; question 5 and D18 put the runner in its own account or a VM (README, § T1) |
+| D5 | GAP | The accounts' identity verification and public developer identity were never mentioned | in the P0 row and both account rows (README) |
+| D6 | GAP | A painted frame had no path onto the prototype's stage | `canvas: 128, cell: 1`, drawn at 1:1 by the `PixelActor` registry (`FUNCTIONAL.md` § F3.2, § T4.2, § T10.9) |
+| D7 | NUMBERS | P0 ≈ 3 omitted two sittings the same README assigns to P0 | P0 ≈ 5; 52–60 (README) |
+| D8 | NUMBERS | The steady-state row and the money line double-counted the target-SDK bump | "about one session a quarter, which covers the annual target-SDK bump" in both (README) |
+| D9 | MINOR | Two of four defects | = A9 |
+| D10 | MINOR | Question 4 closed two forks with one answer and no session price for the AI branch | split into (a) and (b); the AI branch priced in sessions (README) |
+| D11 | MINOR | D10's reversibility ignored the cast | "one phase before P4; a whole new cast after it" (README) |
+| D12 | MINOR | The Mac's real P1 job was understated | stated: `setup.sh` and `env-check` on the owner's machine (README P1 row) |
+| D13 | MINOR | The bake-off and the baselines were counted in P0 and P4 | P0 only (README P4 row) |
+| D14 | MINOR | "The one continue/stop decision" while P4's cast begins at P0's exit | "the programme-level stop, repeated at P2's exit; the art programme keeps its own triggers" (README P1 row) |
+| D15 | MINOR | Resident bytes against an install budget | = B11 |
+| D16 | MINOR | § F2's heading and its first sentence disagreed, and the README never listed F2.2–F2.7 as approved | the heading reads "approved with the plan, row by row"; item 3 names F2.2–F2.7 (README, `FUNCTIONAL.md` § F2) |
+| D17 | MINOR | Testers must actually play, and holding them from P0 may be months | recruited about a month before P5's first build, people who will actually play (README money table, P0 row) |
+| D18 | MINOR | Question 10's price did not say whether it sits inside P5's XL | "inside P5's XL", with the saving on "no" (README question 10) |
+
+**Declined or only partly applied (MINOR):** none declined.
