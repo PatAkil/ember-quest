@@ -1592,3 +1592,100 @@ them; one is applied in part with the evidence (B9).
 | D13 | MINOR | The farm branch's recurring owner walk in no steady-state line | on the "Always" row, conditional on question 5, about half an hour per tag (README) |
 
 **Declined or only partly applied:** B9 in part — the $0.008 rate was declined with the evidence above; the allowance and Pro's price were applied.
+
+## Round 14 — on revision 15 (commit `8b1ed4f`)
+
+Four reviewers on a lighter model, 51 findings: 2 BLOCKING, 22 GAP, 4 NUMBERS, 23 MINOR.
+The two blocking rows are mechanisms of the plan's own making, both found by the
+implementer: the environment image's hand-back commit lands `manifest.image.json` inside
+the `ci/env/**` glob that triggers a rebuild, so each hand-back re-armed the failure it
+was meant to clear (C1); and the device runner's ledger rows were to be appended to the
+nightly's issue with a token holding `statuses: write` alone, onto an issue that exists
+only on a red night (C2). The gaps: the tier the testers see had its bar measured on the
+prototype's four-plane diorama while P5 draws one flat plane (C5), and what LOW draws over
+that plane was never stated (A1); a bar had no form (A3); L2b dropped the shipped tiers
+after P6 (A5); the room hook still fired once per act and lap (A6); the portrait hue
+criterion deleted FIRE's own glow (A4); the required-check list check failed the very
+pull request that adds a job (A2); ARCADE was ungated (C8); the calibration's second
+reader was in no milestone (C6); the Kotlin `frames` instrument could not plant the
+fallback cast (C7); the runs cells had no legal `party` and the Vault relics no home (C3);
+the save had no header (C4); and on the owner's side the art programme committed before
+M4's gate (B1), a provider that cannot cap (B2), a public repository's schedules going
+silent after sixty days (B3), `prototype-check` outliving the oracle (B4), no stop after
+P2 (B5), the reservation limit never held against the calendar (B6), no risk row for the
+resemblance exposure (B7), a lever whose existence nobody checked (B8), a P5 cast miss
+that could be neither fixed nor waived (D1), and the app icon, splash and feature graphic
+with no producer (D2). Revision 16 resolves all of them and declines none.
+
+### 14-A — adversarial, technical
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| A1 | GAP | What LOW draws over the placeholder unstated; the prototype's LOW has no pools and no gain | LOW is the key light and the grade baked into the plane and nothing else, as the prototype's `bakeFlat`; MED and HIGH draw the full rig over it; the LOW bar is the prototype's LOW frame over the same composite (§ T9.2, README D16, § F3.1, § T10.4) |
+| A2 | GAP | The list check failed the pull request that adds a lane job until the owner edits the ruleset | the check is re-run, not re-pushed, once the owner adds the rule, while that pull request is open (§ T13.5) |
+| A3 | GAP | The form of a bar never given | a bar is a count: the number of the 72 readings at ≥ 1.5:1 the rig achieves at P0 for that tier; a frame set counting below it fails (§ F3.1, § T10.4, § V2) |
+| A4 | GAP | The hue criterion excluded the neutrals FIRE's glow is byte-identical to | each cell to its nearest ramp; only the neutral ramps the element does not share are uncounted (§ T10.4, § F3.3) |
+| A5 | GAP | L2b measured HIGH only after P6, dropping the shipped tiers | LOW and MED from P5, HIGH as well from P6; P6's exit holds LOW and MED at their P5 bars (§ V2, § T14, README P6 row) |
+| A6 | GAP | `room@<stage>` fired once per act and lap | `room@<act>.<stage>` (§ T5.3, § V3.2) |
+| A7 | NUMBERS | A 3-minute detekt tripwire inside a 5-minute L2a | 90 s (§ T15) |
+| A8 | MINOR | "The oracle does not contain forfeit" is false; § F1.1 omitted the `deathBy` change | the oracle never exercises it; `deathBy` empty by decision named in § F1.1's row (README item 3, § T2.3, § F1.1) |
+| A9 | MINOR | The seam sketch's `state()` had no source | the observer in `runSteps`'s signature (§ T2.3) |
+| A10 | MINOR | `lineup.ts`'s bands, colour count and interior share in neither calibration class | in the exact-reproduction list (§ T10.4; = C9) |
+| A11 | MINOR | `FORFEIT` listed as a kind while it answers a pending | a forfeit is an `answer` to the pending it quits, one example line (§ T5.3) |
+| A12 | MINOR | The version lint's four files sit in four booleans and no job keys on `root` | the lint runs unconditionally in every lane (§ T3) |
+
+### 14-B — adversarial, product and process
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | Actors accepted and committed during P1 before M4's gate and L2b's asset gate | in § V1's discipline list; their pull requests held until M4; the asset gate re-run over them at P1's exit (§ V1, § V9) |
+| B2 | GAP | The $4 000 ceiling assumed every provider can cap; Gemini's budgets only alert | a cap the provider enforces is a selection criterion at P0's terms check; where the winner cannot cap, the counter is the ceiling (§ T10.1, § T10.7, README) |
+| B3 | GAP | GitHub disables a public repository's schedules after 60 days; a stale nightly read as green | Renovate's monthly batch is the keep-alive; a last run older than 48 hours reads as red (§ V5, README steady state) |
+| B4 | GAP | `prototype-check` required forever, gating nothing after the oracle retires | it retires with the oracle; the prototype workflow keeps the freeze check alone (§ V8.3, § V5) |
+| B5 | GAP | No stop after P2; a felt-row "stop" during a running closed test undefined | the last stop on P5's first playable build, before the store set-up and the closed test; a stop ends a running test and a resumption restarts the fourteen days (README P5 rows, § T14, § F1.5) |
+| B6 | GAP | The reservation limit never held against the slowest calendar | the terms check asks for the limit against 38 weeks; any shorter limit moves the name to P5 (§ T12, README P0 row) |
+| B7 | GAP | No risk row for the resemblance exposure | a row with its response and price (README risks) |
+| B8 | GAP | Nobody checked that a higher tier or a second seat exists | P0 records whether the tier can rise and a second seat is permitted; the fast branch is conditional on it (README money row, calendar) |
+| B9 | NUMBERS | P5's XL and P7's M overloaded by named sub-items; three free blockers | the felt-row worst case a contingent item outside P5's band (up to 2–4 sessions); the first blocker inside P7's M, the second and third an S each (§ F1.5, README, § T14) |
+| B10 | NUMBERS | 8(b)'s "free arm64 leg lost" false since 2026-01-29; the allowance drained by macOS at 10× | the arm64 leg metered at $0.005 on two vCPUs; Linux bills in full — the nightly ≈ $30, the merge lane ≈ $0.50 a pull request (README question 8(b)) |
+| B11 | MINOR | The wrapper rationale's mixed-cast objection contradicted the accepted branch | the clause dropped (README) |
+| B12 | MINOR | "No recurring cost" assumed the postponed self-hosted platform charge stays away | named as an assumption, ≈ $4–8 a month if it returns (README question 5) |
+| B13 | MINOR | The App justified by spike 6 alone, though no agent pushes without it | the first thing P0 does, before the move commit (README P0 row, § T14) |
+| B14 | MINOR | Spend-only pull requests uncounted in P4's sittings | spend rows ride the next pack's pull request; the counter reads the local ledger (§ T10.1) |
+
+### 14-C — blind, the implementer
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| C1 | BLOCKING | The env-image hand-back rebuilt on its own artifact and never converged | the rebuild keys on the three recipe files, never on `manifest.image.json` (§ V4, § V9 M3) |
+| C2 | BLOCKING | The runner's ledger rows needed `issues: write` and an issue that exists only on a red night | a standing `ledger` issue created at M7; the token holds `statuses: write` and `issues: write` (§ T1, README D17, § V5, § V7, § T13.5) |
+| C3 | GAP | Runs cells had no legal `party`; the Vault relics no typed home | `party=-` for runs cells; `spec/fixtures/golden/vault/default.json` typed by `spec/golden/vault.md`, `vault=<n>` equipping its first n (§ T5.3, § T4.2, § T7.4) |
+| C4 | GAP | No record carried `RULES_VERSION` or the seed, so a save had nothing to parse | a `save 1 rules=<N> seed=<uint32>` first line, never in a trace (§ T5.3, § T11) |
+| C5 | GAP | The MED bar measured on the diorama P5 never draws | recorded over the flat composite lit by the rig at MED through a `flat=1 tier=MED` look, a fixture-page change (§ F3.1, § T10.4, § T4.2) |
+| C6 | GAP | The calibration golden's second reader in no milestone or exit | in M5, P1's exit list and P1's deliverables (§ V9, § T14) |
+| C7 | GAP | No Kotlin instrument could plant the fallback cast once P4 commits actors | `frames --cast fallback --seats all` (§ V3.3, § T14) |
+| C8 | GAP | ARCADE ungated by the in-scene rule | exempt as a stylisation, one transform over every biome (§ F3.1, § T10.4) |
+| C9 | MINOR | `lineup.ts`'s other metrics in neither calibration class | = A10 (§ T10.4) |
+| C10 | MINOR | `debug:` and `debug` spellings | one spelling (§ V3.2, § T11) |
+| C11 | MINOR | `end <draws>` unstated | the cell's draw index after the run (§ T5.3) |
+| C12 | MINOR | The prototype's cells driver unnamed | `prototype/sim/cells.mjs` (§ T5.3) |
+| C13 | MINOR | `record-goldens.yml` created by no milestone | in M3's list (§ V9) |
+| C14 | MINOR | Where `setup.sh` and `env.Dockerfile` land at P0 | in `ci/env/` by spike 6, reviewed there by M1 (§ T4.1) |
+| C15 | MINOR | The `tools` boolean's glob unwritten | `tools/instruments/**` (§ T4.1) |
+
+### 14-D — blind, the owner's advisor
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| D1 | GAP | A P5 cast miss could be neither fixed nor waived | the felt rows' bound: one rig rework, then a recorded miss carried into P6 or P7 held (§ T14, README P5 row, § F3.5, § T15) |
+| D2 | GAP | The icon, the splash and the feature graphic had no producer, source or gate | a crop of an accepted hero's idle frame over the ember ground, under `assets/store/`, reviewed on the P5 row (§ F2.5, README, § T2.1) |
+| D3 | NUMBERS | "An absolute 8 would be met" though composition scored 7 | met on the scene axis, not on composition (README P6 row, § T14) |
+| D4 | MINOR | Item 6 priced the bake-off at $250 while the keys carry $300 | "≈ $250 expected, capped at $300 on the keys" (README) |
+| D5 | MINOR | Two quantities, one number (17–34) | "of capacity" and "deep" (README) |
+| D6 | MINOR | Three owner decisions off the owner table | the bake-off's branch and the already-at-9 bar on the P0 row, the stop decisions on P4, the mixed cast on P5 (README) |
+| D7 | MINOR | The support page missing from the P5 row | named beside the privacy page (README) |
+| D8 | MINOR | The module summary omitted `:engine` and `:core-testing` | named (README) |
+| D9 | MINOR | Whose hour of pool upkeep | the owner's, outside item 6's lines on that branch (README question 9) |
+| D10 | MINOR | The aggregate under a "no" to question 6 unstated | 17–34 without P4's L, option B outside it (README question 6) |
+
+**Declined or only partly applied:** none declined.

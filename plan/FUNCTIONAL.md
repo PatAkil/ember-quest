@@ -30,7 +30,7 @@ current content.
 |---|---|
 | Party and stats | 3v3, eight stats (HP ATK DEF SPD flat; CRIT CDMG ACC RES points), the derivation with no compounding, mitigation `def / (def + 900)`, no caps but CRIT 100 at roll time |
 | Elements | FIRE ▸ WIND ▸ WATER ▸ FIRE, LIGHT ⇄ DARK; advantage = crit points, disadvantage = the glance; the GLANCE debuff |
-| Combat | the event-driven attack bar, the ten-step turn, cooldowns, seventeen statuses with their durations and stacking rule, the ACC/RES landing floor, the damage pipeline, counters, ENRAGE at turn 100, TURN_CAP 500 as a stall; **forfeit** — quitting a battle from the pause overlay ends the battle as a lost battle (`WIPE` in the rules, `forfeit` set on the result) and the run with it, the Vault banking as on any death; the screens credit the death to RETREAT, a presentation label the rules never carry |
+| Combat | the event-driven attack bar, the ten-step turn, cooldowns, seventeen statuses with their durations and stacking rule, the ACC/RES landing floor, the damage pipeline, counters, ENRAGE at turn 100, TURN_CAP 500 as a stall; **forfeit** — quitting a battle from the pause overlay ends the battle as a lost battle (`WIPE` in the rules, `forfeit` set on the result, `deathBy` empty by decision where the prototype would name a fallen hero's killer — `TECHNICAL.md` § T2.3) and the run with it, the Vault banking as on any death; the screens credit the death to RETREAT, a presentation label the rules never carry |
 | Skills | 24 hero skills (six kits of three plus six awakened variants) and every enemy skill in the closed `SkillId` union |
 | Characters | six (EMBER, GALE, TIDE, BASALT, SABLE, LUMEN): bases, kits, awakenings, leader skills |
 | Enemies | 37 across six biomes (four or five normals, one elite, one boss each), their packs, the scale formula per act, kind, lap and ascension, `BOSS_HP`, `ACT_MULT`, `LAP_MULT`, `CLEAR_GROWTH` |
@@ -112,7 +112,8 @@ behaviour and the new screens are built to it; the prototype is frozen with its 
    SHRINE, a SUMMON with a full party, the map, the Vault's EQUIP and BANK faces. A felt row
    the owner cannot sign stays open and P5 does not close — with a bound: a row reworked
    twice and still unsigned goes to the owner's decision, accept it as a recorded known
-   miss or stop; the priced worst case is two reworks per row and six in all across the eight — six S-sized reworks inside P5's XL, each re-walked in P5's next sitting inside its 8–12 — and a third rework on a row or a seventh overall is the branch trigger. The rows are scored against the
+   miss or stop — a stop during a running closed test ends the test: the testers are told,
+   the track is closed, and a later resumption restarts the fourteen days; the priced worst case is two reworks per row and six in all across the eight — six S-sized reworks, contingent and outside P5's XL — up to 2–4 sessions in the worst case, one of the aggregate's contingent items (README, *Effort*) — each re-walked in P5's next sitting inside its 8–12 — and a third rework on a row or a seventh overall is the branch trigger. The rows are scored against the
    **feel rubric** of the `kmp-quality` skill (`TECHNICAL.md` § T13.2), written at P1 from
    `STATUS.md`'s "Playing it on a phone" section and the full-frame critic's
    first-ten-minutes items — anything tapped twice, anything unreadable at arm's length, a
@@ -146,7 +147,7 @@ phase named in the Phase column.
 | F2.2 | **Settings** | sound volume and mute; ARCADE on/off; quality tier (AUTO/HIGH/MED/LOW); a "reset the Vault" with a confirm; credits | One screen, reachable from the title and the pause overlay. Haptics on hits is optional and off by default. A crash-report toggle appears only when a reporter ships (§ T12). | S | P5 |
 | F2.3 | **Orientation and safe areas** | landscape locked (question 2); the frame respects notches, rounded corners and the gesture-navigation edges | The mutable safe inset reads the platform's insets. Every edge target is tested under gesture navigation. | S | P5 |
 | F2.4 | **Interruptions** | a call or a switch to another app pauses the game and the sound; returning resumes on the pause overlay | The app pauses on lifecycle events and yields audio focus. | S | P5 |
-| F2.5 | **App identity** | icon, splash, store listing, a credits screen that names the AI art providers and every bundled asset's licence (the HUD face's OFL or Apache notice; the sounds and the glyph tables are the prototype's own) | Store metadata is copy the owner writes; the credits line is required by § F3.6. | S | P5 (identity and the listing copy, which Play needs before a closed-track release); P7 (the credits and disclosure copy) |
+| F2.5 | **App identity** | the app icon (a 1024 × 1024 master — a normalised crop of an accepted hero's idle frame at 4×, the fallback hero's until the cast is accepted, over the ember ground colour, drawn by the UI pipeline and never generated — from which the platforms' sizes and Android's adaptive layers are derived by the build), the splash (the icon on the ground colour through each platform's own launch screen), Play's 1024 × 500 feature graphic (the same crop over a stage capture); all three under `assets/store/`, an owned path the owner reviews on the P5 row; store listing, a credits screen that names the AI art providers and every bundled asset's licence (the HUD face's OFL or Apache notice; the sounds and the glyph tables are the prototype's own) | Store metadata is copy the owner writes; the credits line is required by § F3.6. | S | P5 (identity and the listing copy, which Play needs before a closed-track release); P7 (the credits and disclosure copy) |
 | F2.6 | **Device tiers** | a 2022 mid-range phone runs MED at 60 Hz; older devices start LOW; the toggle in settings | The tiers are the contract's; the *default* comes from a three-second stage benchmark run behind the title on first launch — the title needs no stage, so the ≤ 2 s boot budget of `TECHNICAL.md` § T9.5 holds and the tier is decided before the first battle (§ F1.3). | S | P5 |
 | F2.7 | **Bug reports from a release build** (the save share contingent on question 10's yes; built with the first test-track build so the felt rows and the closed testers have it) | a long-press on the title shares the current run's save file; the seed is shown on GAME OVER | So the owner's felt rows, the first-ten-minutes test and the closed testers — all on release builds — can report a bug that replays (`TECHNICAL.md` § T11). The rest of the debug drawer stays debug-only. | S | P5, with the first test-track build |
 
@@ -198,12 +199,19 @@ screenshots, are not in the repository and never will be.
   set**: the six seats of the resting frame of every biome — 36 seats, 72 strip readings
   — the seat list fixed at P0, an excluded seat counted as a miss, never dropped, and the
   fallback cast planted as a fixed reference at P0, P5 and P6; **three bars, all recorded
-  at P0 under this rule** on the prototype's landed rig, one per tier: P5 is gated at LOW
-  (one flat plane with the key light and grade baked in, the closest match to the
-  placeholder stage it draws) and at the tier the reference phone's first-launch benchmark
-  picks — MED on the 2022 phone (§ F2.6), the frame the felt rows and the testers see —
-  and P6 at HIGH (the record under the older strip rule was 106 of 108, quoted for scale
-  only); and the **seat spread** — the largest excess of a seat's torso median (rows
+  at P0 under this rule**, one per tier, each a count — the number of the 72 readings at
+  ≥ 1.5:1 the rig achieves at P0 for that tier, the shape of the record's 106 of 108; a
+  frame set counting below it fails: P5 is gated at LOW — the key light and the grade
+  baked into the one flat plane and nothing else, the prototype's LOW over the same
+  composite, so its bar is the prototype's LOW frame — and at the tier the reference
+  phone's first-launch benchmark picks, MED on the 2022 phone (§ F2.6), the frame the felt
+  rows and the testers see, whose bar is recorded over the flat composite lit by the
+  prototype's rig at MED (`TECHNICAL.md` § T4.2's `flat=1 tier=MED` look), not over the
+  four-plane diorama, which is not the scene P5 draws; and P6 at HIGH on the landed rig,
+  with LOW and MED not below their P5 bars (the record under the older strip rule was
+  106 of 108, quoted for scale only); ARCADE — LOW with the CRT pass over it, a
+  stylisation the player chooses — is exempt, since its scanlines, halation and lift are
+  one transform over every biome, not a light rig; and the **seat spread** — the largest excess of a seat's torso median (rows
   0.33–0.72 of the silhouette's height) over the median seat **of the same biome frame**,
   reported as the maximum over the six frames — an L* value whose bars are likewise the
   rig's per tier (the rig's own 4.5 L was measured with one sprite at all six anchors, the cast's
@@ -297,7 +305,7 @@ names what happens on a "no".
 | Heroes | 6 | 64 × 64 cells | five poses × three frames = 15 frames each; authored facing right |
 | Normal and elite enemies | 31 | 64 × 64 | same poses; creatures (a raptor, a jelly, a coil) are exempt from the mirror-IoU rule |
 | Bosses | 6 | 96 × 96 | same poses; heavier and taller by the size rule |
-| Portraits | 43 | painted, ≥ 256 px, cropped to 48-px chips | one per actor; the element mark is drawn by the UI, not painted. **Their own criteria** (the sprite metrics do not apply): crop-safe at 48 px (the face inside the chip's safe area); the face reads as two dark clusters and a highlight at 48 px; the element's hue is present — at least 15 % of the chip's cells within ΔE 12 of the element ramp's accent or glow colours, skin, hair and the other neutrals permitted and uncounted; consistent with the sprite's hair, headgear and colours; no text, no watermark — the tool measures the first three with the formulas of `TECHNICAL.md` § T10.4, the critic judges the last two. **Fallback**: a normalised head crop of the sprite, generated by the tool, which the screens are designed to accept from P5 so no screen ever depends on a portrait |
+| Portraits | 43 | painted, ≥ 256 px, cropped to 48-px chips | one per actor; the element mark is drawn by the UI, not painted. **Their own criteria** (the sprite metrics do not apply): crop-safe at 48 px (the face inside the chip's safe area); the face reads as two dark clusters and a highlight at 48 px; the element's hue is present — at least 15 % of the chip's cells within ΔE 12 of the element ramp's accent or glow colours, skin, hair and the other the neutral ramps the element does not share permitted and uncounted, each cell assigned to its nearest ramp; consistent with the sprite's hair, headgear and colours; no text, no watermark — the tool measures the first three with the formulas of `TECHNICAL.md` § T10.4, the critic judges the last two. **Fallback**: a normalised head crop of the sprite, generated by the tool, which the screens are designed to accept from P5 so no screen ever depends on a portrait |
 | Total sprite frames | 645 | stored at cell resolution | the budget model is in `TECHNICAL.md` § T10.7 |
 
 ### F3.4 Acceptance criteria — what the player must be able to see
@@ -379,8 +387,10 @@ Two decision points, each a yes or no from the owner on lit phone frames:
    *Continue* to the enemies; *change provider* (the whole-cast re-gate, README money
    table); or *stop*. The cast is judged once more on
    the real stage at P5's end; a miss there is a light or composition fault and is worked in
-   the rig inside P5 — its gain, pools and cast lobe are P5 code — or, if only the planes can
-   carry it, in the scene phase; never by regenerating the cast.
+   the rig inside P5 — its gain, pools and cast lobe are P5 code — under the felt rows'
+   bound: one rig rework, then the owner's decision, a recorded miss carried into the scene
+   phase (which only the planes can then answer) or P7 held for it; never by regenerating
+   the cast.
 3. **When the cast's ceiling is reached** — the $4 000 of per-image spend held as the
    providers' own caps, or, for a subscription winner, a month that ends with the cast
    incomplete (`TECHNICAL.md` § T10.7) — wherever the cast stands: the same three branches — a budget the owner raises by name,
