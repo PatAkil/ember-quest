@@ -195,7 +195,7 @@ screenshots, are not in the repository and never will be.
   median against the ground it stands on at both ground strips, as a **luminance
   contrast** — the WCAG relative-luminance ratio `(Y_hi + 0.05) / (Y_lo + 0.05)` between
   the median of the actor's masked cells and the median of the strip's surviving cells,
-  ≥ 1.5:1 (over an L* 41.6 ground that admits an actor above L* 53.5 or below 31.3, as
+  ≥ 1.5:1 (over an L* 41.6 ground that admits an actor above L* 53 or below 31 — 52.8 / 30.6 by the formula; the 53.5 / 31.3 of ART-REVIEW.md carry a 0.7-L slip of their own — as
   ART-REVIEW.md records; an L* ratio would be a different gate) — measured on **one fixed
   set**: the six seats of the resting frame of every biome — 36 seats, 72 strip readings
   — the seat list (which fallback actor stands in each of the six seats of each biome) recorded in `spec/art/bible.md` when the art tool is calibrated, before the P0 captures, beside the bars, an excluded seat counted as a miss, never dropped, and the
