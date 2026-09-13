@@ -14,7 +14,7 @@ agents in thirty-two rounds (112, 97, 73, 71, 55, 59, 69, 62, 59, 72, 73, 56, 52
 every blocking and gap finding of each round was resolved in the next revision, every
 numbers and minor one applied or listed in `REVIEW.md` with the reason it was declined); this
 is revision 34, after round 32 — the last round, at the owner's decision, the smallest of the
-thirty-two at 32 findings and the second with no blocking finding: its twelve gaps were the
+thirty-two at 32 findings and the sixth with no blocking finding: its twelve gaps were the
 verifier's stub with no klib target a Linux host can build under question 3(b), the `ios`
 boolean named by no job, the iPhone's frame time with no instrument that can read a Skia
 canvas, the ruler gating on a machine class the image cannot pin, a stopped device lane
@@ -34,7 +34,7 @@ blocking and no gap that moves a phase's size, price or gate, since the gap coun
 between thirteen and twenty-two for sixteen rounds, fell to nine in round 30 — the first
 round with no blocking finding and a single-digit gap count — returned to thirteen in
 round 31 and stood at twelve in round 32, the smallest round of all at 32 findings and the
-second with no blocking finding, and about a third
+sixth with no blocking finding, and about a third
 of each round is the previous revision's own residue; **the owner stopped the loop at that
 bar after round 32**, every one of its findings resolved in this revision; a further round costs about a tenth
 of a session of agent capacity (sixteen rounds ran inside a day), and P0 may start with
@@ -88,7 +88,7 @@ module); `TECHNICAL.md` § T16 is the empty seat it will take.
    the oracle and are rebuilt bit for bit — except the three rules `TECHNICAL.md` § T2.3 names
    (forfeit, `minAscensionFor`'s vector, `resumeRun`), which the oracle never exercises (forfeit is in its code and no policy takes it) or
    does not contain — with the storyboard's forcing hooks (`RunDebug`) as a fourth and the
-   battles harness's `spdDelta` as a fifth, the empty-roster fallback as a sixth, the seam's refusal of a mismatched answer as a seventh and the lap cap at the `pow` table's end as an eighth the goldens never set — and clause tests alone bind; the screens, the stage and the art are designed
+   battles harness's `spdDelta` as a fifth, the empty-roster fallback as a sixth, the seam's refusal of a mismatched answer as a seventh and the lap cap at 32, where the `pow` table ends, as an eighth the goldens never set — and clause tests alone bind; the screens, the stage and the art are designed
    for a phone, taking from the prototype only its measured laws; every later change is
    specified, tested and gated on its own (principles 2–3, `FUNCTIONAL.md` § F1); the six
    presentation rows of `FUNCTIONAL.md` § F2.2–F2.7 (settings, safe areas, interruptions,
@@ -289,7 +289,7 @@ does, by phase*) after 12–24 sessions of depth
 (P0–P3 and P5's first half) and 14–28 of capacity, P4's cast included; P5's end is 14–28
 deep and 16–32 of capacity, and its felt rows close its gate (the store set-up and the closed test are its tail). **The calendar is the largest of three terms, and the third is serial.** The first
 is agent capacity, which the subscription's limits bound: at *n* sessions a week the
-programme takes 19/*n* to 38/*n* weeks — three a week gives six to thirteen, one a week
+programme takes 19/*n* to 38/*n* weeks — three a week gives eleven to fifteen once composed as the rule below says (six to thirteen by the bare division), one a week
 nineteen to thirty-eight (the 19–38 aggregate, question 3(c)'s session among the contingent items below — composed with the serial six weeks as the rule below says, twenty to thirty-eight, which is what every one-a-week figure in this document quotes); this review's own rounds hit the five-hour limit twice, so a bound is real; the weekly
 one, which sets *n*, is measured at P1. The second is the owner's review latency: every owned-path change and every
 contract clause waits for the owner's review on its head commit (D17). Counted in
@@ -539,7 +539,7 @@ the price of each branch are stated so nothing waits on a question nobody knew w
    as long as the app is listed — through `pages.yml`'s `docs` job, the one job that assembles and uploads the Pages
    artifact — it needs the prototype build green while that job exists, and nothing once it
    is retired (`TECHNICAL.md` § T12, § T4.1). (b) *The web as a target*,
-   closes at P0's start, before spike 5's wasm leg (either way `:core` keeps a test-only `linuxX64` klib target for the verifier's stub, `TECHNICAL.md` § T6.3): keep wasmJs as the stretch target (recommended; it costs about a minute of
+   closes at P0's start, before spike 5's wasm leg (either way `:core` and `:core-testing` keep a test-only `linuxX64` klib target for the verifier's stub, `TECHNICAL.md` § T6.3): keep wasmJs as the stretch target (recommended; it costs about a minute of
    compile in every merge lane until P8 — as an informative, non-required job, so a break
    in the beta Compose target never blocks a merge — plus P8 itself, 1–2 sessions and two to
    four sittings after P7, outside the 19–38 and the 59–74 sittings) or drop it, which removes P8, that minute, the wasm targets of `:core`, `:engine` and `:ui` with `app/web/`, spike 5's wasm leg and M7's wasm compile job. (c) *The demo's three screen defects* (two root causes), closes at P0 before the move commit

@@ -3033,7 +3033,8 @@ plan says.
 ## Round 30 — on revision 31 (commit `bf57f4d`)
 
 Four reviewers on a lighter model, 38 findings: 0 BLOCKING, 9 GAP, 6 NUMBERS, 23 MINOR — the
-first round with no blocking finding and the first with a single-digit gap count; two of the
+first round with both no blocking finding and a single-digit gap count (the fifth with no
+blocking finding, after rounds 13, 15, 16 and 21); two of the
 nine gaps are one finding twice (B1, D1) and two of the numbers likewise (B4, D2). The gaps: an
 open battle was replayed across a rules version by an index into a list the new rules may
 have moved (A1); the HIGH tier shipped at P5 with no in-scene bar (A2); the Playwright
@@ -3194,7 +3195,7 @@ was declined.
 ## Round 32 — on revision 33 (commit `6c92769`) — the last round
 
 Four reviewers on a lighter model, 32 findings: 0 BLOCKING, 12 GAP, 3 NUMBERS, 17 MINOR — the
-smallest round of the thirty-two and the second with no blocking finding; reviewer D returned
+smallest round of the thirty-two and the sixth with no blocking finding; reviewer D returned
 no gap and an "approve" verdict. The owner closed the loop at this round, at the README's
 practical bar. The gaps: the verifier's stub had no klib target a Linux host can build once
 question 3(b) drops wasm (A1); the `ios` boolean was named by no job, so an `iosApp/**`-only
