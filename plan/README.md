@@ -122,7 +122,7 @@ module); `TECHNICAL.md` § T16 is the empty seat it will take.
 ## Where we start from
 
 - **One prototype**: about 45 000 lines of TypeScript and JavaScript (rules core 4 900 ·
-  engine 5 700 · screens 7 400 · art 21 900 · tools and harness 3 700 · the rest `main.ts`
+  engine 5 700 · screens 7 400 · art 21 700 · tools and harness 3 700 · the rest `main.ts`
   and the shell) plus about 4 400 lines of contract and review logs. A headless,
   deterministic rules core with injected randomness; a per-game fork of the Retrovibe engine
   (loop, input with hit regions, bitmap fonts, palettes, particles, juice, a synthesized
