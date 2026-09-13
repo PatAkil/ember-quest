@@ -3028,3 +3028,80 @@ plan says.
 | D10 | MINOR | The roadmap's P0 gate short of § T14's | the adjudication and the accepted re-estimate added (README) |
 
 **Declined or only partly applied:** none.
+
+
+## Round 30 — on revision 31 (commit `bf57f4d`)
+
+Four reviewers on a lighter model, 38 findings: 0 BLOCKING, 9 GAP, 6 NUMBERS, 23 MINOR — the
+first round with no blocking finding and the first with a single-digit gap count; two of the
+nine gaps are one finding twice (B1, D1) and two of the numbers likewise (B4, D2). The gaps: an
+open battle was replayed across a rules version by an index into a list the new rules may
+have moved (A1); the HIGH tier shipped at P5 with no in-scene bar (A2); the Playwright
+browser every capture runs through was outside the pinned environment (A3); the internal-track
+testers of round 29's B3 were invited at the very stop they were meant to inform (B1, D1); a
+no-go left the prototype without its own development loop (B2); the candidate PNGs were
+unreachable from the frozen dev server (C1); P2's and P3's new lane jobs had no ruleset act
+(C2); and the in-scene-bar clauses were promoted before any test bound them (C3). The numbers:
+the paid pace priced at one doubling (B3); Git LFS named as free (B4, D2); the image
+package's storage (B5); the portraits outside the cast line (B6); the one-a-week calendar
+quoted from two aggregates (D3). Nothing was declined.
+
+### 30-A (adversarial, technical) — 0 BLOCKING, 3 GAP, 0 NUMBERS, 5 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| A1 | GAP | An open battle replayed across a rules version by index | restarts from its pre-battle snapshot (§ T11) |
+| A2 | GAP | HIGH shipped at P5 with no in-scene bar | not offered before P6's planes and bar; MED the picker's top until then (§ F2.6, § T9.2, § F3.1, README P5 gate) |
+| A3 | GAP | The Playwright browser outside the pinned environment | pinned in `versions.env`, installed by both forms, in the manifest (§ V4, § V5) |
+| A4 | MINOR | The flat-plane hook unstated at HIGH | the HIGH rig over the same flat blit (§ T4.2) |
+| A5 | MINOR | What makes the list job inert unstated | it passes while the branch has no required-checks rule (§ T13.5, § V1) |
+| A6 | MINOR | A required check's removal unscheduled | scheduled as an addition is (§ T13.5) |
+| A7 | MINOR | The seam's mismatched-answer refusal outside the six | the seventh, bound by a `SESSION` clause test (§ T2.3, README item 3) |
+| A8 | MINOR | Fixture roots named for two modules only | `<Module>Fixtures`; `EngineFixtures` and `StoryboardFixtures` named (§ T2.1) |
+
+### 30-B (adversarial: product, process, risk) — 0 BLOCKING, 2 GAP, 4 NUMBERS, 5 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | The internal-track testers invited at the stop itself | with D1 |
+| B2 | GAP | A no-go leaves the prototype without its loop | a quarter-session rename restores its skills and `CLAUDE.md` (§ T4.3, README) |
+| B3 | NUMBERS | The paid pace priced at one doubling | one increment from *n* ≥ 1.5, two from *n* = 1, priced; no increase available leaves the assumed calendar (README item 6, money table) |
+| B4 | NUMBERS | LFS has no public quota | with D2 |
+| B5 | NUMBERS | Commit-tagged images never pruned; no Packages line | a retention rule; the storage line in 8(b)'s arithmetic (§ V4, README) |
+| B6 | NUMBERS | The portraits outside the per-image cast line | inside it, ≈ $30–100 (README money table) |
+| B7 | MINOR | All-rights-reserved against GitHub's fork right | readable and forkable on GitHub's terms, not reusable elsewhere (README 8(b)) |
+| B8 | MINOR | The image package's visibility an unlisted owner act | on the P1 row (README, § T2.1) |
+| B9 | MINOR | The icon construction pinned to look A | the 128-px frame at 8×, bilinear, under look B (§ F2.5, § V3.3) |
+| B10 | MINOR | Question 2 unpriced in programme weeks | its calendar at the three paces (README question 2) |
+| B11 | MINOR | The monthly hour over the base months only | three to twelve hours (README item 6) |
+
+### 30-C (blind implementer) — 0 BLOCKING, 3 GAP, 0 NUMBERS, 6 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| C1 | GAP | The candidate PNGs unreachable from the frozen dev server | read in Node, handed to the page as data URLs (§ T4.2) |
+| C2 | GAP | P2's and P3's new lane jobs with no ruleset act | named in § T13.5; one act each on the P2 and P3 owner rows (README) |
+| C3 | GAP | The in-scene-bar clauses promoted before any test bound them | they stay `proposed` until P5's ruler binds them (§ V9, README P1 row) |
+| C4 | MINOR | The pool clamp's "both radii" against the code's `rx` alone | `rx` alone, the code's rule (§ T2.5) |
+| C5 | MINOR | Four of the five axes with no source on the calibration sheet | the full-frame set: the HUD, a hit peak, a stage frame per biome (§ T14, § F3.5) |
+| C6 | MINOR | No token named for `art generate`'s API read | `EMBER_APP_TOKEN` from the `SessionStart` mint; `art gate` needs none (§ T10.1, § T13.3) |
+| C7 | MINOR | Nothing emits `spec/.generated/` before the hand-run recording | `gate.sh edit` first (§ T7.8) |
+| C8 | MINOR | Which field prints `-` on an empty SUMMON | both `offers` and `dominant` (§ T5.3) |
+| C9 | MINOR | `seats` read as seat labels | six actor ids in seat order (§ T7.5) |
+
+### 30-D (blind owner's advisor) — 0 BLOCKING, 1 GAP, 2 NUMBERS, 7 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| D1 | GAP | The stop taken before the testers could play | invited on the build, three to five days before the stop, which waits for them (README P5 row, § T12) |
+| D2 | NUMBERS | LFS named as free "within the public quota" | a blobless partial clone instead; LFS's per-account allowance and price stated (§ V7) |
+| D3 | NUMBERS | The one-a-week calendar quoted from two aggregates | 19–38 everywhere, the aggregate named once (README) |
+| D4 | MINOR | The four-week closed-test window absent from the owner's commitments | in item 6 (README) |
+| D5 | MINOR | 8(a)'s owner hours unpriced | an hour or two in the admin band (README) |
+| D6 | MINOR | Question 8's inputs outside the first hour | the three rates and the protection rules in it (README P0 row) |
+| D7 | MINOR | 3(a)'s retire branch drops a launch channel unsaid | said (README) |
+| D8 | MINOR | Option B's rate measurement outside the contingent tally | added, ≈ ½; eight to fifteen (README) |
+| D9 | MINOR | The early-close saving stated as $160 | $80–160, one painted arm or two (README question 1) |
+| D10 | MINOR | The P4-start re-read assigned to nobody | the agent performs, the owner confirms; an hour in the admin band (README P4 row, § T10.2) |
+
+**Declined or only partly applied:** none.
