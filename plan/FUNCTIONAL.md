@@ -111,7 +111,7 @@ behaviour and the new screens are built to it; the prototype is frozen with its 
    walks on a phone on P5's first playable build and re-walks until they are signed, which
    closes P5: the first ten minutes (below), a KO, INSPECT, PAUSE, a
    SHRINE, a SUMMON with a full party, the map, the Vault's EQUIP and BANK faces. A felt row
-   the owner cannot sign stays open and P5 does not close — with a bound: a row reworked
+   the owner cannot sign stays open and P5's gate does not close (the store set-up, the invitations and the started closed test are P5's tail after the gate) — with a bound: a row reworked
    twice and still unsigned goes to the owner's decision, accept it as a recorded known
    miss or stop — a stop during a running closed test ends the test: the testers are told,
    the track is closed, and a later resumption restarts the fourteen days; the priced worst case is two reworks per row and six in all across the eight — six reworks, each a third to two-thirds of a session, contingent and outside P5's XL — up to 2–4 sessions in the worst case, one of the aggregate's contingent items (README, *Effort*) — each re-walked in P5's next sitting inside its 8–12 — and a third rework on a row or a seventh overall is the branch trigger. The rows are scored against the
@@ -170,7 +170,7 @@ screenshots, are not in the repository and never will be.
 - **Cell and size.** One cell is 2 screen px at 720p. The canvas is 64 × 64 cells (96 × 96
   for a boss). The bands are the review's recorded ones: a hero 52–60 rows tall, any width
   the 64 columns allow (the contract's `ACTOR_PART = 64` cells — `ACTOR_W` is its 128 screen px; measured heroes run to 53 columns); a
-  standard enemy 40–58 rows (11–16 % of the frame, the review's recorded band); an elite 50–56; a boss at least 60 on the 96-cell canvas (the
+  standard enemy 40–58 rows (11–16 % of the frame, the review's recorded band); an elite 49–56; a boss at least 60 on the 96-cell canvas (the
   six measured 65–93). A taller boss band is a change
   the owner may make at the bake-off, recorded as such — never a silent renumbering. Feet at the bottom centre; authored facing right (the battle mirrors
   heroes).
@@ -218,7 +218,7 @@ screenshots, are not in the repository and never will be.
   stylisation the player chooses — is exempt, since its scanlines, halation and lift are
   one transform over every biome, not a light rig; a ruler below its bar at a phase exit
   has the cast-miss shape — one rework of the rig at P5 or of the planes at P6, then the
-  owner's decision, a recorded miss carried forward or the phase held — and so does P6's
+  owner's decision, a recorded miss carried forward (that tier's bar re-recorded at the reached count in the same owner-reviewed pull request, as a golden is re-recorded under `TECHNICAL.md` § T7.3, so the lane is green on it) or the phase held — and so does P6's
   acceptance on a phone; under question 2's portrait branch the bars are re-recorded at P5
   by the Kotlin `frames` instrument on the portrait placeholders it draws — the landscape
   composites cropped to the centre 9:16 and upscaled nearest, the seats re-anchored by
@@ -556,7 +556,10 @@ before code moves: every status needs a source, a sim interpretation and a scree
 
 Character changes can be *specified* at any time (a spec is text); they are *built* after
 the P3 rules gate so that the balance table is a known baseline to measure them against —
-before or after the store release as the owner decides (§ F4.5, question 5). Their art
+before or after the store release as the owner decides (§ F4.5, question 5) — after it, a
+change reaches players through a further store release: a `v*` tag, the `release`
+approval, App Review's days and a Play update, an S of agent work and an owner sitting on
+top of § F4.3's price. Their art
 follows their spec (a kit decides a weapon and a pose) and is generated against the
 accepted cast; details supplied before P4 fold into the cast pass.
 

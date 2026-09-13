@@ -2149,3 +2149,96 @@ question 3(c)'s recommended session (B10); the worst case's enumeration summing 
 | D8 | MINOR | The demo "free" after the oracle retires | its build unmaintained then; a rot repair a steady-state out-of-cycle item (README question 3(a)) |
 
 **Declined or only partly applied:** none.
+
+
+## Round 20 — on revision 21 (commit `3a7ae2a`)
+
+Four reviewers on a lighter model, 47 findings: 1 BLOCKING, 18 GAP, 6 NUMBERS, 22 MINOR.
+The blocking row is revision 21's own residue: round 19's D4 moved the first `v*` tag
+before the store set-up while § T12 still defined every tag as an upload to Play's
+closed-testing track and to external TestFlight, both of which the listing has to precede
+(D1). The gaps: the Macrobenchmark APK the lanes run came from a module no phase built
+(C1); `keepalive.yml` pushed as the agents' App, whose key has no home in Actions (A2);
+the verifier's stub generator existed in no module, deliverable or milestone (A1); L1's
+matrix scope would have failed on every art-tool commit (A3); an accepted ruler miss left
+the lane red on every push (C2); `seats.json` had no reader named outside the binder (C3);
+cell ids were unchecked (C4); the bake-off's $300 had no per-key split though the refusal
+is per key (B1); Gemini's per-day quota bounds a rate, not the cumulative spend (B2);
+nothing said which P0 deliverables wait for the go or no-go (B3); "hand over" was undefined
+(B4); the owner's weekly hours were never stated (B5); D11's decision was not ordered
+before the closed test it could reset (B6); question 7(b)'s "no" left the `gates`
+environment's `main`-only rule unchanged (B7); no risk row covered a suspended account or
+lost signing material (B8); the scene phase after the release reached players through no
+priced release (D2); and question 2's portrait branch was unpriced in the owner's currency
+(D3). The numbers: `<target>` defined the inverse of the oracle (A4); the elite band a row
+above the review's floor (A5); question 8(b) at its macOS subtotal (B9, D4); the GitHub
+rates without a confirmation marker (B10); and the bake-off's image counts taken from
+option (a) alone (C5). Nothing was declined.
+
+### 20-A (adversarial, technical) — 0 BLOCKING, 3 GAP, 2 NUMBERS, 4 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| A1 | GAP | The verifier's stub generator existed in no module, deliverable or milestone | `:tools:stub`, a `:tools` CLI in § T2.1, built at M5 beside the binder, an S inside P1's L (§ T6.3, § T2.1, § V9) |
+| A2 | GAP | `keepalive.yml` pushing as the agents' App needed a key with no home in Actions | it pushes with the built-in `GITHUB_TOKEN` — a commit is repository activity whoever authors it, and no App key enters Actions (§ T2.1, § V5, README steady state) |
+| A3 | GAP | L1's matrix scope would fail on every art-tool commit, `ART` clauses binding only in L2b | L1's scope excludes the `ART` and `RUN-FLOW` clauses, whose tests are L2b's (§ T7.2) |
+| A4 | NUMBERS | `<target>` defined as the inverse of `actOptions` | the living slot index for an `ENEMY` or `ALLY` spec, `-1` for every other (§ T5.3) |
+| A5 | NUMBERS | "An elite 50–56" against the review's recorded 49 floor | 49–56 (§ F3.1) |
+| A6 | MINOR | § V4 read as a workflow-level path filter | as C9 |
+| A7 | MINOR | The synthetic module's clauses had no area | `SYNTHETIC`, deleted with the module in P3's first `:core` commit (§ T7.1) |
+| A8 | MINOR | Seeds 3 and 4242 "at 2 000" presented as the contract's | the contract's two rows plus its two verification seeds at 2 000, a count the plan fixes (§ T5.5) |
+| A9 | MINOR | The version code from a depth-1 checkout | on a `fetch-depth: 0` checkout (§ T12) |
+
+### 20-B (adversarial: product, process, risk) — 0 BLOCKING, 8 GAP, 2 NUMBERS, 6 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | The bake-off's $300 had no per-key split, the refusal being per key | RD Pro $150, each painted arm $60, the portrait stills $30, re-split at P0's terms check if a provider drops out (§ T10.1) |
+| B2 | GAP | Gemini's per-day quota bounds a rate, not the cumulative spend | the terms check records quota × the cast's calendar days below the key's cap, or admits Gemini on a prepaid balance only, or Gemini leaves the bake-off (§ T10.2) |
+| B3 | GAP | Nothing said which P0 deliverables wait for the go or no-go | before the go only the App, the move commit and the environment spike; the other spikes, the art tool, the captures, the accounts, the testers and the bake-off wait (README P0 row, § T14) |
+| B4 | GAP | "Hand over" undefined | the app transferred on each store, the Apps and the `release` environment re-created by the new owner, the `match` repository and the Firebase project handed across — a session and a sitting (README steady state) |
+| B5 | GAP | The owner's weekly hours never stated | about seven to thirteen a week at the fourteen-week floor, two to five at one session a week (README) |
+| B6 | GAP | D11's decision not ordered before the closed test its fallback could reset | before the first test-track build (README P5 row, § T14) |
+| B7 | GAP | Question 7(b)'s "no" left the `gates` environment's `main`-only rule unchanged | the rule admits the `kmp` branch instead (README question 7(b)) |
+| B8 | GAP | No risk row for a suspended account or lost signing material | a row in both tables: Play App Signing, the `match` repository backed up off GitHub, the keys re-issued, an appeal, then the other store's listing alone (README risks, § T15, § T12) |
+| B9 | NUMBERS | Question 8(b) at its macOS subtotal | about $100–200 a month all in (README question 8(b); with D4) |
+| B10 | NUMBERS | The two GitHub rates carried no confirmation marker | read again at P0's terms check (README question 8(b)) |
+| B11 | MINOR | A ruleset edit counted as an authoring exception | the rule is about repository files; one exception, the bootstrap's (§ V5) |
+| B12 | MINOR | The device-only crash row omitted the stores' crash signals | Play vitals and TestFlight's crash logs, with the caveat (§ V6) |
+| B13 | MINOR | The exceptions' sentence still listed the rework case among the money ones | two of money, one of rework (README absence protocol) |
+| B14 | MINOR | D2's § F3.6 cross-reference for a money consequence | question 8(b) (README D2) |
+| B15 | MINOR | The channel's within-the-week triage promised past P7 | until P7, then monthly, the quarterly session answering (§ T12) |
+| B16 | MINOR | M7's proof attributed to the runner branch alone | spent under either branch (README question 5) |
+
+### 20-C (blind implementer) — 0 BLOCKING, 4 GAP, 1 NUMBERS, 6 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| C1 | GAP | No Macrobenchmark module existed for the APK the lanes run | `:app:benchmark`, a `com.android.test` module inside the `app` glob, a P5 deliverable (§ T2.1, § T14) |
+| C2 | GAP | An accepted ruler miss left L2b red on every push | the bar re-recorded at the reached count in the same owner-reviewed pull request, as a golden is (§ F3.1, § T14, README roadmap) |
+| C3 | GAP | `seats.json` read by `:tools:instruments` with no reader named outside the binder | read from the repository path as a JVM-only reader, as the save corpus is (§ T2.1) |
+| C4 | GAP | Cell ids unchecked for uniqueness or grammar | spec-lint: unique across `cells.md`, matching `^[a-z0-9][a-z0-9-]*$` (§ T7.8) |
+| C5 | NUMBERS | 216 images per combination is option (a)'s; (b) is 192 | 216 for (a), 192 for (b); ≈ 620 per-image generations; ≈ 410–820 on the subscription provider (§ T10.7) |
+| C6 | MINOR | Two mechanisms for `minAscensionFor`'s table; an unexplained fixture directory | the `spec/fixtures/meta/vault/` entry dropped, the `META-VAULT` table stands (§ T7.4, § T2.1) |
+| C7 | MINOR | Eight spikes, nine reports, as D7 | as D7 |
+| C8 | MINOR | `--trace`'s destination unstated | stdout, redirected by `cells.mjs`; the two flag grammars named (§ T5.4) |
+| C9 | MINOR | `env-image.yml` "when the recipe changed" | on every pull request, its `changes` job gating the build (§ V4; with A6) |
+| C10 | MINOR | "The three baseline sheets" | the calibration sheet and its three scorings (README P0 row) |
+| C11 | MINOR | `pixel=<dir>` mandatory for frames that plant the fallback cast | optional; the fallback recipes stand in when it is absent (§ T4.2) |
+
+### 20-D (blind owner's advisor) — 1 BLOCKING, 3 GAP, 1 NUMBERS, 6 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| D1 | BLOCKING | The first `v*` tag, before the store set-up, was a closed-track and external-TestFlight upload the listing must precede | the first tag uploads to Play's internal track and TestFlight's internal group alone; promotion to the closed track and the external group begins with the first build after the store set-up (§ T12, README P5 rows, § T14) |
+| D2 | GAP | The scene phase after the release, and later character changes, reach players through no priced release | a further store release — a `v*` tag, the `release` approval, App Review's days, a Play update — an S of agent work and one owner sitting (README P6 row, question 4(a); § F4.4) |
+| D3 | GAP | Question 2's portrait branch unpriced in the owner's currency | about two to four extra sittings, the pre-build floor about ten to thirteen weeks, the portrait bars' approval (README question 2, D21, effort paragraph) |
+| D4 | NUMBERS | Question 8(b) at its macOS subtotal, as B9 | as B9 |
+| D5 | MINOR | § F3.5's fourth trigger missing from the P4 row | second, third and fourth (README P4 row) |
+| D6 | MINOR | The one-off total's top counted the planes the recommended branch never buys | ≈ $1 900–2 900 on the recommended branches, ≈ $3 000 with the planes; the all-in lines re-derived (README money table) |
+| D7 | MINOR | Eight spikes, nine reports | nine reports, 5b's beside 5's (README P0 rows) |
+| D8 | MINOR | Three statements of the closed test's trigger claiming to be one | the Play row and § T12 point at the absence protocol (README, § T12) |
+| D9 | MINOR | The owner's table ended at P7 | an "After P7" row (README) |
+| D10 | MINOR | The felt rows "close P5" though its store set-up follows them | they close P5's gate; the store set-up and the closed test are its tail (§ F1.5, README) |
+
+**Declined or only partly applied:** none.
