@@ -3189,3 +3189,77 @@ was declined.
 | D5 | MINOR | P5's mixed cast conditioned on a subscription pace | when P4 is late, whatever the cause (§ T14) |
 
 **Declined or only partly applied:** none.
+
+
+## Round 32 — on revision 33 (commit `6c92769`) — the last round
+
+Four reviewers on a lighter model, 32 findings: 0 BLOCKING, 12 GAP, 3 NUMBERS, 17 MINOR — the
+smallest round of the thirty-two and the second with no blocking finding; reviewer D returned
+no gap and an "approve" verdict. The owner closed the loop at this round, at the README's
+practical bar. The gaps: the verifier's stub had no klib target a Linux host can build once
+question 3(b) drops wasm (A1); the `ios` boolean was named by no job, so an `iosApp/**`-only
+pull request merged unbuilt (A2); the iPhone's frame-time row named an instrument that reads
+no Skia canvas (A3); L2b's ruler gated on the Skia tier the image cannot pin (A4); a stopped
+device lane was invisible between gates (A5); the private branch's Pages site would have
+published the sheets (B1); nothing read an Android frame time before P5 (B2); the year-one bar
+was unreadable in a one-listing year (B3); the testers' record was never named as personal data
+(B4); the first push had no credential path (C1); the bake export had no page hook (C2); and
+the rig export had no route into the binder (C3). The numbers: the capacity term composed with
+the serial six weeks (B5, D1); the second $99 on the contingent calendar alone (B6). Nothing
+was declined.
+
+### 32-A (adversarial, technical) — 0 BLOCKING, 5 GAP, 0 NUMBERS, 4 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| A1 | GAP | No klib target a Linux host can build once 3(b) drops wasm | a test-only `linuxX64` klib target on `:core` whatever 3(b) answers (§ T6.3, README 3(b)) |
+| A2 | GAP | The `ios` boolean named by no job's `if:` or status | on the iOS build and boot-smoke job (§ T4.1, § V5) |
+| A3 | GAP | XCTest reads no frame time off a Skia canvas | per-frame `os_signpost` intervals from `:engine`'s iOS loop and a custom signpost metric, a P5 deliverable (§ T9.5, § T2.1) |
+| A4 | GAP | L2b's ruler gated on a machine class the image cannot pin | reported outside the image, gated in L3, as the goldens are (§ V2) |
+| A5 | GAP | A stopped device lane invisible between gates | the nightly's ledger check files its issue when no device row is newer than three nights; § V6's device rows say so (§ V7, § V6) |
+| A6 | MINOR | An unbounded lap against a 32-entry `pow` table | a `RUN` clause caps the lap at the table's last exponent, the eighth seam divergence (§ T5.2, § T2.3, README item 3) |
+| A7 | MINOR | "The living slot index" ambiguous | the target actor's own slot, enumerated over living actors ascending (§ T5.3) |
+| A8 | MINOR | P0's post-go order short of the ruler captures, `ground` and the bars | with C4 |
+| A9 | MINOR | M6's iOS frame compared at an undefined tolerance | `art gate`'s sheet metrics over both frames at the second reader's tolerances (§ V9) |
+
+### 32-B (adversarial: product, process, risk) — 0 BLOCKING, 4 GAP, 2 NUMBERS, 4 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | A Pages site from a private repository stays public | the sheet-index route dropped; said once, with the privacy and support pages as the consequence (README 8(b)) |
+| B2 | GAP | No Android frame-time reading before P5 | M7's instrumentation run reads M6's stage with both blend modes, read at the P1 stop (§ V9, README risks) |
+| B3 | GAP | The year-one bar unreadable in a one-listing year | one bar per store, read on the shipped listing; an order of magnitude for an unmarketed listing (README) |
+| B4 | GAP | The testers' record unnamed as personal data | named, kept to emails and versions, deleted when the test closes (README P0 row, § T12) |
+| B5 | NUMBERS | The capacity term without the serial six weeks | composed as the larger of the whole programme and pre-build plus six: 20–38 at one, 15–20 at two; option B and question 2 re-derived (README) |
+| B6 | NUMBERS | The second $99 cited against a branch under nine months | the contingent calendar alone; the name limit tested against 53 weeks (README, § T12) |
+| B7 | MINOR | The iPhone's before-the-P1-stop timing unmarked | marked on item 6 and the handsets row (README) |
+| B8 | MINOR | Why P0 does not measure *n* unsaid | its cadence is owner-blocked and reads low (README) |
+| B9 | MINOR | The Apple renewal absent from the absence exceptions | the sixth, of rework (README) |
+| B10 | MINOR | The pre-push gate's combined budget unstated | ≤ 10 min in all, one ledger row (§ V2) |
+
+### 32-C (blind implementer) — 0 BLOCKING, 3 GAP, 0 NUMBERS, 6 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| C1 | GAP | The move commit's push with no credential path | `ci/mint-token.sh` is the move commit's (§ T4.1, § T14) |
+| C2 | GAP | `sheets frames=1` with no page hook to read bakes from | `lineup.ts`'s export face named: per bake a data URL, `feet` and `hitRect` (§ T4.2) |
+| C3 | GAP | `rig.json` with no route into the binder | its copy committed as a typed fixture under `spec/fixtures/platform/rig/`, a lint holding the two equal (§ T4.2, § T2.5) |
+| C4 | MINOR | The seat list after the calibration that reads it | the order split: sheet calibration, seat list, ruler captures, `ground`, the bars, the bake-off (§ T14) |
+| C5 | MINOR | The relic encoding's split rule unstated | the key is the leading run of `[A-Z_]`; values integral (§ T5.3) |
+| C6 | MINOR | A runs cell said to have a fixture row | a battles cell; a runs cell from its line and `default.json` (§ T5.3) |
+| C7 | MINOR | `art gate` listed among `seats.json`'s readers | dropped (§ T7.5) |
+| C8 | MINOR | "`PixelStudy` carries none of them" wrong for the pose | neither the element nor a frame index (§ T4.2) |
+| C9 | MINOR | The spread frame's tier unstated | at the tier being read (§ V3.3) |
+
+### 32-D (blind owner's advisor) — 0 BLOCKING, 0 GAP, 1 NUMBERS, 3 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| D1 | NUMBERS | The stores' five weeks composed serially at one pace only | with B5 |
+| D2 | MINOR | "Until question 3 is answered" against 3(a)'s own branch | until 3(a) retires it or the Wasm build replaces it (README) |
+| D3 | MINOR | The device family absent from item 1 | iPhone only on iOS, Android tablets letterboxed (README) |
+| D4 | MINOR | Controller support and tablet layouts absent from item 8 | added (README) |
+
+**Declined or only partly applied:** none.
+
+**The loop closed here.** Thirty-two rounds, 1 746 findings logged and resolved; the README states the bar the owner stopped at.
