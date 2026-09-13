@@ -31,7 +31,7 @@ previous revision's own edits.
 blocking and zero gap findings — minor findings are treated as residual — and the owner may
 hold it to the brief's stricter "no more findings" — or stop it at the practical bar: zero
 blocking and no gap that moves a phase's size, price or gate, since the gap count has held
-between fourteen and twenty-two for thirteen rounds with no trend to zero and about a third
+between fourteen and twenty-two for fourteen rounds with no trend to zero and about a third
 of each round is the previous revision's own residue; a further round costs about a tenth
 of a session of agent capacity (sixteen rounds ran inside a day), and P0 may start with
 open minors and with gaps of that kind, resolved in P0's first sitting; this README will
@@ -247,7 +247,7 @@ Each decision names the alternatives it beat and whether the owner must sign it 
 | D7 | Executable specifications | `spec/` clauses with stable ids, bound to Kotest tests by id; a binder that generates test data and fails the lane on unbound or unknown ids; promotion pull-request-scoped; a contract clause changes only with the owner's review; goldens as frozen specs; the contract reconciled with the code before the fold (§ T7) | Cucumber; prose only | one test framework; traceability the build enforces; the owner owns the rules of the game mechanically | one phase | no |
 | D8 | Static analysis set | Compiler strictness, detekt, ktlint via Spotless, Konsist, KGP ABI validation, Kover, Android Lint, Compose rules, dependency-analysis, Pitest nightly, workflow/shell/markdown/spec linters; strict TypeScript, typescript-eslint and knip on the art tool; `:core`'s oracle transcriptions exempt from the complexity budgets until the rules gate; two named fallbacks if P0's spikes force them — detekt dropped to Konsist's length, parameter and custom rules, the complexity budgets, the Compose rules and detekt's smell set the recorded loss, Pitest replaced by the property suite at 10 000 cases — each a recorded loss in the risk table (§ T3, § T6.5, § T8) | fewer tools | the brief; each tool has a distinct catch | one phase | no |
 | D9 | Art pipeline | AI-generated sprites through one provider-agnostic TypeScript tool with a numeric gate (the prototype's criteria plus the review's motion and in-scene rulers, built at P0) and an agent critic under a repeatable protocol; the cast built in P4 beside the rules; assets committed with provenance under the owner's review; a continuity plan; the copyright position stated (§ T10, `FUNCTIONAL.md` § F3.6) | hand-drawn (option B); keep the prototype's kit | the brief; the kit is the measured ceiling | **not cheaply** after the cast is made; option B stays the fallback | **yes** (question 6) |
-| D10 | Art look | Pixel sprites at the contract's cell under the stage's light laws, painted portraits; the fork closes at P0's exit on lit phone frames from the prototype's stage (§ F3.2) | painted characters | the laws, the criteria and the bar are built for pixel figures; a painted look is judged on a reduced gate so the fork is real | one phase before P4; a whole new cast after it (D9) | **yes** (question 1) |
+| D10 | Art look | Pixel sprites at the contract's cell under the stage's light laws, painted portraits; the fork closes at P0's exit on lit phone frames from the prototype's stage, or at P0's start on the recommendation alone, dropping the painted arms (§ F3.2, question 1) | painted characters | the laws, the criteria and the bar are built for pixel figures; a painted look is judged on a reduced gate so the fork is real | one phase before P4; a whole new cast after it (D9) | **yes** (question 1) |
 | D11 | Bloom and CRT | Bright-layer bloom at quarter resolution on the CPU; halation from the same buffer; decided at P5 on the real stage against a platform-blur fallback (§ T9.4) | frame-derived bloom via platform blur | determinism, one code path | one phase | **yes**, only if P5's spike prefers the fallback, since that raises minSdk to 31 (D3) |
 | D12 | Audio | The 24 effects rendered once at P0 from the prototype's own synthesizer to WAV, three seeded variants each; no runtime pitching — a pitched variant, if ever wanted, is rendered offline the same way (§ T9.8) | port the synthesizer; runtime synthesis per platform | identical sound everywhere; nothing to port | one phase | no |
 | D13 | Test framework | Kotest 6 with property testing (§ T3) | kotlin.test; JUnit 5 | one DSL for `:core` and `:ui`; tags for lanes | one phase | no |
@@ -259,7 +259,7 @@ Each decision names the alternatives it beat and whether the owner must sign it 
 | D19 | The prototype's role | Frozen at P0: the oracle for the rules, the live demo, the source of the spec, and — captured once — the fallback cast, the flat backdrops, the sounds, the glyph tables and the hand-drawn study; nothing else moves; its defects stay (§ T4) | migrate the engine and screens incrementally (the plan's revisions 1–3); delete it | the mechanics are what it validated; a port of its presentation would carry a look the owner does not want and machinery the restart does not need | it is history either way | **yes** (decided 2026-09-12) |
 | D20 | Presentation direction | The stage's measured laws (dark figures on a lit ground, four planes with the middle one sharp, two derived foot pools, a gain not a wash, the tier ladder) kept as the art direction; every screen designed fresh for a phone against a written baseline (§ T2.5, `FUNCTIONAL.md` § F1.2) | an open art direction | the bar has not changed and the laws were paid for; the screens had never been on a phone | one phase: the laws are data, so a new direction is P6's planes and P5's rig re-tuned | **yes** (by approving this plan, item 3) |
 | D21 | Orientation | Landscape, as the prototype; portrait the alternative at 4.5–6.5 extra sessions and two to four sittings — `Layout`, every screen, the stage anchors, both pools, the size bands and the P0 captures move (question 2) — reversible until P5's first build | portrait first | the prototype's stage, captures and rulers are landscape; the fork is priced, not presumed | one phase | **yes** (question 2, closing at P0) |
-| D22 | The agents' environment | `agent-env` as provisioned, the image pulled per session, its cold start measured at P0's spike 6 (§ T4.1) | a self-hosted pool that runs the image warm, ≈ $50–150 a month, half a session to set up and an hour a month of upkeep (question 9) | no recurring cost until the cold start measures above the six-minute trigger, or the owner wants byte-exact goldens in the agents' own fast lanes | half a session to stand the pool up; the image is the same either way | **yes** (question 9, closing at P1) |
+| D22 | The agents' environment | `agent-env` as provisioned by its session-start script (`setup.sh`), no image, its cold start measured at P0's spike 6 (§ T14's P0 row, `VERIFICATION.md` § V4) | a self-hosted pool that runs the image warm, ≈ $50–150 a month, half a session to set up and an hour a month of upkeep (question 9) | no recurring cost until the cold start measures above the six-minute trigger, or the owner wants byte-exact goldens in the agents' own fast lanes | half a session to stand the pool up; the image is the same either way | **yes** (question 9, closing at P1) |
 
 ## What this costs and what stands still
 
@@ -346,7 +346,7 @@ against the plan's limits and one real review week against the owner's and re-de
 the first two terms; the third is re-read from the stores' current rules at P5. The sizes
 are re-estimated three times — after P0's spikes, after P1 measures the lanes on a
 `:core`-sized module, and after P2 counts the clauses — and the second and third are the
-owner's to accept or to stop on (P1's and P2's exit gates, below — each rides its phase's last sitting, inside that phase's count — which leaves P3 and P5's first half, 6–12 sessions and 14–20 sittings, between the second stop and the third with no re-estimate but the art programme's own triggers); P0's is folded into
+owner's to accept or to stop on (P1's and P2's exit gates, below — each rides its phase's last sitting, inside that phase's count — which leaves P3 and P5's first half, 4–8 sessions and 10–14 sittings, between the second stop and the third with no re-estimate but the art programme's own triggers); P0's is folded into
 approving P1's start. None of it lands in `plan/` unread: `plan/**` except `plan/spikes/**` is an owned path.
 
 **Money (to be confirmed at P0).**
@@ -487,7 +487,7 @@ the price of each branch are stated so nothing waits on a question nobody knew w
 
 1. **The look (D10)** — closes at P0's exit. Pixel sprites at the contract's cell under the
    stage's light (recommended), or painted characters under the same light, judged on a
-   reduced gate? Decided on the bake-off's lit phone frames (`FUNCTIONAL.md` § F3.2); void if question 6 is no. Or pixel decided at P0's start on the recommendation — the painted arms' ≈ $160 of the $300 cap and their share of the protocol's session saved, the fork closed on the argument rather than on frames.
+   reduced gate? Decided on the bake-off's lit phone frames (`FUNCTIONAL.md` § F3.2); void if question 6 is no. Or pixel decided at P0's start on the recommendation — the painted arms' two $80 key caps ($160 of the $300 cap, ≈ $40–120 of expected spend at § T10.7's prices) and their share of the protocol's session saved, the fork closed on the argument rather than on frames.
    Painted means the value *targets* re-derived at P4 on look B's own reference and the
    critic's pinned, look-neutral prompt scoring the calibration sheet re-rendered in look B
    beside the pixel sheet — the same content in both media — the difference the offset, a
@@ -533,7 +533,7 @@ the price of each branch are stated so nothing waits on a question nobody knew w
    — the decision closes at P0's start, and the fix, if taken, lands after the move commit
    under the prototype's own gates run by hand (P1's workflow does not exist yet) and
    before the baseline play: fix them (≈ 1 session outside the aggregate, one named pull
-   request, `TECHNICAL.md` § T4.2 — verified by an assertion added to `tools/capture.mjs playfull`
+   request, `TECHNICAL.md` § T4.2 — verified by an assertion added to `prototype/tools/capture.mjs playfull`
    for it, an S inside this session (`TECHNICAL.md` § T4.2): three assertions, one per
    battle-screen defect of `FUNCTIONAL.md` § F1.4 — the committed option against the fired
    skill, no greyed legal skill at commit time, and a party wearing three seeded VIOLENT pieces and a fourth from a card the seed

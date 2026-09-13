@@ -328,7 +328,7 @@ and by the Kotlin stage bilinear, so the bake-off's lit phone frames exist for b
 
 Recommendation: **A for sprites, with painted portraits** for the ribbon chips, party heads
 and cards, where a painted face reads better at 48 px than a sprite crop. The fork closes at
-the **end of the P0 bake-off**, on six actors shown both ways, with all their frames, in
+the **end of the P0 bake-off** (or at P0's start, on the recommendation alone, dropping the painted arms — README question 1), on six actors shown both ways, with all their frames, in
 lit battle frames on a phone (the prototype's stage carries them, `TECHNICAL.md` § T10.4);
 `spec/art/` is completed when it closes (it is opened at the tool's calibration, `TECHNICAL.md` § T7.5).
 

@@ -1423,7 +1423,7 @@ alignment defined in `FUNCTIONAL.md` § F3.1), the 8-connected component count, 
 palette metrics — the **cast** palette overlap between actors (< 25 %) and the
 **frame-to-frame** palette overlap within an actor (≥ 75 %) — the height consistency, the
 halo check, the portrait criteria of `FUNCTIONAL.md` § F3.3, and the **in-scene rulers** — the seat ruler, the two ground
-strips, the seat spread and, with `--ground`, the strips' per-channel sRGB median that
+strips, the seat spread and, with `--report-ground`, the strips' per-channel sRGB median that
 `seats.json`'s `ground` records — over any battle frame that carries an **anchors file**
 `<frame>.anchors.json` = `{frame: {w, h}, seats: [{seat: 'H0'…'E2', id, pose, frame, feet:
 {x, y}, box: {x, y, w, h}}]}` — the strips are derived **per seat** by `art rulers`,
@@ -1456,7 +1456,7 @@ overlap maximum, 18.4 % at round 13, is re-measured at P0, since round 14 change
 and its named per-actor values. **A disagreement is adjudicated, never auto-resolved**:
 for the criteria `tools/out/metrics.md` reports — the span, the below-L 35 and above-L 75
 shares, the interior share, the five bands, the colour count, the lit-from-above delta,
-the contrast columns (computed against the line-up ground `tools/lineup.ts` takes as its `bg` query parameter, `#1d2b53` by default — the calibration's fixed input, passed to `art gate` and `art sheet` as `--ground <hex>`), mirror and nearest IoU, all with a reference implementation in the
+the contrast columns (computed against the line-up ground `prototype/tools/lineup.ts` takes as its `bg` query parameter, `#1d2b53` by default — the calibration's fixed input, passed to `art gate` and `art sheet` as `--ground <hex>`), mirror and nearest IoU, all with a reference implementation in the
 tree — the reproduction must be exact before any band may move; for the criteria whose
 recorded numbers came from scratch decoders that were never committed (settle, idle,
 crown, dead height, the component count, the palette overlap) the recorded value is
