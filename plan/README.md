@@ -571,7 +571,7 @@ the price of each branch are stated so nothing waits on a question nobody knew w
    frames at a guessed rate (the study's one frame gives no measured rate), the remaining
    fourteen frames per actor unmeasured too, outside the aggregate; if that price is not acceptable, "stop" means
    shipping the fallback cast as it is, and the owner should approve that sentence
-   knowingly; under a "no" the aggregate is about 17–33 without P4's L and the bake-off's generation, about half of its M (the calibration, the captures and spikes 7–8 stay: P5's and P6's gates hold their outputs whatever question 6 answers) — and about thirteen to nineteen of the sittings go with them (P4's twelve to eighteen and one of P0's), the pre-build review floor falling to about six to eight weeks — and option B's ≈ 8–12
+   knowingly; under a "no" the aggregate is about 17–33 without P4's L and the bake-off's generation, about half of its M (the calibration, the captures and spike 8 stay: P5's and P6's gates hold their outputs whatever question 6 answers) — and about thirteen to nineteen of the sittings go with them (P4's twelve to eighteen and one of P0's), the pre-build review floor falling to about six to eight weeks — and option B's ≈ 8–12
    sit outside it. The fallback cast exists either way.
 7. **The identities and the release path (D15, D17)** — two parts, both closing at P0,
    because P1 builds them. (a) *The identities*: the agents' GitHub App, the gate App that
