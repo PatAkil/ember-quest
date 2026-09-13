@@ -2242,3 +2242,92 @@ option (a) alone (C5). Nothing was declined.
 | D10 | MINOR | The felt rows "close P5" though its store set-up follows them | they close P5's gate; the store set-up and the closed test are its tail (§ F1.5, README) |
 
 **Declined or only partly applied:** none.
+
+
+## Round 21 — on revision 22 (commit `cf134dc`)
+
+Four reviewers on a lighter model, 42 findings: 0 BLOCKING, 19 GAP, 4 NUMBERS, 19 MINOR —
+the first round since round 16 with no blocking finding. The gaps: the `release`
+environment had a required reviewer but no deployment rule, so a pull-request job could
+still declare it (A1); L1's matrix scope excluded `ART` and `RUN-FLOW` but not the `GOLDEN`
+and `BALANCE` clauses, whose replay and snapshot are L2a's (A2); the portrait hue
+criterion's nearest-ramp assignment broke ties at the measurement's own noise (A3); the
+internal tracks' own prerequisites were unstated (A4, B1); nothing said which booleans
+gate a heavy job, so a build-only pull request ran an empty lane (A5); late heroes under a
+subscription winner blocked P5's entry (B2); the runner's token lacked `contents: read`
+under the private branch (B3); Gemini's quota route grew with the calendar (B4); the
+iPhone's budget was asserted by a harness no module built (B5); question 6's "no" dropped
+the calibration with the bake-off (C1); the ruler frames bloomed differently at P0 and P5
+(C2); `hitRect` was a band the stage cannot anchor on (C3); no area named its owning module
+(C4); table-only clauses were permanently weak (C5); the key caps lived in prose (C6); a
+stale nightly had no recovery (C7, A9); P6's release left the listing on the retired stage
+(D1); and the owner's repeated "no" had no bound (D2). The numbers: the calendar's floor a
+week short once the closed test's build follows the internal one (B6, C8, D3), and the
+recommended branch's post-release S and sitting outside the totals (B7). Nothing was
+declined; A4 is applied through B1's fix with the source reviewer D checked (Play Console
+Help: an internal test may be set up before the store listing, the content rating and the
+data-safety form are complete).
+
+### 21-A (adversarial, technical) — 0 BLOCKING, 5 GAP, 0 NUMBERS, 5 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| A1 | GAP | The `release` environment had a required reviewer but no deployment rule | a branch-and-tag rule admitting `main` and `v*` alone, beside the `gates` rule, in M4's act and the P5 row (§ V5, § V9, README) |
+| A2 | GAP | L1's matrix scope still caught the `GOLDEN` and `BALANCE` clauses, whose tests are L2a's | L1's scope is the clauses whose binding tests carry a tag the lane runs; `ART`, `RUN-FLOW`, `GOLDEN` and `BALANCE` bind in the commit lane (§ T7.2, § V2) |
+| A3 | GAP | The hue criterion's nearest-ramp tie at ΔE 0–1 assigned an element's own accent to a neutral | a cell within ΔE 1 of both counts for the element (§ T10.4) |
+| A4 | GAP | The App content declarations against an internal release | with B1: the internal tracks' prerequisites confirmed at P0's terms check; Play Console Help at writing exempts an internal test from the listing, the content rating and the data-safety form (§ T12) |
+| A5 | GAP | Which booleans gate a heavy job was unstated; a build-only pull request ran an empty lane | every heavy job's `if:` ORs its module booleans with `build` and `root` (§ T4.1) |
+| A6 | MINOR | The self-check's (c) was (b) through a host | a host-protocol check, not a third mechanism (§ T2.3) |
+| A7 | MINOR | The `FORGE` record's `options` and `rebrand` fields ambiguous | the worn index; the sets per worn relic, `;`-joined (§ T5.3) |
+| A8 | MINOR | Whether `--trace` suppresses the report | only canonical records to stdout, every report line to stderr (§ T5.4) |
+| A9 | MINOR | A stale nightly's rule had no boolean and no remedy | fails every pull request until the nightly is dispatched on `main` (§ V5; with C7) |
+| A10 | MINOR | "(§ F4.5, question 5)" read as README's question 5 | § F4.5's fifth question (§ F4.4) |
+
+### 21-B (adversarial: product, process, risk) — 0 BLOCKING, 5 GAP, 2 NUMBERS, 4 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | Which store declarations gate an internal-track upload was unstated | confirmed at P0's terms check — the record and its ids, Play App Signing's enrolment, Apple's export-compliance answer; anything found to gate an upload moves ahead of the first tag (§ T12, README P5 row) |
+| B2 | GAP | Late heroes under a subscription winner blocked P5's entry, gate, stop and closed test | the felt rows walked over fallback heroes as a mixed cast the owner approves by name, the art acceptance deferred to P6 (§ T14 P5 entry, README fourth pace) |
+| B3 | GAP | The runner's token needs `contents: read` under the private branch | added in the three scope lists, marked for question 8(b)'s branch (README D17 and P1 row, § T1) |
+| B4 | GAP | Gemini's quota × days grew with an unfixed calendar | quota × the days to a dated key expiry the owner sets (§ T10.2) |
+| B5 | GAP | The iPhone's budget asserted by an XCTest harness no module built | `PerfTests`, an XCUITest target under `iosApp/` with `XCTMetric`s, a P5 deliverable (§ T2.1, § T1, § T14, § T9.5) |
+| B6 | NUMBERS | The stores' five weeks added to the internal build's date, a week before the closed test's build | fifteen to eighteen weeks, fifteen to twenty at two a week, twenty to thirty-eight at one; the fifteen-week floor; six to twelve hours a week (README item 6, calendar paragraph, money table; with C8, D3) |
+| B7 | NUMBERS | The recommended branch's post-release S and sitting outside the totals | the S inside P6's L; P6's sittings 7 under that branch, 59–75 over the programme (README) |
+| B8 | MINOR | Item 6 counted the handsets as P0 spend | bought later — the Android at P1's M7, the iPhone by P5's felt rows (README item 6) |
+| B9 | MINOR | The demo's rot repair as a silent fourth out-of-cycle trigger | it comes out of the quarterly session (README question 3(a), listings row; with D7) |
+| B10 | MINOR | The name reserved against a 50-week test with no margin | against a year; a lapsed record takes the register's fallback name (README P0 row, § T12) |
+| B11 | MINOR | "P0's terms check" a deliverable nowhere | named in § T14's P0 row — the owner's, one sitting, with its list (§ T14) |
+
+### 21-C (blind implementer) — 0 BLOCKING, 7 GAP, 1 NUMBERS, 5 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| C1 | GAP | Question 6's "no" dropped the calibration and spikes 7–8 with the bake-off | only the bake-off's generation goes, about half its M; the aggregate about 17–33, thirteen to nineteen sittings (README question 6, effort paragraph) |
+| C2 | GAP | The MED bar recorded with bloom off, P5's ruler frames read with prop glows and the sky body in the bright layer | the Kotlin `frames` renders the ruler frames with its bloom off too (`--bloom off`); the shipped frame keeps it (§ F3.1, § T10.4, § V3) |
+| C3 | GAP | `hitRect` a torso band, used as what the atlas and the stage anchor on | the silhouette's full bounding box; the 0.33–0.72 band the ruler's median alone (§ T10.6) |
+| C4 | GAP | No area named its owning module; the storyboard needs `:sim`-owned fixtures it may not depend on | the owner per area stated; `spec/golden/fixtures.md` and `vault.md` owned by `:core`, `cells.md` and `BALANCE` by `:sim` (§ T7.1) |
+| C5 | GAP | A table-only clause permanently weak | exempt: the table is the specification (§ T6.3) |
+| C6 | GAP | The key caps existed only in prose | `tools/art/keys.json`, owner-reviewed, the counter's one source (§ T10.1) |
+| C7 | GAP | A stale nightly blocked the tree with no recovery | dispatching the nightly on `main` clears it (§ V5; with A9) |
+| C8 | NUMBERS | The calendar's floor a week short, as B6 | as B6 |
+| C9 | MINOR | "The first test-track build" meaning the internal one | "the first internal-track build" and "the closed test's build" throughout (README, § T14, § F3.5) |
+| C10 | MINOR | P6's gate unpassable after a re-recorded bar | "not below their recorded bars (P0's, or a bar re-recorded under § F3.1)" (README roadmap, § T14) |
+| C11 | MINOR | `fixtures.mjs` in no P2 list | added to § T4.2's sequence and § T14's P2 row |
+| C12 | MINOR | `config/` said to hold the Konsist suite's rules | the analysers' configuration data; the suite is `build-logic`'s (§ T2.1) |
+| C13 | MINOR | M7's APK from a lane that assembles none at P1 | L3 assembles and uploads the app and androidTest APKs from M7 on (§ V9) |
+
+### 21-D (blind owner's advisor) — 0 BLOCKING, 2 GAP, 1 NUMBERS, 5 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| D1 | GAP | P6's release left the listing's screenshots and feature graphic on the retired stage | re-shot over the scene in P6's release line, inside the same S and sitting (README P6 row, question 4(a); § F2.5) |
+| D2 | GAP | The owner's repeated "no" on a contact sheet had no bound | a third rejection of one actor, or a seventh taste round overall, is § F3.5's fourth trigger with the same three branches (§ F3.5) |
+| D3 | NUMBERS | The calendar's floor a week short, as B6 | as B6 |
+| D4 | MINOR | Question 3(a)'s recommended branch had no end under 3(b)'s drop | "or, under 3(b)'s drop, until the owner retires it" (README question 3(a)) |
+| D5 | MINOR | The P7 re-cut in neither deliverables list | named in both P7 rows (README roadmap, § T14) |
+| D6 | MINOR | The stores' crash signal quoted without § T12's caveat | the caveat once, on the P7 owner row (README) |
+| D7 | MINOR | The rot repair as a silent fourth trigger, as B9 | as B9, named in the listings row |
+| D8 | MINOR | No tester work on the P2 and P3 owner rows | one clause each (README) |
+
+**Declined or only partly applied:** none.

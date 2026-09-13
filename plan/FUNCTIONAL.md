@@ -148,7 +148,7 @@ phase named in the Phase column.
 | F2.2 | **Settings** | sound volume and mute; ARCADE on/off; quality tier (AUTO/HIGH/MED/LOW); a "reset the Vault" with a confirm; credits | One screen, reachable from the title and the pause overlay. Haptics on hits is optional and off by default. A crash-report toggle appears only when a reporter ships (§ T12). | S | P5 |
 | F2.3 | **Orientation and safe areas** | landscape locked (question 2); the frame respects notches, rounded corners and the gesture-navigation edges | The mutable safe inset reads the platform's insets. Every edge target is tested under gesture navigation. | S | P5 |
 | F2.4 | **Interruptions** | a call or a switch to another app pauses the game and the sound; returning resumes on the pause overlay | The app pauses on lifecycle events and yields audio focus. | S | P5 |
-| F2.5 | **App identity** | the app icon (a 1024 × 1024 master — a normalised crop of an accepted hero's idle frame at 16×, nearest-neighbour, the fallback hero's until the cast is accepted and re-cut from the accepted hero before the P7 tag, with the store screenshots re-shot over the accepted cast — a listing update on both stores, an S, and one owner sitting on the P7 row — over the ground colour recorded at P0 in `spec/art/seats.md` (`spec/fixtures/art/seats/seats.json`'s `ground`, `TECHNICAL.md` § T7.5), produced by `frames --icon` (`VERIFICATION.md` § V3) and never generated — from which the platforms' sizes and Android's adaptive layers are derived by the build), the splash (the icon on the ground colour through each platform's own launch screen), Play's 1024 × 500 feature graphic (the same crop over a stage capture); all three under `assets/store/`, an owned path the owner reviews on the P5 row; store listing, a credits screen that names the AI art providers and every bundled asset's licence (the HUD face's OFL or Apache notice; the sounds and the glyph tables are the prototype's own) | Store metadata is copy the owner writes; the credits line is required by § F3.6. | S | P5 (identity and the listing copy, which Play needs before a closed-track release); P7 (the credits and disclosure copy) |
+| F2.5 | **App identity** | the app icon (a 1024 × 1024 master — a normalised crop of an accepted hero's idle frame at 16×, nearest-neighbour, the fallback hero's until the cast is accepted and re-cut from the accepted hero before the P7 tag, with the store screenshots re-shot over the accepted cast (and re-shot again over P6's scene under question 4(a)'s recommended branch, in P6's release line) — a listing update on both stores, an S, and one owner sitting on the P7 row — over the ground colour recorded at P0 in `spec/art/seats.md` (`spec/fixtures/art/seats/seats.json`'s `ground`, `TECHNICAL.md` § T7.5), produced by `frames --icon` (`VERIFICATION.md` § V3) and never generated — from which the platforms' sizes and Android's adaptive layers are derived by the build), the splash (the icon on the ground colour through each platform's own launch screen), Play's 1024 × 500 feature graphic (the same crop over a stage capture); all three under `assets/store/`, an owned path the owner reviews on the P5 row; store listing, a credits screen that names the AI art providers and every bundled asset's licence (the HUD face's OFL or Apache notice; the sounds and the glyph tables are the prototype's own) | Store metadata is copy the owner writes; the credits line is required by § F3.6. | S | P5 (identity and the listing copy, which Play needs before a closed-track release); P7 (the credits and disclosure copy) |
 | F2.6 | **Device tiers** | a 2022 mid-range phone runs MED at 60 Hz; older devices start LOW; the toggle in settings | The tiers are the contract's; the *default* comes from a three-second stage benchmark run behind the title on first launch — the title needs no stage, so the ≤ 2 s boot budget of `TECHNICAL.md` § T9.5 holds and the tier is decided before the first battle (§ F1.3). | S | P5 |
 | F2.7 | **Bug reports from a release build** (the share of the current run's encoding as text exists whatever question 10 answers — the encoding does, `VERIFICATION.md` § V3.2; only persisting it in the app and the corpus are question 10's — built with the first signed build the owner installs, so the felt rows and the closed testers have it) | a long-press on PAUSE or on GAME OVER shares the current run's encoding as text, and the title's long-press the last run's — kept in memory until the next run starts under question 10's no, so a KO keeps it and a crash loses it; the seed is shown on GAME OVER | So the owner's felt rows, the first-ten-minutes test and the closed testers — all on release builds — can report a bug that replays (`TECHNICAL.md` § T11). The rest of the debug drawer stays debug-only. | S | P5, with the first signed build |
 
@@ -211,7 +211,10 @@ screenshots, are not in the repository and never will be.
   rows and the testers see, whose bar is recorded over the flat composite lit by the
   prototype's rig at MED with its bloom off (`TECHNICAL.md` § T4.2's `flat=1 tier=MED`
   frame) — the prototype's frame-derived bloom lifts the ground strips the ratio is
-  measured against, and the app's bright-layer bloom does not — not over the four-plane
+  measured against — and read at P5 and P6 on ruler frames the Kotlin `frames` instrument
+  renders with its bloom off too (`--bloom off`), so a lit prop's glow or the sky body in
+  the bright layer cannot move a reading the P0 bar never saw, the shipped frame keeping
+  its bloom — not over the four-plane
   diorama, which is not the scene P5 draws; and P6 at HIGH on the landed rig,
   with LOW and MED not below the P0-recorded LOW and MED bars (the record under the older strip rule was
   106 of 108, quoted for scale only); ARCADE — LOW with the CRT pass over it, a
@@ -424,10 +427,12 @@ Four stop triggers — the first two decision points, each a yes or no from the 
    incomplete (`TECHNICAL.md` § T10.7) — wherever the cast stands: the same three branches — a budget the owner raises by name,
    a change of provider, or stop — and a mixed cast, accepted actors beside fallback ones,
    is then a shipped state the owner approves by name, never a transient. The same
-   approval by name covers a first test-track build that ships before the cast is complete
+   approval by name covers a first internal-track build that ships before the cast is complete
    (a subscription winner's allowance paces P4 over months, README).
-4. **An actor that fails the gate three times** (§ F3.4): the same three branches, for
-   that actor.
+4. **An actor that fails the gate three times** (§ F3.4), **or that the owner rejects
+   three times, or a seventh taste round overall**: the same three branches, for that
+   actor (for a seventh round, for the cast) — the owner's taste is the one unautomatable
+   risk, so it has a bound in sessions, not only in money.
 
 **Stop means**: the generated assets are shelved (their provenance kept), the fallback cast
 — the prototype's 43 actors' sheets captured at P0 (`TECHNICAL.md` § T10.9) — is the
@@ -556,7 +561,7 @@ before code moves: every status needs a source, a sim interpretation and a scree
 
 Character changes can be *specified* at any time (a spec is text); they are *built* after
 the P3 rules gate so that the balance table is a known baseline to measure them against —
-before or after the store release as the owner decides (§ F4.5, question 5) — after it, a
+before or after the store release as the owner decides (§ F4.5's fifth question) — after it, a
 change reaches players through a further store release: a `v*` tag, the `release`
 approval, App Review's days and a Play update, an S of agent work and an owner sitting on
 top of § F4.3's price. Their art
