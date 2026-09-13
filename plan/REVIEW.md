@@ -1957,3 +1957,101 @@ after the build (B6); a round priced as a session against the loop's own day of 
 | D12 | MINOR | A daily phone assumed but unnamed | named in the handsets row and § T1 (README, § T1) |
 
 **Declined or only partly applied:** A6 declined with the evidence above.
+
+
+## Round 18 — on revision 19 (commit `c060654`)
+
+Four reviewers on a lighter model, 51 findings: 6 BLOCKING, 15 GAP, 5 NUMBERS, 25 MINOR.
+Four of the six blocking rows are one finding and revision 19's own residue: the `docs`
+job added for round 17's D1 could not publish beside the prototype build — a Pages
+deployment takes exactly one artifact, `deploy` needed `build`, and the copy was still
+written as a step of the build job (A1, B1, C1, D1). The fifth is the MED bar's bloom-off
+with no engine switch to provide it inside the freeze's closed list (C2; A6 as a minor),
+the sixth a red-`main` attribution that sent every no-module failure to `build` and so
+blocked the one pull request that could fix a red `env-check`, whose paths are `env`
+(A2). The gaps: the N − 1 snapshot undecodable when the bumping commit changed its shape
+(A3); what a pull request reads while the post-merge run is in flight (A4); no iPhone
+under the farm branch though the felt rows, the P7 test and the tester-shortfall floor
+need one (B2, D2); the portrait bars recorded by the instrument P5's gate then reads (B3);
+the look-B offset confounded with the finalists' own quality (B4); the two GitHub Apps'
+private keys nobody rotates (B5); the shadow constants that were literals, not exports
+(C3); the seat list with no format for its three readers (C4); the ground colour undefined
+(C5); `RunDebug` built by no phase (C6); the NEAR painter unstated on the flat frame (C7);
+the iPhone testers with no iOS floor (D3); the release territories nowhere (D4); the
+account-age check after the recruitment ask (D5). Two numbers moved on verified facts: the
+farm's cost ignored Test Lab's 30 free device-minutes a day (B6), and question 8(b)'s
+macOS figure was never re-derived at the 2026 rate of $0.062 a minute (B7). Nothing was
+declined.
+
+### 18-A (adversarial, technical) — 2 BLOCKING, 2 GAP, 0 NUMBERS, 6 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| A1 | BLOCKING | The store pages' `docs` job could not publish beside the prototype build: one Pages artifact per deployment, `deploy` needing `build`, a second upload colliding, the copy still a build-job step | the `docs` job is the one job that assembles and uploads — `needs: build`, `if: always()`, the prototype's `dist` downloaded when its job produced one, one `upload-pages-artifact`; `deploy` needs `docs`; a red prototype build costs the demo its next deploy, never the store pages, and a retired one is the `build` job removed (§ T4.1, § T12, § V8.3, README question 3(a)) |
+| A2 | BLOCKING | A no-module failure attributed to `build` deadlocked `env-check` on its own fix, whose paths are `env` | attributed to the boolean of the paths its fix touches: `env-check` to `env`, a lint to its file's boolean, spec-lint to `spec`, the workflows job, `buildHealth` and the size test to `build` (§ V5) |
+| A3 | GAP | The N − 1 snapshot undecodable when the bumping commit changed its shape, or a re-recording bumped the trace grammar | the snapshot's own schema version in the header beside `RULES_VERSION` and the trace version; a forward rule — an added field carries its `SAVE` clause's default, a dropped or unknown one is ignored; the previous reader of each kept, the N − 1 corpus the proof; two or more behind in any is "two or more versions old" (§ T11) |
+| A4 | GAP | What a pull request reads while the post-merge run is in flight | the last completed post-merge run's status through the API; an in-flight run keeps the previous verdict (§ V5) |
+| A5 | MINOR | The dangling clause in the Pages bullet | gone with A1 |
+| A6 | MINOR | No mechanism turned the prototype's bloom off for the MED bar | a `bloom: false` option on `createLight` in the hook's pull request, the third allowed engine change (§ T4.2; C2) |
+| A7 | MINOR | The stub's ABI dump unqualified; the JVM dump erases nullability and type arguments | the klib dump named as the input (§ T6.3) |
+| A8 | MINOR | The `GOLDEN` clauses' status at P2 unstated | `proposed` at P2, promoted in the P3 pull request that first replays them (§ T7.3) |
+| A9 | MINOR | "Every public `:core` function has a clause-named test" is not expressible in Konsist | a binder check that every `:core` source file is in some clause's `paths`; the per-file coverage floor carries the rest (§ T8) |
+| A10 | MINOR | § T9.2 read as the grade applied before the actors | the light map before the actors, the grade's multiply after them (§ T9.2) |
+
+### 18-B (adversarial: product, process, risk) — 1 BLOCKING, 4 GAP, 3 NUMBERS, 7 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| B1 | BLOCKING | The `docs` job, as A1 | as A1 |
+| B2 | GAP | No iPhone under the farm branch, yet the felt rows, the P7 test and the tester-shortfall floor need one | bought under either branch, by P5's felt rows, as the owner's iOS acceptance device — ≈ $300–500 of the handsets' range; lane hardware only under the runner branch (README handsets row, item 6, P0 row, question 5; § T1) |
+| B3 | GAP | The portrait bars re-recorded at P5 by the instrument P5's gate then reads, so that gate cannot fail | on the portrait branch P5's ruler is reported and owner-approved as the bars, with the landscape bars beside them; P6's gate is the first that holds them (§ F3.1, README question 2, § T14) |
+| B4 | GAP | The look-B offset measured on the B finalists confounds the medium with their quality | the calibration sheet re-rendered in look B by the winning provider from the pixel frames — the same content in both media — scored beside the pixel sheet (§ F3.2, README question 1) |
+| B5 | GAP | The two GitHub Apps' private keys never expire and nobody rotates them | rotated in the quarterly session — a new key generated, the old revoked in the App's settings; uninstalling the App the revocation path (README steady state, § T12) |
+| B6 | NUMBERS | The farm's cost ignored the 30 free device-minutes a day (verified: Firebase Test Lab quotas and pricing) | 40–80 device-minutes a night, 10–50 billed, ≈ $25–125 a month, ≈ $300–1 500 a year; a fallback night ≈ $1–4 (README CI row, steady state, programme total, question 5, absence protocol) |
+| B7 | NUMBERS | Question 8(b)'s macOS figure never re-derived at the 2026 rate (verified: $0.062 a minute since 2026-01-01, GitHub's pricing change) | a twenty-minute job $1.24; twenty to forty pull requests a month with fifteen jobs inside Pro's included minutes ≈ $6–31, the nightly's macOS minutes ≈ $56–112, about $60–140 a month; the metered-CI recurring ≈ $100–200 (README question 8(b), money table) |
+| B8 | NUMBERS | *n* inferred from a day that measured the five-hour limit, and a second seat priced as the best case's gate | *n* unknown until P1 measures it, the one-to-two a week an assumption; the second seat or tier contingent on that measurement, taken only if it puts *n* below three (README money table, calendar paragraph) |
+| B9 | MINOR | No all-in total | the row relabelled one-off, hardware and subscription excluded; all in ≈ $2 200–4 800, ≈ $2 600–5 700 with the handsets, ≈ $2 500–6 600 and ≈ $2 900–7 500 on the fast branch (README) |
+| B10 | MINOR | "12 if D11's fallback is taken" read as a tester count | "Android 12 or newer" (README P0 row, § T12) |
+| B11 | MINOR | The prepaid-or-capped rule silently eliminated Gemini | its metering named in § T10.2's table: Cloud billing alerts, the per-day request quota lowered in the console is the cap, confirmed at P0's terms check or FLUX.2 is the painted arm alone (§ T10.1, § T10.2) |
+| B12 | MINOR | The contingent items' calendar unstated | up to six to twelve sessions, two to twelve weeks at the three paces, none in the best case (README) |
+| B13 | MINOR | The P7 re-cut omitted the store screenshots | named (README P7 row, § F2.5) |
+| B14 | MINOR | The keep-alive rested on Renovate having a bump every month | a monthly `keepalive` push under the agents' App the deterministic one, Renovate the usual (§ V5, README steady state) |
+| B15 | MINOR | The clearance's territories, hours and scope unstated | the EU, the US and the owner's own country, about two hours in the admin band, a professional clearance out of scope (README P0 row, § T12; with D4) |
+
+### 18-C (blind implementer) — 2 BLOCKING, 5 GAP, 1 NUMBERS, 6 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| C1 | BLOCKING | The `docs` job, as A1 | as A1 |
+| C2 | BLOCKING | The MED bar's bloom-off needs a switch the freeze's two allowed engine changes do not provide | a `bloom: false` option on `createLight` that `renderPost` honours, in the hook's pull request — three allowed changes (§ T4.2) |
+| C3 | GAP | The shadow constants are literals inside `drawContactShadow`, so "adds `export`" had nothing to export | lifted into named module constants and exported in the same pull request (§ T4.2) |
+| C4 | GAP | The per-biome seat list had no format for its three readers | exported as the ramps are to `spec/fixtures/art/bible/seats.json` under a `schema: Seats` block, the one file `capture.mjs`, the art tool and the Kotlin `frames` read (§ T7.5, § T4.2, § V3) |
+| C5 | GAP | The bible's ground colour undefined | one sRGB hex — the per-channel median of the six biomes' two ground strips on the MED `flat=1` resting frames, measured by `art rulers` at calibration — in `seats.json` (§ T7.5) |
+| C6 | GAP | No phase built `RunDebug` | a post-gate `:core` change at P5 through § T7.7's route, as `resumeRun` is, its clauses first and `diff-oracle` proving the golden path unmoved (§ T2.3, § T14) |
+| C7 | GAP | Whether the `flat=1` frame draws the NEAR painter unstated | the supplied plane alone, no NEAR painter, at LOW and MED (§ T4.2) |
+| C8 | NUMBERS | "0 in 910 runs" against a table summing to 1 010 | 1 010 (§ T5.3) |
+| C9 | MINOR | The orphan clause | gone with A1 |
+| C10 | MINOR | A runs cell's `pack`, `act` and `clears` columns unstated | `-` with `party`; spec-lint rejects a value (§ T5.3) |
+| C11 | MINOR | Which run the probe keeps | run 0 of its cell (§ T5.3) |
+| C12 | MINOR | § F3.1 still had the bars recorded beside the seat list | beside the ground colour, the bars recorded from the captures (§ F3.1) |
+| C13 | MINOR | Who downloads M7's APK before the runner token exists | the owner, by hand (§ V9 M7) |
+| C14 | MINOR | M7's compile jobs outside the required-check budget | named, one owner ruleset act inside P1's sittings (§ T13.5) |
+
+### 18-D (blind owner's advisor) — 1 BLOCKING, 4 GAP, 1 NUMBERS, 6 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| D1 | BLOCKING | The `docs` job, as A1 | as A1 |
+| D2 | GAP | No iPhone under the farm branch, as B2 | as B2 |
+| D3 | GAP | The iPhone testers had no iOS-version floor at recruitment | iOS 16 or newer, recorded at recruitment (README money table, P0 row; § T12) |
+| D4 | GAP | No release territories anywhere; the clearance outside the admin hours and the P5 store set-up | a P0 decision — worldwide, the EU included, unless narrowed; the availability in § T12's store set-up; the clearance and the territories in the admin enumeration (README P0 row, admin paragraph; § T12) |
+| D5 | GAP | The account-age check after the recruitment ask, with no effort or calendar delta | first in the P0 row; the branch drops five to ten owner hours, P5's tester-triage S and three of the stores' five weeks (README P0 row, calendar paragraph; § T12) |
+| D6 | NUMBERS | A subscription month counted under a key cap | ≈ $200 of per-image spend under keys capped at $300 plus ≈ $50 of subscription outside them; the worst case ≈ $4 975 and the ceiling's subscription months named (README item 6, programme total) |
+| D7 | MINOR | D17's owned-path summary omitted the build files | the build logic, the analyser configuration, the catalog and wrapper, the root build files (README D17) |
+| D8 | MINOR | The share built with the first test-track build, after the felt rows | with the first signed build the owner installs (§ F2.7, § T14) |
+| D9 | MINOR | No all-in total, as B9 | as B9 |
+| D10 | MINOR | D21 before D20 | swapped (README) |
+| D11 | MINOR | "The programme's last stop" is not the last | "last scheduled stop" (README P5 row and roadmap, § T14) |
+| D12 | MINOR | The trigger abbreviated (in the calendar paragraph, not item 6) | it points at the absence protocol's one statement (README) |
+
+**Declined or only partly applied:** none.
