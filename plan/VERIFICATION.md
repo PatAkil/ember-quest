@@ -90,8 +90,8 @@ tables are what it argues with. The Kotlin instruments live in `:tools:instrumen
    with the harness's kindled relics through the real EQUIP face — which, as the rules
    demand, makes it an **A3 run** (three equipped relics raise the minimum ascension to 3),
    and the `RUN-FLOW` clauses say so; `--force` uses the debug hooks — set act and lap, jump to a room type, force a pack, set
-   a hero's hp — `--ko` is that last hook under its own name, `--force hp@<hero>=0` at the
-   next battle, the prototype's `ko=1` — and the prototype has only that one, so the rest
+   a hero's hp — `--ko` is that last hook under its own name, `--force hp@<decision i>=<slot>:0` at the
+   decision before the next battle, the prototype's `ko=1` — and the prototype has only that one, so the rest
    are P5's to build as `spec/platform/` clauses — to reach a boss or a screen the party would not survive to, so
    the gate is "reached", never "won"; `--keyboard` drives by the keyboard route.
    **Skip-playback mode** (the commit lane): virtual time jumps straight to the next
@@ -435,8 +435,8 @@ review load for P1, marked M1–M8:
   a hard failure, § V4 — and byte-exact in L3, both runs' CPU feature sets in the bundle, proven once two distinct sets have compared equal, otherwise a per-CPU-class tolerance with the feature set recorded beside each golden (§ V4) → the storyboard driver crossing one screen in both modes →
   the perf test with the allocation baseline.
 - **M7 — the hooks and the platforms.** The hooks (edit, pre-commit, pre-push) → the
-  Android, iOS and wasm compiles in L3 → the nightly skeleton and, if question 5 chose the runner, the private
-  device-runner repository with the standing `ledger` issue in this repository that the owner creates for its rows (§ V7) — and, before question 5 closes, the Android phone reached over
+  Android, iOS and wasm compiles in L3 → the nightly skeleton and, the standing `ledger` issue in this repository, which the owner creates at M7 under either branch of question 5 (the lane's rows and the two `main` runs' re-dispatch log land on it, § V7, § V5) and, if question 5 chose the runner, the private
+  device-runner repository — and, before question 5 closes, the Android phone reached over
   USB from the Linux VM on the owner's Mac by the real `adb`, and one instrumentation run (`adb install`, then `am instrument`) on
   it from the app and androidTest APKs L3 assembles and uploads from M7 on (P5's device lane reads the same artifacts), which the owner downloads by hand (`gh run download`; the token that automates it exists only once question 5 chooses the runner) — the guest assembles nothing, since it is
   arm64 and Google ships no build-tools for it (README D18) — (README question 5: the path

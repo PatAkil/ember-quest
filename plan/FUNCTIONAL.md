@@ -127,7 +127,7 @@ behaviour and the new screens are built to it; the prototype is frozen with its 
    and what did not work, with the battle screen's two hero-turn defects (§ F1.4) recorded
    as excluded from the bar, since the app must not reproduce them — the record the felt
    rows are judged against, so that "as good as the prototype" is a written bar, not a
-   memory. The same play is the owner's **go or no-go on the game itself**, recorded in
+   memory. The same play is the owner's **go, no-go, or go with a named mechanic to change on the game itself**, recorded in
    the register (README, the P0 owner row): the one product decision taken on the game itself; the P1 and P2 stops re-ask it against the re-estimates.
 5. **The first-ten-minutes test**: title → draft → the opening SUMMON → leader → map → a
    crypt fight to a KO or a win → INSPECT → PAUSE → a SUMMON room → a SHRINE, on a phone,
@@ -497,7 +497,7 @@ budget line, as AI-generated planes; a plane has no actor-shaped gate, so a gene
 plane is judged by the scene rulers of `TECHNICAL.md` § T10.4 (the ground strips' values
 against the pools — the counts — with the seat spread reported beside them, measured with the fallback cast planted at the six
 anchors as the fixed reference P6's ruler frames use too), then by the critic and the
-owner, and only from a plane provider whose written commercial terms are verified into
+owner, and only from a plane provider whose written commercial terms and cap mechanism are verified into
 `assets/LICENSES.md` before the branch is taken (§ T10.2's rule, which the P0 check does
 not cover for a provider chosen months later — the owner's act, about an hour inside the
 admin band, in the P6 sitting that takes the branch, README question 4(b)); either way with the light wells, the second hue per biome, the bright mass behind
@@ -550,7 +550,7 @@ The closed unions a kit is built from — anything outside them is a *mechanics*
 | Awakening | name and either a stat bonus or the upgraded skill | Inferno also BRANDs (0.75 for 2): skill 3 upgrades to `INFERNO_BRAND` |
 | Leader | stat, amount, optional element and elementAmount | ATK +20 %, FIRE members +35 % |
 | Art brief | silhouette hook, garment materials, the element ramp, the weapon, the face; portrait notes | a crimson vest with orange trim over dark leather, ember hair with a three-tone flame, a staff held in the hand, a lean stance |
-| Class of change | NEW · KIT (skills or awakening) · NUMBERS · ART · REMOVAL | — |
+| Class of change | NEW · RULES · KIT (skills or awakening) · NUMBERS · ART · REMOVAL | — |
 
 ### F4.3 What a change costs
 
