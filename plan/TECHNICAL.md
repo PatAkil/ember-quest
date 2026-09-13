@@ -216,7 +216,7 @@ seam changes exactly that: **every turn of a battle is a pending of the session.
     so no golden cell can produce it: forfeit is the third rule the oracle does not exercise — its code has it, no policy takes it —
     (with `RunDebug` the fourth: the storyboard's forcing hooks, an optional argument to
     `runSteps` and `RunSession`, absent and inert on the golden path, reaching `buildMap`,
-    `choosePack` and a live battle only when present, bound by `DEBUG-NN` clauses; and
+    `choosePack` and a live battle only when present, bound by `PLATFORM-DEBUG-NN` clauses (§ T7.1's `PLATFORM` area, where § T14 and § V3.2 put the hooks); and
     `BattleCtx.spdDelta` the one rule the goldens never set — the battles harness's
     diagnostic `--spd`, a flat delta on `base.spd` at battle creation — bound by a
     `COMBAT-SPD-NN` clause test; with `minAscensionFor`'s vector and `resumeRun`) and is bound by its `COMBAT-FORFEIT`
@@ -708,7 +708,7 @@ the SHA-256 over the `result` records of a cell.
 **The golden set** (recorded at P2 from the oracle on the pinned Node; replayed by the
 Kotlin harness). The cells are one machine-readable table, `spec/golden/cells.md`
 (`data: GOLDEN_CELLS` — id, mode, seed, policy, runs, ascension, vault, spd, pack, act,
-clears, party; the golden path is always `b`, so there is no path column, and in battles mode the `runs` column is emitted as `n=`, no `path=` is written, and the `vault` and `spd` columns are `-` — spec-lint rejects a value there; `--spd` is the battles harness's diagnostic knob, never a golden's), that the binder
+clears, party; the golden path is always `b`, so there is no path column, and in battles mode the `runs` column is emitted as `n=`, no `path=` is written, and the `vault` and `spd` columns are `-` — spec-lint rejects a value there; the battles harness's `--spd` (`BattleCtx.spdDelta`) is never a golden's, while a runs cell's `spd` column is `RunConfig.spdDelta`, which the runs goldens do set), that the binder
 generates into constants and both harnesses read — the prototype's through
 `prototype/sim/cells.mjs`, the P2 driver that walks every cell through `run.mjs --trace`
 and writes `spec/golden/`, beside `fixtures.mjs`; **the cell line owns seed, act,
@@ -1657,7 +1657,7 @@ the flat backdrops; P4 replaces the actors behind the gate; P6 replaces the back
 - **The testers' channel**: the listing and the credits screen name one address or form
   for reports, and stays open after P7 as the listing's contact; a report is triaged within
   the week (an S inside P5's and P7's sizes) and,
-  under question 10's yes, carries the shared save of `FUNCTIONAL.md` § F2.7.
+  carries § F2.7's share, whatever question 10 answers.
 - **Release notes** are generated from the clause ids in the merged PRs since the last tag.
 
 ## T13 Agent workflow and conventions

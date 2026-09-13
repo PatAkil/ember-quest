@@ -390,7 +390,7 @@ review load for P1, marked M1–M8:
   required, stale approvals dismissed, no required checks yet) — in that order, since the
   ruleset's empty bypass list refuses the owner's own push the moment it exists; from here
   every step lands as a pull request — and **the first throwaway pull request**, which
-  proves whether a code-owner review is enforced at zero required approvals — and if it is not, required approvals go to 1 until M4's owned-path check exists, then back to 0, so the M2–M3 window never rests on `CODEOWNERS` alone (§ V1).
+  proves whether a code-owner review is enforced at zero required approvals — and if it is not, required approvals go to 1 until M4's owned-path check exists, then back to 0, so the M1–M3 window never rests on `CODEOWNERS` alone (§ V1).
 - **M3 — the rig's skeleton.** The convention plugins and the empty modules with the edge
   assertions → the owner creates the **gate App** and the `gates` environment holding its
   key (§ V5) → `lanes.yaml`, `gate.sh`, the generated workflows (every one running on every
