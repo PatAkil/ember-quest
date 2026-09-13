@@ -1,0 +1,16 @@
+{
+  "_comment": "Optional. Merge into .claude/settings.json to print the loop verdict whenever the review log is edited. Set REVIEW_LOG if the log is not plan/REVIEW.md.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); log=\"${REVIEW_LOG:-$CLAUDE_PROJECT_DIR/plan/REVIEW.md}\"; case \"$f\" in *REVIEW.md) python3 \"$CLAUDE_PROJECT_DIR/.claude/skills/adversarial-plan-review/scripts/loop_metrics.py\" \"$log\" --brief ;; esac"
+          }
+        ]
+      }
+    ]
+  }
+}
