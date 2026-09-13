@@ -2153,7 +2153,7 @@ question 3(c)'s recommended session (B10); the worst case's enumeration summing 
 
 ## Round 20 — on revision 21 (commit `3a7ae2a`)
 
-Four reviewers on a lighter model, 47 findings: 1 BLOCKING, 18 GAP, 6 NUMBERS, 22 MINOR.
+Four reviewers on a lighter model, 46 findings: 1 BLOCKING, 17 GAP, 6 NUMBERS, 22 MINOR.
 The blocking row is revision 21's own residue: round 19's D4 moved the first `v*` tag
 before the store set-up while § T12 still defined every tag as an upload to Play's
 closed-testing track and to external TestFlight, both of which the listing has to precede
@@ -2226,7 +2226,7 @@ option (a) alone (C5). Nothing was declined.
 | C10 | MINOR | "The three baseline sheets" | the calibration sheet and its three scorings (README P0 row) |
 | C11 | MINOR | `pixel=<dir>` mandatory for frames that plant the fallback cast | optional; the fallback recipes stand in when it is absent (§ T4.2) |
 
-### 20-D (blind owner's advisor) — 1 BLOCKING, 3 GAP, 1 NUMBERS, 6 MINOR
+### 20-D (blind owner's advisor) — 1 BLOCKING, 2 GAP, 1 NUMBERS, 6 MINOR
 
 | # | Sev. | Finding | Resolution |
 |---|---|---|---|
