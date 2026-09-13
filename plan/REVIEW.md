@@ -1868,3 +1868,92 @@ Revision 18 resolves all of them and declines none.
 | D14 | MINOR | The header's claim false for a declined numbers finding | "every numbers and minor one applied or listed … with the reason it was declined" (README) |
 
 **Declined or only partly applied:** none declined.
+
+## Round 17 — on revision 18 (commit `cc89b2d`)
+
+Four reviewers on a lighter model, 46 findings: 1 BLOCKING, 15 GAP, 5 NUMBERS, 25 MINOR.
+The blocking row is the binder's scope: the commit lane's matrix was read from L2a's
+reports alone while the `ART` clauses bind only through the art tool's gate tests and the
+`RUN-FLOW` clauses through the storyboard, both L2b, so L2a would have been red from the
+first bound `ART` clause (C1). The gaps: the forcing hooks reached inside the rules with
+no seam (A1); the second reader was asserted equal with no tolerance (A2); the MED bar was
+recorded with a frame-derived bloom on the ground the app's bright-layer bloom never lifts
+(A3); the battles harness's `spdDelta` was bound by no cell (A4); the fallback sidecar's
+`hitRect` had no rule (A5); the store pages depended on a prototype build that retires
+(D1); the game's name was never cleared (D2); the farm billed without a ceiling (B1); no
+credential had a lifetime or a rotation owner (B2); a designed run loss was a blocker under
+question 10's "no" (B3); the accepted cast's in-scene reading had no consumer (B4); the
+look-B offset was zero by construction (B5); the mandated re-runs collided with the
+enforced re-run rule (C2, A11); `portrait=1` was undefined and a centre crop lost the seats
+(C3); and the title's share had no run under a "no" (C4). The numbers: the opt-in ramp
+after the build (B6); a round priced as a session against the loop's own day of rounds
+(B7); the P0 pull requests miscounted (D3); P0's sittings without their reading depth
+(D4). Revision 19 resolves all of them; one is declined with the evidence (A6).
+
+### 17-A — adversarial, technical
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| A1 | GAP | The forcing hooks reach inside `runSteps` and a live battle with no seam | `RunDebug`, an optional argument to `runSteps` and `RunSession`, null and inert on the golden path, bound by `DEBUG-NN` clauses — the fourth rule the oracle does not contain (§ T2.3, README item 3, § T11) |
+| A2 | GAP | The second reader asserted equal with no tolerance or column list | exact on the integer-rounded L* fields and the counts, within 0.5 on the shares and IoUs and 0.1 on ΔE; a disagreement goes through the calibration's adjudication (§ T10.4, § V9) |
+| A3 | GAP | The MED bar recorded with the prototype's frame-derived bloom on the ground | recorded with the bloom off, since the app's bright-layer bloom lifts no resting ground (§ F3.1, § T10.4, § T4.2) |
+| A4 | GAP | `BattleCtx.spdDelta` set only on the battles path and bound by no cell | the battles harness's diagnostic knob, never a golden's; a `COMBAT-SPD-NN` clause test binds it — the one rule the goldens never set (§ T2.3, § T5.3, README item 3) |
+| A5 | GAP | The fallback sidecar's `hitRect` written by a different producer with no rule | computed by § T10.6's rule from the captured frame, never from the recipe's `hit`/`hitSize` (§ T10.9) |
+| A6 | NUMBERS | GitHub's Linux rate claimed at $0.008 | declined: GitHub cut Linux 2-core to $0.006 on 2026-01-01 (its changelog; verified in round 13); $0.006 stands |
+| A7 | MINOR | A function reference cannot carry the observer's assignment | an observer holder object in the sketch (§ T2.3) |
+| A8 | MINOR | A KGP dump is not compilable Kotlin | the generated stub is the rule, the dump its input (§ T6.3) |
+| A9 | MINOR | The bars listed among the bible's inputs | = D10/C6 (§ T7.5) |
+| A10 | MINOR | The feature graphic had two grounds | over a stage capture; the icon and splash over the ground colour (§ V3.3) |
+| A11 | MINOR | The list check's deliberate re-run tripped the enforced re-run rule | = C2 (§ V5) |
+| A12 | MINOR | V1's P0 list omitted the environment recipe; the window starts at M1 | added; the M1–M3 window (§ V1, README principle 10) |
+
+### 17-B — adversarial, product and process
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | The farm's Blaze project billed without a ceiling — a Cloud budget only alerts | a Test Lab daily quota set at P1 is the ceiling, a budget alert beside it; a risk row (README CI row, P1 row, risks; § T1) |
+| B2 | GAP | No credential had a lifetime or a rotation owner | the runner's token rotated and the Apple signing material and store API keys renewed inside the quarterly session, the owner's act (README steady state, § T12) |
+| B3 | GAP | A designed run loss was a tag-holding blocker under question 10's "no" | an unexpected lost run only; the designed loss a recorded known miss (README P7 row, § T14) |
+| B4 | GAP | The accepted cast's in-scene reading had no consumer | a reading below 1.5:1 takes the cast-miss branch (§ F3.1, § T14) |
+| B5 | GAP | Re-scoring the pixel sheet under the pinned prompt reproduces its own baseline | the critic scores the bake-off's B finalists beside the pixel sheet; the difference is the offset (§ F3.2, README question 1) |
+| B6 | NUMBERS | Nothing between the build and day 1 of the fourteen days | about a week for fourteen testers to install and opt in; the third term about five weeks, the best case fourteen to seventeen (README, four places; § T12) |
+| B7 | NUMBERS | "A further round costs about a session" against sixteen rounds in a day; a weekly cap cannot be hit twice in a day | a tenth of a session; the five-hour rolling limit named (README, three places) |
+| B8 | MINOR | The hardware acts absent from the P0 row | the Mac confirmed and the handsets bought after the go or no-go (README P0 row) |
+| B9 | MINOR | "The language the owner reviews in" against a merge model where the Kotlin merges on green | the spec, the build files and the analyser configuration (README D1) |
+| B10 | MINOR | A recruitment floor conditional on a decision three phases later | each tester's Android version recorded at recruitment, 12 or newer preferred (README) |
+| B11 | MINOR | The per-image base priced option (a)'s frames, which the per-image providers cannot make | ≈ $600 at option (b)'s 3 354 images; option (a) in its months (README, § T10.7) |
+
+### 17-C — blind, the implementer
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| C1 | BLOCKING | L2a's matrix over "everything" while the `ART` and `RUN-FLOW` clauses bind only in L2b | the binder binds once over `gate.sh commit`, reading L2a's and L2b's reports together (§ T7.2, § V2, § V6) |
+| C2 | GAP | The mandated re-runs (the list check, the `env-image` hand-back) had no class under the enforced rule | a second logged class, outside § V7's count (§ V5) |
+| C3 | GAP | `portrait=1` undefined; a centre 9:16 crop loses the seats at x 290–732 | the portrait bars are recorded at P5 by the Kotlin `frames` instrument on the placeholders it draws, the seats re-anchored by `Layout`; the prototype gains no portrait mode (§ F3.1, README question 2, § T4.2) |
+| C4 | GAP | The title's long-press had no run to share under a "no" | the share on PAUSE and GAME OVER; the title shares the last run's, kept in memory until the next run (§ F2.7) |
+| C5 | MINOR | Battles rows' `vault` and `spd` columns unstated | `-`, rejected by spec-lint otherwise (§ T5.3) |
+| C6 | MINOR | The bars among the bible's inputs | = D10 (§ T7.5) |
+| C7 | MINOR | A family id named as a single clause | "`META-VAULT` clauses", "a `COMBAT-FORFEIT-NN` clause" (§ T5.1, § T2.3) |
+| C8 | MINOR | `rig.json` omitted the rim's lean and the glow constants | `RIM_PUSH_X/Y` and the `GLOW_*` set added (§ T4.2) |
+| C9 | MINOR | `seat=` against `party=`/`pack=` with no precedence | `seat=` overrides at the anchors (§ T4.2) |
+| C10 | MINOR | T14's P0 exit omitted the go or no-go and the calibration adjudication | both added (§ T14) |
+| C11 | MINOR | "`parts.ts` holds only the `Ramp` type" is false | "the `Ramp` type, not the ramp values" (§ T4.2) |
+
+### 17-D — blind, the owner's advisor
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| D1 | GAP | The store pages published only by a prototype build that retires | a `docs` job of its own in `pages.yml`, run whatever the prototype build does (§ T4.1, § V8.3, README question 3(a)) |
+| D2 | GAP | The product name and ids fixed permanently with no clearance | a search of both stores and the trademark registers at P0's terms check; the resemblance row covers the name and the listing (README P0 row, risks; § T12) |
+| D3 | NUMBERS | "About nine, ten with 3(c)" P0 pull requests against § T4.2's eleven | eleven, twelve with 3(c) (README) |
+| D4 | NUMBERS | P0's eight sittings against nineteen artefacts | what each pair of sittings reads, and at what depth (README) |
+| D5 | MINOR | Question 10's yes and D6 promised survival with no exception | § F2.1's two exceptions on both (README) |
+| D6 | MINOR | Handsets bought at P0 before question 5 decides whether phones are lane hardware | the Android one by P1's M7, the iPhone only under the runner branch (README, twice) |
+| D7 | MINOR | The bake-off's keys loaded before the go or no-go | after it, hard-capped (README P0 row) |
+| D8 | MINOR | Question 1 not void under a "no" to question 6; the "no" arithmetic kept the bake-off's M | "void if question 6 is no"; 16–32 (README) |
+| D9 | MINOR | Orientation had no register row | D21 (README) |
+| D10 | MINOR | The bars listed among the bible's inputs | the seat list and the ground colour read, the bars recorded from the captures (§ T7.5) |
+| D11 | MINOR | The non-recommended branches' prices outside the contingent list | one clause (README) |
+| D12 | MINOR | A daily phone assumed but unnamed | named in the handsets row and § T1 (README, § T1) |
+
+**Declined or only partly applied:** A6 declined with the evidence above.

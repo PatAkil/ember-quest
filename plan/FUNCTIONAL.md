@@ -150,7 +150,7 @@ phase named in the Phase column.
 | F2.4 | **Interruptions** | a call or a switch to another app pauses the game and the sound; returning resumes on the pause overlay | The app pauses on lifecycle events and yields audio focus. | S | P5 |
 | F2.5 | **App identity** | the app icon (a 1024 × 1024 master — a normalised crop of an accepted hero's idle frame at 16×, nearest-neighbour, the fallback hero's until the cast is accepted and re-cut from the accepted hero before the P7 tag — a listing update on both stores, an S, and one owner sitting on the P7 row — over the bible's ground colour, recorded at P0 in `spec/art/bible.md`, produced by `frames --icon` (`VERIFICATION.md` § V3) and never generated — from which the platforms' sizes and Android's adaptive layers are derived by the build), the splash (the icon on the ground colour through each platform's own launch screen), Play's 1024 × 500 feature graphic (the same crop over a stage capture); all three under `assets/store/`, an owned path the owner reviews on the P5 row; store listing, a credits screen that names the AI art providers and every bundled asset's licence (the HUD face's OFL or Apache notice; the sounds and the glyph tables are the prototype's own) | Store metadata is copy the owner writes; the credits line is required by § F3.6. | S | P5 (identity and the listing copy, which Play needs before a closed-track release); P7 (the credits and disclosure copy) |
 | F2.6 | **Device tiers** | a 2022 mid-range phone runs MED at 60 Hz; older devices start LOW; the toggle in settings | The tiers are the contract's; the *default* comes from a three-second stage benchmark run behind the title on first launch — the title needs no stage, so the ≤ 2 s boot budget of `TECHNICAL.md` § T9.5 holds and the tier is decided before the first battle (§ F1.3). | S | P5 |
-| F2.7 | **Bug reports from a release build** (the share of the current run's encoding as text exists whatever question 10 answers — the encoding does, `VERIFICATION.md` § V3.2; only persisting it in the app and the corpus are question 10's — built with the first test-track build so the felt rows and the closed testers have it) | a long-press on the title shares the current run's save file; the seed is shown on GAME OVER | So the owner's felt rows, the first-ten-minutes test and the closed testers — all on release builds — can report a bug that replays (`TECHNICAL.md` § T11). The rest of the debug drawer stays debug-only. | S | P5, with the first test-track build |
+| F2.7 | **Bug reports from a release build** (the share of the current run's encoding as text exists whatever question 10 answers — the encoding does, `VERIFICATION.md` § V3.2; only persisting it in the app and the corpus are question 10's — built with the first test-track build so the felt rows and the closed testers have it) | a long-press on PAUSE or on GAME OVER shares the current run's encoding as text, and the title's long-press the last run's — kept in memory until the next run starts under question 10's no, so a KO keeps it and a crash loses it; the seed is shown on GAME OVER | So the owner's felt rows, the first-ten-minutes test and the closed testers — all on release builds — can report a bug that replays (`TECHNICAL.md` § T11). The rest of the debug drawer stays debug-only. | S | P5, with the first test-track build |
 
 Optional, not planned: controller support (cheap on the keyboard route), portrait layout,
 localisation beyond keeping strings in one place, cloud saves, accounts (PvP will decide).
@@ -209,8 +209,10 @@ screenshots, are not in the repository and never will be.
   `bakeFlat`'s own frame, whose floor is resampled — and at the tier the reference
   phone's first-launch benchmark picks, MED on the 2022 phone (§ F2.6), the frame the felt
   rows and the testers see, whose bar is recorded over the flat composite lit by the
-  prototype's rig at MED (`TECHNICAL.md` § T4.2's `flat=1 tier=MED` look), not over the
-  four-plane diorama, which is not the scene P5 draws; and P6 at HIGH on the landed rig,
+  prototype's rig at MED with its bloom off (`TECHNICAL.md` § T4.2's `flat=1 tier=MED`
+  frame) — the prototype's frame-derived bloom lifts the ground strips the ratio is
+  measured against, and the app's bright-layer bloom does not — not over the four-plane
+  diorama, which is not the scene P5 draws; and P6 at HIGH on the landed rig,
   with LOW and MED not below the P0-recorded LOW and MED bars (the record under the older strip rule was
   106 of 108, quoted for scale only); ARCADE — LOW with the CRT pass over it, a
   stylisation the player chooses — is exempt, since its scanlines, halation and lift are
@@ -218,17 +220,19 @@ screenshots, are not in the repository and never will be.
   has the cast-miss shape — one rework of the rig at P5 or of the planes at P6, then the
   owner's decision, a recorded miss carried forward or the phase held — and so does P6's
   acceptance on a phone; under question 2's portrait branch the bars are re-recorded at P5
-  on the portrait placeholders — the landscape composites cropped to the centre 9:16 and
-  upscaled nearest, the same `flat=1` capture with `portrait=1`, inside question 2's priced
-  session — and the bands re-derived at P0; and the **seat spread** — the largest excess of a seat's torso median (rows
+  by the Kotlin `frames` instrument on the portrait placeholders it draws — the landscape
+  composites cropped to the centre 9:16 and upscaled nearest, the seats re-anchored by
+  `Layout`; the prototype's stage stays landscape and gains no portrait mode — inside
+  question 2's priced session, and the bands re-derived at P0; and the **seat spread** — the largest excess of a seat's torso median (rows
   0.33–0.72 of the silhouette's height) over the median seat **of the same biome frame**,
   reported as the maximum over the six frames — an L* value that is **reported, not gated**: the rig's own
   measure, taken with one id planted at all six anchors (`seat=<id>` in the prototype,
   `frames --seat <id>` in Kotlin; the rig's 4.5 L was measured that way, the cast's
   differences removed, and 5 L* is the intent). The count is
   **reported** on every sprite's contact sheet — and at P5's end once over the accepted
-  cast, the party's and the enemy rank's medians beside it, so a bright enemy rank is seen
-  even where it is not gated — and **gated** at P5
+  cast, the party's and the enemy rank's medians beside it, and a reading below 1.5:1 on the
+  accepted cast takes the cast-miss branch, one rig rework and then the owner's decision, a
+  recorded miss carried into P6 or P7 held — and **gated** at P5
   and P6 against the rig over the biome frame goldens (a miss is a light or shadow fault,
   worked in the scene, never by regenerating a sprite). The sheet's contrast columns stay
   reported for continuity. *Target*,
@@ -292,8 +296,10 @@ reported for both (§ F3.1); if B wins, P4 re-derives the value *targets* (p50 3
 ≥ 45 % below L 35 were measured on pixel figures and the reference crop) on B's own
 reference, about one extra session, while the pass thresholds stay; the critic's pinned
 prompt is look-neutral — its criteria name no medium — but its per-axis baselines are the
-pixel cast's, so under B the calibration sheet is re-scored with the same pinned prompt
-inside that session and the offset is a register entry the P4–P6 bars carry. A B candidate reaches
+pixel cast's, so under B the critic scores the bake-off's B finalists in lit frames beside the pixel
+calibration sheet, both under the pinned prompt, inside that session, and the difference
+between the two sheets is the offset the P4–P6 bars carry — a register entry (re-scoring
+the pixel sheet alone would only reproduce its baseline). A B candidate reaches
 the owner on that reduced gate, so the fork can actually close. **B's display path**: a
 painted frame is a 128 × 128 px PNG (192 × 192 for a boss) with the sidecar `canvas:
 128|192, cell: 1`, drawn by the prototype's `PixelActor` registry at 1:1 on the stage (`TECHNICAL.md` § T4.2, § T10.9)
