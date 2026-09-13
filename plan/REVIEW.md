@@ -2946,3 +2946,85 @@ battles policies (A4, C2). Nothing was declined.
 | D6 | MINOR | Two round-27 log rows carried superseded figures | corrected (REVIEW.md) |
 
 **Declined or only partly applied:** none.
+
+
+## Round 29 — on revision 30 (commit `295472e`)
+
+Four reviewers on a lighter model, 39 findings: 2 BLOCKING, 13 GAP, 5 NUMBERS, 19 MINOR.
+The blocking rows: the App Store's phased release exists for updates alone, so the plan's
+first act on a run-breaking report did not exist for the first iOS release (B1); and the
+`bloom: false` switch was passed by the MED capture alone while both HIGH sets were compared
+with bloom-off Kotlin frames (A1, C1). The gaps: pacts and forge modes were outside the
+coverage gate (A2); the post-gate `:core` proof named `diff-oracle` after § V8.3 retires it
+(A3); question 7(b)'s no left five `main`-pinned mechanisms untraced (B2); nobody but the
+owner played the new build before the store set-up (B3); the annual decision had no bar
+(B4); the repository's size was unbounded (B5); the subscription's terms of use were never
+checked against the pattern the plan runs on it (B6); option B was unpriced in weeks (D1);
+provider terms were verified once and never re-read (D2); the Mac could not pin the image's
+JDK patch (C3); and an outside pull request was unaddressed on a public repository (C4).
+The numbers: the icon master's three constraints could not all hold (A4, C5); the second
+Apple year (B7); the private branch's monthly line (B8); the required-reviewer claim's
+citation (D3). Nothing was declined; D3 is applied as a citation with a read date and a
+re-read at P0's terms check, not as a change of claim, since the page read says what the
+plan says.
+
+### 29-A (adversarial, technical) — 0 BLOCKING, 3 GAP, 1 NUMBERS, 3 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| A1 | GAP | Both HIGH captures blooming against bloom-off Kotlin frames | the HIGH diorama and the `flat=1 tier=HIGH` set pass `bloom: false` too (§ T4.2, § F3.1) |
+| A2 | GAP | Pacts and forge modes outside the coverage gate | both in the list, under the bounded-search exemption (§ T5.3, § V3.6, § T14, README) |
+| A3 | GAP | The post-gate proof named `diff-oracle` after it retires | `diff-oracle` while the oracle stands, the committed golden hash lists after (§ T2.3, § T11) |
+| A4 | NUMBERS | The icon master's crop, padding and 16× cannot all give 1024 | the 64-cell canvas at 16×, the silhouette centred (§ F2.5, § V3.3) |
+| A5 | MINOR | The required-check list job red across M3–M4 | generated inert until M4's ruleset carries the list (§ T13.5, § V1) |
+| A6 | MINOR | `ci/required-checks.txt` outside the generated diff | in the diff (§ T13.5) |
+| A7 | MINOR | The `pull_request_review` merge-ref claim doubtful | re-verified at M3; nothing rests on it (§ V5) |
+
+### 29-B (adversarial: product, process, risk) — 1 BLOCKING, 5 GAP, 2 NUMBERS, 4 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| B1 | BLOCKING | The App Store phases updates alone; the first release has no halt | the first iOS release's halt is Remove from Sale plus an expedited-review fix; the phase kept for updates (§ T12, README) |
+| B2 | GAP | Five more `main`-pinned mechanisms under 7(b)'s no | `pages.yml`, the two `main` statuses, the runner's checkout and `keepalive.yml` named; one to two extra sessions (README) |
+| B3 | GAP | No non-owner signal before the store set-up | three to five testers on the internal track at the last stop (README's P5 row, § T12) |
+| B4 | GAP | No year-one bar for the annual decision | recorded in the register at P5's stop; the launch named as what it is (README) |
+| B5 | GAP | Repository size unbounded | a § V7 measure from P1, LFS or narrowed checkouts past 500 MB (§ V7) |
+| B6 | GAP | The subscription's terms of use unchecked | on P0's terms check and the risk row's tripwire (§ T14, README) |
+| B7 | NUMBERS | A second Apple year on any calendar past a year | in the accounts row and the totals; Play's inactive-account policy on the terms check (README, § T14) |
+| B8 | NUMBERS | The private branch's $190 top unexplained | $90–155 from its parts; the recurring year ≈ $2 000–4 700 (README) |
+| B9 | MINOR | A read-only default token caps nothing | the create-and-approve setting caps; the checks rest on the ruleset (§ T1) |
+| B10 | MINOR | The redispatch's "cannot rewrite it" clause | dropped; the property rests on nothing the file holds (§ V5) |
+| B11 | MINOR | A felt-row stop cannot fall inside a closed test | P6's and P7's stops named (§ F1.5.3) |
+| B12 | MINOR | The paid pace led the calendar | the assumed pace first (README item 6) |
+
+### 29-C (blind implementer) — 1 BLOCKING, 3 GAP, 1 NUMBERS, 5 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| C1 | BLOCKING | The HIGH equivalence check compares bloom-on to bloom-off | with A1 |
+| C2 | GAP | The required-checks list outside the generated diff | with A6 |
+| C3 | GAP | The Mac cannot pin the image's JDK patch through `brew` | the JDK from an Adoptium tarball, Gradle and Node from their pinned distributions, on both hosts (§ V4) |
+| C4 | GAP | Outside pull requests unaddressed on a public repository | never merged; workflows need approval; `env-image` skipped on a fork head; auto-merge the merger of the App's own (§ V5, § V4, § V9, README) |
+| C5 | NUMBERS | The icon master over-determined | with A4 |
+| C6 | MINOR | `RUN-FLOW`'s owner unstated | `:storyboard` (§ T7.1) |
+| C7 | MINOR | "A set bonus is wearer-only" false for BULWARK | said (§ T7.4) |
+| C8 | MINOR | The lit frames had no committed file to render from | panels of `sheet.png` (§ F3.5, § V3.10) |
+| C9 | MINOR | `stage.html`'s five parameters cannot carry the capture's flags | the flags passed through by name (§ T4.2) |
+| C10 | MINOR | `record-goldens` dispatched on `main` renders `main` | dispatched on the head ref, which the job checks out (§ V4) |
+
+### 29-D (blind owner's advisor) — 0 BLOCKING, 2 GAP, 1 NUMBERS, 7 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| D1 | GAP | Option B unpriced in weeks | its calendar at the three paces, capacity-bound (README question 6) |
+| D2 | GAP | Provider terms verified once, never re-read | re-read at P4's start and before any later character, dated in `LICENSES.md`; a tripwire (§ T10.2, § F3.6, README) |
+| D3 | NUMBERS | The required-reviewer claim uncited | cited with a read date, re-read at P0's terms check; the claim stands (README, § V5, § T14) |
+| D4 | MINOR | Item 5 dropped question 1's early close | named (README) |
+| D5 | MINOR | "After the go or no-go" read as loading keys on a no-go | "after the go" (README) |
+| D6 | MINOR | D2's reversal cell priced only the move | location an afternoon, visibility one-way (README) |
+| D7 | MINOR | The copyright position promised, not stated | stated in item 5 (README) |
+| D8 | MINOR | The runner branch headlined "no recurring cost" | no metered CI cost; the fallback nights and the power (README) |
+| D9 | MINOR | The painted branch's lever unpriced | a re-bake on every biome entry (README) |
+| D10 | MINOR | The roadmap's P0 gate short of § T14's | the adjudication and the accepted re-estimate added (README) |
+
+**Declined or only partly applied:** none.
