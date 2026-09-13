@@ -426,7 +426,7 @@ real one. From that commit:
   follows the same shape (it is outside the generated-workflows diff): the freeze check
   runs unconditionally, guarded so it is green until the tag
   exists (`VERIFICATION.md` § V5), and `prototype-check` — the prototype's own gates — runs
-  when `prototype` changed. Both are required from P1, as is the `changes` job of every workflow that runs lane
+  when `prototype` changed and, from P2, when `spec` changed (`VERIFICATION.md` § V5). Both are required from P1, as is the `changes` job of every workflow that runs lane
   jobs on a pull request, by its workflow-prefixed name (a job skipped because `changes`
   failed would satisfy a required check).
 - **`main` is protected** from P1 by the ruleset of `VERIFICATION.md` § V5 for the whole
@@ -1083,7 +1083,7 @@ designing-mechanics discipline made mechanical, and the `kmp-spec-change` skill 
 
 Unique ids; the id grammar; the `status`, `owner` and `paths` lines present and valid
 (`paths` existing for `contract` clauses); every `data:` table parsable with its `types:`
-line; every `schema:` block parsable, and every fixture under `spec/fixtures/art/**` — an area the binder never types, as `spec/fixtures/saves/**`, which JVM tests read — validated against its root schema; links resolve; a clause's prose ≤ 60 lines (tables exempt); no two clauses
+line; every `schema:` block parsable, and every fixture under `spec/fixtures/art/**` — an area the binder never types, as `spec/fixtures/saves/**`, which JVM tests read — validated against its root schema, and `seats.json`'s `biome` values are ids of the biome `data:` table (§ T7.5); links resolve; a clause's prose ≤ 60 lines (tables exempt); no two clauses
 with the same title; goldens have hashes and a `GOLDEN` clause; cell ids unique across `cells.md` and matching
 `^[a-z0-9][a-z0-9-]*$`, since a cell's id names its golden file and is `--cell`'s
 argument; and it emits every `data:` table as canonical JSON under `spec/.generated/`
