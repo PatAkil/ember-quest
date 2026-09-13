@@ -33,7 +33,7 @@ previous revision's own edits.
 blocking and zero gap findings — minor findings are treated as residual — and the owner may
 hold it to the brief's stricter "no more findings" — or stop it at the practical bar: zero
 blocking and no gap that moves a phase's size, price or gate, since the gap count has held
-between fourteen and twenty-two for twelve rounds with no trend to zero and about a third
+between fourteen and twenty-two for thirteen rounds with no trend to zero and about a third
 of each round is the previous revision's own residue; a further round costs about a tenth
 of a session of agent capacity (sixteen rounds ran inside a day), and P0 may start with
 open minors and with gaps of that kind, resolved in P0's first sitting; this README will
@@ -403,7 +403,7 @@ programme, where an absence over P4's sheet queue — or over a stop's pause, wh
 re-estimate waits for the owner — burns a paid month and can itself fire the stop
 trigger, the third exception (the subscription is not renewed while a decision is
 pending); and the farm's fallback nights while a phone stays down, ≈ $1–4 each, the
-fourth. Otherwise: the ruleset has no up-to-date
+fourth; and a Gemini key past its revocation date, the fifth. Otherwise: the ruleset has no up-to-date
 requirement, so an approved pull request stays approved while unrelated ones merge, and a
 session opens one pull request per owner-gated path and stacks nothing behind it.
 Overnight sessions therefore leave such pull requests for the morning, and the plan's

@@ -141,7 +141,7 @@ to nothing but the standard library; Konsist tests check imports per module.
 | `:core` | Kotlin stdlib | `kotlinx.*`, `androidx.*`, `java.*` beyond what stdlib maps, `android.*`, `platform.*`, any logger, any clock, `kotlin.random` |
 | `:core-testing` | `:core`, Kotest | platform (its `jvmTest` source set excepted, for § T5.2's `MessageDigest` cross-check) |
 | `:engine` | Compose, `kotlinx.collections.immutable`, Skiko on non-Android source sets | `:core`, `:ui` |
-| `:ui` | `:core`, `:engine`, Compose, compose-resources, `kotlinx.collections.immutable` | platform APIs except through `:engine`'s `expect` surface |
+| `:ui` | `:core`, `:engine`, Compose, compose-resources, `kotlinx.collections.immutable`; `:core-testing` from its test source sets only (the storyboard driver's fixtures) | platform APIs except through `:engine`'s `expect` surface |
 | `:sim` | `:core`, `:core-testing`, kotlinx-serialization-json, a CLI parser | Compose |
 | `:tools:instruments` | `:core`, `:core-testing`, `:ui`, `:engine`, JVM libraries | — (the storyboard's tap-and-assert logic is not here but in `:ui`'s test source sets — `commonTest` on `runComposeUiTest`, run as `androidInstrumentedTest` and `iosSimulatorArm64Test` in L4 — this module being the JVM CLI over it, since a JVM-only module can drive neither an instrumentation APK nor a simulator test) |
 | `:tools:stub` | JVM libraries and a CLI parser | Compose, `:core`, `:ui` |
@@ -168,7 +168,7 @@ a Kotlin port of the art tool is optional and never a gate.
 **Test data on every target.** `:core` has no file access on iOS or Wasm, so no test reads a
 path. The spec binder (§ T7.2) *generates Kotlin source* before compilation — the golden
 cell table and the fixtures into the owning module's generated `commonMain` source set (the golden fixtures and the cell table into `:core-testing`, which `:sim` and the instruments both depend on, § T7.1),
-since the harness, the instruments and the debug drawer read them, and the tables and the
+since the harness, the instruments, `:ui`'s test source sets (the storyboard driver) and the debug drawer read them, and the tables and the
 hash lists into `commonTest`: `SpecTables.kt` — one `List<Row>` per `data:`
 table, the `Row` a data class typed per column from the clause's `types:` line (`int`,
 `double`, `string`, `bool`, `enum:<Union>`, each with an optional form `int?` etc. where an
@@ -981,7 +981,7 @@ types: enum:StatusKind, int
   `retired`; a `known-divergence` note may accompany `proposed` (§ T7.6).
 - `owner` names the module whose tests bind it and whose generated `commonTest` receives
   its tables — or `tools/art` for `ART` clauses, whose `data:` tables reach the art tool as spec-lint's canonical JSON
-  (§ T7.8) and whose tests report as JUnit XML the binder reads like any other task's; the owner per area, which is also the module whose `<Module>Fixtures` receives the area's fixtures (§ T2.1): `:core` for the rules areas, `RNG`, `SESSION`, `CODEC`, `SAVE` and `SYNTHETIC`, and for `spec/golden/fixtures.md`, `spec/golden/vault.md` and `spec/golden/hash.md` — rules types, generated into `:core-testing` rather than `:core`'s shipped `commonMain` and ABI, read by `:sim`'s harness and by `:tools:instruments`' storyboard through the `:core-testing` edge, since neither may depend on `:sim` and `:core`'s shipped ABI carries no fixture (`:ui`'s `commonMain` does carry `UiFixtures`, for the previews and the debug drawer) — `:sim` for `spec/golden/cells.md` and `BALANCE`, `:engine` for `PLATFORM` — but `:core` for the `PLATFORM-DEBUG` clauses, which bind `RunDebug` in `:core` (`owner` is per clause) —, `:ui` for `SCREENS`;
+  (§ T7.8) and whose tests report as JUnit XML the binder reads like any other task's; the owner per area, which is also the module whose `<Module>Fixtures` receives the area's fixtures (§ T2.1): `:core` for the rules areas, `RNG`, `SESSION`, `CODEC`, `SAVE` and `SYNTHETIC`, and for `spec/golden/fixtures.md`, `spec/golden/vault.md` and `spec/golden/hash.md` — rules types, generated into `:core-testing` rather than `:core`'s shipped `commonMain` and ABI, read by `:sim`'s harness, by `:ui`'s test source sets (the storyboard driver) and by `:tools:instruments`' storyboard CLI through the `:core-testing` edge, since neither may depend on `:sim` and `:core`'s shipped ABI carries no fixture (`:ui`'s `commonMain` does carry `UiFixtures`, for the previews and the debug drawer) — `:sim` for `spec/golden/cells.md` and `BALANCE`, `:engine` for `PLATFORM` — but `:core` for the `PLATFORM-DEBUG` clauses, which bind `RunDebug` in `:core` (`owner` is per clause) —, `:ui` for `SCREENS`;
   `paths`, relative to the repository root, lists the source files that implement it, so
   the binder can map a changed file to its clauses. `paths` must exist
   for a `contract` clause; a `proposed` clause may name files that do not exist yet.
