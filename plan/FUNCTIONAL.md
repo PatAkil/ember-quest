@@ -22,7 +22,7 @@ where numbers move, simulator guards.
 
 Everything `DESIGN.md` specifies, as the prototype's rules core implements it at the tag
 `ts-oracle-v3` — where the contract and the code disagree, **the code is the baseline**
-(the six items `STATUS.md` lists are reconciled into the spec at P2, `TECHNICAL.md` § T7.6).
+(the six items `prototype/STATUS.md` lists are reconciled into the spec at P2, `TECHNICAL.md` § T7.6).
 The inventory is the checklist the rules gate is signed against; the counts are the
 current content.
 
@@ -64,7 +64,7 @@ HD-2D) has not changed:
   elements; damage pops; 24 sound effects, rendered once from the prototype's synthesizer;
 - the screen inventory above with the contract's readability rules (arm's-length text,
   the character limits per label, one focus model, `TAP_MIN` 96);
-- the feel items `STATUS.md` and the full-frame critic recorded, which become the
+- the feel items `prototype/STATUS.md` and the full-frame critic recorded, which become the
   `kmp-quality` rubric (§ F1.5).
 
 ### F1.3 What the new presentation decides
@@ -77,10 +77,10 @@ Each of these is a spec clause under `spec/platform/` so it is a decision, not d
 | Where the Vault lives | browser storage under `ember-quest/vault` | the app's private storage with a schema version; the prototype's Vaults are not imported (§ F6) | nobody has a Vault worth moving; the prototype is disposable |
 | Host messages | `postMessage` to an embedding parent | none | there is no host |
 | The HUD face | a system font stack chosen by the browser | one bundled font, the same on every device; the contract's character limits re-validated in it | consistency; the metrics need one face |
-| Bloom and halation | derived from the whole frame; halation a blurred copy of the frame | from the *bright layer* (VFX, prop glows, the sky body, pops) at quarter resolution, on every platform, decided at P5 on the real stage (`TECHNICAL.md` § T9.4) | one deterministic code path |
+| Bloom and halation | derived from the whole frame; halation a blurred copy of the frame | from the *bright layer* (VFX, prop glows, the sky body, pops) at quarter resolution, on every platform — ARCADE's halation included, which reads a bright layer LOW alone does not build, so ARCADE glows on VFX and props and not on the whole frame as the prototype's did — decided at P5 on the real stage (`TECHNICAL.md` § T9.4) | one deterministic code path |
 | Quality tier defaults | HIGH everywhere (the auto-drop to LOW and the ARCADE toggle) | by a first-launch benchmark — MED on a 2022 phone, HIGH where the stage holds 60 Hz once P6's planes land with HIGH's bar (until then MED is the picker's top, since P5's flat stage has no HIGH bar, § F3.1) — adjustable in settings; the auto-drop stays | a 2022 phone cannot hold HIGH at 60 Hz |
 | Input surface | mouse, touch, keyboard | touch and, where present, keyboard; **Android's back gesture and button act as B**; at the title, and on the map with a run open, back asks before leaving the app; a controller is optional later | platform |
-| Windowing | a browser tab | split-screen, free-form and tablet windows letterbox the frame; a resize pauses the game | platform |
+| Windowing | a browser tab | on Android, split-screen, free-form and tablet windows letterbox the frame and a resize pauses the game; the iOS build targets iPhone alone (`TARGETED_DEVICE_FAMILY = 1`, `TECHNICAL.md` § T12), so no iPad window exists | platform |
 | Pixel crispness | the whole frame scaled smooth | the actor plane drawn with nearest sampling where the device scale makes one cell an integer number of device pixels, else smooth | a small win, never a loss |
 
 ### F1.4 What the prototype gets wrong, and the spec fixes
@@ -116,7 +116,7 @@ behaviour and the new screens are built to it; the prototype is frozen with its 
    miss or stop — a stop during a running closed test (P6's or P7's, since the felt rows close P5's gate before the test starts) ends the test: the testers are told,
    the track is closed, and a later resumption restarts the fourteen days; the priced worst case is two reworks per row and six in all across the eight — six reworks, each a third to two-thirds of a session, contingent and outside P5's XL — up to 2–4 sessions in the worst case, one of the aggregate's contingent items (README, *Effort*) — each re-walked in P5's next sitting inside its 8–12 — and a third rework on a row or a seventh overall is the branch trigger. The rows are scored against the
    **feel rubric** of the `kmp-quality` skill (`TECHNICAL.md` § T13.2), written at P1 from
-   `STATUS.md`'s "Playing it on a phone" section and the full-frame critic's
+   `prototype/STATUS.md`'s "Playing it on a phone" section and the full-frame critic's
    first-ten-minutes items — anything tapped twice, anything unreadable at arm's length, a
    frame rate that does not hold through a hit, a hit without a pop, a prompt that blinks
    off, a screen that swallows the run.
@@ -144,7 +144,7 @@ phase named in the Phase column.
 
 | # | Change | What the player gets | Notes | Size | Phase |
 |---|---|---|---|---|---|
-| F2.1 | **Resume anywhere** (recommended; question 10) | Closing or being interrupted mid-run — mid-battle too — loses nothing; the app reopens on the same decision, or on the same hero turn | The run is saved after every decision, hero turns included, as `(rules version, seed, config, decisions)` and replayed on launch; a state snapshot rides along so that an app update never abandons a run from the previous version — when the installed rules differ from the save's, the run continues from the snapshot under the new rules and the player is told once — **unless the save names content the installed rules no longer have** (a removed character or skill) or is two or more versions old, the two cases that abandon a run with the Vault untouched (`TECHNICAL.md` § T11). Not a *rewind*: the player cannot undo a decision. The resume path (`resumeRun`, `TECHNICAL.md` § T11) is a rules-structure change with its own clauses — an S inside this row's M–L, after the P3 gate — so the row's one price is the save format and `SAVE` clauses inside P3, ≈ 1–2 sessions in P5, and that S after the gate. A "no" leaves a permadeath run at the mercy of the platform killing the app in the background, which is why the plan recommends yes and D6 depends on it. | M–L (the `SAVE` clauses inside P3's size, ≈ 1–2 sessions in P5, the post-gate `resumeRun` S) | decided P0; the save format and `SAVE` clauses in P3; the resume path in P5 |
+| F2.1 | **Resume anywhere** (recommended; question 10) | Closing or being interrupted mid-run — mid-battle too — loses nothing; the app reopens on the same decision, or on the same hero turn | The run is saved after every decision, hero turns included, as `(rules version, seed, config, decisions)` and replayed on launch; a state snapshot rides along so that an app update never abandons a run from the previous version — when the installed rules differ from the save's, the run continues from the snapshot under the new rules and the player is told once — **unless the save names content the installed rules no longer have** (a removed character or skill) or is two or more versions old, the two cases that abandon a run with the Vault untouched (`TECHNICAL.md` § T11). Not a *rewind*: the player cannot undo a decision; a battle open across an app update restarts from its beginning (`TECHNICAL.md` § T11). The resume path (`resumeRun`, `TECHNICAL.md` § T11) is a rules-structure change with its own clauses — an S inside this row's M–L, after the P3 gate — so the row's one price is the save format and `SAVE` clauses inside P3, ≈ 1–2 sessions in P5, and that S after the gate. A "no" leaves a permadeath run at the mercy of the platform killing the app in the background, which is why the plan recommends yes and D6 depends on it. | M–L (the `SAVE` clauses inside P3's size, ≈ 1–2 sessions in P5, the post-gate `resumeRun` S) | decided P0; the save format and `SAVE` clauses in P3; the resume path in P5 |
 | F2.2 | **Settings** | sound volume and mute; ARCADE on/off; quality tier (AUTO/MED/LOW; HIGH from P6, § F1.3); a "reset the Vault" with a confirm; credits | One screen, reachable from the title and the pause overlay. Haptics on hits is optional and off by default. A crash-report toggle appears only when a reporter ships (§ T12). | S | P5 |
 | F2.3 | **Orientation and safe areas** | landscape locked (question 2); the frame respects notches, rounded corners and the gesture-navigation edges | The mutable safe inset reads the platform's insets. Every edge target is tested under gesture navigation. | S | P5 |
 | F2.4 | **Interruptions** | a call or a switch to another app pauses the game and the sound; returning resumes on the pause overlay | The app pauses on lifecycle events and yields audio focus. | S | P5 |
@@ -164,7 +164,7 @@ lit, blurred dioramas. Fourteen critic rounds on the prototype and a hand-drawn 
 defined what that means in numbers; the bible below is what every generation prompt, every
 gate and every critic works from. It is carried into `spec/art/` as clauses **with each
 number's derivation recorded** (the study's crop rectangles from commit `98464a4`, the sheet
-metrics of ART-REVIEW.md), because the reference frames themselves are the owner's
+metrics of prototype/ART-REVIEW.md), because the reference frames themselves are the owner's
 screenshots, are not in the repository and never will be.
 
 - **Cell and size.** One cell is 2 screen px at 720p. The canvas is 64 × 64 cells (96 × 96
@@ -183,7 +183,7 @@ screenshots, are not in the repository and never will be.
 - **Proportion.** About three heads tall with a big readable head — the reference's chibi
   build, not a slim figure.
 - **Value.** The figure sits dark on a lit ground. *Pass* (the sheet criteria the prototype
-  measures — ART-REVIEW.md's criterion 1 and the lit-from-above delta): L* span p2 ≤ 15 and p98 ≥ 85; ≥ 20 % of body cells below L 35
+  measures — prototype/ART-REVIEW.md's criterion 1 and the lit-from-above delta): L* span p2 ≤ 15 and p98 ≥ 85; ≥ 20 % of body cells below L 35
   and ≥ 20 % of interior cells; ≥ 8 % above L 75; the top quarter ≥ 8 L* lighter than the
   bottom (lit from above). *In scene — reported for a sprite, gating the stage* (the ruler the prototype adopted
   after round 11 in place of the old contrast-against-the-navy criterion, which is
@@ -195,8 +195,8 @@ screenshots, are not in the repository and never will be.
   median against the ground it stands on at both ground strips, as a **luminance
   contrast** — the WCAG relative-luminance ratio `(Y_hi + 0.05) / (Y_lo + 0.05)` between
   the cell at the median relative luminance of the actor's masked cells and of the strip's surviving cells (`ground`'s per-channel median, `TECHNICAL.md` § T7.5, is a separate, colour-valued reading),
-  ≥ 1.5:1 (over an L* 41.6 ground that admits an actor above L* 53 or below 31 — 52.8 / 30.6 by the formula; the 53.5 / 31.3 of ART-REVIEW.md carry a 0.7-L slip of their own — as
-  ART-REVIEW.md records; an L* ratio would be a different gate) — measured on **one fixed
+  ≥ 1.5:1 (over an L* 41.6 ground that admits an actor above L* 53 or below 31 — 52.8 / 30.6 by the formula; the 53.5 / 31.3 of prototype/ART-REVIEW.md carry a 0.7-L slip of their own — as
+  prototype/ART-REVIEW.md records; an L* ratio would be a different gate) — measured on **one fixed
   set**: the six seats of the resting frame of every biome — every actor on `idle` frame 0 at the capture's fixed tick, the one frame both renderers draw — 36 seats, 72 strip readings
   — the seat list (which fallback actor stands in each of the six seats of each biome) recorded in `spec/art/seats.md` (beside the bible, `TECHNICAL.md` § T7.5) when the art tool is calibrated, before the P0 ruler captures (the fallback sheets it is calibrated on come first), with the seat-spread id (the ground colour is committed after the MED `flat=1` frames it is measured on, each tier's bar after the frames of its own tier), an excluded seat counted as a miss, never dropped, and the
   fallback cast planted as a fixed reference at P0, P5 and P6; **three bars, all recorded
@@ -249,8 +249,8 @@ screenshots, are not in the repository and never will be.
   `frames --seat <id>` in Kotlin; the rig's 4.5 L was measured that way, the cast's
   differences removed, and 5 L* is the intent). The count is
   **reported** on every sprite's contact sheet — and at P5's end once over the accepted
-  cast, the party's and the enemy rank's medians beside it, and a reading below 1.5:1 on the
-  accepted cast takes the cast-miss branch, one rig rework and then the owner's decision, a
+  cast, the party's and the enemy rank's medians beside it, and the accepted cast's count against the same tier bar — a seat the recorded bar
+  concedes is conceded for the cast too — below that bar takes the cast-miss branch, one rig rework and then the owner's decision, a
   recorded miss carried into P6 or P7 held — and **gated** at P5
   and P6 against the rig over the biome frame goldens (a miss is a light or shadow fault,
   worked in the scene, never by regenerating a sprite). The sheet's contrast columns stay
@@ -270,7 +270,7 @@ screenshots, are not in the repository and never will be.
   helm, a coat with tails, a half-cape.
 - **Motion.** Five poses — idle, attack, hurt, cast, dead — three frames each. The two
   criteria the prototype already defines are kept **as defined, as absolute differences**
-  (ART-REVIEW.md's convention), with one denominator: **differing cells ÷ cells in the
+  (prototype/ART-REVIEW.md's convention), with one denominator: **differing cells ÷ cells in the
   union of the two masks**: idle changes ≥ 17 % between frames (a one-cell breath is a
   translation and counts); the settle band — attack 2 against idle 0 — **20–39 %** (round
   12's widened band, which rounds 13 and 14 measured against; the 21 floor of round 11 is
@@ -309,7 +309,7 @@ screenshots, are not in the repository and never will be.
 **How B is judged at the bake-off.** A painted figure fails the keyline, colour-count,
 cell-alignment and component criteria by construction, and the halo criterion is
 manufactured by the bilinear resample, so for look B those are *reported, not gating*, and the candidates skip the palette quantisation and integer downscale of
-normalisation (they are resampled to the cell canvas for measurement only); the value,
+normalisation (every measurement of a look-B frame, at the bake-off, at P4's gate and in L2b's asset gate, is taken on the frame downsampled to its actor's cell canvas, `TECHNICAL.md` § T10.5); the value,
 silhouette and motion criteria gate both looks unchanged, and the in-scene ruler is
 reported for both (§ F3.1); if B wins, P4 re-derives the value *targets* (p50 31–40 and
 ≥ 45 % below L 35 were measured on pixel figures and the reference crop) on B's own
@@ -388,7 +388,7 @@ every reported-only reading are outside this rule: they send the rig back to wor
 
 Per actor: a contact sheet of candidates (colour, greyscale, silhouette, the pose sheet, the actor's
 portrait under § F3.3's criteria, and
-the actor standing in a lit crypt frame at 1:1 and 2×) with the gate's table under it; the
+the actor standing in a lit crypt frame at 1:1 and 2× — rendered by the prototype's stage until P5 and by the Kotlin `frames` instrument from P5, so a later character's sheet needs no prototype capture stack, `VERIFICATION.md` § V8.3) with the gate's table under it; the
 critic's verdict; the owner's yes or no on the sheet — given on a phone from the pull request
 itself: `art sheet` writes the sheet as `assets/actors/<ID>/sheet.png` into the accepting pull
 request (a few hundred kilobytes, excluded from the atlas and the install) and the App posts
@@ -576,7 +576,7 @@ The closed unions a kit is built from — anything outside them is a *mechanics*
 | RULES change — a mechanic the owner names at the baseline play, a balance diagnosis the owner takes after P3's gate, or a change from the closed test's reports, built after P3 | S–M per clause family | the family's clauses under `TECHNICAL.md` § T7.7, its goldens re-recorded with approval | the family's behaviour, the hash test | the ladder and the guards, the Balance state | any pose or effect the change needs | any screen the change reaches |
 | KIT change | S | the skill clauses | the skill's behaviour, the awakening | the ladder and the guards | any pose the kit changes (a new weapon) | none |
 | NUMBERS | S | the Balance state | none new | the ladder and the guards | none | none |
-| ART | S per actor | `spec/art/` | the gate | none | the frames | none |
+| ART | S per actor | `spec/art/` | the gate | none | the frames — ≈ $35–60 at the per-image price per later character (README's money table) plus the consistency re-gate against the accepted cast | none |
 | REMOVAL | S | roster clauses | validity | the guards | none | the draft grid; a saved run that names the removed character is abandoned with the Vault untouched — one of § F2.1's two exceptions |
 
 A NEW character with a new status kind, target spec or scale is a *mechanics* change and

@@ -129,9 +129,9 @@ tables are what it argues with. The Kotlin instruments live in `:tools:instrumen
    prototype's defaults (`--no-stall-gate` is harness-wide; golden recording and `diff-oracle` pass it in both modes).
 7. **`art`** (`tools/art/`, TypeScript) — `art gate <dir> [--ground <hex>]` (the sheet, motion and
    consistency metrics of `FUNCTIONAL.md` § F3.1 over PNG frames with sidecars, the contrast columns against the line-up ground, `#1d2b53` at calibration, § T10.4), `art
-   rulers <frame.png>… [--anchors <json>] [--report-ground]` (one frame or several at once, each frame's anchors read from its own `<frame>.anchors.json` unless one `--anchors` is given for a single frame; the seat ruler, the two ground strips, the seat
+   rulers <frame.png>… [--anchors <json>] [--report-ground] [--set <key>]` (one frame or several at once, each frame's anchors read from its own `<frame>.anchors.json` unless one `--anchors` is given for a single frame; the seat ruler, the two ground strips, the seat
    spread over any battle frame — the prototype's at P0, the Kotlin stage's from P5 — and with
-   `--report-ground` the strips' per-channel sRGB median over every frame given (`--ground <hex>` is the valued input `art gate` and `art sheet` take, § T10.4) — the six MED `flat=1` frames at once for `seats.json`'s `ground`), `art
+   `--set <key>` stamps the run's rows with one of `rulers-p0.json`'s four keys and merges them into that file under it (§ T7.5); `--report-ground` the strips' per-channel sRGB median over every frame given (`--ground <hex>` is the valued input `art gate` and `art sheet` take, § T10.4) — the six MED `flat=1` frames at once for `seats.json`'s `ground`), `art
    sheet [--ground <hex>]` (line-ups in colour, greyscale and silhouette at ×2 and ×4, pose sheets, contact
    sheets of candidates, `metrics.md`/`.json`), `art generate`, `art normalise`, `art
    accept`. The gate's human face and the bake-off's instrument.
@@ -257,7 +257,7 @@ rewrite the check that gates it — and posts its three verdicts as **check runs
 dedicated **gate App** (`checks: write` and nothing else; its private key is a secret of
 an environment `gates` whose deployment-branch rule allows `main` only, which a
 `pull_request_target` job may read because that event's environment rules are evaluated
-against the default branch, and a `pull_request` or `pull_request_review` job may not,
+against the base branch, `refs/heads/<base>` (which is why README question 7(b)'s `kmp` branch must join the `gates` rule), and a `pull_request` or `pull_request_review` job may not,
 because theirs are evaluated against `refs/pull/N/merge` — re-verified for `pull_request_review` at P1's M3, the re-dispatch holding no secret either way). The ruleset requires the three
 checks **from that App**, so a check run of the same name posted by any workflow's own
 token — the GitHub Actions app — does not count; the agents' App has no `checks`
@@ -279,7 +279,7 @@ infrastructure-failures row below, the required-check adds of § T13.5) is not a
 event — with one exception, the one the bootstrap needs:
 the owner creates `CODEOWNERS` and *then* the provisional ruleset
 directly at P1, before the checks exist — in that order, because the ruleset's empty bypass
-list refuses the owner's own push the moment it exists. After P1 the owner's own words (the
+list refuses the owner's own push the moment it exists. From P1's M2 the owner's own words (the
 baseline, a register entry, an answer to a question) reach `plan/**` through an agent that
 commits what the owner dictates and the owner then reviews.
 
@@ -400,7 +400,7 @@ session; the budgets are revisited then and only then.
    nightly cross-check only.
 3. **First rules change after parity**: the goldens move with a clause, `RULES_VERSION`
    bumps and the expected cells are named (§ V5); the oracle no longer matches by design
-   and is retired from the nightly, and `prototype-check` with it — the prototype workflow keeps the freeze check alone from then on, the harness's rot repair narrows to the demo's build alone — the one § T4.2 change kept after retirement, out of the quarterly session (README question 3(a)), since a `docs/**` pages change waits on it (§ T4.1) —, and the Pages site keeps publishing `docs/**` through its `docs` job — the one that assembles and uploads the Pages artifact — for as long as the prototype build is green, and alone once that build is retired (§ T4.1); `prototype/` stays in the repository as history and as
+   and is retired from the nightly, and `prototype-check` with it — the prototype workflow keeps the freeze check alone from then on, the harness's rot repair narrows to the demo's build alone — the contact sheet's lit frame comes from the Kotlin `frames` instrument from P5 (`FUNCTIONAL.md` § F3.5), so nothing after retirement needs the prototype's capture stack — the one § T4.2 change kept after retirement, out of the quarterly session (README question 3(a)), since a `docs/**` pages change waits on it (§ T4.1) —, and the Pages site keeps publishing `docs/**` through its `docs` job — the one that assembles and uploads the Pages artifact — for as long as the prototype build is green, and alone once that build is retired (§ T4.1); `prototype/` stays in the repository as history and as
    the demo for as long as the owner keeps it (README question 3).
 4. **PvP**: `:core` is the oracle for a server that verifies results by replay.
 
@@ -411,7 +411,7 @@ review load for P1, marked M1–M8:
 
 - **M1 — the environment.** The image, built at P0's spike 6 by a throwaway workflow with
   `packages: write` (the agents' App has no `packages` permission), and `setup.sh` running
-  on `agent-env` and on the owner's Mac; the digest pin, `env-check` and the cold-start row
+  on `agent-env` and on the owner's Mac — the owner makes the image's package public after spike 6's first push and before M3's first in-image job (README's P1 row); the digest pin, `env-check` and the cold-start row
   come in M3, once `lanes.yaml` and `gate.sh` exist → an agent session opening a pull
   request with the App installed at P0.
 - **M2 — the review mechanics.** The owner creates the standing `ledger` issue (§ V7; the two `main` runs' re-dispatch log lands on it from M3), sets the repository's Actions settings (the default token read-only; Actions may not create or approve pull requests, `TECHNICAL.md` § T1; approval required before an outside collaborator's workflow runs; auto-merge allowed, § V5), creates `CODEOWNERS` and *then* the
@@ -444,7 +444,7 @@ review load for P1, marked M1–M8:
 - **M6 — the hello-world stage.** `Frame`, `Layout` and `Stage` drawing one fallback
   sprite over one placeholder backdrop and one button → the headless `shot` → one screen
   semantics test with virtual time → one Roborazzi golden recorded through the `record-goldens` job
-  and compared on macOS (the owner's Mac, or a hosted-macOS job) , where the step asserts
+  and compared on macOS (the owner's Mac, or a hosted-macOS job) — and one frame of the same stage from the iOS simulator, compared with the JVM's within § T10.4's tolerances, the second iOS rendering after spike 1's —, where the step asserts
   SKIPPED-GOLDEN with the tolerance diff written into the bundle — never a green and never
   a hard failure, § V4 — and byte-exact in L3, both runs' CPU feature sets in the bundle, proven once two distinct sets have compared equal, otherwise a per-CPU-class tolerance with the feature set recorded beside each golden (§ V4) → the storyboard driver crossing one screen in both modes →
   the perf test with the allocation baseline.

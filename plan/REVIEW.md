@@ -3105,3 +3105,87 @@ quoted from two aggregates (D3). Nothing was declined.
 | D10 | MINOR | The P4-start re-read assigned to nobody | the agent performs, the owner confirms; an hour in the admin band (README P4 row, § T10.2) |
 
 **Declined or only partly applied:** none.
+
+
+## Round 31 — on revision 32 (commit `e41f77f`)
+
+Four reviewers on a lighter model, 42 findings: 2 BLOCKING, 13 GAP, 3 NUMBERS, 24 MINOR.
+The blocking rows, both residue of revision 32's own edits: the App's installation token was
+minted once per session into a variable though GitHub expires it after an hour (A1), so it
+is now minted on demand through a credential helper; and the ruleset act revision 32 gave P2
+named two lane jobs that `:sim` delivers at P3 (A2), so the act is P3's. The gaps: nothing
+rendered iOS before P5 (D1); the internal-track testers' platform was unnamed while
+TestFlight's internal group admits App Store Connect members alone (B1); a baseline taken off
+the phone barred nothing (B2); the contact sheet's lit frame had no source once the oracle
+retires (B3); the iOS device family was undeclared (B4); the fixture hero's HP was unset (C1);
+the four ruler runs had no key (C2); the art keys file had no deliverable (C3); P0's post-go
+order was unstated (C4); the new-repository branch's fixtures were unreadable through a
+submodule (A3); look B was measured at two resolutions (A4); the pair and boss seatings were
+unread by the ruler (A5); and the accepted cast was held to a per-reading rule where the tier
+has a count (A6). The numbers: the paid pace split by when the increase is bought (B5);
+option B's no given its subscription months (B6); the one-a-week owner hours (B7). Nothing
+was declined.
+
+### 31-A (adversarial, technical) — 2 BLOCKING, 4 GAP, 0 NUMBERS, 6 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| A1 | BLOCKING | The installation token minted once per session, expiring after an hour | `ci/mint-token.sh` as git's credential helper and `art generate`'s mint, per operation, cached to expiry (§ T13.3, § T10.1, § T1, § T14) |
+| A2 | BLOCKING | P2's ruleset act for two `:sim` jobs delivered at P3 | the act is P3's, with the emulator hash job; P2 adds no lane job (§ T13.5, README P2 and P3 rows) |
+| A3 | GAP | 8(a)'s submodule cannot read fixtures above `prototype/` | the fixtures stay under `prototype/sim/` on that branch, read through the submodule; half a session more (README 8(a), § T4.2) |
+| A4 | GAP | Look B measured on the 128-px frame by the gates | every measurement on the cell canvas, bake-off, P4 gate and asset gate alike (§ T10.5, § F3.2) |
+| A5 | GAP | The pair and boss seatings unread by the ruler | bounded by the three-abreast anchors on the same floor; a pair and a boss check frame per biome at P0 (§ T10.4) |
+| A6 | GAP | The accepted cast held to a per-reading absolute | a count against the same tier bar, conceded seats conceded (§ F3.1) |
+| A7 | MINOR | README's equivalence check missing its second clause | "none on the other side of 1.5:1" (README P5 gate) |
+| A8 | MINOR | "The default branch" for the `gates` rule | the base branch, cross-referenced to 7(b) (§ V5) |
+| A9 | MINOR | The per-area routing rule against `RUN-FLOW`'s | with C11 |
+| A10 | MINOR | 3(c)'s third assertion leaning on P2's `strong=1` | the pull request seeds the Vault itself (§ T4.2) |
+| A11 | MINOR | The battle restart unnamed on the F2.1 row | named (§ F2.1) |
+| A12 | MINOR | ARCADE's halation from a layer LOW never builds | ARCADE builds the bright layer; the change named (§ T9.4, § F1.3) |
+
+### 31-B (adversarial: product, process, risk) — 0 BLOCKING, 4 GAP, 3 NUMBERS, 4 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | The internal-track testers' platform unnamed; TestFlight's internal group admits no outsider | Android on Play's internal track; iOS's first non-owner reading is the closed test's external build (README P5 row, § T12) |
+| B2 | GAP | A baseline taken off the phone bars nothing | it names the felt rows it cannot bar, judged on the rubric alone (§ T4.2, README P0 row) |
+| B3 | GAP | The sheet's lit frame with no source after the oracle retires | the Kotlin `frames` instrument from P5 (§ F3.5, § V8.3) |
+| B4 | GAP | The iOS device family undeclared | iPhone only; windowing scoped to Android (§ T12, § F1.3) |
+| B5 | NUMBERS | The paid pace priced as if bought at P0 | 15–18 where the tier measures three; 18–27 when bought at P1's exit, one to two base months more (README item 6, calendar, money table) |
+| B6 | NUMBERS | Option B's no with no subscription months | ≈ $400–2 400 over four to twelve months; ≈ $520–2 620 all in (README question 6) |
+| B7 | NUMBERS | Owner hours at one a week quoted at the 38-week corner | three to eleven, three to five at the 38-week end (README) |
+| B8 | MINOR | "After P1" for a rule that binds at M2 | "From P1's M2" (README, § V5) |
+| B9 | MINOR | The cadence risk's mitigation against the calendar's floor | down to one a week; below that P1's stop question (README risks) |
+| B10 | MINOR | 3(b) unordered against spike 5 | closes at P0's start, before spike 5's wasm leg (README) |
+| B11 | MINOR | P4's queue against P3's ruleset act | drained first, as at M4 (§ T13.5) |
+
+### 31-C (blind implementer) — 0 BLOCKING, 4 GAP, 0 NUMBERS, 10 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| C1 | GAP | The fixture hero's HP unset | both readers derive full HP with no pact, as the prototype does (§ T7.4) |
+| C2 | GAP | The four ruler runs with no key | `--set <key>` stamps and merges them (§ V3.7, § T7.5) |
+| C3 | GAP | `keys.json`'s rows with no deliverable | P0 deliverables and the key-loading acts on the P0 and P5 rows (§ T14, README) |
+| C4 | GAP | P0's post-go order unstated | captures, ramps and stage page, calibration, seat list, bake-off (§ T14) |
+| C5 | MINOR | 3(c)'s three assertions all called `playfull` runs | two through `playfull`, the third with its own setup (README) |
+| C6 | MINOR | The bar clauses' promotions on no owner row | LOW's and MED's on P5's, HIGH's on P6's (README) |
+| C7 | MINOR | `STATUS.md` and `ART-REVIEW.md` cited bare | prefixed `prototype/` (README, § F, § T) |
+| C8 | MINOR | `frames=1` named as if it existed | named as an addition (§ T4.2) |
+| C9 | MINOR | Two copies of the three kindled relics | the row reads `default.json`'s three (§ T4.2) |
+| C10 | MINOR | A fixture row's pacts counted by no rule | counted; the stall fixture's VEIL (§ T5.3) |
+| C11 | MINOR | The binder's routing undetermined for two areas | routed by the spec file's `owner` (§ T7.1) |
+| C12 | MINOR | The save corpus glossed as a stem | laid out by version, outside the stem rule (§ T11) |
+| C13 | MINOR | "P5's device jobs" as required checks | P5's L3 boot smokes; the device lane posts none (§ T13.5) |
+| C14 | MINOR | The package flip in no milestone, dated at M1 | in M1's list, after spike 6's push (§ V9, README) |
+
+### 31-D (blind owner's advisor) — 0 BLOCKING, 1 GAP, 0 NUMBERS, 4 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| D1 | GAP | iOS rendered by nothing before P5 | an iOS leg on spike 1 and an iOS frame at M6 (§ T14, README, § V9) |
+| D2 | MINOR | Four places say the store invitations follow the stop | the closed-track and external ones follow; three to five internal-track ones precede (README, § T12) |
+| D3 | MINOR | The exemption stated per transcription, not module-wide | the module-wide suspension named (README principle 9, D8, risks) |
+| D4 | MINOR | § F4.3's price unreadable | ≈ $35–60 plus the consistency re-gate (§ F4.3) |
+| D5 | MINOR | P5's mixed cast conditioned on a subscription pace | when P4 is late, whatever the cause (§ T14) |
+
+**Declined or only partly applied:** none.
