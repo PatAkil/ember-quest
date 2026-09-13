@@ -2789,3 +2789,82 @@ declined.
 | D7 | MINOR | The Mac confirmation had no criteria | Apple silicon, the current Xcode, disk for the VM and the SDK (README) |
 
 **Declined or only partly applied:** none.
+
+
+## Round 27 — on revision 28 (commit `d2a4c23`)
+
+Four reviewers on a lighter model, 39 findings: 1 BLOCKING, 14 GAP, 2 NUMBERS, 22 MINOR —
+the smallest round of the loop. The blocking row is round 26's own residue: the driver
+moved into `:ui`'s test source sets, which no shipped module may depend on, so
+`:tools:instruments` could not reach it (A1, C1); the driver is now main code in a
+`:storyboard` module with its own device and simulator test source sets. The gaps: the
+nightly's and the generated workflows' permissions short of their reads (A2, C3); a
+sigil's un-kindled effect never counted (A3); the hash vectors with no run count (A4);
+the in-scene bars with no P0 floor (A5); the ramps fixture with no field list (A6); the
+named mechanic outside every band (B1); the contact sheets' phone route a public-repository
+affordance (B2, D1); the terms check's four to six hours all before the go (B3); the
+`<BIOME>` token undefined where the prototype's names carry spaces (C2); the calibration's
+line-up ground unrecorded (C4); and the release notes with no producer or permission (C5).
+The numbers: option B's derived frames (B4) and P1 as the peak week (B5). Nothing was
+declined.
+
+### 27-A (adversarial, technical) — 0 BLOCKING, 6 GAP, 0 NUMBERS, 4 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| A1 | GAP | `:tools:instruments` cannot depend on `:ui`'s test source sets | the driver is main code in a `:storyboard` module with its own device and simulator test source sets; the JVM CLI depends on it; a `storyboard` boolean (§ T2.1, § T6.2, § V3.2, § V5, § T4.1; with C1) |
+| A2 | GAP | The generated workflows lacked `statuses: read`; the nightly `actions: read` and `pull-requests: read` | added, with `id-token: write` on the farm job alone (§ T2.1; with C3) |
+| A3 | GAP | Coverage counted a sigil kindled only | once un-kindled and once kindled; the family cell 40 × 20 (§ T5.3) |
+| A4 | GAP | `HASH_VECTORS` had no run count | an `n` column, 10 runs or 20 battles a vector (§ T5.2) |
+| A5 | GAP | The P0 bars could not fail | a floor of 60 of 72; below it an owner decision with D16's stage the branch (§ F3.1, README and § T14 P0 exits) |
+| A6 | GAP | `Ramps` had no field list | `elements: list<object:ElementRamp>`, `neutrals: list<object:NeutralRamp>` (§ T4.2) |
+| A7 | MINOR | The halo's committed hash re-measures nothing | said so: an accept-time reading under the owner's review (§ V2) |
+| A8 | MINOR | `spec/fixtures/saves/` against the `save` area's stem | `spec/fixtures/save/` (§ T2.1, § T7.8, § T11) |
+| A9 | MINOR | The `config` record's order left to inference | "in this order" (§ T5.3) |
+| A10 | MINOR | Only `STALL` had an unreachable route | every kind, after the same bounded search (§ T5.3, README P2 gate) |
+
+### 27-B (adversarial: product, process, risk) — 0 BLOCKING, 3 GAP, 2 NUMBERS, 4 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | The named mechanic in no band | a contingent item, an S–M and one to two sittings, the first build's date moving with it on the "before" branch (README) |
+| B2 | GAP | The inline sheet works on a public repository only | question 8(b) names it: the sheet opened from the Files-changed view in GitHub's mobile app, or a sheet index on the private Pages site (README, § F3.5, § V3.10; with D1) |
+| B3 | GAP | The whole terms check before the go | its calendar-setting hour before, the rest after; a no-go costs an hour of it (README P0 row, § T14; with D2) |
+| B4 | NUMBERS | Option B's totals covered the twelve master frames only | ≈ 6 sessions for the derived frames inside both totals: ≈ 14–18, ≈ 31–51 (README) |
+| B5 | NUMBERS | P1 the heavier week, unnamed | named at fifteen to twenty-five under the runner branch (README) |
+| B6 | MINOR | A UI or VFX miss "carried into P6", which cannot answer it | a recorded miss with the bar re-recorded, or the phase held (README P5 row, § T14) |
+| B7 | MINOR | The recurring year never summed | ≈ $600–1 300 on the recommended branches, ≈ $900–2 800 with the farm, ≈ $2 000–5 100 with 8(b) as well; on the annual decision too (README; with D5) |
+| B8 | MINOR | Question 1 priced only as taken | pixel decided at P0's start on the recommendation, ≈ $160 and the painted arms' protocol time saved (README) |
+| B9 | MINOR | The arm64 runners' date | January 2025, re-read at P0's terms check (§ T1) |
+
+### 27-C (blind implementer) — 1 BLOCKING, 4 GAP, 0 NUMBERS, 6 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| C1 | BLOCKING | The CLI cannot compile against a test source set | with A1 |
+| C2 | GAP | `<BIOME>` undefined; the prototype declares no biome ids | the underscored token, `EMBER_CRYPT`, the `BIOMES` names so normalised (§ T7.5, § T7.8, § T4.2) |
+| C3 | GAP | The nightly's permissions short of its ledger reads | with A2 |
+| C4 | GAP | The calibration's contrast columns rest on an unstated line-up ground | `#1d2b53`, the calibration's fixed input, `--ground <hex>` on `art gate` and `art sheet` (§ T10.4, § V3.7) |
+| C5 | GAP | The release notes had no producer, destination or permission | `release.yml` writes them into the stores' what's-new fields with `pull-requests: read`; no `id-token` (§ T12, § T2.1) |
+| C6 | MINOR | One `--anchors` for several frames | each frame's own `<frame>.anchors.json` (§ V3.7) |
+| C7 | MINOR | "Anchor order" undefined | `H0`, `H1`, `H2`, `E0`, `E1`, `E2` (§ T7.5) |
+| C8 | MINOR | The goldens check's scope unlisted | the four golden globs, `instruments approve` covering `calibration.json` (§ V5) |
+| C9 | MINOR | The study's sidecar fields the exporter must invent | `element: FIRE`, `pose: idle`, `frame: 0` (§ T4.2) |
+| C10 | MINOR | The seat list "before the P0 captures" | before the P0 ruler captures (§ F3.1) |
+| C11 | MINOR | An unwind after P2 breaks the prototype's harness | the demo survives; the harness keeps a copy of the fixtures or retires with the oracle (§ T4.3, README) |
+
+### 27-D (blind owner's advisor) — 0 BLOCKING, 1 GAP, 0 NUMBERS, 8 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| D1 | GAP | The inline sheet does not render from a private repository | with B2 |
+| D2 | MINOR | "This check" had no antecedent | the P0 row opens on the terms check (with B3) |
+| D3 | MINOR | § T1 created the iPhone identity at M7 before question 5 closed | in the sitting that closes question 5, right after M7 (§ T1) |
+| D4 | MINOR | Question 6's "no" never priced in money | no art money at all: the accounts' ≈ $124 plus hardware and subscription (README) |
+| D5 | MINOR | The steady state never totalled | with B7 |
+| D6 | MINOR | Dropping the web target "removes nothing else" | the wasm targets, `app/web/`, spike 5's wasm leg and M7's wasm compile (README) |
+| D7 | MINOR | Question 9 had no register row | D22 (README) |
+| D8 | MINOR | The span between the second stop and the third unnamed | P3 and P5's first half, 6–12 sessions and 14–20 sittings (README) |
+| D9 | MINOR | The recurring art column per-image only | under a subscription sprite winner, its months plus the portrait (README) |
+
+**Declined or only partly applied:** none.

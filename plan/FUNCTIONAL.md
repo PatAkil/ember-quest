@@ -198,10 +198,13 @@ screenshots, are not in the repository and never will be.
   ≥ 1.5:1 (over an L* 41.6 ground that admits an actor above L* 53 or below 31 — 52.8 / 30.6 by the formula; the 53.5 / 31.3 of ART-REVIEW.md carry a 0.7-L slip of their own — as
   ART-REVIEW.md records; an L* ratio would be a different gate) — measured on **one fixed
   set**: the six seats of the resting frame of every biome — 36 seats, 72 strip readings
-  — the seat list (which fallback actor stands in each of the six seats of each biome) recorded in `spec/art/seats.md` (beside the bible, `TECHNICAL.md` § T7.5) when the art tool is calibrated, before the P0 captures, with the seat-spread id (the ground colour is committed after the MED `flat=1` frames it is measured on, each tier's bar after the frames of its own tier), an excluded seat counted as a miss, never dropped, and the
+  — the seat list (which fallback actor stands in each of the six seats of each biome) recorded in `spec/art/seats.md` (beside the bible, `TECHNICAL.md` § T7.5) when the art tool is calibrated, before the P0 ruler captures (the fallback sheets it is calibrated on come first), with the seat-spread id (the ground colour is committed after the MED `flat=1` frames it is measured on, each tier's bar after the frames of its own tier), an excluded seat counted as a miss, never dropped, and the
   fallback cast planted as a fixed reference at P0, P5 and P6; **three bars, all recorded
   at P0 under this rule**, one per tier, each a count — the number of the 72 readings at
-  ≥ 1.5:1 the rig achieves at P0 for that tier, the shape of the record's 106 of 108 — with
+  ≥ 1.5:1 the rig achieves at P0 for that tier, the shape of the record's 106 of 108, with a
+  floor: a bar recorded below 60 of 72 is an owner decision recorded in the register, the
+  D16 placeholder stage the named branch (the flat composite is a flatter scene than the
+  diorama the record was taken on), so P0's exit has a criterion and not only a reading — with
   the 72 readings behind each of the three bars, and of a HIGH `flat=1` frame set with no bar
   of its own, committed as `spec/art/rulers-p0.json` (`TECHNICAL.md` § T7.5) — the flat
   sets the input of the equivalence checks, LOW and MED at P5 and HIGH at P6, the diorama
@@ -390,7 +393,8 @@ itself: `art sheet` writes the sheet as `assets/actors/<ID>/sheet.png` into the 
 request (a few hundred kilobytes, excluded from the atlas and the install) and the App posts
 it and the lit frames inline in the pull request body, since the candidates are never
 committed and a workflow artifact does not render on a phone (`TECHNICAL.md` § T10.6,
-`VERIFICATION.md` § V3.10). Order: the six heroes first (they are
+`VERIFICATION.md` § V3.10; on a public repository — under README question 8(b)'s private
+branch the sheet is opened from the repository in GitHub's mobile app instead). Order: the six heroes first (they are
 on every screen), then the EMBER CRYPT pack (the first ten minutes), then the six bosses,
 then the remaining packs by act. The owner never sees an actor that has not passed the
 gate. The cast is built in **P4**, in parallel with the rules, because nothing in it
