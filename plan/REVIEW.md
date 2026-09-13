@@ -2331,3 +2331,96 @@ data-safety form are complete).
 | D8 | MINOR | No tester work on the P2 and P3 owner rows | one clause each (README) |
 
 **Declined or only partly applied:** none.
+
+
+## Round 22 — on revision 23 (commit `d1c6bf4`)
+
+Four reviewers on a lighter model, 46 findings: 1 BLOCKING, 18 GAP, 6 NUMBERS, 21 MINOR.
+The blocking row is the red-`main` rule's attribution: `diff-oracle` was attributed to
+`core` while its one named repair — the prototype's build, lockfile or CI — lives under
+`prototype/**`, so the only pull request that could fix a red `main` was refused, and the
+storyboard and the nightly rule deadlocked the same way (A1). The gaps: every heavy job's
+`if:` ORed `build` and `root` but not `spec` and `assets`, so a spec-only pull request ran
+an empty lane (C1); P5's sprite-axis clause failed by construction over fallback heroes
+(B1, D2); the iPhone lane's signing identity had no home (B2); the Android tester floor
+had no reserve and a dip resets the clock (B3); Google's review checks use, which nothing
+measured (B4); option B had no phase, gate or sitting count under question 6's "no" (D1);
+the 43 portraits had no owner step (D3); `PLATFORM-DEBUG` clauses were owned by a module
+that cannot bind them (C2); the sheet's structural criteria had no status (C3); the seat
+anchors were unbound for P5's `Layout` (C4); `:core`'s `rng`, `session` and `codec` had no
+area (C5); the key id had no source (C6); the tap rect lost the prototype's per-actor cell
+(A2); the halo criterion could not fail (A3); a resumed run's share was unreplayable (A4);
+the two renderers' rulers were never compared (A5); and the byte-exact golden gate rested
+on a false claim about Skia's SIMD tier (A6). The numbers: the terms check at two to
+three hours with a two-hour clearance inside it (B5, D4); the runner branch priced without
+its farm job (B6); the painted arms' key caps below their own estimate (C7); the ranks'
+pitch across the stage (A7); and a budget rounded below its derivation (A8). Nothing was
+declined.
+
+### 22-A (adversarial, technical) — 1 BLOCKING, 5 GAP, 2 NUMBERS, 7 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| A1 | BLOCKING | The red-`main` rule attributed `diff-oracle` to `core` while its repair lives in `prototype/**`, refusing the only fixing pull request | a failing job's status names every boolean its fix may touch — `diff-oracle` `core`, `spec` and `prototype`; the storyboard `ui`, `core`, `assets` and `spec` — and an intersection with any merges; the nightly rule admits `prototype` (§ V5) |
+| A2 | GAP | `hitRect` as the full box lost the prototype's per-actor cell, so packmates' rects overlapped by ~80 px | the registered tap rect is the box clamped to the actor's own cell, the midpoint split between neighbouring feet (§ T10.6, § T2.5) |
+| A3 | GAP | The halo criterion could not fail on a stray opaque pixel after `normalise` | measured before the alpha clean-up, the silhouette the largest 8-connected component (§ T10.4) |
+| A4 | GAP | A run resumed across a rules change had an unreplayable share | the share appends the snapshot slot when the log is a `resumed` one (§ T11, § F2.7) |
+| A5 | GAP | The P0 bars from Canvas2D gated against the Kotlin/Skia rig with no comparison | P5's first ruler run is an equivalence check, reading by reading, the offset recorded and closed before the bar is held (§ T10.4, § T14) |
+| A6 | GAP | "Skia's SIMD tier is fixed per architecture" is false; the byte-exact gate rested on it | M6 records a golden through `record-goldens` and compares it in L3 on another runner generation; a divergence pins the tier or takes a per-CPU-class tolerance (§ V4, § V9) |
+| A7 | NUMBERS | "68 px apart" is the vertical pitch only | 68 on the ground rows, 46 (pack) or 100 (party) across; a back enemy seat's strips expected under the next body (§ T10.4) |
+| A8 | NUMBERS | ≤ 9 and ≤ 14 ms against a derivation of 9.125 and 14.375 | ≤ 9.1 and ≤ 14.4 ms (§ T9.5) |
+| A9 | MINOR | § F3.5's no-regression rule read as holding P5 to the scene axis | on the axes an earlier phase has already read (§ F3.5; with B8) |
+| A10 | MINOR | Whether `ground` is per file or per biome undecidable | the file's shape stated (§ T7.5) |
+| A11 | MINOR | The golden fixtures generated into `:core`'s shipped `commonMain` and ABI | into `:core-testing`, with the `:tools:instruments` edge (§ T7.1, § T2.1) |
+| A12 | MINOR | "Three engine changes" undercounted the constants' lift and export | four (§ T4.2) |
+| A13 | MINOR | Two `data:`-table parsers outside the binder | spec-lint emits canonical JSON the art tool and `cells.mjs` read (§ T7.8, § T7.1) |
+| A14 | MINOR | Two refs for one event's environment evaluation | `refs/pull/N/merge` in both places (§ V5) |
+| A15 | MINOR | `prototype-check`'s `spec` trigger bought nothing | dropped; `diff-oracle` catches a bad fixture (§ V5) |
+
+### 22-B (adversarial: product, process, risk) — 0 BLOCKING, 4 GAP, 2 NUMBERS, 5 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | P5's "sprite axis not below its P4 reading" failed by construction over fallback heroes | not asserted under the mixed-cast approval, recorded only, P6 taking it with P4's deferred acceptance (§ T14 P5 and P6, README roadmap) |
+| B2 | GAP | The iPhone lane's development signing identity had no home, milestone or risk row | a development-only `match` branch, never the distribution material, created at M7; a risk row in both tables (§ T1, § V9, README risks, § T15) |
+| B3 | GAP | Fourteen Android testers with no reserve against a clock that resets on a dip | sixteen opted in before the fourteen days, the pool's surplus Android, the reserve opting in before the count reaches twelve (README money row, P0 row, risk row, calendar; § T12) |
+| B4 | GAP | Google's review checks use; the plan measured opt-ins only | a weekly ask in the channel who played, recorded; a refusal on engagement priced at fourteen more days and a re-application (README P5 and P7 rows, risk row; § T15) |
+| B5 | NUMBERS | The terms check at two to three hours with a two-hour clearance inside it | four to six hours, the clearance two of them, named in the admin enumeration (§ T14, README) |
+| B6 | NUMBERS | The runner branch priced without the farm job its fallback nights need | three quarters of a session; ≈ $0–20 a month of fallback nights in the recurring column (README question 5, money table) |
+| B7 | MINOR | "The one to two a week this review's cap suggests" | "the arithmetic assumes" (README item 6) |
+| B8 | MINOR | § F3.5's no-regression rule on every axis | on the axes an earlier phase has already read (§ F3.5) |
+| B9 | MINOR | "16 % of hero turns" with no derivation | one hero turn in six by inspection of the enumeration order, re-measured at P0 if 3(c) is declined (§ F1.4) |
+| B10 | MINOR | The farm's fallback nights a third money cost of an absence | named as the fourth exception (README absence protocol) |
+| B11 | MINOR | The recruitment hours booked in P0 while the lining-up is P2's | "P0, P1, P2 and P5"; P0 decides the count and mix (README, § T14) |
+
+### 22-C (blind implementer) — 0 BLOCKING, 6 GAP, 1 NUMBERS, 7 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| C1 | GAP | A spec-only or asset-only pull request ran an empty lane | every heavy job's `if:` ORs `spec` and `assets` too (§ T4.1) |
+| C2 | GAP | `PLATFORM-DEBUG` clauses owned by `:engine`, which cannot import `:core` | `:core` owns them (§ T7.1) |
+| C3 | GAP | The sheet's structural criteria had no status in § T10.4 | listed under *Sheet, pass* with their thresholds, reported for look B (§ T10.4) |
+| C4 | GAP | The seat anchors unbound for P5's `Layout`, so the bars could be compared across two geometries | bound as `spec/platform/` constants the landscape stage uses; a moved seat re-records the bar (§ T4.2) |
+| C5 | GAP | No area for `:core`'s `rng`, `session` and `codec` | `RNG`, `SESSION`, `CODEC`, owned by `:core` (§ T7.1) |
+| C6 | GAP | No source for a call's key id | `art generate --key <id>`, validated against `keys.json` (§ T10.1) |
+| C7 | NUMBERS | The painted arms' $60 caps below their own $20–60 estimate at the 90 % refusal | RD Pro $110, each painted arm $80, the portrait stills $30 (§ T10.1) |
+| C8 | MINOR | The tie rule missing from § F3.3 | carried (§ F3.3) |
+| C9 | MINOR | `SHADOW_INK` missing from `rig.json`'s list | added (§ T4.2) |
+| C10 | MINOR | `SYNTHETIC` clauses deleted against the never-reused-ids rule | retired (§ T7.1, § V9) |
+| C11 | MINOR | The recipe's `npm ci` before the art tool exists | conditional on the directory (§ T2.1) |
+| C12 | MINOR | A first-recorded golden's `old sha` | `-` (§ V5) |
+| C13 | MINOR | Whether `capture.mjs battle` keeps its run drive | with `biome=` the stage-only capture; bare, the run drive (§ T4.2) |
+| C14 | MINOR | What sums the six frames' readings | the gate test, compared to the clause's bar (§ V2) |
+
+### 22-D (blind owner's advisor) — 0 BLOCKING, 3 GAP, 1 NUMBERS, 2 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| D1 | GAP | Option B under question 6's "no" had no phase, gate, sittings or calendar | P4's slot and gate, about twelve sittings; the rate measured on EMBER's remaining frames at P0 as a precondition of the "no"; the six-to-eight-week floor before option B (README question 6, money table) |
+| D2 | GAP | Deferred hero acceptance left P7's re-cut and P5's sprite floor undefined | the re-cut rides P6's release line; P0's baseline the floor until P4 reads (§ F2.5, README P7 rows, § T14) |
+| D3 | GAP | The 43 portraits had no owner step | on the actor's contact sheet, riding the same pull request and sitting (§ F3.5) |
+| D4 | NUMBERS | The terms check's hours, as B5 | as B5 |
+| D5 | MINOR | The calendar note filed among the round-21 gaps in the status paragraph | the paragraph rewritten for round 22 (README) |
+| D6 | MINOR | The out-of-cycle sessions' months unpriced | ≈ $100–400 a year when their triggers fire (README money table) |
+
+**Declined or only partly applied:** none.
