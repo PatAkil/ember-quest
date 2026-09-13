@@ -1409,7 +1409,7 @@ kind, measured on idle 0 as the silhouette's height in cells. *In scene — repo
 relative-luminance contrast between the actor's median masked cell and the strip's median
 surviving cell, `(Y_hi + 0.05) / (Y_lo + 0.05)` ≥ 1.5:1 at both strips, on one fixed set —
 the six seats of each biome's resting frame, 36 seats and 72 strip readings, the seat list
-recorded in `spec/art/bible.md` at P0 (which fallback actor stands in each seat of each biome, the population both producers plant), an excluded seat a miss, the fallback cast planted as a fixed reference —
+recorded in `spec/art/seats.md` at P0 (`spec/fixtures/art/seats/seats.json`, § T7.5; which fallback actor stands in each seat of each biome, the population both producers plant), an excluded seat a miss, the fallback cast planted as a fixed reference —
 with three bars recorded at P0 under this strip rule, one per tier, each the count of the
 72 readings at ≥ 1.5:1 the rig achieves (a frame set counting below it fails): P5 is gated
 at LOW — the key light and the grade baked into one flat plane plus the vignette-only
