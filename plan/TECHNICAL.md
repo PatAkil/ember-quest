@@ -1431,7 +1431,7 @@ neutrals), cell alignment, one connected component per bake, no halo, the silhou
 criteria (no two idle silhouettes over 78 % IoU, a stance's mirror IoU under 85 %, the
 cast palette overlap under 25 %) and the consistency criteria (frame-to-frame palette
 overlap ≥ 75 %, bounding-box height within ± 3 cells across idle, attack and cast) — the
-four § F3.2 names reported, not gating, for look B (ART-REVIEW.md's criterion 3, the chin shadow and the seams, is
+five § F3.2 names reported, not gating, for look B (ART-REVIEW.md's criterion 3, the chin shadow and the seams, is
 the critic's). *Sheet, reported only*: contrast against the line-up ground —
 ART-REVIEW.md's criterion 6 is **retired**. *Size, pass*: the bands of § F3.1 per actor
 kind, measured on idle 0 as the silhouette's height in cells. *In scene — reported for a sprite, pass for the stage at P5 and P6*: the WCAG
@@ -1727,7 +1727,7 @@ the flat backdrops; P4 replaces the actors behind the gate; P6 replaces the back
   one phone serves one store and iOS would otherwise be tested by nobody but the owner (external TestFlight is free, adds one Beta
   App Review of about a day on the first build, and is an S inside P5); version name from the tag,
   version code from the commit count on a `fetch-depth: 0` checkout. The closed test starts on the build the README's absence protocol names — its one
-  statement of that trigger; the fourteen days start when twelve testers have opted in,
+  statement of that trigger; the fourteen days start when sixteen testers have opted in,
   about a week after that build, and Play's first review of that release takes days.
 - **The stores (P7)**: the owner submits the iOS build for **App Review** (typical
   turnaround one to three days; a rejection is § T15's risk, answered from the checklist),
