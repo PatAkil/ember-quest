@@ -2059,7 +2059,7 @@ declined.
 
 ## Round 19 — on revision 20 (commit `febb095`)
 
-Four reviewers on a lighter model, 46 findings: 2 BLOCKING, 17 GAP, 7 NUMBERS, 20 MINOR.
+Four reviewers on a lighter model, 47 findings: 2 BLOCKING, 17 GAP, 7 NUMBERS, 21 MINOR.
 Both blocking rows are revision 20's own residue. The `docs` job's `if: always()` meant a
 red prototype build would publish a Pages artifact holding the store pages alone and so
 remove the demo from the live URL, the opposite of what § T4.1 claimed (A1, B3); and the
@@ -2108,7 +2108,7 @@ question 3(c)'s recommended session (B10); the worst case's enumeration summing 
 | B5 | GAP | The root `LICENSE` not an owned path | `LICENSE` and the root `README.md` owned (§ V5, README D17) |
 | B6 | GAP | The steady state without a review point | an annual decision to continue, hand over or delist, against the install counts, the channel and the reviews, with the delist path (README steady state, § T14) |
 | B7 | NUMBERS | The horizon cut against 38 weeks without the contingent items | about 50 weeks, up to twelve subscription months (README calendar paragraph, P0 row, money table; § T12) |
-| B8 | NUMBERS | The fast branch priced at nine months | three to five months at $200–400: ≈ $2 500–5 000, ≈ $2 900–5 900 with the handsets (README money table) |
+| B8 | NUMBERS | The fast branch priced at nine months | three to four months at $200–400: ≈ $2 500–4 600, ≈ $2 900–5 500 with the handsets (README money table) |
 | B9 | NUMBERS | Prepaying strands a balance the usage ceiling does not count | the ceilings are usage ceilings, capping the default for that reason too (README P0 row, programme total; § T10.1) |
 | B10 | NUMBERS | "None in the best case" false for question 3(c)'s recommended session | stated, the aggregate then 20–39 (README) |
 | B11 | MINOR | Three "first" acts in the P0 row | the order stated once (README P0 row; with D6) |
@@ -2116,7 +2116,7 @@ question 3(c)'s recommended session (B10); the worst case's enumeration summing 
 | B13 | MINOR | "Three exceptions" mixed rework and money | one rework exception, two money ones (README absence protocol) |
 | B14 | MINOR | The Android handset's role under the farm, as D3 | as D3 |
 
-### 19-C (blind implementer) — 1 BLOCKING, 3 GAP, 1 NUMBERS, 8 MINOR
+### 19-C (blind implementer) — 1 BLOCKING, 3 GAP, 1 NUMBERS, 9 MINOR
 
 | # | Sev. | Finding | Resolution |
 |---|---|---|---|

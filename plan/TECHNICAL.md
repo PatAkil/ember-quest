@@ -668,8 +668,9 @@ the parity currency. One record per line, fields space-separated; the record kin
 | `mode <runs\|battles>` | which harness mode produced it (`selfcheck` compares canonical results and draw counts, and writes no trace) |
 | `cell …` | for runs: `cell id=<slug> seed=<uint32> policy=<name> runs=<N> asc=<A> vault=<n> spd=<d> path=<a\|b\|c>` — a cell is N runs on **one** rng stream in run order, as the harness runs them, and the golden path is **b**; for battles: `cell id=<slug> mode=battles seed=<uint32> pack=<enemy ids '+'-joined> act=<n> asc=<A> clears=<n> party=<fixture> policy=<name> n=<N>` (the boss fixture's display name `BOSS HOLLOW_KING` is never a value: every field and the slug are space-free) — N battles on one stream seeded as stated (the P2 recording uses seed 1 unless the cell table says otherwise); the slug is the golden file's name and `diff-oracle` regenerates a cell from this line and the fixture row it names |
 | `config` (runs mode only; battles have no `RunConfig`) | every `RunConfig` field **as passed**: `ascension`, `vaultSlots`, `roster` (empty allowed), `spdDelta`, and each Vault relic in the compact relic encoding |
-| `save <format> rules=<N> snap=<S> seed=<uint32>` | saves only (§ T11), never in a trace: a save's first line — the save format's version, the `RULES_VERSION`, the snapshot's schema version and the seed — followed by `config`, `debug` if any, then the `answer` records |
+| `save <format> rules=<N> snap=<S> seed=<uint32>` | saves only (§ T11), never in a trace: a save's first line — the save format's version, the `RULES_VERSION`, the snapshot's schema version and the seed — followed by `config`, `debug` if any, `resumed <S>` if the log was restarted from a snapshot, then the `answer` records |
 | `debug <hooks>` | saves only (§ T11), never in a trace: a storyboard's forcing hooks — `act=<n> lap=<n>` (applied before the first decision) and, each with its firing point, `room@<act>.<stage>=<TYPE>`, `pack@<battle k>=<ids>` (`+`-joined, as the `cell` line), `hp@<decision i>=<slot>:<n>` (applied when the replay reaches that act's stage, that battle or that decision index — the party is empty at the first decision, so a point-in-time hook has no earlier moment), any of them absent — which `sim replay` applies at those points; a save carrying it is not portable across `RULES_VERSION` (`VERIFICATION.md` § V3.2) |
+| `resumed <S>` | saves only (§ T11), never in a trace: the log was restarted from a snapshot at schema version S, so the `answer` records that follow begin there |
 | `run <k>` | the k-th run (or battle) of the cell (from 0); the `draw` index continues across the cell's runs |
 | `draw <i> <hex64>` | the i-th rng output of the cell as the raw bits of the double, sixteen lowercase hex digits |
 | `pending <KIND> <fields>` | the pending's kind and its data, per kind in the table below; `ENEMY_TURN` is **not** recorded, and the prototype's `BATTLE` pending — which has no Kotlin counterpart — is not recorded either: the prototype's `--trace` emits `HERO_TURN` from inside the wrapped act |
@@ -1007,18 +1008,19 @@ with the strong party — an A3 run — and the forcing hooks; the seed it uses)
 `spec/art/bible.md` holds the bible (`FUNCTIONAL.md` § F3.1) as `ART-NN` clauses with the
 numbers, each with its derivation, the alignment definitions, the band rule's recorded
 bands from P0, and the critic's protocol; the art tool's gate tests bind them over
-`assets/actors/**`. It is opened when the art tool is calibrated — its first clauses the per-biome seat list
-and the ground colour, exported as the ramps are — to `spec/fixtures/art/seats/seats.json`,
-typed by the `schema: Seats` block of `spec/art/seats.md`, a spec file of its own beside
-the bible because a stem has one root type and `bible.md`'s is `Ramps` (§ T7.4) — six
+`assets/actors/**`. It is opened when the art tool is calibrated and completed when the look fork closes
+(P0's exit), from the bake-off report's recorded bands, with the three in-scene bars
+recorded from P0's captures. Beside it `spec/art/seats.md` is opened with the per-biome
+seat list and the ground colour, exported as the ramps are — to
+`spec/fixtures/art/seats/seats.json`, typed by that file's `schema: Seats` block (a spec
+file of its own because a stem has one root type and `bible.md`'s is `Ramps`, § T7.4) — six
 biome ids, each with six seat ids in anchor order and `spread`, the one id planted at all
 six anchors for the seat-spread reading, and `ground`, one sRGB hex: the per-channel
 median of the six biomes' two ground strips on the MED `flat=1` resting frames, measured
 by `art rulers` at calibration — the seat list committed first, `ground` appended after
 the calibration captures that read it — the one file
 `capture.mjs seat=all`, `art rulers`, `art gate` and the Kotlin `frames --seats all` and
-`frames --icon` all read — with the three in-scene bars recorded from P0's captures — and
-completed when the look fork closes (P0's exit), from the bake-off report's recorded bands.
+`frames --icon` all read.
 
 ### T7.6 Reconciling and folding `DESIGN.md`
 
@@ -1553,7 +1555,7 @@ the flat backdrops; P4 replaces the actors behind the gate; P6 replaces the back
 
 - **A run** is `(RULES_VERSION, seed, RunConfig, [debug], decisions[])` in `:core`'s canonical
   text encoding — a `save <format> rules=<N> snap=<S> seed=<uint32>` line, the `config` record, the `debug`
-  preamble if any, then the `answer` records — where `debug` is the forcing preamble of § T5.3, applied through `RunDebug` (§ T2.3) — present only in a
+  preamble if any, `resumed <S>` if the log was restarted from a snapshot (§ T5.3), then the `answer` records — where `debug` is the forcing preamble of § T5.3, applied through `RunDebug` (§ T2.3) — present only in a
   storyboard's forced run — and the decisions are the `answer` records of § T5.3 (every `HERO_TURN`
   included, `draws=0` for a human) and `ENEMY_TURN` is never recorded — except that a
   `FORFEIT` given at an enemy turn carries `at=ENEMY_TURN turn=<actorTurns>`, so the replay,
@@ -1570,7 +1572,7 @@ the flat backdrops; P4 replaces the actors behind the gate; P6 replaces the back
   under the installed rules and the player is told once; an open battle replays its
   recorded turns from the pre-battle snapshot under the new rules and, if a recorded option
   is out of range, restarts from that snapshot; the decision log restarts from that point
-  (a `resumed-from-snapshot` marker), because a log spanning two rules versions is not a
+  (the `resumed` marker below), because a log spanning two rules versions is not a
   replay. The snapshot lives in its own store slot beside the log, the two written
   together, never inside § T5.3's text encoding, which stays the log alone (so § F2.7's
   share carries no snapshot); the marker is a save-only line after the header, `resumed
@@ -1699,7 +1701,7 @@ the flat backdrops; P4 replaces the actors behind the gate; P6 replaces the back
   opt-in toggle is a later decision, not scheduled.
 - **The testers' channel**: the listing and the credits screen name one address or form
   for reports, and stays open after P7 as the listing's contact; a report is triaged within
-  the week (an S inside P5's and P7's sizes) and,
+  the week (an S inside P5's and P7's sizes) and
   carries § F2.7's share, whatever question 10 answers.
 - **Release notes** are generated from the clause ids in the merged PRs since the last tag.
 
