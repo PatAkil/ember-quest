@@ -499,7 +499,8 @@ against the pools — the counts — with the seat spread reported beside them, 
 anchors as the fixed reference P6's ruler frames use too), then by the critic and the
 owner, and only from a plane provider whose written commercial terms are verified into
 `assets/LICENSES.md` before the branch is taken (§ T10.2's rule, which the P0 check does
-not cover for a provider chosen months later); either way with the light wells, the second hue per biome, the bright mass behind
+not cover for a provider chosen months later — the owner's act, about an hour inside the
+admin band, in the P6 sitting that takes the branch, README question 4(b)); either way with the light wells, the second hue per biome, the bright mass behind
 the figures and the plate rules the full-frame critic asked for. VFX stay procedural (they are light, not pictures). Portraits are painted
 (§ F3.2).
 
@@ -508,7 +509,7 @@ the figures and the plate rules the full-frame critic asked for. VFX stay proced
 The owner will supply the changes once this plan is final — **and the deadline that
 matters is P0's exit**, when P4's cast pass starts (README, the P0 owner row): a brief
 supplied by then folds a *changed* hero into the cast at no extra art cost, while a *new*
-hero adds its fifteen frames, its ≈ $15–30 and its contact sheet outside the 43-actor,
+hero adds its fifteen frames, its ≈ $35–60 and its contact sheet outside the 43-actor,
 645-frame model (§ F4.3); a hero changed after its sprites are accepted costs § F4.3's
 price and a consistency re-gate against the cast. This
 section fixes what a change *is*, what it costs, and the questions the details must
@@ -555,7 +556,8 @@ The closed unions a kit is built from — anything outside them is a *mechanics*
 
 | Class | Size | Spec | Tests | Simulator | Art | Screens |
 |---|---|---|---|---|---|---|
-| NEW character | S–M each; a batch of six ≈ L | clauses under `spec/characters/<id>.md`; roster and `validateData` clauses | data validity, kit behaviour per skill, awakening, leader | every policy must be able to draft and play it; the ladder and the guards re-measured; "every character leads ≥ 5 %" | 15 frames + portrait through the gate against the accepted cast: ≈ 90–150 generated images, one critic round, the owner's sheet — ≈ $15–30 at the per-image price including re-rolls and the portrait; a whole-cast re-gate after a provider change (§ F3.6) | the draft grid and detail strip must fit (the four-column grid holds twelve) |
+| NEW character | S–M each; a batch of six ≈ L | clauses under `spec/characters/<id>.md`; roster and `validateData` clauses | data validity, kit behaviour per skill, awakening, leader | every policy must be able to draft and play it; the ladder and the guards re-measured; "every character leads ≥ 5 %" | 15 frames + portrait through the gate against the accepted cast: ≈ 200–320 generated images (the cast's own multiplier, 2.5–4× over the 78-image base of thirteen frames × six candidates, for the tolerated rejection and the taste rounds), one critic round, the owner's sheet — ≈ $35–60 at the per-image price including re-rolls and the portrait, the cast's $1 500–2 500 over 43 actors; a whole-cast re-gate after a provider change (§ F3.6) | the draft grid and detail strip must fit (the four-column grid holds twelve) |
+| RULES change — a mechanic the owner names at the baseline play or from the closed test's reports, built after P3 | S–M per clause family | the family's clauses under `TECHNICAL.md` § T7.7, its goldens re-recorded with approval | the family's behaviour, the hash test | the ladder and the guards, the Balance state | any pose or effect the change needs | any screen the change reaches |
 | KIT change | S | the skill clauses | the skill's behaviour, the awakening | the ladder and the guards | any pose the kit changes (a new weapon) | none |
 | NUMBERS | S | the Balance state | none new | the ladder and the guards | none | none |
 | ART | S per actor | `spec/art/` | the gate | none | the frames | none |

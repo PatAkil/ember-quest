@@ -2513,3 +2513,95 @@ GitHub's rate cards, declined below (B6).
 | D8 | MINOR | The approval surface's load-bearing cells are single sentences | declined, below |
 
 **Declined or only partly applied:** B6 declined — the $0.006 Linux and $0.062 macOS rates are GitHub's 2026-01-01 repricing, verified at resources.github.com/actions/2026-pricing-changes-for-github-actions and the github.blog changelog of 2025-12-16; the arm64 $0.005 is the post-repricing two-vCPU price; all three are re-read at P0's terms check, which the plan already says. D8 declined — a table cell holds no line break, and splitting the five rows into sub-bullets would lose the rows' nested lists; the cells are indexes of distinct acts, read one act at a time.
+
+
+## Round 24 — on revision 25 (commit `e752e9f`)
+
+Four reviewers on a lighter model, 47 findings: 1 BLOCKING, 19 GAP, 2 NUMBERS, 25 MINOR.
+The blocking row is the post-merge map's third omission in as many rounds: the perf test,
+the storyboard driver and the calibration's second reader live in `:tools:instruments`,
+whose only boolean is `tools`, which none of their rows named (C1). The gaps: the
+equivalence check had no tolerance or pass rule (A1, C5); the coverage report never
+counted a `SkillId`, so five of the six awakened variants could be absent from the golden
+set (A2); the SIMD build-flag fallback cannot be performed on JetBrains' prebuilt Skiko
+(A3); the post-merge and `env-image` runs on `main` were outside the re-run rule (A4); the
+privacy and support pages were read by nothing before the live site (A5); the repository's
+Actions settings were never fixed (A6); the loop's bar had no practical exit (B1); the
+baseline play admitted only go or no-go (B2); the fourteen days waited on sixteen opt-ins
+where Google's rule is twelve (B3); the closed test was read as compliance only (B4);
+clauses bound only by nightly tests could never be promoted (B5); question 3(c)'s check
+named a headless replay no tool performs (C2); `diff-oracle`'s condition lacked `sim` (C3);
+the biome table had no name and no P1–P2 behaviour (C4); the art tool's `npm ci` sat in a
+recipe with no checkout (C6); the image workflow's first run had no tagged image to find
+(C7); the iPhone lane's identity sat on no owner row (D1); and the plane provider's terms
+check had no owner, moment or price (D2). The numbers: a later character at the cast's own
+multiplier (B6) and the contingent items' sum (B7). Nothing was declined.
+
+### 24-A (adversarial, technical) — 0 BLOCKING, 6 GAP, 0 NUMBERS, 6 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| A1 | GAP | The equivalence check had no tolerance and no pass rule | every ratio within 0.05 of P0's and none across the 1.5:1 line; beyond that after one rework, the bar re-recorded on the Kotlin frames with approval (§ T10.4, § T14; with C5) |
+| A2 | GAP | The coverage report never counted a `SkillId`; five awakened variants could be absent | `SkillId` among the kinds, a skill appearing when a `CAST` line names it, in P2's gate (§ T5.3, § V3.6, § T14) |
+| A3 | GAP | Pinning Skia's SIMD tier needs Skiko built from source | the per-CPU-class tolerance with the feature set recorded beside each golden is the one fallback (§ V4, § V9) |
+| A4 | GAP | The two `main` runs sat outside the re-run rule | one `workflow_dispatch` re-dispatch each, logged on the `ledger` issue, a second failure real (§ V5) |
+| A5 | GAP | `docs/**` was ORed by no job and its HTML checked by nothing | the lint job ORs `docs` and runs `html-validate` and `lychee` over the two pages (§ T4.1, § T8) |
+| A6 | GAP | The repository's Actions settings were never fixed | the default token read-only and Actions barred from creating or approving pull requests, set at M2, proven at M4 (§ T1, § V9) |
+| A7 | MINOR | `strong=1`'s seeded Vault lacked `version`, so `loadVault` would discard it | `version: 1` and `unlockedAscension` named (§ T4.2) |
+| A8 | MINOR | § T6.2 and § T6.3 disagreed on whether the table test is generated | the binder generates the table only; the test is hand-written per module at P3 (§ T6.2, § T6.3) |
+| A9 | MINOR | `ATB_CHANGE`'s `reason` space-free by luck | a closed, space-free union; a value with a space rejected (§ T5.3) |
+| A10 | MINOR | A wrong-kind `RunAnswer` had no stated fate | refused by `decide`, nothing moves, bound by `SESSION` clause tests (§ T2.3) |
+| A11 | MINOR | The near plane's draw order carried no authoring constraint | never authored where it would occlude a body (§ T2.5) |
+| A12 | MINOR | The `env-image` hand-back omitted the regenerated workflows | the `kmp-*.yml` regenerated from the new `lanes.yaml` in the same commit (§ V4) |
+
+### 24-B (adversarial: product, process, risk) — 0 BLOCKING, 5 GAP, 2 NUMBERS, 4 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | The loop's bar had no practical exit | the practical bar stated — zero blocking and no gap that moves a phase's size, price or gate — as the owner's stop (README status) |
+| B2 | GAP | The baseline play admitted only go or no-go | a third answer, go with a named mechanic to change, sized at § F4.3's new rules row (README P0 row, § T14, § F4.3, the *Then* row, the risk row) |
+| B3 | GAP | The fourteen days waited on sixteen opt-ins | the clock starts at twelve or more, sixteen the target the reserve is still invited toward (README, § T12) |
+| B4 | GAP | The closed test was read as compliance only | read once as a product signal at P7's start: ship, fix first or re-plan, recorded (README P7 rows, § T14) |
+| B5 | GAP | Nightly-bound clauses could never satisfy the same-pull-request promotion rule | the one exemption: promoted in a later pull request against the last nightly's matrix (§ T7.2, § V5) |
+| B6 | NUMBERS | A later character priced at 1.2–1.9× its base against the cast's 2.5–4× | ≈ 200–320 images, ≈ $35–60 (§ F4.3, README) |
+| B7 | NUMBERS | The contingent items summed to more than "six to twelve" | six to thirteen, the arithmetic shown, option B and the branch prices outside the band (README) |
+| B8 | MINOR | The review queue said to bind at three a week | at two or more (README risk row) |
+| B9 | MINOR | A production blocker's latency unstated | found by the monthly scan or the crash alerts, about a month to a released fix, weekly reads while open (README) |
+| B10 | MINOR | The TypeScript alternative not like for like | the store programme named on both sides (README item 2) |
+| B11 | MINOR | The farm's billing alert had no reader | in the monthly scan (README) |
+
+### 24-C (blind implementer) — 1 BLOCKING, 6 GAP, 0 NUMBERS, 5 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| C1 | BLOCKING | Three `:tools:instruments` jobs' rows omitted `tools`, refusing their only fix | `tools` on the perf test's, the storyboard's and the calibration's rows (§ V5) |
+| C2 | GAP | The 3(c) check named a headless replay no tool performs | an assertion in `capture.mjs playfull` reading the committed option and the fired skill through `__eq`, failing before the fix and passing after (README, § T4.2) |
+| C3 | GAP | `diff-oracle`'s L3 condition lacked `sim` | added (§ V2) |
+| C4 | GAP | The biome table unnamed; the check had no input until P2 | the `BIOMES` `data:` table P2's fold writes, the check inert before (§ T7.5, § T7.8) |
+| C5 | GAP | The equivalence check could not be evaluated | with A1 |
+| C6 | GAP | The art tool's `npm ci` in a recipe with no checkout | a lane step of the jobs that run it, cached on the lockfile hash (§ T2.1) |
+| C7 | GAP | The image workflow's first run had no tagged image | spike 6 pushes under the same commit tag; the workflow rebuilds when none exists (§ V4, § T14) |
+| C8 | MINOR | `GOLDEN_CELLS`' source set undecidable | the carve-out stated (§ T7.1) |
+| C9 | MINOR | `--no-stall-gate` defined as a battles knob | harness-wide (§ T5.3, § T5.4, § V3.6) |
+| C10 | MINOR | Which SUMMON reads the raw roster | the landmark SUMMON; the opening one reads the fallback (§ T5.2, § T2.3) |
+| C11 | MINOR | `--ko` used but never defined | named as the hp hook's own flag (§ V3.2) |
+| C12 | MINOR | The flat-frame command used before its definition | the full command, cross-referenced (§ T4.2) |
+
+### 24-D (blind owner's advisor) — 0 BLOCKING, 2 GAP, 0 NUMBERS, 10 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| D1 | GAP | The iPhone lane's identity on no owner row; the iPhone bought too late for it | the four acts on P1's row under the runner branch, the iPhone bought by M7 there; P5's act the distribution material (README) |
+| D2 | GAP | The plane provider's terms check had no owner, moment or price | the owner, about an hour, in the P6 sitting that takes the branch (§ F3.7, README question 4(b), the P6 row, the admin band) |
+| D3 | MINOR | The detekt fallback's loss not enumerated | the complexity budgets, the Compose rules and detekt's smell set (README principle 9, D8, § T3) |
+| D4 | MINOR | P8's own price absent from question 3(b)'s keep branch | 1–2 sessions and two to four sittings after P7 (README) |
+| D5 | MINOR | The closed test's trigger stated twice | the stores'-term paragraph points at the absence protocol (README) |
+| D6 | MINOR | The promised rot repair after retirement was not an admitted change | kept on § T4.2's list, scoped to the demo's build (§ V8.3, § T4.2, README) |
+| D7 | MINOR | The P0 row asked for a decision the plan had fixed, on a condition closed at P5 | the money table's wording; the owner's latitude named (README) |
+| D8 | MINOR | A question mark where a price belongs | the 90-day refresh priced (README question 4) |
+| D9 | MINOR | Three decisions with no reversal cost | each given one (README D1, D17, D20) |
+| D10 | MINOR | The machine user needs a second GitHub account nobody named | named in 7(a)'s no and the admin band (README) |
+| D11 | MINOR | The image-provider accounts and key loading absent from the admin band | named (README) |
+| D12 | MINOR | 5b's arm64 leg's ruleset act in no phase | M4's list, inside that act (§ T13.5, README P1 row) |
+
+**Declined or only partly applied:** none.
