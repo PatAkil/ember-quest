@@ -2055,3 +2055,97 @@ declined.
 | D12 | MINOR | The trigger abbreviated (in the calendar paragraph, not item 6) | it points at the absence protocol's one statement (README) |
 
 **Declined or only partly applied:** none.
+
+
+## Round 19 — on revision 20 (commit `febb095`)
+
+Four reviewers on a lighter model, 46 findings: 2 BLOCKING, 17 GAP, 7 NUMBERS, 20 MINOR.
+Both blocking rows are revision 20's own residue. The `docs` job's `if: always()` meant a
+red prototype build would publish a Pages artifact holding the store pages alone and so
+remove the demo from the live URL, the opposite of what § T4.1 claimed (A1, B3); and the
+seat list's fixture was placed under `spec/fixtures/art/bible/`, a stem whose root type is
+the ramps' `Ramps` block, which the binder's first-block rule cannot type twice (A2, C1).
+The gaps: Firebase Test Lab needed a credential no identity held while § V5 said the lane
+workflows hold no secrets (B2); the exempt Play account dropped the iPhone testers, whom
+Play's rule never governed (B1, D2); the felt rows' Android was unconstrained (B4); the root
+`LICENSE` was not an owned path (B5); the steady state had no review point (B6);
+`env-image.yml`'s red `main` was read by nothing (A3); `:sim`'s golden replay was
+attributed to its host module, not the module it asserts (A4); the seat-spread id was
+named nowhere and its frames produced by no lane (A5, C4); the snapshot had no place in
+the save's grammar (C2); `ground` was ordered before the captures it is measured on (C3);
+question 6's "no" was priced in sessions only (D1); the Android handset had no role under
+the farm (D3, B14); and what precedes the last scheduled stop was unstated (D4). The
+numbers: the second reader unpriced in P1 (A6); the horizon cut against 38 weeks without
+the contingent items (B7); the fast branch priced at nine months (B8); prepaying stranding
+a balance the usage ceiling does not count (B9); "none in the best case" false for
+question 3(c)'s recommended session (B10); the worst case's enumeration summing to $4 424
+(C5); and the second seat sold as the fourteen-week gate (D5). Nothing was declined.
+
+### 19-A (adversarial, technical) — 1 BLOCKING, 4 GAP, 1 NUMBERS, 5 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| A1 | BLOCKING | The `docs` job's `if: always()` published the pages without the demo whenever the prototype build was red | no `if: always()`: `docs` runs only when `build` succeeded, for as long as the job exists; a red build holds the site at its last deploy, demo and pages alike; a retired build is the job removed (§ T4.1) |
+| A2 | GAP | `seats.json` placed in the `bible` stem, whose root type is `Ramps` | its own spec file `spec/art/seats.md` with `schema: Seats`, the fixture `spec/fixtures/art/seats/seats.json`, in § T7.4's list and § T2.1's layout (§ T7.5, § T4.2, § V3, § F3.1) |
+| A3 | GAP | `env-image.yml`'s red `main` read by nothing | it publishes the merge lane's commit status with the `env` boolean set (§ V4) |
+| A4 | GAP | `:sim`'s golden replay and snapshot and the JVM perf test attributed to their host module | attributed to the module whose behaviour they assert — `core`, `engine` (§ V5) |
+| A5 | GAP | The seat-spread id named nowhere; its frames produced by no lane | `spread` in `seats.json`; `frames --seat <spread id>` per biome in L2b's frame step and the P5 gate row (§ T7.5, § V3, § T14, § F3.1, § T4.2) |
+| A6 | NUMBERS | The second reader unpriced in P1 | the sheet's metrics alone, an S inside P1's L (§ T10.4, § V9 M5) |
+| A7 | MINOR | `run.ts` named for `runTurn`'s policy call | `battle.ts` (§ F1.4) |
+| A8 | MINOR | The snapshot's field list omitted the node trail; the offers and terminal fields unaddressed | `path` added; the offers and terminal fields re-derived on re-entry (§ T11) |
+| A9 | MINOR | The klib dump produced only on macOS | the merged dump the ABI tool builds on `agent-env` with the Apple targets inferred (§ T6.3) |
+| A10 | MINOR | `ground` read before it can exist | the seat list committed first, `ground` appended after the calibration captures (§ T7.5, § F3.1) |
+| A11 | MINOR | `options=<skill>:<target>` fields ambiguous | the `ActOption` skill index; the slot or `-1` (§ T5.3) |
+
+### 19-B (adversarial: product, process, risk) — 0 BLOCKING, 6 GAP, 4 NUMBERS, 4 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | The exempt Play account dropped the iPhone testers too | Play's obligation alone falls away; the iPhone testers and the channel stay, an Android pool the owner's choice (README P0 row, calendar paragraph; § T12) |
+| B2 | GAP | Test Lab needed a credential no identity held; § V5 said the lanes hold no secrets | a sixth identity: the farm's service account through workload identity federation from the nightly's OIDC token, no stored key, created with the Firebase project at P1 (§ T1, README D17 and P1 row, § V5) |
+| B3 | GAP | The `docs` job, as A1 | as A1 |
+| B4 | GAP | The felt rows' Android unconstrained; the daily phone may be an iPhone or a flagship | one Android at or below the reference class in the felt rows and the P7 test — the daily phone if it is one, else the reference Android lent from the runner (README handsets row, P5 rows; § T1, § T14) |
+| B5 | GAP | The root `LICENSE` not an owned path | `LICENSE` and the root `README.md` owned (§ V5, README D17) |
+| B6 | GAP | The steady state without a review point | an annual decision to continue, hand over or delist, against the install counts, the channel and the reviews, with the delist path (README steady state, § T14) |
+| B7 | NUMBERS | The horizon cut against 38 weeks without the contingent items | about 50 weeks, up to twelve subscription months (README calendar paragraph, P0 row, money table; § T12) |
+| B8 | NUMBERS | The fast branch priced at nine months | three to five months at $200–400: ≈ $2 500–5 000, ≈ $2 900–5 900 with the handsets (README money table) |
+| B9 | NUMBERS | Prepaying strands a balance the usage ceiling does not count | the ceilings are usage ceilings, capping the default for that reason too (README P0 row, programme total; § T10.1) |
+| B10 | NUMBERS | "None in the best case" false for question 3(c)'s recommended session | stated, the aggregate then 20–39 (README) |
+| B11 | MINOR | Three "first" acts in the P0 row | the order stated once (README P0 row; with D6) |
+| B12 | MINOR | § V6's Maestro rows under the farm branch | the owner's manual walk before each `v*` tag (§ V6) |
+| B13 | MINOR | "Three exceptions" mixed rework and money | one rework exception, two money ones (README absence protocol) |
+| B14 | MINOR | The Android handset's role under the farm, as D3 | as D3 |
+
+### 19-C (blind implementer) — 1 BLOCKING, 3 GAP, 1 NUMBERS, 8 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| C1 | BLOCKING | The seats fixture's stem, as A2 | as A2 |
+| C2 | GAP | Where the snapshot lives in the save's grammar | its own store slot beside the log, never in the text encoding; the marker a save-only `resumed <S>` line (§ T11) |
+| C3 | GAP | `ground` ordered before the captures; `art rulers` reports no colour | the two-step write; `art rulers --ground` (§ T7.5, § T10.4, § F3.1; with A10) |
+| C4 | GAP | The seat-spread frames, as A5 | as A5, plus the P5 gate row (§ T14) |
+| C5 | NUMBERS | The worst case's enumeration summed to $4 424 | the cast's $4 000 ceiling and P6's $500 plane key named; $4 424 without the key (README money table) |
+| C6 | MINOR | The HUD face listed among P0's captures | lands at P1 with its licence file (§ T10.9) |
+| C7 | MINOR | The spend row carried no key | a `key` field, the counter sums by it (§ T10.1) |
+| C8 | MINOR | The two throwaway pull requests out of order against § V9 | the first at M2, the second at M4 after the gate App and the checks (README P1 row) |
+| C9 | MINOR | "The rules areas" undefined | the clauses whose `owner` is `:core` (§ T14, README roadmap) |
+| C10 | MINOR | The klib dump on Linux, as A9 | as A9 |
+| C11 | MINOR | The save-corpus row unconditional | under question 10's yes (§ V6) |
+| C12 | MINOR | The literal block's source | `ci/lanes.yaml`'s `required-hand-written:` list, concatenated by the generator (§ T13.5) |
+| C13 | MINOR | One `SpecFixtures` root emitted per owning module | `<Module>Fixtures`, one per module (§ T2.1, § T7.2) |
+| C14 | MINOR | "The ranks stand 68 px apart" | the seats of a rank (§ T10.4) |
+
+### 19-D (blind owner's advisor) — 0 BLOCKING, 4 GAP, 1 NUMBERS, 3 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| D1 | GAP | Question 6's "no" priced in sessions only | fourteen to twenty sittings go with them, the pre-build floor about six to eight weeks (README question 6) |
+| D2 | GAP | The exempt Play account and the iPhone testers, as B1 | as B1 |
+| D3 | GAP | The Android handset had no role under the farm | the owner's Android acceptance and hand-walk device under the farm, lane hardware under the runner (README handsets row, Always row; § T1) |
+| D4 | GAP | What precedes the last scheduled stop | the signing pipeline and the first `v*` tag before it; the listings, the forms and the invitations after (README P5 rows; § T14, § T12) |
+| D5 | NUMBERS | The second seat sold as the fourteen-week gate | the fourteen-week floor is the review queue's at two a week; three or more buys about two weeks off the upper end (README calendar paragraph) |
+| D6 | MINOR | Two acts each first in the P0 row | the order stated (README P0 row) |
+| D7 | MINOR | "The one product decision before P3" against the P1 and P2 stops | taken on the game itself; the stops re-ask it (README P0 row, § F1.5's neighbour in `FUNCTIONAL.md`) |
+| D8 | MINOR | The demo "free" after the oracle retires | its build unmaintained then; a rot repair a steady-state out-of-cycle item (README question 3(a)) |
+
+**Declined or only partly applied:** none.

@@ -94,7 +94,7 @@ behaviour and the new screens are built to it; the prototype is frozen with its 
 |---|---|---|
 | The battle screen enumerates a hero's options *before* the turn's cooldown tick while the rules re-enumerate at step 7 after it; when a skill comes off cooldown during the tick the committed index casts a different skill or target — measured on 16 % of hero turns | the hero's decision is asked at step 7 with the post-tick options, so what the player picks is what fires | `COMBAT-TURN` |
 | A skill greyed out in the command list at cooldown 1 is legal by the time the turn resolves | the list shows the post-tick legality | `SCREENS-BATTLE` |
-| A hero wearing the four-piece VIOLENT set gets an extra turn that asks the battle's policy, which the interactive screen never seats — a crash | the prototype fix seats a synchronous auto-choice for the extra turn, since the frozen `run.ts` asks the policy inside `runTurn`; the interactive second decision is the seam's (`TECHNICAL.md` § T2.3) | `COMBAT-TURN` |
+| A hero wearing the four-piece VIOLENT set gets an extra turn that asks the battle's policy, which the interactive screen never seats — a crash | the prototype fix seats a synchronous auto-choice for the extra turn, since the frozen `battle.ts` asks the policy inside `runTurn`; the interactive second decision is the seam's (`TECHNICAL.md` § T2.3) | `COMBAT-TURN` |
 | The Vault's minimum-ascension floor is enforced by the Vault screen, not by the rules | the same function, with the same numbers, lives in the rules and is tested there; the screens apply it before a run starts, and the run itself still accepts any `RunConfig` — as the oracle does — so the golden cells recorded at A0 with three Vault relics replay | `META-VAULT` |
 
 ### F1.5 How the mechanics and the presentation are accepted
@@ -128,7 +128,7 @@ behaviour and the new screens are built to it; the prototype is frozen with its 
    as excluded from the bar, since the app must not reproduce them — the record the felt
    rows are judged against, so that "as good as the prototype" is a written bar, not a
    memory. The same play is the owner's **go or no-go on the game itself**, recorded in
-   the register (README, the P0 owner row): the one product decision before P3.
+   the register (README, the P0 owner row): the one product decision taken on the game itself; the P1 and P2 stops re-ask it against the re-estimates.
 5. **The first-ten-minutes test**: title → draft → the opening SUMMON → leader → map → a
    crypt fight to a KO or a win → INSPECT → PAUSE → a SUMMON room → a SHRINE, on a phone,
    at P7 on release builds.
@@ -198,7 +198,7 @@ screenshots, are not in the repository and never will be.
   ≥ 1.5:1 (over an L* 41.6 ground that admits an actor above L* 53 or below 31 — 52.8 / 30.6 by the formula; the 53.5 / 31.3 of ART-REVIEW.md carry a 0.7-L slip of their own — as
   ART-REVIEW.md records; an L* ratio would be a different gate) — measured on **one fixed
   set**: the six seats of the resting frame of every biome — 36 seats, 72 strip readings
-  — the seat list (which fallback actor stands in each of the six seats of each biome) recorded in `spec/art/bible.md` when the art tool is calibrated, before the P0 captures, beside the ground colour (the bars are recorded from the captures), an excluded seat counted as a miss, never dropped, and the
+  — the seat list (which fallback actor stands in each of the six seats of each biome) recorded in `spec/art/seats.md` (beside the bible, `TECHNICAL.md` § T7.5) when the art tool is calibrated, before the P0 captures, with the seat-spread id — the ground colour and the bars are committed after the MED `flat=1` frames they are measured on —, an excluded seat counted as a miss, never dropped, and the
   fallback cast planted as a fixed reference at P0, P5 and P6; **three bars, all recorded
   at P0 under this rule**, one per tier, each a count — the number of the 72 readings at
   ≥ 1.5:1 the rig achieves at P0 for that tier, the shape of the record's 106 of 108; a
@@ -229,7 +229,7 @@ screenshots, are not in the repository and never will be.
   for comparison, and P6's gate is the first that holds them; and the **seat spread** — the largest excess of a seat's torso median (rows
   0.33–0.72 of the silhouette's height) over the median seat **of the same biome frame**,
   reported as the maximum over the six frames — an L* value that is **reported, not gated**: the rig's own
-  measure, taken with one id planted at all six anchors (`seat=<id>` in the prototype,
+  measure, taken with one id planted at all six anchors (the id `spec/art/seats.md` names; `seat=<id>` in the prototype,
   `frames --seat <id>` in Kotlin; the rig's 4.5 L was measured that way, the cast's
   differences removed, and 5 L* is the intent). The count is
   **reported** on every sprite's contact sheet — and at P5's end once over the accepted
