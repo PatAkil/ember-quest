@@ -2698,3 +2698,94 @@ lines (B8); and the status paragraph's own gap band (B9). Nothing was declined.
 | D11 | MINOR | Question 8(a) moved the Pages site but not the store URLs | the URLs move with it (README) |
 
 **Declined or only partly applied:** none.
+
+
+## Round 26 — on revision 27 (commit `fda1045`)
+
+Four reviewers on a lighter model, 45 findings: 1 BLOCKING, 19 GAP, 6 NUMBERS, 19 MINOR.
+The blocking row: the storyboard driver lived in `:tools:instruments`, a JVM-only module
+outside `:app:*`'s edges, while § V3.2 ran "the same driver" in instrumentation on Android
+and iOS and P5's gate demanded two acts on both (A1); its tap-and-assert logic now lives in
+`:ui`'s test source sets and the JVM tool is a CLI over it. The gaps: `env-image.yml`'s
+post-merge status needed a permission its block lacked and the generated workflows' block
+was unstated (A2, C9); no phase promoted the `ART` or `BALANCE` clauses (A3); the store
+screenshot's integer scale fitted no Apple canvas (A4, B10); the HIGH bar was held against
+a renderer never compared (A5, C5); an empty list vanished from the `result` record (A6);
+the subscription tier and the second seat were recorded on no owner row (B1); the named
+mechanic had no build slot (B2); the UI, VFX, scene and composition axes had no miss branch
+(B3); the HIGH bar had no P0 frame and no committed readings (B4); a Gemini key could spend
+through an absence (B5); a nightly disabled by GitHub takes no dispatch (B6); the
+calibration's second reader was on no owned path (B7); the three 3(c) assertions demanded
+one run across a fix that changes the run (C1); the fixture record had no leader seat and
+no per-hero relics (C2); the boss and pair anchors were unexported (C3); `release.yml`
+existed nowhere (C4); `keepalive.yml` landed in no milestone (C6); and the owner's contact
+sheets had no way onto a phone (D1). The numbers: the sitting band's top (B9, C7, D2); the
+portraits under a subscription winner (B8); a month with the phone down (D3). Nothing was
+declined.
+
+### 26-A (adversarial, technical) — 1 BLOCKING, 5 GAP, 0 NUMBERS, 4 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| A1 | BLOCKING | The storyboard driver in a JVM-only module, yet run on Android and iOS | its tap-and-assert logic in `:ui`'s test source sets (`androidInstrumentedTest`, `iosSimulatorArm64Test`), `:tools:instruments` the JVM CLI over it (§ T2.1, § T6.2, § V3.2) |
+| A2 | GAP | `env-image.yml` lacked `statuses: write`; the generated workflows' block unstated | both stated; the image package public on the recommended branch, `packages: read` under 8(b) (§ T2.1; with C9) |
+| A3 | GAP | No phase promoted the `ART` and `BALANCE` clauses | `ART` at M5 under the owner's contract-clause review; `BALANCE` with P3's promotions (§ V9, README P1 and P3 rows, § T14) |
+| A4 | GAP | The store screenshot's integer scale fitted no Apple canvas | the canvas's own `k = h/720`, as the device draws it (§ T12, § V3.1; with B10) |
+| A5 | GAP | The HIGH bar held against a renderer never compared | a HIGH `flat=1` set at P0 and the equivalence check at HIGH before P6 holds the bar (with C5, B4) |
+| A6 | GAP | An empty list printed as nothing in the `result` record | `-` for an empty list too (§ T5.3) |
+| A7 | MINOR | `pull_request_review` said to run the head's copy | it runs `main`'s copy, like `pull_request_target` (§ V5) |
+| A8 | MINOR | L2b's rulers over the shipped golden, which keeps its bloom | over the ruler frame, `--bloom off` (§ V2) |
+| A9 | MINOR | `spec/golden/hash.md` owned by nobody | `:core`'s (§ T7.1; with C8) |
+| A10 | MINOR | M4's ruleset edit while the art pull requests are open | they merge first; the bootstrap's throwaway exempt (§ T13.5) |
+
+### 26-B (adversarial: product, process, risk) — 0 BLOCKING, 7 GAP, 3 NUMBERS, 4 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | The subscription tier and the second seat recorded on no owner row | in P0's terms check (README P0 row, § T14) |
+| B2 | GAP | The named mechanic had no build slot | before or after P5's first build as the owner decides; the closed test's after P7 (README, § T14) |
+| B3 | GAP | The UI, VFX, scene and composition axes had no miss branch | the cast-miss shape on each (README P5 and P6 rows, § T14) |
+| B4 | GAP | The HIGH bar had no P0 frame and no committed readings | the diorama named; its 72 rows and a HIGH `flat=1` set in `rulers-p0.json` (§ T4.2, § T7.5, § F3.1) |
+| B5 | GAP | A Gemini key could spend through an absence | the fifth absence exception, revoked before any absence that outlasts its date (README) |
+| B6 | GAP | A nightly disabled by GitHub takes no dispatch | re-enabled first, by the App or the owner; P1 confirms the keepalive push counts (§ V5, README Monthly row) |
+| B7 | GAP | The calibration's second reader on no owned path | `tools/instruments/src/jvmTest/kotlin/calibration/**` owned (§ V5, § T10.4, README D17) |
+| B8 | NUMBERS | The subscription-winner total without the portraits | ≈ $455–625 with ≈ $30–100 of portraits (README) |
+| B9 | NUMBERS | 59–75 where the base phases sum to 74 | 59–74; 60–75 on 4(a)'s branch, at every location (README; with C7, D2) |
+| B10 | NUMBERS | `--store` at an integer scale | with A4 |
+| B11 | MINOR | The App "created before anything" against the README's order | before any agent commit, the third act (§ T14) |
+| B12 | MINOR | The hand-written jobs' names in `ci/required-checks.txt` unsourced | from `lanes.yaml`'s `required-hand-written:` table (§ V9) |
+| B13 | MINOR | The iPhone's deadline before question 5 closes | by the sitting that closes question 5, right after M7 (README) |
+| B14 | MINOR | Self-review on the `release` environment unstated | left allowed, since the owner cuts the tag (README, § V5) |
+
+### 26-C (blind implementer) — 0 BLOCKING, 6 GAP, 1 NUMBERS, 7 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| C1 | GAP | The three 3(c) assertions demanded one run across a fix that changes the run | a failure before and a pass after, the runs diverging; the third forces its own setup (README, § T4.2) |
+| C2 | GAP | The fixture record had no leader seat and no per-hero relics | `leader`, `heroes: list<object:FixtureHero>` with each one's relics, `VaultRelic` enumerated (§ T7.4, § T5.3) |
+| C3 | GAP | `ENEMY_FEET_PAIR` and `BOSS_FEET` unexported | in `rig.json`'s anchors and § T2.5's row (§ T4.2, § T2.5) |
+| C4 | GAP | `release.yml` existed nowhere | named with its trigger and permissions, hand-written, a P5 deliverable (§ T2.1, § V5, § T14) |
+| C5 | GAP | HIGH held at a bar no equivalence check covered | with A5 |
+| C6 | GAP | `keepalive.yml` landed in no milestone | M3 (§ V9) |
+| C7 | NUMBERS | The sitting band's top | with B9 |
+| C8 | MINOR | `hash.md` owned by nobody | with A9 |
+| C9 | MINOR | The merge workflow's permissions unstated | with A2 |
+| C10 | MINOR | The gate-App checks' names unsourced | `lanes.yaml`'s `required-gate-app:` table (§ T13.5) |
+| C11 | MINOR | `light.json`'s list omitted `id` | at its head (§ T4.2) |
+| C12 | MINOR | The spend row's `cost` unsourced | the adapter's charge, else `images` times the key's unit price, 0 for a subscription (§ T10.1) |
+| C13 | MINOR | "The app ships no fixture" against `UiFixtures` | `:core`'s shipped ABI carries none; `:ui`'s `commonMain` does (§ T7.1) |
+| C14 | MINOR | `art rulers` took one frame while `ground` spans six | several frames at once (§ V3.7) |
+
+### 26-D (blind owner's advisor) — 0 BLOCKING, 1 GAP, 2 NUMBERS, 4 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| D1 | GAP | The contact sheets had no way onto a phone | `sheet.png` committed in the accepting pull request, the App posting it and the lit frames inline (§ F3.5, § V3.10, § T10.6) |
+| D2 | NUMBERS | The sitting band's top | with B9 |
+| D3 | NUMBERS | A month with the phone down priced at $0–20 | up to the farm's ≈ $25–125 (README) |
+| D4 | MINOR | Approvals 1 said to cover M1 | M2–M3; M1 on discipline audited by M4 (README, § V1, § V9) |
+| D5 | MINOR | P2 and P3 said nothing of an absent owner | the golden recording; the testers' channel (README) |
+| D6 | MINOR | The rules changes in no "outside it" clause | named with character changes and PvP (README) |
+| D7 | MINOR | The Mac confirmation had no criteria | Apple silicon, the current Xcode, disk for the VM and the SDK (README) |
+
+**Declined or only partly applied:** none.

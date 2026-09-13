@@ -202,8 +202,10 @@ screenshots, are not in the repository and never will be.
   fallback cast planted as a fixed reference at P0, P5 and P6; **three bars, all recorded
   at P0 under this rule**, one per tier, each a count — the number of the 72 readings at
   ≥ 1.5:1 the rig achieves at P0 for that tier, the shape of the record's 106 of 108 — with
-  the 72 readings behind each of the LOW and MED bars committed as `spec/art/rulers-p0.json`
-  (`TECHNICAL.md` § T7.5), the input of P5's equivalence check; a
+  the 72 readings behind each of the three bars, and of a HIGH `flat=1` frame set with no bar
+  of its own, committed as `spec/art/rulers-p0.json` (`TECHNICAL.md` § T7.5) — the flat
+  sets the input of the equivalence checks, LOW and MED at P5 and HIGH at P6, the diorama
+  rows P6's diagnosis route; a
   frame set counting below it fails: P5 is gated at LOW — the key light and the grade
   baked into the one flat plane plus the vignette-only grade map every frame, the
   prototype's LOW over the same composite, so its bar is recorded through the same
@@ -383,7 +385,12 @@ every reported-only reading are outside this rule: they send the rig back to wor
 Per actor: a contact sheet of candidates (colour, greyscale, silhouette, the pose sheet, the actor's
 portrait under § F3.3's criteria, and
 the actor standing in a lit crypt frame at 1:1 and 2×) with the gate's table under it; the
-critic's verdict; the owner's yes or no on the sheet. Order: the six heroes first (they are
+critic's verdict; the owner's yes or no on the sheet — given on a phone from the pull request
+itself: `art sheet` writes the sheet as `assets/actors/<ID>/sheet.png` into the accepting pull
+request (a few hundred kilobytes, excluded from the atlas and the install) and the App posts
+it and the lit frames inline in the pull request body, since the candidates are never
+committed and a workflow artifact does not render on a phone (`TECHNICAL.md` § T10.6,
+`VERIFICATION.md` § V3.10). Order: the six heroes first (they are
 on every screen), then the EMBER CRYPT pack (the first ten minutes), then the six bosses,
 then the remaining packs by act. The owner never sees an actor that has not passed the
 gate. The cast is built in **P4**, in parallel with the rules, because nothing in it
