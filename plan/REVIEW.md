@@ -2848,7 +2848,7 @@ declined.
 | C5 | GAP | The release notes had no producer, destination or permission | `release.yml` writes them into the stores' what's-new fields with `pull-requests: read`; no `id-token` (§ T12, § T2.1) |
 | C6 | MINOR | One `--anchors` for several frames | each frame's own `<frame>.anchors.json` (§ V3.7) |
 | C7 | MINOR | "Anchor order" undefined | `H0`, `H1`, `H2`, `E0`, `E1`, `E2` (§ T7.5) |
-| C8 | MINOR | The goldens check's scope unlisted | the four golden globs, `instruments approve` covering `calibration.json` (§ V5) |
+| C8 | MINOR | The goldens check's scope unlisted | the five golden globs (the probe traces added by revision 29's consistency pass), `instruments approve` covering `calibration.json` (§ V5) |
 | C9 | MINOR | The study's sidecar fields the exporter must invent | `element: FIRE`, `pose: idle`, `frame: 0` (§ T4.2) |
 | C10 | MINOR | The seat list "before the P0 captures" | before the P0 ruler captures (§ F3.1) |
 | C11 | MINOR | An unwind after P2 breaks the prototype's harness | the demo survives; the harness keeps a copy of the fixtures or retires with the oracle (§ T4.3, README) |
@@ -2864,7 +2864,85 @@ declined.
 | D5 | MINOR | The steady state never totalled | with B7 |
 | D6 | MINOR | Dropping the web target "removes nothing else" | the wasm targets, `app/web/`, spike 5's wasm leg and M7's wasm compile (README) |
 | D7 | MINOR | Question 9 had no register row | D22 (README) |
-| D8 | MINOR | The span between the second stop and the third unnamed | P3 and P5's first half, 6–12 sessions and 14–20 sittings (README) |
+| D8 | MINOR | The span between the second stop and the third unnamed | P3 and P5's first half, 4–8 sessions and 10–14 sittings (README; the round's own 6–12 and 14–20 were corrected by revision 29's consistency pass) |
 | D9 | MINOR | The recurring art column per-image only | under a subscription sprite winner, its months plus the portrait (README) |
+
+**Declined or only partly applied:** none.
+
+
+## Round 28 — on revision 29 (commit `56a398e`)
+
+Four reviewers on a lighter model, 38 findings: 1 BLOCKING, 13 GAP, 3 NUMBERS, 21 MINOR —
+the smallest round yet, and the first in which a reviewer (D) returned no gap. The blocking
+row: `awakened: bool` on a fixture hero changes no skill in the prototype, whose awakening
+is a private function, so no cell could reach the six awakened variants P2's gate demands
+(C1); `applyAwaken` joins the P2 export list. The gaps: the JVM perf gate's reference scene
+was unnamed (A1); `:core`'s tests and `:storyboard` lacked edges the plan needs (A2); the
+required-check list's rules read had no permission (A3); the subscription the programme
+runs on had no risk row (B1); a store refusal was treated as both stores and paused no art
+(B2); the exempt Play branch gave up every external Android reading unsaid (B3); the
+listing's first ratings on the placeholder stage were unpriced (B4); no release was staged
+(B5); the P1 and P2 stops were re-asked on cost alone (B6); the resting frame was pinned to
+no pose (C3); `record-goldens` recorded screens alone (C4); and `env-check`'s manifest had
+no stated scope (C5). The numbers: the farm branch's hours (B7, D1); the hash vectors' two
+battles policies (A4, C2). Nothing was declined.
+
+### 28-A (adversarial, technical) — 0 BLOCKING, 3 GAP, 1 NUMBERS, 4 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| A1 | GAP | The JVM perf gate's reference scene unnamed | M6's hello-world stage at HIGH, one fallback actor over one flat plane, a `PLATFORM-PERF` clause (§ T9.5) |
+| A2 | GAP | `:storyboard` lacked Compose `ui-test`; `:core`'s tests lacked `:core-testing` | both edges added (§ T2.1) |
+| A3 | GAP | The rules read had no permission named | the rules API asks only the implicit `metadata: read`, on the private branch too (§ T13.5) |
+| A4 | NUMBERS | Battles mode has two policies, not three | 60 runs vectors and 40 battles vectors (§ T5.2; with C2) |
+| A5 | MINOR | M7 cannot observe GitHub's 60-day disable | it confirms the commit lands; the first quarterly session checks the schedule (§ V5) |
+| A6 | MINOR | L0's `env-check` red after a hand-back | `setup.sh` re-run on the host after the hand-back commit (§ V4) |
+| A7 | MINOR | `feet.y` 63 or 64 | the floor line, the row below the last opaque row (§ T10.9) |
+| A8 | MINOR | `dominant` with no offers | `-` when `offers` is empty (§ T5.3) |
+
+### 28-B (adversarial: product, process, risk) — 0 BLOCKING, 6 GAP, 1 NUMBERS, 4 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | The subscription the programme runs on had no risk row | a row: the tier re-read monthly, API list prices the priced alternative, a change re-asks the stops (README risks) |
+| B2 | GAP | A refusal treated as both stores; no art pause | per store, as the suspension row; a refusal or suspension pauses P4 (README, § T15, § T14) |
+| B3 | GAP | The exempt Play branch gave up every external Android reading unsaid | said, with a floor of three to five Android testers on the internal track (README, § T12) |
+| B4 | GAP | The first ratings earned on the placeholder stage unpriced | in 4(a)'s "knowing that" clause (README) |
+| B5 | GAP | No staged rollout anywhere | Play's staged rollout and the App Store's phased release; halting it the first act on a blocker (§ T12, README) |
+| B6 | GAP | The P1 and P2 stops re-asked on cost alone | two or three people's demo play the external input at each stop (README) |
+| B7 | NUMBERS | The farm branch credited with M7's shared work | M7's four items under either branch; the farm at 30–55 hours (README; with D1) |
+| B8 | MINOR | Approval said to commit $374 before the go | spent after the go (README item 6) |
+| B9 | MINOR | The Test Lab quota called a ceiling on the bill | on device time; a lifecycle rule on the results bucket (README) |
+| B10 | MINOR | The consoles' usage figures undersold | active devices and uninstalls beside installs (README, § T14) |
+| B11 | MINOR | A store-required page change could wait a quarter | the fourth out-of-cycle trigger (README) |
+
+### 28-C (blind implementer) — 1 BLOCKING, 4 GAP, 0 NUMBERS, 8 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| C1 | BLOCKING | An awakened hero unbuildable: the prototype's awakening is private | `applyAwaken` exported on the P2 list, the fixture reader calling it (§ T4.2) |
+| C2 | GAP | A third battles policy does not exist | with A4 |
+| C3 | GAP | The resting frame pinned to no pose or frame | `idle` frame 0 at the capture's fixed tick (§ F3.1, § T10.4) |
+| C4 | GAP | `record-goldens` recorded screens alone | `kind` and `name` inputs over the four kinds (§ V4) |
+| C5 | GAP | `env-check`'s manifest scope unstated | what the recipe installs, at the versions found, under its own SDK root (§ V4) |
+| C6 | MINOR | `capture.mjs` has no `out=` and a cwd-relative `OUT` | `out=<path>` against the repository root (§ T4.2) |
+| C7 | MINOR | `rulers-p0.json`'s four sets unkeyed | `low`, `med`, `high-flat`, `high-diorama` (§ T7.5) |
+| C8 | MINOR | `Seats` demanded `ground` before it existed | `ground: string?` (§ T7.5) |
+| C9 | MINOR | `--ko`'s precedent does not wipe | a wipe by design; the prototype's `ko=1` differs (§ V3.2) |
+| C10 | MINOR | `--cell` a label and a selector | both senses stated (§ T5.4) |
+| C11 | MINOR | The icon's hero and crop unnamed | EMBER's idle frame 0, the silhouette box padded to a square (§ F2.5, § V3.3) |
+| C12 | MINOR | The bible, seats and rulers files absent from § V1's P0 list | added (§ V1, README) |
+| C13 | MINOR | `fixtures.mjs`'s path out of `prototype/` unstated | resolved against the repository root (§ T4.2) |
+
+### 28-D (blind owner's advisor) — 0 BLOCKING, 0 GAP, 1 NUMBERS, 5 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| D1 | NUMBERS | The farm branch double-counted M7's shared items | with B7 |
+| D2 | MINOR | "The second stop and the third" against another ordinal series | "the P2 stop and P5's" (README) |
+| D3 | MINOR | Two gate-level owner acts on no owner row | the bar decision on P0's, the phone acceptance on P6's (README) |
+| D4 | MINOR | The module list omitted `:storyboard` and the stub generator | added (README) |
+| D5 | MINOR | A missing separator in the P1 row | added (README) |
+| D6 | MINOR | Two round-27 log rows carried superseded figures | corrected (REVIEW.md) |
 
 **Declined or only partly applied:** none.
