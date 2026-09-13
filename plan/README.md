@@ -30,7 +30,7 @@ previous revision's own edits.
 blocking and zero gap findings — minor findings are treated as residual — and the owner may
 hold it to the brief's stricter "no more findings" — or stop it at the practical bar: zero
 blocking and no gap that moves a phase's size, price or gate, since the gap count has held
-between fourteen and twenty-two for fourteen rounds with no trend to zero and about a third
+between thirteen and twenty-two for fifteen rounds with no trend to zero and about a third
 of each round is the previous revision's own residue; a further round costs about a tenth
 of a session of agent capacity (sixteen rounds ran inside a day), and P0 may start with
 open minors and with gaps of that kind, resolved in P0's first sitting; this README will
