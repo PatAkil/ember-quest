@@ -126,7 +126,7 @@ The new game is the repository root from the first commit; the prototype lives u
 ├── spec/                  the executable specification: clauses, tables, goldens (golden/fixtures.md carries the fixtures' schema; golden/images/<kind>/ holds every image golden — screens, frames, vfx, backdrops — with their sidecars, where Roborazzi and the instruments write), fixtures (fixtures/golden/ holds the tuned battle fixtures and the harness's Vault relics as data, the single source both harnesses read; fixtures/art/ the ramps and the seats), synthetic (P1 only)
 ├── plan/                  this plan; spikes/<n>/REPORT.md
 ├── prototype/             the TypeScript game, frozen: game/ engine/ sim/ tools/ its docs, prompts and skills, package.json, .nvmrc
-├── .github/               workflows: pages.yml (builds prototype/, publishes docs/ from P5; hand-written), prototype.yml (the freeze check and the prototype's gates; hand-written, outside the generated-workflows diff), env-image.yml (builds the environment image and re-checks its manifest; hand-written), owner-review.yml and owner-review-redispatch.yml (§ V5, hand-written), record-goldens.yml (`workflow_dispatch` only, its jobs outside `ci/required-checks.txt`; hand-written), keepalive.yml (a monthly `schedule` that pushes a dated commit to its own branch with the built-in `GITHUB_TOKEN` — repository activity whoever authors it, and no App key in Actions — § V5; hand-written, not required), the generated kmp-*.yml; CODEOWNERS; renovate.json
+├── .github/               workflows: pages.yml (builds prototype/, publishes docs/ from P5; hand-written), prototype.yml (the freeze check and the prototype's gates; hand-written, outside the generated-workflows diff), env-image.yml (builds the environment image and re-checks its manifest; hand-written), owner-review.yml and owner-review-redispatch.yml (§ V5, hand-written), record-goldens.yml (`workflow_dispatch` only, its jobs outside `ci/required-checks.txt`; hand-written), keepalive.yml (a monthly `schedule` that pushes a dated commit to its own branch with the built-in `GITHUB_TOKEN` — repository activity whoever authors it, and no App key in Actions — § V5; hand-written, not required), the generated kmp-*.yml — every hand-written one declaring its own `permissions:` block, since M2 sets the default token read-only: `pages.yml` `pages: write`, `id-token: write`, `contents: read`; `prototype.yml` `contents: read`; `env-image.yml` `packages: write`, `contents: read`; `owner-review.yml` `contents: read`, `pull-requests: read` (the checks go through the gate App's key); `owner-review-redispatch.yml` `actions: write`; `record-goldens.yml` `contents: read`; `keepalive.yml` `contents: write`; the nightly `issues: write`, `statuses: write`, `contents: read`; CODEOWNERS; renovate.json
 ├── CLAUDE.md              the agents' conventions for this tree (a stub at P0, written at P1)
 ├── .claude/               the new skills, hooks and agents (P1)
 └── .nvmrc                 the exact Node version, the one ci/env/versions.env pins, from P0's move commit; mirrored in prototype/
@@ -139,7 +139,7 @@ to nothing but the standard library; Konsist tests check imports per module.
 | Module | May depend on | May never import |
 |---|---|---|
 | `:core` | Kotlin stdlib | `kotlinx.*`, `androidx.*`, `java.*` beyond what stdlib maps, `android.*`, `platform.*`, any logger, any clock, `kotlin.random` |
-| `:core-testing` | `:core`, Kotest | platform |
+| `:core-testing` | `:core`, Kotest | platform (its `jvmTest` source set excepted, for § T5.2's `MessageDigest` cross-check) |
 | `:engine` | Compose, `kotlinx.collections.immutable`, Skiko on non-Android source sets | `:core`, `:ui` |
 | `:ui` | `:core`, `:engine`, Compose, compose-resources, `kotlinx.collections.immutable` | platform APIs except through `:engine`'s `expect` surface |
 | `:sim` | `:core`, `:core-testing`, kotlinx-serialization-json, a CLI parser | Compose |
@@ -167,7 +167,7 @@ a Kotlin port of the art tool is optional and never a gate.
 
 **Test data on every target.** `:core` has no file access on iOS or Wasm, so no test reads a
 path. The spec binder (§ T7.2) *generates Kotlin source* before compilation — the golden
-cell table and the fixtures into the owning module's generated `commonMain` source set (the golden fixtures into `:core-testing`, § T7.1),
+cell table and the fixtures into the owning module's generated `commonMain` source set (the golden fixtures and the cell table into `:core-testing`, which `:sim` and the instruments both depend on, § T7.1),
 since the harness, the instruments and the debug drawer read them, and the tables and the
 hash lists into `commonTest`: `SpecTables.kt` — one `List<Row>` per `data:`
 table, the `Row` a data class typed per column from the clause's `types:` line (`int`,
@@ -351,7 +351,7 @@ large enough to port.
 | dependency-analysis plugin | current | unused and undeclared dependencies (`buildHealth`) | L3 |
 | Android Lint | AGP's | app and library checks | fatal on a chosen set, no baseline |
 | Maestro | current | device flows on emulator, simulator and the phones | L4 |
-| actionlint, shellcheck, markdownlint, a custom spec-lint; `html-validate` and `lychee` (offline, the internal links) over `docs/**` | current | workflows, scripts, documents, the spec, the privacy and support pages | L0; the two pages in L3's lint job |
+| actionlint, shellcheck, markdownlint, a custom spec-lint; `html-validate` and `lychee` (offline, the internal links) over `docs/**`, `lychee` over `plan/**` | current | workflows, scripts, documents, the spec, the privacy and support pages, the plan | L0; the two pages and `plan/**` in L3's lint job |
 | Renovate | — | one **monthly** batch pull request for dependency bumps, through the full lanes, reviewed by the owner like any change to the build; its configuration is `.github/renovate.json` (an owned path under `.github/**`, in the `build` boolean), written at P1, never by Renovate's own onboarding pull request, with `prototype/**` in its `ignorePaths` so the frozen tree gets no bump outside § T4.2's list | the catalog owns library and plugin versions, `versions.env` the toolchain (the JDK, Gradle, Node, the SDK) with a lint that pairs the JDK and Gradle entries of the two and the wrapper's `distributionUrl` (`gradle/**` and `gradlew*` are owned paths, § V5) — a lint that runs unconditionally in every lane, since its files sit in four `changes` booleans (`env`, `root`, `prototype`, `build`) and it costs seconds; `tools/art/package.json` is in Renovate's scope too |
 
 Upgrade policy: one batch per month; the full merge lane must pass; a tool that breaks on a
@@ -412,8 +412,7 @@ real one. From that commit:
 - **Every workflow runs on every pull request; jobs skip themselves.** A required check
   whose workflow never triggers stays pending and blocks the pull request, so no generated
   workflow carries a path filter: each begins with a `changes` job that computes the paths
-  changed against the merge base and outputs booleans — `prototype` (`prototype/**`), `plan`
-  (`plan/**`), `spec` (`spec/**`), `assets` (`assets/**`), `art` (`tools/art/**`), `env`
+  changed against the merge base and outputs booleans — `prototype` (`prototype/**`), `plan` (`plan/**`, ORed by the lint job with `docs` — markdownlint and `lychee` offline over it before merge), `spec` (`spec/**`), `assets` (`assets/**`), `art` (`tools/art/**`), `env`
   (`ci/env/**`), `docs` (`docs/**` — ORed by the lint job, whose HTML and link check over the two pages is their one pre-merge reading, § T8), one per Gradle module — `core` (with `core-testing/**`), `engine`, `ui`, `sim`,
   `tools` (`tools/instruments/**` and `tools/stub/**` — `tools/art/**` is `art`), `app`, `ios` (`iosApp/**`) — `build` (`build-logic/**`, `gradle/**`,
   `config/**`, `.github/**` — Renovate's `.github/renovate.json` with it — `ci/**` outside `env`, the root build files and `gradlew*`) and `root`
@@ -421,7 +420,7 @@ real one. From that commit:
   today `CLAUDE.md`, `.claude/**`, `.nvmrc`, `LICENSE`, `.editorconfig`, the root
   `README.md` and `.gitignore`, and whatever a tool adds at the root later); a path below
   the root in no glob is a generator error, caught by a test that walks the tree — and every heavy job carries `needs: changes`
-  and an `if:` that ORs its own booleans — the module booleans of the tasks it runs; `art` (with `assets`) on the asset gate, the calibration golden, its second reader and `art rulers`; `env` on `env-check` — with `build`, `root`, `spec` and `assets`, so a
+  and an `if:` that ORs its own booleans — the module booleans of the tasks it runs; `art` (with `assets`, `engine`, `ui` and `tools`) on the asset gate, the calibration golden, its second reader and `art rulers`; `engine`, `ui`, `core` and `tools` on the screenshot, frame, `vfx` and `backdrops` goldens, which render `:engine`'s rig from `:tools:instruments`; `env` on `env-check` — with `build`, `root`, `spec` and `assets`, so a
   build-logic, catalog, wrapper or analyser-configuration change — or a spec-only or
   asset-only pull request, the fold, a clause promotion, a fixture edit — runs the whole lane
   (Renovate's batch is a `build` and `art` diff, the art tool's `package.json` being `art`'s) — a job skipped by its
@@ -545,13 +544,18 @@ repository-root-relative):
   `pixel=` capture above drives it;
 - optionally, under question 3(c): the three battle-screen defects (two root causes) fixed in
   `prototype/game/screens/battle.ts`, outside the frozen rules paths, as one named pull
-  request under the prototype's own gates, verified by an assertion added to `capture.mjs`
+  request under the prototype's own gates, verified by three assertions added to `capture.mjs`
   in the same pull request — this list's one more prototype change, an S inside 3(c)'s
-  session: `playfull` records beside each BATTLE answer the option the screen committed and
-  the skill the CAST event fired, both read through `__eq` (its `run` and `view` faces
-  extended with the battle's last committed option and last CAST event), and fails when
-  they differ; run at `seed=N` before the fix, where it must fail once per defect, and
-  after, where it must pass, the seed making both the same run — the headless `sim` cannot
+  session — one per § F1.4 battle-screen defect: `playfull` records beside each BATTLE
+  answer the option the screen committed and the skill the CAST event fired and fails when
+  they differ (the pre-tick enumeration); it compares each rendered command row's enabled
+  flag against the post-tick `actOptions` and fails on a greyed legal skill (the cooldown-1
+  greying); and a `strong=`-style seeded Vault whose four kindled relics complete the
+  VIOLENT set drives one battle through the extra turn, which must resolve without a throw
+  (the extra-turn crash) — the first two read through `__eq` (its `run` and `view` faces
+  extended with the battle's last committed option, its command rows and its last CAST
+  event); each run at `seed=N` before its fix, where it must fail, and after, where it must
+  pass, the seed making both the same run — the headless `sim` cannot
   show a screen defect, and `playfull-decisions.json` records answers, not skills (an
   unverifiable fix is reverted before the baseline play);
 - if the demo proves unusable on the owner's phone at the baseline play (audio unlock,
@@ -675,7 +679,9 @@ transcription suppression left.
 nothing about ART. The cross-platform hash test — 20 seeds × 3 policies × both harness
 modes (`runs` and `battles`), hashed with a hand-written SHA-256 in `:core-testing` (about 120 lines of stdlib
 Kotlin, checked against the NIST vectors and, on the JVM, against `MessageDigest`) against
-a committed expectation — runs as a JVM test, as an Android device
+a committed expectation — `spec/golden/hash.md`'s `data: HASH_VECTORS` table (seed, policy,
+mode, hash) under a `GOLDEN-NN` clause, generated into `commonTest` as every `data:` table
+is (§ T7.1), recorded at P3 and re-recorded only under § T7.3's golden rules — runs as a JVM test, as an Android device
 test on an **x86-64 emulator with KVM** in L3 (ART's arithmetic, not arm64's), on the iOS
 simulator (`iosSimulatorArm64`: Kotlin/Native on arm64 with hardware fused multiply-add
 present) on an Apple-silicon runner in L3, on the JVM of a free **arm64 Linux runner** in
@@ -699,10 +705,10 @@ the parity currency. One record per line, fields space-separated; the record kin
 |---|---|
 | `trace 1` | the format version |
 | `mode <runs\|battles>` | which harness mode produced it (`selfcheck` compares canonical results and draw counts, and writes no trace) |
-| `cell …` | for runs: `cell id=<slug> seed=<uint32> policy=<name> runs=<N> asc=<A> vault=<n> spd=<d> path=<a\|b\|c>` — a cell is N runs on **one** rng stream in run order, as the harness runs them, and the golden path is **b**; for battles: `cell id=<slug> mode=battles seed=<uint32> pack=<enemy ids '+'-joined> act=<n> asc=<A> clears=<n> party=<fixture> policy=<name> n=<N>` (the boss fixture's display name `BOSS HOLLOW_KING` is never a value: every field and the slug are space-free) — N battles on one stream seeded as stated (the P2 recording uses seed 1 unless the cell table says otherwise); the slug is the golden file's name and `diff-oracle` regenerates a cell from this line and the fixture row it names |
+| `cell …` | for runs: `cell id=<slug> seed=<uint32> policy=<name> runs=<N> asc=<A> vault=<n> spd=<d> path=<a\|b\|c>` — a cell is N runs on **one** rng stream in run order, as the harness runs them, and the golden path is **b**; for battles: `cell id=<slug> seed=<uint32> pack=<enemy ids '+'-joined> act=<n> asc=<A> clears=<n> party=<fixture> policy=<name> n=<N>` (the boss fixture's display name `BOSS HOLLOW_KING` is never a value: every field and the slug are space-free) — N battles on one stream seeded as stated (the P2 recording uses seed 1 unless the cell table says otherwise); the slug is the golden file's name and `diff-oracle` regenerates a cell from this line and the fixture row it names |
 | `config` (runs mode only; battles have no `RunConfig`) | every `RunConfig` field **as passed**: `ascension`, `vaultSlots`, `roster` (empty allowed), `spdDelta`, and each Vault relic in the compact relic encoding |
 | `save <format> rules=<N> snap=<S> seed=<uint32>` | saves only (§ T11), never in a trace: a save's first line — the save format's version, the `RULES_VERSION`, the snapshot's schema version and the seed — followed by `config`, `debug` if any, `resumed <S>` if the log was restarted from a snapshot, then the `answer` records |
-| `debug <hooks>` | saves only (§ T11), never in a trace: a storyboard's forcing hooks — `act=<n> lap=<n>` (applied before the first decision) and, each with its firing point, `room@<act>.<stage>=<TYPE>`, `pack@<battle k>=<ids>` (`+`-joined, as the `cell` line), `hp@<decision i>=<slot>:<n>` (applied when the replay reaches that act's stage, that battle or that decision index — the party is empty at the first decision, so a point-in-time hook has no earlier moment), any of them absent — which `sim replay` applies at those points; a save carrying it is not portable across `RULES_VERSION` (`VERIFICATION.md` § V3.2) |
+| `debug <hooks>` | saves only (§ T11), never in a trace: a storyboard's forcing hooks — `act=<n> lap=<n>` (applied before the first decision) and, each with its firing point, `room@<act>.<stage>=<TYPE>`, `pack@<battle k>=<ids>` (`+`-joined, as the `cell` line), `hp@<decision i>=<slot>:<n>`, repeatable per slot at one index (applied when the replay reaches that act's stage, that battle or that decision index — the party is empty at the first decision, so a point-in-time hook has no earlier moment), any of them absent — which `sim replay` applies at those points; a save carrying it is not portable across `RULES_VERSION` (`VERIFICATION.md` § V3.2) |
 | `resumed <S>` | saves only (§ T11), never in a trace: the log was restarted from a snapshot at schema version S, so the `answer` records that follow begin there |
 | `run <k>` | the k-th run (or battle) of the cell (from 0); the `draw` index continues across the cell's runs |
 | `draw <i> <hex64>` | the i-th rng output of the cell as the raw bits of the double, sixteen lowercase hex digits |
@@ -757,7 +763,7 @@ generates into constants and both harnesses read — the prototype's through
 `prototype/sim/cells.mjs`, the P2 driver that walks every cell through `run.mjs --trace` (which writes only the canonical records to stdout, every report line going to stderr; `cells.mjs` redirects stdout — `run.mjs` keeps its `--flag value` grammar, the capture tools their `key=value`)
 and writes `spec/golden/`, beside `fixtures.mjs`; **the cell line owns seed, act,
 ascension, clears, policy and the count, and the fixture row it names (`party`) owns the
-party, the relics, the lap and the pacts** — so the lap and the pacts come from the row alone — there are no `--lap` or `--pacts` knobs — and the `battle-fixtures` literal means lap 1 and no pacts — a `party` value names a row of
+party, the relics, the lap, the pacts and each slot's `awakened` flag** — so the lap and the pacts come from the row alone — there are no `--lap` or `--pacts` knobs — and the `battle-fixtures` literal means lap 1 and no pacts — a `party` value names a row of
 `spec/fixtures/golden/fixtures/` or the literal `battle-fixtures`, the act-1 cells' party — any `BATTLE_FIXTURES` row's
 `make()` party, which draws nothing, with the pack from the cell line's `pack=`, so no row
 name is needed — whose lap 1 and no pacts the `GOLDEN` clause records; any
@@ -787,7 +793,7 @@ hero wearing the set at the bonus's piece count; a sigil when a `party` record s
 kindled relic with it worn; an ascension row when a `cell` line carries it; a skill when a `CAST` line names it — the six awakened variants reach the set only through an ALTAR awakening, so an awakened-party battles fixture is the cheapest cell. Three kinds never
 appear and are exempt: `FORFEIT` (no policy forfeits), `ENEMY_TURN` (answered by
 `Continue`, never recorded) and the prototype's `BATTLE` (never recorded); their clause
-tests bind them (§ T2.3). The fixtures — party, relics, lap, pacts — live in `spec/fixtures/golden/fixtures/*.json` (§ T4.2),
+tests bind them (§ T2.3). The fixtures — party, relics, lap, pacts, `awakened: list<bool>` per party slot (the route to the six awakened variants, § T5.3's coverage) — live in `spec/fixtures/golden/fixtures/*.json` (§ T4.2),
 the single source both harnesses read, so the tuned ones are data, not prose; the cell
 line carries the rest. **P2's gate requires every kind to appear at least once**,
 and a cell is added until it does. Storage: `spec/golden/<cell>.sha256` holds one
@@ -974,8 +980,10 @@ types: enum:StatusKind, int
   for a `contract` clause; a `proposed` clause may name files that do not exist yet.
 - A table marked `data: NAME` with a `types:` line is extracted by the binder into
   `SpecTables.kt` as a typed value, so the document's numbers are the tests' numbers —
-  except `GOLDEN_CELLS`, the cell table, emitted into the generated `commonMain` § T2.1
-  names for it, since the harness and the instruments read it at run time (§ T7.2).
+  except `GOLDEN_CELLS`, the cell table, emitted into `:core-testing`'s generated
+  `commonMain` beside the golden fixtures, since the harness and the instruments both read
+  it at run time and `:tools:instruments` may not depend on `:sim` (§ T2.1's edges; its
+  owner stays `:sim`, § T7.2).
 - **Granularity**: one clause per independently testable rule or per table; a clause the
   tests cannot name by itself is too coarse, a clause with no test of its own is too fine. A
   clause's prose is ≤ 60 lines; a `data:` table is exempt from the cap (the cell table has
@@ -1045,7 +1053,7 @@ clause is a bug, whichever of the two is wrong.
 `spec/screens/<screen>.md` holds region clauses (the geometry as the ruler `:engine`'s
 `Layout` reads — designed at P5, not transcribed), enabled/disabled rules, the screen's
 state schema, and flow clauses in Given/When/Then prose, bound to `runComposeUiTest` tests
-by id. **The schema**: any area file may carry a fenced block `schema: <Name>` — each screen file carries one, `schema: <Screen>State`; `spec/golden/fixtures.md` the `schema: GoldenFixture` block (first, the root) and the `schema: VaultRelic` block it nests, which `spec/fixtures/golden/fixtures/` uses; `spec/golden/vault.md` the `schema: VaultRelics` block, whose one field is `relics: list<object:VaultRelic>`, which `spec/fixtures/golden/vault/` uses; `spec/art/bible.md` the `schema: Ramps` block and `spec/art/seats.md` the `schema: Seats` block (§ T7.5) —
+by id. **The schema**: any area file may carry a fenced block `schema: <Name>` — each screen file carries one, `schema: <Screen>State`; `spec/golden/fixtures.md` the `schema: GoldenFixture` block (first, the root: the party, `awakened: list<bool>` per slot, the relics, the lap, the pacts) and the `schema: VaultRelic` block it nests, which `spec/fixtures/golden/fixtures/` uses; `spec/golden/vault.md` the `schema: VaultRelics` block, whose one field is `relics: list<object:VaultRelic>`, which `spec/fixtures/golden/vault/` uses; `spec/art/bible.md` the `schema: Ramps` block and `spec/art/seats.md` the `schema: Seats` block (§ T7.5) —
 one `field: type` per line over the `types:` vocabulary plus `list<type>` and
 `object:<Name>` for nested blocks declared the same way; the binder emits named-argument
 constructor calls from the fixture JSON and fails on an unknown field. The storyboard's
@@ -1068,9 +1076,12 @@ file of its own because a stem has one root type and `bible.md`'s is `Ramps`, §
 `seats: list<string>` (six ids in anchor order) and `spread: string` — § T7.4's vocabulary
 has no map type — one `ground` for the file and, per biome, six seat ids and `spread`, the
 one id planted at all six anchors for the seat-spread reading; `ground` an sRGB hex, the
-per-channel median of the six biomes' two ground strips on the MED `flat=1` resting frames, measured
-by `art rulers` at calibration — the seat list committed first, `ground` appended after
-the calibration captures that read it — the one file
+per-channel median over the surviving cells of all 72 strips of the six biomes' MED `flat=1`
+resting frames, measured by `art rulers` at calibration — the seat list committed first, `ground` appended after
+the calibration captures that read it — the one file; and beside it `spec/art/rulers-p0.json`,
+`art rulers`' per-reading output over the LOW and MED bar frames (per tier: biome, seat,
+strip, the actor's and the strip's medians and the ratio — 72 rows a tier), the input of
+P5's equivalence check (§ T10.4), committed with the bars and owned as they are — the one file
 `capture.mjs seat=all`, `art rulers`, `art gate` and the Kotlin `frames --seats all` and
 `frames --icon` all read (the prototype's one `seat=all|<id>` flag against the Kotlin's
 `--seats all` / `--seat <id>` pair is deliberate — the frozen tool keeps its `key=value`
@@ -1140,7 +1151,7 @@ the budgets in § T8.3.
 | Pitest | tests that do not test | L4 |
 | Gradle `--warning-mode=fail`, configuration cache required | build script rot | every lane |
 | `tsc --strict`, typescript-eslint (strict, type-checked), knip | the art tool: types, smells, dead exports | L0 · L1 |
-| actionlint, shellcheck, markdownlint, spec-lint; `html-validate` and `lychee` over `docs/**` | workflows, scripts, documents, the spec, the two pages | L0; the two pages in L3's lint job |
+| actionlint, shellcheck, markdownlint, spec-lint; `html-validate` and `lychee` over `docs/**`, `lychee` over `plan/**` | workflows, scripts, documents, the spec, the two pages, the plan | L0; the two pages and `plan/**` in L3's lint job |
 | Renovate | stale dependencies | monthly |
 
 ### T8.1 Suppression policy
@@ -1321,7 +1332,7 @@ target with gesture navigation enabled.
 
 ```
 brief (spec/art + the actor's row) → prompt pack → generate (key-pose candidates, then every frame of the finalists)
-  → normalise (alpha clean-up — the raw candidate kept beside the normalised frames as `<pose>-<frame>.raw.png` for the halo metric —, crop, integer downscale to the cell, palette quantisation onto the element ramp, keyline check, cell alignment)
+  → normalise (alpha clean-up — the raw candidate kept beside the normalised frames as `<pose>-<frame>.raw.png` for the halo metric, in the run directory `art generate` writes, gitignored: `art accept` measures the halo there and writes the reading and the raw's SHA-256 into the frame's sidecar, and neither the raw nor the run directory is committed —, crop, integer downscale to the cell, palette quantisation onto the element ramp, keyline check, cell alignment)
   → gate (the metrics of § T10.4; pass thresholds, targets reported) → contact sheet
   → critic (an agent with eyes, under its protocol: the sheet, the lit frame at 1:1 and 2×) → owner (yes / no)
   → accept: PNG + manifest committed under assets/actors/<ID>/ → atlas build (a Gradle task) → frame goldens re-recorded with approval
@@ -1363,7 +1374,7 @@ it is used:
 |---|---|---|---|
 | Retro Diffusion (RD Pro) | pixel sprites from text with up to nine reference images; trained on licensed pixel art | per image (RD Pro ≈ $0.18) — the per-image sprite provider | outputs owned by the creator and usable commercially |
 | PixelLab | pixel characters as posable skeletons with animation and rotation (option (a)); API and an MCP server; sprite-sheet export | subscription — plan, price and monthly generation allowance read from its current terms at P0 | commercial use of outputs to be confirmed at P0; option (a) is in the bake-off only if the terms pass |
-| Gemini image models | reference-conditioned generation and editing; strong consistency | per image, metered by Cloud billing, which alerts and never caps — its hard cap is the API's per-day request quota lowered in the Cloud console — a rate, so P0's terms check records that quota times the days to a dated expiry the owner sets on the key — a fixed product, since the calendar is not — below the key's cap, or admits Gemini on a prepaid balance only, or Gemini leaves the bake-off | portraits and the painted look; API terms to be confirmed; without a confirmed cap the painted arm is FLUX.2 alone |
+| Gemini image models | reference-conditioned generation and editing; strong consistency | per image, metered by Cloud billing, which alerts and never caps — its hard cap is the API's per-day request quota lowered in the Cloud console — a rate, so P0's terms check records that quota times the days to a revocation date the owner writes in the register and keeps — a Cloud API key carries no expiry field, so the revocation is the owner's act on that date, on the P0 owner row and the Monthly row — a fixed product below the key's cap, or admits Gemini on a prepaid balance only, or Gemini leaves the bake-off | portraits and the painted look; API terms to be confirmed; without a confirmed cap the painted arm is FLUX.2 alone |
 | FLUX.2 through Black Forest Labs' API | up to eight reference images | per image | portraits and the painted look; API terms grant commercial use — but the openly distributed **FLUX.1 [dev] weights are non-commercial** and are not a fallback |
 | Self-hosted Stable Diffusion XL under CreativeML Open RAIL++-M with a LoRA per character, or FLUX through an authorised API with LoRA support | maximum control and repeatability | GPU time, outside the per-image counter | the commercial-clear self-host fallback if hosted providers cannot hold consistency |
 
@@ -1411,7 +1422,7 @@ otherwise sample the next body; the ratio is taken over the surviving cells, and
 whose surviving strip keeps under half its columns counts as a miss in the share, never
 silently dropped); the strips are `art rulers`'s own derivation from `feet` and `box`, reported in
 its output and never written by a producer; the actor's median is
-taken over its masked cells, and the mask comes from the producer too — each writes
+taken over its masked cells — the cell at the median relative luminance, § F3.1's convention; `ground`'s per-channel median is a separate, colour-valued reading — and the mask comes from the producer too — each writes
 `<frame>.masks/<seat>.png`, the drawn sprite's alpha at frame scale, beside the anchors
 file. This ruler is re-derived here, not calibrated: ART-REVIEW.md measured its strips at
 other offsets over 0.9× the sprite width, so its recorded in-scene readings are context,
@@ -1485,10 +1496,13 @@ flat composite lit by the rig at MED with its bloom off (§ T4.2's `flat=1 tier=
 the app's bloom is bright-layer, § T9.4, and the ruler frames are rendered with it off,
 `frames --bloom off`, so a prop glow or the sky body cannot move a reading; and P5's first
 ruler run is an equivalence check — the Kotlin `frames` over the committed composite at
-LOW and at MED, the `flat=1` frames of both tiers, against P0's 72 readings per tier,
-reading by reading — a pass is every reading's ratio within 0.05 of P0's and none on the
+LOW and at MED, the `flat=1` frames of both tiers, against P0's 72 readings per tier as
+`spec/art/rulers-p0.json` holds them (§ T7.5), reading by reading — a pass is every reading's ratio within 0.05 of P0's and none on the
 other side of 1.5:1 from P0's, so the tier's count is P0's; the offsets recorded in the register and closed by the
-rig, one rework of its constants inside P5, before either count bar is held; still beyond
+rig, one rework of its constants inside P5, before either count bar is held (under README
+question 2's portrait branch the check runs first, on the landscape composites at the
+landscape anchors before `Layout` is re-cut, inside that question's priced session, and the
+portrait bars are then re-recorded on the Kotlin frames as § F3.1 says); still beyond
 that after the rework, the bar is re-derived on the Kotlin frames — re-recorded at the
 Kotlin count with the owner's approval in the same pull request, the offset staying in
 the register as the two renderers' known difference), not over the
@@ -1501,7 +1515,7 @@ frames, an L* value that is reported, not gated — the rig's own measure with o
 (`FUNCTIONAL.md` § F3.1). *Motion, pass*: idle change ≥ 17 %
 and the settle band 20–39 % (round 12's widened band), both **absolute** over the
 union-of-masks denominator; the aligned criteria with their bands under the band rule.
-*Halo, pass*: measured on the raw candidate `normalise` keeps beside the frame (`<pose>-<frame>.raw.png`, § T10.1), before its alpha clean-up, with the
+*Halo, pass*: measured on the raw candidate `normalise` keeps beside the frame (`<pose>-<frame>.raw.png`, § T10.1), before its alpha clean-up — the raw downscaled by the frame's own integer factor with nearest sampling, alpha preserved, so a cell here is the cell everywhere else — with the
 silhouette defined as the union of the 8-connected components of at least eight cells at
 α ≥ 128 (a dead frame's detached dagger or shatter is inside it; a stray pixel is not) — at
 most two cells with 0 < α < 128 in the one-cell ring outside it exceed the actor's p50 L*
@@ -1545,7 +1559,7 @@ per-cell value, silhouette and motion metrics run on both looks at one resolutio
 
 `assets/actors/<ID>/manifest.json` — beside the fifteen frames, each with the same
 `<pose>-<frame>.json` sidecar as the fallback cast (§ T10.9: canvas, cell, element, pose,
-frame, feet, hitRect), written by `art accept` from the normalised frame — `hitRect` derived as the silhouette's full bounding box — its top the light box's, its width the HP hairline's, as the prototype uses its near-full-height `HERO_HIT_SIZE`; the 0.33–0.72 torso band is the ruler's median alone, § F3.1; the registered tap rect is that box clamped to the actor's own cell, the Voronoi split at the midpoint between neighbouring feet (`spriteCellX`, `rankFrontier` in DESIGN.md), so no stage point is owned by two actors — never authored as the prototype's per-recipe `hit`/`hitSize` are, and the fallback sidecars carry the same field computed by the same rule from the captured frame, so a mixed cast ships one hurtbox definition — which is what the
+frame, feet, hitRect, and `halo` — the reading and the raw candidate's SHA-256, since the raw is not committed and L2b's asset gate takes the halo from the sidecar), written by `art accept` from the normalised frame — `hitRect` derived as the silhouette's full bounding box — its top the light box's, its width the HP hairline's, as the prototype uses its near-full-height `HERO_HIT_SIZE`; the 0.33–0.72 torso band is the ruler's median alone, § F3.1; the registered tap rect is that box clamped to the actor's own cell, the Voronoi split at the midpoint between neighbouring feet (`spriteCellX`, `rankFrontier` in DESIGN.md), so no stage point is owned by two actors — never authored as the prototype's per-recipe `hit`/`hitSize` are, and the fallback sidecars carry the same field computed by the same rule from the captured frame, so a mixed cast ships one hurtbox definition — which is what the
 gate reads and the atlas and the stage anchor on —: provider, model and version, prompt hash (the prompt
 text lives beside it), references used (by asset id), the provider's seed where one exists,
 date, the normalisation steps applied with their parameters, the licence, the gate results
@@ -1642,12 +1656,14 @@ the flat backdrops; P4 replaces the actors behind the gate; P6 replaces the back
   score, the set pool, the dry streak, the relic sequence, the result accumulators (rooms,
   shrines, rests, swaps, awakenings, turns per battle, enrages, probes, acts cleared), the
   Vault, the act's node trail (`path`), the rng's state (one 32-bit word), and, while a battle is open, the pre-battle
-  snapshot plus the hero turns since — the current offers and the terminal fields (`won`, the death kind and killer) re-derived on re-entry, not saved — enumerated field by field in the `SAVE` clauses, so
+  snapshot plus the hero turns since — the open pending's drawn payload saved as drawn (SUMMON's offers, RELIC's cards, the SHRINE's pact, FORGE's rebrand lists, ALTAR's and REST's candidates: drawn before the pending is raised, so the post-draw rng word cannot reproduce them), the map's offers and the terminal fields (`won`, the death kind and killer) re-derived on re-entry — enumerated field by field in the `SAVE` clauses, so
   a resume without one of them (the set pool would silently change the loot) cannot pass
   review. When `RULES_VERSION` differs from the save's the run resumes from the snapshot
   under the installed rules and the player is told once; an open battle replays its
   recorded turns from the pre-battle snapshot under the new rules and, if a recorded option
-  is out of range, restarts from that snapshot; the decision log restarts from that point
+  is out of range, restarts from that snapshot; an open room keeps its saved payload where
+  the new rules still accept every item in it and otherwise re-enters at the node boundary
+  and re-rolls it; the decision log restarts from that point
   (the `resumed` marker below), because a log spanning two rules versions is not a
   replay. The snapshot lives in its own store slot beside the log, the two written
   together, never inside § T5.3's text encoding, which stays the log alone (§ F2.7's
@@ -1730,8 +1746,11 @@ the flat backdrops; P4 replaces the actors behind the gate; P6 replaces the back
   at P0 with it, permanent from the first upload, and Play's listing draft, where names
   need not be unique; the store availability — the release territories decided at P0,
   worldwide with the EU unless narrowed; the store listing
-  with its copy and graphics — screenshots from the instruments' phone-sized `shot`, a
-  1024 × 500 feature graphic (an S) — which Play needs complete before a closed-track
+  with its copy and graphics — screenshots from the instruments' `shot --store <class>` — the logical frame at an integer
+  scale, letterboxed with the biome's ground colour into the store's canvas, since App Store
+  Connect validates dimensions at upload: 2868 × 1320 for the 6.9″ class and 2688 × 1242
+  for the 6.5″ class, landscape; Play takes the 1280 × 720 frame itself (16:9, 320–3840 px)
+  — and a 1024 × 500 feature graphic (all inside the store set-up's S) — which Play needs complete before a closed-track
   release, App Store
   Connect's App Privacy questionnaire (Apple's counterpart to the data-safety form), the EU
   trader-status declaration on both stores (non-trader for a free game; the declaration
@@ -1767,13 +1786,16 @@ the flat backdrops; P4 replaces the actors behind the gate; P6 replaces the back
   listing Play needs is complete) and to TestFlight's **external** group for the
   iPhone-holding testers (at least three of the twenty to twenty-five), since a tester with
   one phone serves one store and iOS would otherwise be tested by nobody but the owner (external TestFlight is free, adds one Beta
-  App Review of about a day on the first build, and is an S inside P5); version name from the tag,
+  App Review of about a day on the first build, and is an S inside P5; its builds expire at
+  90 days, so an external test that outlives one gets a refresh build — a tag, a `release`
+  approval, a Beta App Review, an S and one owner act — under either branch of README question 4(a)); version name from the tag,
   version code from the commit count on a `fetch-depth: 0` checkout. The closed test starts on the build the README's absence protocol names — its one
   statement of that trigger; the fourteen days start when twelve or more testers have opted in,
   about a week after that build, sixteen the target the reserve is still invited toward, and Play's first review of that release takes days.
 - **The stores (P7)**: the owner submits the iOS build for **App Review** (typical
   turnaround one to three days; a rejection is § T15's risk, answered from the checklist),
-  and after the fourteen days applies for Play **production access** and passes Google's
+  and after the fourteen days applies for Play **production access** — the form's written
+  answers on recruitment, feedback and changes drawn from the triage record — and passes Google's
   review, which checks that the testers used the app; the P7 checklist carries both, with
   the credits and disclosure copy.
 - **Crash and usage signal**: no SDK; the stores' own — Play Console's Android vitals
@@ -1870,7 +1892,7 @@ push): CI uploads every bundle as a workflow artifact (`hosted-linux`,
 are written by the pull-request-opening step into a fenced `lanes` block in the pull
 request body and re-written, with the new rows appended, on every push, which the nightly
 reads through the API beside the artifacts; and the
-private device-runner repository appends its rows as comments to the standing `ledger` issue in this repository, created at M7, which its token's `issues: write` allows and the nightly reads (or the farm's rows
+private device-runner repository appends its rows as comments to the standing `ledger` issue in this repository, created at M2, which its token's `issues: write` allows and the nightly reads (or the farm's rows
 arrive through the nightly's own artifact, under question 5's other branch). L3 also re-runs L0–L2 timed on `hosted-linux` as a second reading of the
 fast lanes. The CI workflows are **generated from `lanes.yaml`** (a `build-logic` task writes
 `.github/workflows/kmp-*.yml`; the generated-workflows job, an ordinary `pull_request` job with no secrets, fails when
@@ -1920,10 +1942,10 @@ spike 2's tree; spike 5's hash test is defined — `mulberry32` on seeds {1, 2, 
 | **P1 The rig** (L) | P0 | the environment image (built at spike 6) rebuilt by its own workflow with its digest pinned in `lanes.yaml`, and `setup.sh` proven equivalent by `env-check` on `agent-env`, macOS (the owner's Mac or a hosted-macOS job) and L3's bare runner; the calibration golden's second reader (§ T10.4); the gate App and its `gates` environment, and Renovate installed; the owner-review workflow and its re-dispatch; the provisional ruleset and `CODEOWNERS`, the two throwaway pull requests that prove the review mechanics, the required checks, the tag ruleset, the `release` environment, the prototype workflow (the freeze check and `prototype-check`, required) and, if question 5 chose the runner, the private device-runner repository; every module present and empty with the convention plugins, every analyser at full strength, the spec binder and its tests, `lanes.yaml`, `gate.sh` and the generated workflows, the hooks, `CLAUDE.md`, the `kmp-quality` rubric and the other skills; the hello-world stage (one fallback sprite over one flat backdrop, one button, one screen test, one golden recorded in the image and compared on the owner's Mac, one storyboard step in both modes); **a synthetic `:core`-sized module** generated from the prototype rules' function-size histogram (5 000 lines, 300 tests with property tests) and **a synthetic storyboard** that the lane budgets are measured on | every lane green (for L3 and L4 the P1 subset `VERIFICATION.md` § V9 names) and inside its P1-measurable budget on the synthetic module, timings recorded in the bundles' `lanes.json` with machine classes; the sizes and the calendar re-derived and **accepted by the owner, or the programme stops here** (the cast's generation paused while the decision is pending, the art spend committed so far stated) |
 | **P2 The spec and the oracle** (L) | P1 | `--trace`, `--cell <id>`, `--ascension`, `--path`, the canonical `--dump`, the strong-party and stall fixtures, `coverage.mjs`, `cells.mjs`, `fixtures.mjs` (the fixtures' run-time reader), the fixtures export and the battles-mode knobs and `strong=1` in the prototype's harness and driver; the Node pin confirmed and `engines` added; tag `ts-oracle-v3`; the prototype-freeze check; the golden set recorded on the pinned Node under `cells.md` and hashed, with the coverage report; the contract reconciled with the code, then folded into `spec/` clauses (status `proposed`), the `known-divergence` notes of `FUNCTIONAL.md` § F1.4 among them; the clause count per area | spec-lint clean; every clause has an id, an owner, `paths` and a status; goldens frozen; every event, status, set, sigil, pending kind, room type, ascension row and skill id appears in the golden set (but the kinds § T5.3 exempts; a cell is added until it does); P3 and P5 re-sized against the clause count and **accepted by the owner, or the programme stops here** (generation paused while the decision is pending, the committed art spend stated) |
 | **P3 The rules** (L) | P2 | `:core` test-first in § T5.1's order; `:sim` with every command; `:core-testing`; the save format and the `SAVE` clauses designed around question 10's answer; the cross-platform hash test; the ABI dumps; the port exemption zeroed at the end | `diff-oracle` clean on the golden set; the balance tables reproduced; the hash test green on the JVM, the x86-64 Android emulator and the iOS simulator, and once on an arm64 phone or farm device; matrix 100 % (no weak clauses) for the rules areas — the clauses whose `owner` is `:core`; coverage and mutation at threshold or the fallback recorded |
-| **P4 The cast** (L, parallel with P2–P3) | P0's bake-off | the pipeline at full strength; the cast generated in `FUNCTIONAL.md` § F3.5's order with the stop decision after the six heroes, judged on the prototype's stage frames; portraits; every accepted actor committed with its manifest under the owner's review | every actor passes the gate; the six heroes meet the value targets the rejected kit fails (re-derived on look B's reference if question 1 chooses painted); the full-frame critic's sprite axis at least one above P0's recorded baseline under the same pinned protocol, capped at 9 (expected 9 against 8; the old 8 was a single unprotocolled verdict and proves nothing; a baseline already at 9 leaves the cap nothing to give, so that axis's bar is an owner decision recorded in the register before P4 starts); the owner accepts on a phone |
+| **P4 The cast** (L, parallel with P1–P3, from P0's exit) | P0's bake-off | the pipeline at full strength; the cast generated in `FUNCTIONAL.md` § F3.5's order with the stop decision after the six heroes, judged on the prototype's stage frames; portraits; every accepted actor committed with its manifest under the owner's review | every actor passes the gate; the six heroes meet the value targets the rejected kit fails (re-derived on look B's reference if question 1 chooses painted); the full-frame critic's sprite axis at least one above P0's recorded baseline under the same pinned protocol, capped at 9 (expected 9 against 8; the old 8 was a single unprotocolled verdict and proves nothing; a baseline already at 9 leaves the cap nothing to give, so that axis's bar is an owner decision recorded in the register before P4 starts); the owner accepts on a phone |
 | **P5 The stage and the screens** (XL) | P3 (+ P4's heroes for the felt rows — or, when P4 is late under a subscription winner's allowance pace, the fallback heroes as a mixed cast the owner approves by name, the art acceptance deferred to P6) | `Frame`, `Layout`, `Focusables`, `Stage` and `StageScene`, the light rig from the light data over the flat backdrops, atlases, VFX, pops, audio; the three tiers and ARCADE; the bloom decision (§ T9.4; before the closed test's build, since its fallback would reset a running closed test); every screen as Compose UI over the seam, designed for the phone; `FUNCTIONAL.md` § F2.2–F2.7 (the bug-report export with the first signed build the owner installs) and, under question 10's yes, F2.1's resume path; fixtures for every screen state; semantics tests; goldens; the storyboard driver with the strong-party fixture and the forcing hooks (set act and lap, jump to a room type, force a pack, set a hero's hp — `spec/platform/` clauses; `RunDebug` in `:core` a post-gate change under § T7.7, § T2.3); the phase's new required checks added by the owner when the L3 list check names them; the Android and iOS shells; the `:app:benchmark` Macrobenchmark module (`com.android.test`, § T2.1) the device lane's benchmark APK comes from; the `PerfTests` XCUITest target under `iosApp/` for the iPhone's budgets (§ T9.5); device boot smoke; the store set-up and the signed build pipeline (§ T12) with the privacy page, the testers' channel and the stores' own crash signal; the owner's last scheduled stop, on the first playable build — a signed build on the internal tracks, so the pipeline and the first tag precede it; the closed track and the external group start after the store set-up — and before the listings, the forms, the invitations and the closed test (README, the P5 owner row); the closed test started on Play's closed-testing track and on external TestFlight with testers from the same pool, on the build the README's absence protocol names, and its reports triaged (an S inside the XL); a first build over the fallback actors where the cast is not yet accepted is a mixed cast the owner approves by name; L2b's content-scaled parts measured; the memory and size table re-derived; the cast re-judged on the real stage | storyboard `PLAYFULL OK` — every biome, boss and screen reached — and a two-act KO run on the JVM in skip-playback mode, the full-playback storyboard in L3, two acts on Android and iOS; every fixture has a golden; `screens` and `platform` clauses bound (those bound only by `Device`- or `Nightly`-tagged tests in the nightly's matrix, § T7.2); the desktop and reference-phone budgets met; after § T10.4's equivalence check (the Kotlin rig at LOW and MED against P0's 72 readings per tier, every ratio within 0.05 and none across the 1.5:1 line, the offsets recorded; beyond that after one rework, the bar re-recorded on the Kotlin frames with approval, § T10.4), the in-scene rulers at their P0-recorded bars for LOW and for the reference phone's default tier (MED) over each biome's resting frame (under question 2's portrait branch, reported and owner-approved as the portrait bars that P6 then holds, `FUNCTIONAL.md` § F3.1) — the fixed set of 36 seats and 72 strip readings, the fallback cast as the reference (`art rulers` in L2b over `frames --cast fallback --seats all --bloom off`, and over `--seat <spread id>` per biome for the reported spread; and once over the accepted cast at P5's end, reported — the party's and the enemy rank's medians, the regression scene round 6 fixed, which the fallback-cast gate cannot see; a reading below 1.5:1 takes the cast-miss branch); the full-frame critic's UI and VFX axes at least one above P0's per-axis baseline, capped at 9 (a baseline already at 9 is an owner decision), with all five axes recorded at P5's end, and the sprite axis not below its P4 reading (not asserted where the frame carries fallback heroes under the mixed-cast approval: the sprite axis is then recorded only, P6 takes both it and P4's deferred acceptance, and P0's baseline is the floor until P4 reads) — a miss is the rig's to fix inside P5 (the gain, the pools and the cast lobe are P5 code), never the sprites', with the cast-miss bound: after one rig rework still below, the owner accepts it as a recorded miss carried into P6 — the bar re-recorded in the same owner-reviewed pull request, `FUNCTIONAL.md` § F3.1 — or holds P7 for P6 (question 4(a)); the felt rows signed by the owner on a device (one Android at or below the reference class among them, § T1), or accepted as recorded misses under `FUNCTIONAL.md` § F1.5's bound |
 | **P6 The scene** (L) | P5 (+ P4) | the six biomes' planes as data-driven painters — the default — or, if README question 4 approved them by name with their budget line, AI-generated planes judged by the scene rulers, the critic and the owner (`FUNCTIONAL.md` § F3.7); the light wells, hues, bright-mass and plate-rule items of `STATUS.md`'s round-5 brief; the flat placeholders retired | the in-scene rulers at their P0-recorded HIGH-tier bars over each biome's resting frame with the fallback cast as the reference, LOW and MED re-read over the landed planes (the NEAR painter P0's flat frames lacked is P6 code authored to the bar) and not below their recorded bars (P0's, or a bar re-recorded under `FUNCTIONAL.md` § F3.1, upward where P6's count exceeds it); the full-frame critic's scene and composition axes at least one above P0's per-axis baseline under the protocol, capped at 9 (the rejected look scored 8 · 8 · 8 · 8 · 7 — an absolute 8 already met on the scene axis, not on composition, which stands at 7; a baseline already at 9 makes that axis's bar an owner decision recorded before the phase), and the sprite, UI and VFX axes not below their P4 and P5 readings (P6 also takes P4's deferred acceptance of late heroes, `FUNCTIONAL.md` § F3.5); the owner accepts on a phone — a ruler below its bar or a no on the phone is one rework of the planes, then the owner's decision, a recorded miss or the phase held (§ F3.1) |
-| **P7 Ship** (M) | P5 (+ P6 per README question 4) | credits and disclosure; the store identity re-cut over the accepted cast and the listing update it forces, an S (`FUNCTIONAL.md` § F2.5; in P6's release line where hero acceptance was deferred under question 4(a)'s recommended branch); the closed test's feedback triaged and answered, and read once as a product signal at P7's start — the owner's ship, fix-first or re-plan decision, recorded in the register (README, the P7 owner row) — a report that breaks a run (a crash, a stuck screen, an unexpected lost run — under question 10's no, a run lost to the platform killing the app is the designed loss, a recorded known miss, not a blocker) is a blocker that holds the `v*` tag and is fixed inside the M whatever it touches, a rules fix under § T7.7 with its clause — the first inside the M, the second and the third an S each, beyond which P7 re-sizes or the owner decides; other presentation fixes inside the M; a triage list of the remaining rule-touching reports the owner decides as § F2 or § T7.7 changes after P7 (an S–M in the first steady-state session); the App Store submission and App Review; the Play production-access application after the closed test's fourteen days — the stores' clock, about five weeks from the closed test's build, is the calendar's third term (README) | installed from both test tracks; the first-ten-minutes test passes on the owner's phones; App Review passed; production access granted — or, under the tester-shortfall fallback, Android held in closed testing as a recorded state while iOS ships |
+| **P7 Ship** (M) | P5 (+ P6 per README question 4) | credits and disclosure; the store identity re-cut over the accepted cast and the listing update it forces, an S (`FUNCTIONAL.md` § F2.5; in P6's release line where hero acceptance was deferred under question 4(a)'s recommended branch); the closed test's feedback triaged and answered, and read once as a product signal at P7's start — the owner's ship, fix-first or re-plan decision, the scene- and cast-class reports routed to P6 and P4 and excluded from it, recorded in the register (README, the P7 owner row) — a report that breaks a run (a crash, a stuck screen, an unexpected lost run — under question 10's no, a run lost to the platform killing the app is the designed loss, a recorded known miss, not a blocker) is a blocker that holds the `v*` tag and is fixed inside the M whatever it touches, a rules fix under § T7.7 with its clause — the first inside the M, the second and the third an S each, beyond which P7 re-sizes or the owner decides; other presentation fixes inside the M; a triage list of the remaining rule-touching reports the owner decides as § F2 or § T7.7 changes after P7 (an S–M in the first steady-state session); the App Store submission and App Review; the Play production-access application after the closed test's fourteen days — the stores' clock, about five weeks from the closed test's build, is the calendar's third term (README) | installed from both test tracks; the first-ten-minutes test passes on the owner's phones; App Review passed; production access granted — or, under the tester-shortfall fallback, Android held in closed testing as a recorded state while iOS ships |
 | **P8 Web (stretch)** (M) | P7 | the wasmJs target through the same gates; Pages switches from the prototype when it passes | the P5 gates on the Wasm build |
 | **Steady state** (after P7; ≈ one session a quarter) | P7 | Google Play's annual target-API bump and Apple's SDK minimum for submissions, the stores' policy re-attestations, Renovate's monthly batch through the full lanes, a store-side fix when one is needed; the first session answers the closed test's rule-touching reports the owner chose; every quarterly session reads the testers' channel, Play's vitals, TestFlight's crashes and the store reviews, which the owner scans monthly, and a run-breaking production report is a blocker that buys an out-of-cycle session; once a year the owner decides to continue, hand over or delist, against the install counts, the channel and the reviews (README, the steady state) | the lanes, unchanged; a `v*` tag per release |
 

@@ -2605,3 +2605,96 @@ multiplier (B6) and the contingent items' sum (B7). Nothing was declined.
 | D12 | MINOR | 5b's arm64 leg's ruleset act in no phase | M4's list, inside that act (§ T13.5, README P1 row) |
 
 **Declined or only partly applied:** none.
+
+
+## Round 25 — on revision 26 (commit `61f5908`)
+
+Four reviewers on a lighter model, 49 findings: 2 BLOCKING, 16 GAP, 5 NUMBERS, 26 MINOR.
+The blocking rows are one defect seen twice: the post-merge map's image-golden and
+calibration rows still named no `engine`, though the rig those jobs read is `:engine`'s,
+and the image-golden row no `tools` (A1, C1); the rows and § T4.1's `if:` clause name
+them now. The gaps: the equivalence check compared against readings P0 never committed
+(C2); question 3(c)'s one assertion could fail for one of the three battle-screen defects
+(A2, C3); the halo's thresholds were in cells on a raw candidate at provider resolution
+(A3); the raw candidates were budgeted and listed nowhere (A4); an open room's drawn
+offers could not be restored from a post-draw rng word (A5); the per-CPU-class tolerance
+had no bar and no recorded loss (A6); the plane key was loaded at P5 before its provider's
+terms were checked at P6 (B1, D1); the closed test's scene and cast complaints fed the
+mechanics decision (B2); Gemini's cap rested on a key expiry Cloud keys do not have (B3);
+the iOS screenshots had no store-size artefact (B4); the awakened variants were reachable
+by no fixture (C4); the hash test's expectation had no home (C5); the cell table sat where
+the instruments may not depend (C6); and the portrait branch dropped the renderer check
+(D2). The numbers: a subscription winner's programme total (B5); the re-gate's and the
+second bake-off's sittings (B6); each branch's own owner hours (B7); two post-P7 recurring
+lines (B8); and the status paragraph's own gap band (B9). Nothing was declined.
+
+### 25-A (adversarial, technical) — 1 BLOCKING, 5 GAP, 0 NUMBERS, 6 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| A1 | BLOCKING | The image-golden and calibration rows named no `engine`; the image-golden row no `tools` | `engine`, `core` and `tools` on the goldens' row, `engine` on the calibration's; § T4.1's `if:` names them (§ V5, § T4.1; with C1) |
+| A2 | GAP | The 3(c) assertion could fail for one defect of three | three assertions, one per § F1.4 defect (with C3) |
+| A3 | GAP | The halo's cell thresholds on a raw candidate at provider resolution | the raw downscaled by the frame's integer factor with nearest sampling, alpha preserved (§ T10.4) |
+| A4 | GAP | The raw candidates listed and budgeted nowhere | not committed: `art accept` measures the halo in the run directory and writes the reading and the raw's hash into the sidecar, which L2b's gate reads (§ T10.1, § T10.6, § V2) |
+| A5 | GAP | An open room's drawn offers unrestorable from the post-draw rng word | the open pending's drawn payload saved as drawn; across a rules change kept where accepted, else the node boundary re-entered (§ T11) |
+| A6 | GAP | The per-CPU-class tolerance had no bar and no recorded loss | per-channel \|Δ\| ≤ 2 on at most 0.5 % of pixels, none above; the class in the golden's sidecar; a risk row (§ V4, README risks) |
+| A7 | MINOR | The ruler's median undefined for a colour | the cell at the median relative luminance; `ground`'s per-channel median a separate reading (§ F3.1, § T10.4) |
+| A8 | MINOR | `:core-testing` may not import platform, yet cross-checks `MessageDigest` | its `jvmTest` source set excepted (§ T2.1) |
+| A9 | MINOR | `plan` ORed by nothing | the lint job ORs `plan`, `lychee` offline over it (§ T4.1, § T8) |
+| A10 | MINOR | The `ledger` issue created at M7 while the re-dispatch log starts at M3 | created at M2 (§ V9, § V5, § V7, § T13.5, README) |
+| A11 | MINOR | `mode=` on the battles `cell` line only | dropped; the `mode` record owns it (§ T5.3) |
+| A12 | MINOR | L1's scope stated by area and by tag | § T7.2's tag rule normative, the four areas its consequence (§ V2) |
+
+### 25-B (adversarial: product, process, risk) — 0 BLOCKING, 4 GAP, 5 NUMBERS, 7 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| B1 | GAP | P5 loaded the plane key before P6 checked its provider's terms | the terms checked and the key loaded in the P5 sitting that closes question 4 (README P5 and P6 rows, question 4(b), § F3.7; with D1) |
+| B2 | GAP | Art complaints on a placeholder stage fed the mechanics decision | reports classed first; scene- and cast-class reports routed to P6 and P4 and excluded (README P7 rows, § T14) |
+| B3 | GAP | Gemini's cap rested on a key expiry Cloud keys lack | a revocation date the owner writes in the register and acts on, on the P0 and Monthly rows (§ T10.2, README) |
+| B4 | GAP | iOS screenshots at no store size | `shot --store <class>` letterboxes the frame into the 6.9″ and 6.5″ canvases; Play takes the frame (§ T12, § V3.1) |
+| B5 | NUMBERS | The programme total stated at the per-image price only | a subscription winner's ≈ $425–525 and its ceiling (README money table) |
+| B6 | NUMBERS | The re-gate and the second bake-off had no sittings | about twelve and one to two, outside the 59–75 (README) |
+| B7 | NUMBERS | One admin band for every branch | on the recommended branches; the runner branch's ten to twenty hours and the others' two each (README) |
+| B8 | NUMBERS | Two branches' costs stopped at P7 | the private repository's ≈ $90–190 a month after it; the pool per session (README) |
+| B9 | NUMBERS | "Fourteen to twenty-five for twelve rounds" | fourteen to twenty-two (README) |
+| B10 | MINOR | The Actions settings on no owner row | on the P1 row, with the conditional approvals edit (README; with D6) |
+| B11 | MINOR | The P2 lining-up unordered against the stop | the stop first (README) |
+| B12 | MINOR | The iPhone's M7 date in neither money location | both, and question 5 (README; with D10) |
+| B13 | MINOR | The bump risk's tripwire fired on the designed steady state | a red batch still red at the quarterly session, or with a store deadline inside a quarter (README) |
+| B14 | MINOR | The production-access form's written answers unassigned | drawn from the triage record, an hour inside the admin band (README, § T12) |
+| B15 | MINOR | The 90-day refresh priced on one branch only | in § T12's external-TestFlight sentence (§ T12) |
+| B16 | MINOR | The stop's scope when the forms gate the internal track | shrinks to the invitations and the closed test (README) |
+
+### 25-C (blind implementer) — 1 BLOCKING, 5 GAP, 0 NUMBERS, 4 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| C1 | BLOCKING | The rig's `engine` on no golden or calibration row | with A1 |
+| C2 | GAP | The equivalence check's 144 readings had no file | `spec/art/rulers-p0.json`, 72 rows a tier, the check's input (§ T7.5, § T10.4, § F3.1) |
+| C3 | GAP | Two of the three 3(c) fixes unverifiable and so reverted | three assertions: the committed option, the greyed legal skill, a seeded VIOLENT party's extra turn (README, § T4.2) |
+| C4 | GAP | No fixture could seat an awakened hero | `awakened: list<bool>` per slot in `GoldenFixture` (§ T5.3, § T7.4) |
+| C5 | GAP | The hash test's expectation had no home | `spec/golden/hash.md`'s `HASH_VECTORS` table under a `GOLDEN-NN` clause (§ T5.2) |
+| C6 | GAP | `GOLDEN_CELLS` in `:sim` while the instruments may not depend on it | into `:core-testing`'s generated `commonMain` (§ T7.1, § T2.1) |
+| C7 | MINOR | `--ko` killed one hero before the battle | every living slot at 1, the KO dealt in-battle (§ V3.2, § T5.3) |
+| C8 | MINOR | The map had no rows for the compiles, the ABI dumps, Android Lint or the boot smoke | added (§ V5) |
+| C9 | MINOR | The hand-written workflows' `permissions:` unstated after M2 | each named (§ T2.1) |
+| C10 | MINOR | `ground` over "the two ground strips" | over the surviving cells of all 72 strips (§ T7.5) |
+
+### 25-D (blind owner's advisor) — 0 BLOCKING, 2 GAP, 0 NUMBERS, 9 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| D1 | GAP | The $500 plane key loaded before its provider's terms were checked | with B1 |
+| D2 | GAP | The portrait branch dropped the renderer equivalence check | run first on the landscape composites at the landscape anchors, inside question 2's session (§ T10.4, README question 2) |
+| D3 | MINOR | "About sixty-five sittings" against a 67 midpoint and a 60 floor | sixty-seven; 60–75 on 4(a)'s recommended branch (README) |
+| D4 | MINOR | P1's and P2's stops in no sitting | each rides its phase's last sitting (README) |
+| D5 | MINOR | "A changed hero folds into the cast free" | at no extra art cost; its kit work § F4.3's S (README) |
+| D6 | MINOR | The Actions settings and the approvals edit absent from the P1 row | with B10 |
+| D7 | MINOR | The balance diagnoses' decision unsized | an S–M per clause family (README P3 row) |
+| D8 | MINOR | P4 labelled parallel with P2–P3 | with P1–P3, from P0's exit; P4's sheets on the P1 row (README, § T14) |
+| D9 | MINOR | The equivalence check absent from the README's P5 gate | named with its rework branch (README) |
+| D10 | MINOR | Question 5's iPhone line read as M7 under either branch | with B12 |
+| D11 | MINOR | Question 8(a) moved the Pages site but not the store URLs | the URLs move with it (README) |
+
+**Declined or only partly applied:** none.

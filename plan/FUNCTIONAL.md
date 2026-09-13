@@ -124,7 +124,7 @@ behaviour and the new screens are built to it; the prototype is frozen with its 
    act after the move commit and question 3(c)'s fix, before the accounts, the testers and
    the bake-off's spend, the owner plays it through the first ten minutes and a
    KO — after README question 3(c)'s fix if it was taken — and records, in `plan/BASELINE.md`, what a turn, a hit and a draft *feel* like
-   and what did not work, with the battle screen's two hero-turn defects (§ F1.4) recorded
+   and what did not work, with the battle screen's three defects (§ F1.4) recorded
    as excluded from the bar, since the app must not reproduce them — the record the felt
    rows are judged against, so that "as good as the prototype" is a written bar, not a
    memory. The same play is the owner's **go, no-go, or go with a named mechanic to change on the game itself**, recorded in
@@ -194,14 +194,16 @@ screenshots, are not in the repository and never will be.
   rig's cast shadow is what took it from 66 to 106 of 108 seat readings): the actor's
   median against the ground it stands on at both ground strips, as a **luminance
   contrast** — the WCAG relative-luminance ratio `(Y_hi + 0.05) / (Y_lo + 0.05)` between
-  the median of the actor's masked cells and the median of the strip's surviving cells,
+  the cell at the median relative luminance of the actor's masked cells and of the strip's surviving cells (`ground`'s per-channel median, `TECHNICAL.md` § T7.5, is a separate, colour-valued reading),
   ≥ 1.5:1 (over an L* 41.6 ground that admits an actor above L* 53 or below 31 — 52.8 / 30.6 by the formula; the 53.5 / 31.3 of ART-REVIEW.md carry a 0.7-L slip of their own — as
   ART-REVIEW.md records; an L* ratio would be a different gate) — measured on **one fixed
   set**: the six seats of the resting frame of every biome — 36 seats, 72 strip readings
   — the seat list (which fallback actor stands in each of the six seats of each biome) recorded in `spec/art/seats.md` (beside the bible, `TECHNICAL.md` § T7.5) when the art tool is calibrated, before the P0 captures, with the seat-spread id (the ground colour is committed after the MED `flat=1` frames it is measured on, each tier's bar after the frames of its own tier), an excluded seat counted as a miss, never dropped, and the
   fallback cast planted as a fixed reference at P0, P5 and P6; **three bars, all recorded
   at P0 under this rule**, one per tier, each a count — the number of the 72 readings at
-  ≥ 1.5:1 the rig achieves at P0 for that tier, the shape of the record's 106 of 108; a
+  ≥ 1.5:1 the rig achieves at P0 for that tier, the shape of the record's 106 of 108 — with
+  the 72 readings behind each of the LOW and MED bars committed as `spec/art/rulers-p0.json`
+  (`TECHNICAL.md` § T7.5), the input of P5's equivalence check; a
   frame set counting below it fails: P5 is gated at LOW — the key light and the grade
   baked into the one flat plane plus the vignette-only grade map every frame, the
   prototype's LOW over the same composite, so its bar is recorded through the same
@@ -500,7 +502,7 @@ anchors as the fixed reference P6's ruler frames use too), then by the critic an
 owner, and only from a plane provider whose written commercial terms and cap mechanism are verified into
 `assets/LICENSES.md` before the branch is taken (§ T10.2's rule, which the P0 check does
 not cover for a provider chosen months later — the owner's act, about an hour inside the
-admin band, in the P6 sitting that takes the branch, README question 4(b)); either way with the light wells, the second hue per biome, the bright mass behind
+admin band, in the P5 sitting that closes question 4 and takes the branch, before the key is loaded, README question 4(b)); either way with the light wells, the second hue per biome, the bright mass behind
 the figures and the plate rules the full-frame critic asked for. VFX stay procedural (they are light, not pictures). Portraits are painted
 (§ F3.2).
 
