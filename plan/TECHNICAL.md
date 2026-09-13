@@ -1564,8 +1564,9 @@ the flat backdrops; P4 replaces the actors behind the gate; P6 replaces the back
 - **Storage** is an `expect` `Store` (a file in the app's private directory; `Preferences`
   on the JVM; `NSUserDefaults`-backed files on iOS, declared in the privacy manifest) with
   an in-memory fake for tests.
-- **Replays** are the bug report — from every build: a long-press on the title shares the
-  current run's save file and GAME OVER shows the seed (`FUNCTIONAL.md` § F2.7), so the
+- **Replays** are the bug report — from every build: a long-press on PAUSE or GAME OVER shares
+  the current run's encoding, the title's the last run's, and GAME OVER shows the seed
+  (`FUNCTIONAL.md` § F2.7), so the
   owner's felt rows and the closed testers on release builds can report a bug that replays;
   the debug drawer's richer export is debug-only. The encoding, `sim replay` and the
   storyboard's saves exist under either answer to question 10; a "no" builds no
