@@ -216,7 +216,12 @@ screenshots, are not in the repository and never will be.
   the bright layer cannot move a reading the P0 bar never saw, the shipped frame keeping
   its bloom — not over the four-plane
   diorama, which is not the scene P5 draws; and P6 at HIGH on the landed rig,
-  with LOW and MED not below their recorded bars (P0's, or a bar re-recorded under § F3.1) (the record under the older strip rule was
+  with LOW and MED re-read over the landed planes and not below their recorded bars (P0's, or
+  a bar re-recorded under § F3.1) — P0's LOW and MED frames carry no NEAR painter and the
+  landed planes do at every tier, so the lip under the front rank and the curtains are P6
+  code authored to the bar, as the prototype's diorama held its HIGH count with its near
+  plane in; a count at or above the bar is re-recorded at the reached count in the same
+  owner-reviewed pull request, a count below it is the planes' miss under the shape below — (the record under the older strip rule was
   106 of 108, quoted for scale only); ARCADE — LOW with the CRT pass over it, a
   stylisation the player chooses — is exempt, since its scanlines, halation and lift are
   one transform over every biome, not a light rig; a ruler below its bar at a phase exit
@@ -230,7 +235,7 @@ screenshots, are not in the repository and never will be.
   instrument it gates cannot fail at P5, so on that branch P5's ruler is **reported**, its
   reading approved by the owner as the portrait bars with the landscape bars beside them
   for comparison, and P6's gate is the first that holds them; and the **seat spread** — the largest excess of a seat's torso median (rows
-  0.33–0.72 of the silhouette's height) over the median seat **of the same biome frame**,
+  0.33–0.72 of the silhouette's height) over the median of the six seats' torso medians **of the same biome frame**,
   reported as the maximum over the six frames — an L* value that is **reported, not gated**: the rig's own
   measure, taken with one id planted at all six anchors (the id `spec/art/seats.md` names; `seat=<id>` in the prototype,
   `frames --seat <id>` in Kotlin; the rig's 4.5 L was measured that way, the cast's

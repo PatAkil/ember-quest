@@ -2424,3 +2424,92 @@ declined.
 | D6 | MINOR | The out-of-cycle sessions' months unpriced | ≈ $100–400 a year when their triggers fire (README money table) |
 
 **Declined or only partly applied:** none.
+
+
+## Round 23 — on revision 24 (commit `7b33239`)
+
+Four reviewers on a lighter model, 45 findings: 2 BLOCKING, 14 GAP, 3 NUMBERS, 26 MINOR.
+The blocking rows are both residue of round 22's A1: the nightly rule kept its literal
+`core`/`spec`/`prototype` list while Pitest gates `:engine` (B1), and the post-merge map
+still mapped L2b's image and asset jobs to `ui`/`art` while their only repairs are
+spec- or asset-only diffs (C1); both now read the failing job's own booleans. The gaps:
+the halo criterion failed every legitimately multi-component dead frame (A1); the
+equivalence check reached MED only while P5 gates LOW too (A2, C7); the SIMD probe asked
+for a runner generation GitHub cannot select (A3); a green post-merge run published nothing
+and no boolean could be read as green (A4); the spend counter could not see parallel packs
+(B2); question 3(c)'s fix had no check that shows it works (B3); a developer account that
+cannot be opened had no risk row (B4); question 6's "no" hid that the other thirty-one
+actors ship in the fallback cast (D1); option B's rate measurement had no place in P0 (C2);
+the LOW and MED bars were held at P6 across a near plane P0's frames never carried (C3);
+an art-tool-only or env-only pull request ran an empty lane (C4); clauses bound only by
+`Device`- or `Nightly`-tagged tests could never be `contract` (C5); and the empty-roster
+fallback was on no list of the rules the goldens never set (C6). The numbers: option B's
+own totals (B5); the current tier's chance of reaching three sessions a week (B7); and
+GitHub's rate cards, declined below (B6).
+
+### 23-A (adversarial, technical) — 0 BLOCKING, 4 GAP, 0 NUMBERS, 6 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| A1 | GAP | The halo's silhouette as the largest 8-connected component failed every dead frame with a detached dagger or shatter | the silhouette is the union of the 8-connected components of at least eight cells (§ T10.4) |
+| A2 | GAP | The equivalence check covered MED only while P5 gates LOW too | at LOW and at MED, the `flat=1` frames of both tiers against P0's 72 readings per tier, the offsets recorded before either bar is held (§ T10.4, § T14) |
+| A3 | GAP | "A different hosted-runner generation" cannot be selected or detected | both runs record the CPU feature set in the bundle; the gate is proven once two distinct sets compared equal, else the SIMD tier is pinned in the image by M8 (§ V4, § V9) |
+| A4 | GAP | A green post-merge run published nothing, so no boolean could be read as green | every completed run publishes a status, a success naming no boolean; an absent status means no run has completed yet (§ V5) |
+| A5 | MINOR | The tracer's export list lacked `isOver` and `battleOutcome` | added (§ T4.2) |
+| A6 | MINOR | `RunHost` named `:sim`'s headless host and `:ui`'s composable | the `:sim` one is `HeadlessRunHost` (§ T2.3, § T5.4) |
+| A7 | MINOR | Row 2's (A0, vault 0, spd 0) cell duplicated row 1's | counted once, 170 runs; spec-lint rejects two cells with one parameter tuple (§ T5.3, § T7.8) |
+| A8 | MINOR | `biome: enum:BiomeId` in a file read outside the binder | `string`, checked by spec-lint against the biome ids' `data:` table (§ T7.5) |
+| A9 | MINOR | "The median seat" of six seats undefined | the median of the six seats' torso medians (§ F3.1, § T10.4) |
+| A10 | MINOR | `prototype-check`'s `spec` trigger dropped on a reason P2 makes false | gated on `spec` again, since `--selfcheck` reaches the vault fixture (§ V5) |
+
+### 23-B (adversarial: product, process, risk) — 1 BLOCKING, 3 GAP, 3 NUMBERS, 7 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| B1 | BLOCKING | The nightly rule kept a literal boolean list while Pitest gates `:engine`; the storyboard lacked `engine`, the size test `assets`, `ui`, `app` | the rule reads the failing nightly job's own booleans — `Sim`'s `core`, `spec`, `prototype`, `sim`; Pitest's `core`, `engine` — and the map's rows are completed (§ V5) |
+| B2 | GAP | The spend counter read the local ledger only, blind to parallel packs | it sums `main`'s rows, the local ledger and every open art pull request's rows through the App's API, refusing when it cannot read them (§ T10.1) |
+| B3 | GAP | Question 3(c)'s fix had no check that shows it works | `playfull seed=N` before and after, the decisions replayed headlessly; an unverifiable fix is reverted before the baseline play (README, § T4.2) |
+| B4 | GAP | No risk row for a developer account that cannot be opened or verified | a row in both tables: both enrolments started after the go, the name reservation blocked until Apple's membership is active, a refusal stops the programme at P1 (README, § T15) |
+| B5 | NUMBERS | Option B's "no" priced as a reduction only | its own totals stated, ≈ 25–45 sessions and an eight-to-twelve-week pre-build floor (README question 6) |
+| B6 | NUMBERS | The GitHub rates disputed | declined, below |
+| B7 | NUMBERS | Three sessions a week said to need a second seat, against the one datum | the current tier may reach it; the second seat is contingent on P1's measurement alone (README calendar, item 6) |
+| B8 | MINOR | Renovate's batch a `build`-only diff; `prototype/**` in its scope | a `build` and `art` diff; `prototype/**` in `ignorePaths` (§ T4.1, § T3) |
+| B9 | MINOR | The weekday cadence stated unconditionally | where capacity allows three or more a week (README) |
+| B10 | MINOR | P0's re-estimate accepted nowhere | in the P0 owner row and P0's exit (README, § T14) |
+| B11 | MINOR | "The two developer accounts" recurring | the Apple Developer Program's ≈ $99 a year (README money table) |
+| B12 | MINOR | 7(b)'s no left the `release` rule and the redispatch on `main` | both named (README question 7) |
+| B13 | MINOR | A monthly summary nobody writes after P7 | quarterly after P7, the monthly act the hour's scan (README, § V7) |
+| B14 | MINOR | 4(a) and the mixed-cast approval never named together | the conjunction and what the listing then shows (README question 4) |
+
+### 23-C (blind implementer) — 1 BLOCKING, 6 GAP, 0 NUMBERS, 6 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| C1 | BLOCKING | The post-merge map refused the spec- or asset-only repairs of the image and asset jobs | the goldens to `ui`, `spec`, `assets`; the asset gate to `assets`, `art`; the calibration golden, its second reader and `art rulers` to `art`, `assets`, `spec`, `ui` (§ V5) |
+| C2 | GAP | Option B's rate measurement in no phase row | an S in P0's deliverables, run only if the owner is weighing a "no"; question 6 closes after it (§ T14, README) |
+| C3 | GAP | The LOW and MED bars held at P6 across a near plane P0's frames never carried | re-read over the landed planes, the near painter P6 code authored to the bar, re-recorded upward at the reached count (§ F3.1, § T10.4, § T14) |
+| C4 | GAP | `art` and `env` were not "module booleans", so an art-tool-only pull request ran an empty lane | each heavy job's `if:` ORs its own booleans, `art` on the asset gate, calibration and ruler jobs, `env` on `env-check` (§ T4.1) |
+| C5 | GAP | The commit lane's scope was "everything", so a clause bound only by `Device`/`Nightly` tests failed it | L1's tag filter applies; the nightly's binder binds those clauses and publishes the second matrix P5's gate reads (§ T7.2, § V2, § T14) |
+| C6 | GAP | The empty-roster fallback on no list of the rules the goldens never set | the sixth, bound by `RUN-CONFIG` clause tests alone (§ T2.3, README) |
+| C7 | GAP | The equivalence check at MED only | with A2 |
+| C8 | MINOR | `sfx.html` and `stage.html` named without their modules | `sfx.ts` and `stage.ts` beside them (§ T4.2) |
+| C9 | MINOR | D17's owned-path spelling differed from § V5's | `plan/**` except `plan/spikes/**` (README) |
+| C10 | MINOR | `CoreFixtures`' host module undecidable | generated into `:core-testing`'s `commonMain` (§ T2.1) |
+| C11 | MINOR | Question 2 "closes at P0's start" after the fifth of six acts | closes early in P0 (README) |
+| C12 | MINOR | `seat=` against `--seats`/`--seat` unexplained | deliberate, stated (§ T7.5) |
+| C13 | MINOR | Spike 6's in-place deliverable absent from § T14's spike paragraph | named (§ T14) |
+
+### 23-D (blind owner's advisor) — 0 BLOCKING, 1 GAP, 0 NUMBERS, 7 MINOR
+
+| # | Sev. | Finding | Resolution |
+|---|---|---|---|
+| D1 | GAP | Question 6's "no" hid that the other thirty-one actors ship in the fallback cast | stated in the "no" branch, as § F3.5's *stop means* describes (README question 6) |
+| D2 | MINOR | The P0 owner row still lined up the testers at P0 | decides their count and mix; the lining-up P2's exit (README) |
+| D3 | MINOR | The hours band read as a ceiling | a programme average, P3's and P5's peak weeks named (README) |
+| D4 | MINOR | 7(a) said to close at P0 for P1's sake | 7(a) closes at P0's start, before the move commit; 7(b) at P0 (README) |
+| D5 | MINOR | "The one branch that shortens the calendar" | the stores' term (README) |
+| D6 | MINOR | The Firebase acts absent from the admin enumeration | named, under either branch of question 5 (README) |
+| D7 | MINOR | The runner branch's accepted risk had no row | a row in both tables (README, § T15) |
+| D8 | MINOR | The approval surface's load-bearing cells are single sentences | declined, below |
+
+**Declined or only partly applied:** B6 declined — the $0.006 Linux and $0.062 macOS rates are GitHub's 2026-01-01 repricing, verified at resources.github.com/actions/2026-pricing-changes-for-github-actions and the github.blog changelog of 2025-12-16; the arm64 $0.005 is the post-repricing two-vCPU price; all three are re-read at P0's terms check, which the plan already says. D8 declined — a table cell holds no line break, and splitting the five rows into sub-bullets would lose the rows' nested lists; the cells are indexes of distinct acts, read one act at a time.
