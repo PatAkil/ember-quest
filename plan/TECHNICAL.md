@@ -118,7 +118,7 @@ The new game is the repository root from the first commit; the prototype lives u
 ├── spec/                  the executable specification: clauses, tables, goldens (golden/fixtures.md carries the fixtures' schema; golden/images/<kind>/ holds every image golden — screens, frames, vfx, backdrops — with their sidecars, where Roborazzi and the instruments write), fixtures (fixtures/golden/ holds the tuned battle fixtures and the harness's Vault relics as data, the single source both harnesses read; fixtures/art/ the ramps), synthetic (P1 only)
 ├── plan/                  this plan; spikes/<n>/REPORT.md
 ├── prototype/             the TypeScript game, frozen: game/ engine/ sim/ tools/ its docs, prompts and skills, package.json, .nvmrc
-├── .github/               workflows: pages.yml (builds prototype/, publishes docs/ from P5; hand-written), prototype.yml (the freeze check and the prototype's gates; hand-written, outside the generated-workflows diff), env-image.yml (builds the environment image and re-checks its manifest; hand-written), owner-review.yml and owner-review-redispatch.yml (§ V5, hand-written), record-goldens.yml (`workflow_dispatch` only, its jobs outside `ci/required-checks.txt`; hand-written), the generated kmp-*.yml; CODEOWNERS; renovate.json
+├── .github/               workflows: pages.yml (builds prototype/, publishes docs/ from P5; hand-written), prototype.yml (the freeze check and the prototype's gates; hand-written, outside the generated-workflows diff), env-image.yml (builds the environment image and re-checks its manifest; hand-written), owner-review.yml and owner-review-redispatch.yml (§ V5, hand-written), record-goldens.yml (`workflow_dispatch` only, its jobs outside `ci/required-checks.txt`; hand-written), keepalive.yml (a monthly `schedule` that pushes a dated commit to its own branch as the agents' App, § V5; hand-written, not required), the generated kmp-*.yml; CODEOWNERS; renovate.json
 ├── CLAUDE.md              the agents' conventions for this tree (a stub at P0, written at P1)
 ├── .claude/               the new skills, hooks and agents (P1)
 └── .nvmrc                 the exact Node version, the one ci/env/versions.env pins, from P0's move commit; mirrored in prototype/
@@ -664,7 +664,7 @@ the parity currency. One record per line, fields space-separated; the record kin
 | `mode <runs\|battles>` | which harness mode produced it (`selfcheck` compares canonical results and draw counts, and writes no trace) |
 | `cell …` | for runs: `cell id=<slug> seed=<uint32> policy=<name> runs=<N> asc=<A> vault=<n> spd=<d> path=<a\|b\|c>` — a cell is N runs on **one** rng stream in run order, as the harness runs them, and the golden path is **b**; for battles: `cell id=<slug> mode=battles seed=<uint32> pack=<enemy ids '+'-joined> act=<n> asc=<A> clears=<n> party=<fixture> policy=<name> n=<N>` (the boss fixture's display name `BOSS HOLLOW_KING` is never a value: every field and the slug are space-free) — N battles on one stream seeded as stated (the P2 recording uses seed 1 unless the cell table says otherwise); the slug is the golden file's name and `diff-oracle` regenerates a cell from this line and the fixture row it names |
 | `config` (runs mode only; battles have no `RunConfig`) | every `RunConfig` field **as passed**: `ascension`, `vaultSlots`, `roster` (empty allowed), `spdDelta`, and each Vault relic in the compact relic encoding |
-| `save 1 rules=<N> seed=<uint32>` | saves only (§ T11), never in a trace: a save's first line — the save format's version, the `RULES_VERSION` and the seed — followed by `config`, `debug` if any, then the `answer` records |
+| `save <format> rules=<N> snap=<S> seed=<uint32>` | saves only (§ T11), never in a trace: a save's first line — the save format's version, the `RULES_VERSION`, the snapshot's schema version and the seed — followed by `config`, `debug` if any, then the `answer` records |
 | `debug <hooks>` | saves only (§ T11), never in a trace: a storyboard's forcing hooks — `act=<n> lap=<n>` (applied before the first decision) and, each with its firing point, `room@<act>.<stage>=<TYPE>`, `pack@<battle k>=<ids>` (`+`-joined, as the `cell` line), `hp@<decision i>=<slot>:<n>` (applied when the replay reaches that act's stage, that battle or that decision index — the party is empty at the first decision, so a point-in-time hook has no earlier moment), any of them absent — which `sim replay` applies at those points; a save carrying it is not portable across `RULES_VERSION` (`VERIFICATION.md` § V3.2) |
 | `run <k>` | the k-th run (or battle) of the cell (from 0); the `draw` index continues across the cell's runs |
 | `draw <i> <hex64>` | the i-th rng output of the cell as the raw bits of the double, sixteen lowercase hex digits |
@@ -952,8 +952,9 @@ the JUnit name starts with the id). The `spec-binder` task (in `build-logic`):
   lane (Kotest writes them on every target; the binder reads one report per task and
   merges), and writes `build/reports/spec/matrix.md` and `.json`: per clause, its status,
   the tests bound to it, their tags (writer, verifier) and results;
-- fails the lane when a `contract` clause has no passing test in the lane's scope, or when
-  a test names an unknown id. The scope of L1 is the clauses whose `paths` intersect the
+- fails the lane when a `contract` clause has no passing test in the lane's scope, when
+  a test names an unknown id, or when a `:core` source file is named in no clause's
+  `paths` (§ T8's Konsist row points here). The scope of L1 is the clauses whose `paths` intersect the
   touched modules; the commit lane's scope is everything, and the binder binds once over
   `gate.sh commit`, reading L2a's and L2b's reports together — `ART` clauses bind only
   through the art tool's gate tests and `RUN-FLOW` clauses through the storyboard, both
@@ -1006,10 +1007,9 @@ and the ground colour, exported as the ramps are to `spec/fixtures/art/bible/sea
 under a `schema: Seats` block (six biome ids, each with six seat ids in anchor order, and
 `ground`, one sRGB hex: the per-channel median of the six biomes' two ground strips on
 the MED `flat=1` resting frames, measured by `art rulers` at calibration), the one file
-`capture.mjs seat=all`, `art rulers` and `art gate`, and the Kotlin `frames --seats all`
-all read — which P0's own captures read, and the three in-scene bars recorded
-from them — and completed
-when the look fork closes (P0's exit), from the bake-off report's recorded bands.
+`capture.mjs seat=all`, `art rulers`, `art gate` and the Kotlin `frames --seats all` and
+`frames --icon` all read — with the three in-scene bars recorded from P0's captures — and
+completed when the look fork closes (P0's exit), from the bake-off report's recorded bands.
 
 ### T7.6 Reconciling and folding `DESIGN.md`
 
@@ -1541,7 +1541,7 @@ the flat backdrops; P4 replaces the actors behind the gate; P6 replaces the back
 ## T11 Persistence, saves and replays
 
 - **A run** is `(RULES_VERSION, seed, RunConfig, [debug], decisions[])` in `:core`'s canonical
-  text encoding — a `save 1 rules=<N> seed=<uint32>` line, the `config` record, the `debug`
+  text encoding — a `save <format> rules=<N> snap=<S> seed=<uint32>` line, the `config` record, the `debug`
   preamble if any, then the `answer` records — where `debug` is the forcing preamble of § T5.3, applied through `RunDebug` (§ T2.3) — present only in a
   storyboard's forced run — and the decisions are the `answer` records of § T5.3 (every `HERO_TURN`
   included, `draws=0` for a human) and `ENEMY_TURN` is never recorded — except that a
@@ -1573,7 +1573,7 @@ the flat backdrops; P4 replaces the actors behind the gate; P6 replaces the back
   previous version's corpus is kept under `v<N-1>/` (older ones are deleted); the tests
   assert that a save at version N replays under N to the same state, and that a save at
   N − 1 resumes from its snapshot cleanly — which the snapshot's own schema version makes
-  decidable: the save header carries it beside `RULES_VERSION` and the trace format version,
+  decidable: the save header carries it as `snap=` beside the save format's version and `RULES_VERSION`,
   every shape change bumps it under a forward rule (a field added since carries the default
   its `SAVE` clause names, a field dropped is ignored, an unknown field is ignored), the
   decoder keeps the previous reader of each of the three versions, and the N − 1 corpus is
@@ -1774,7 +1774,7 @@ workflows are outside the diff, `VERIFICATION.md` § V5; the generator also writ
 hand-written jobs (`prototype.yml`'s three — `prototype-freeze`, `prototype-check` and `prototype-changes` — and `env-image`'s two, `env-image-changes` and `env-image`, prefixed like the generated ones) and the three gate-App checks —
 and an L3 job reads the branch's active rules through the API and fails when a listed
 job is not required; adding one is the owner's act, named in every phase that adds a job
-(P1's M7 — the Android, iOS and wasm compile jobs, one owner ruleset act inside P1's eight sittings — 5b's arm64 leg, P5's device jobs, P8's wasm) — the pull request that adds the job fails
+(P1's M7 — the Android and iOS compile jobs, one owner ruleset act inside P1's eight sittings; the wasm job is informative until P8 — 5b's arm64 leg, P5's device jobs, P8's wasm) — the pull request that adds the job fails
 the list check until the owner has added the rule, and the check is then re-run, not
 re-pushed (a re-run re-reads the branch's rules; a push would dismiss the approval), so
 the adding happens while that pull request is open — taken when no other owner-gated pull
