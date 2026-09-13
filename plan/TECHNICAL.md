@@ -1862,8 +1862,8 @@ spike 2's tree; spike 5's hash test is defined — `mulberry32` on seeds {1, 2, 
 | **Steady state** (after P7; ≈ one session a quarter) | P7 | Google Play's annual target-API bump and Apple's SDK minimum for submissions, the stores' policy re-attestations, Renovate's monthly batch through the full lanes, a store-side fix when one is needed; the first session answers the closed test's rule-touching reports the owner chose; every quarterly session reads the testers' channel, Play's vitals, TestFlight's crashes and the store reviews, which the owner scans monthly, and a run-breaking production report is a blocker that buys an out-of-cycle session; once a year the owner decides to continue, hand over or delist, against the install counts, the channel and the reviews (README, the steady state) | the lanes, unchanged; a `v*` tag per release |
 
 Parallel tracks: P4 (the cast) runs beside P2 → P3 from P0's exit, since it needs only the
-tool, the providers and the owner; P5 needs P3 and, for its felt rows, P4's heroes; P6
-needs P5. The critical path is P0 → P1 → P2 → P3 → P5 → P7.
+tool, the providers and the owner; P5 needs P3 and, for its felt rows, P4's heroes or the fallback heroes as a mixed cast
+when P4 is late (the P5 entry); P6 needs P5. The critical path is P0 → P1 → P2 → P3 → P5 → P7.
 
 ## T15 Technical risk register
 
