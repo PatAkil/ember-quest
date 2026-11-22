@@ -5,7 +5,7 @@ description: Use when anything touches controls — declaring or relabeling acti
 
 # Handling user input
 
-Every Retrovibe game uses `engine/input.ts` for all keyboard input. Import only from the barrel: `import { createInput, controlHints, BUTTON_KEY } from '../engine';`. The reference implementation is this game's `game/main.ts` and `game/sprites.ts` (the template patterns are already followed there) — copy its patterns. After any input edit: `npm run check` (repo root).
+Every Retrovibe game uses `engine/input.ts` for all keyboard input. Import only from the barrel: `import { createInput, controlHints, BUTTON_KEY } from '../engine';`. The reference implementation is this game's own: `game/app.ts` declares the actions, `game/frame.ts` reads the edges per scene, `game/screens/title.ts` renders the hints — copy its patterns. After any input edit: `npm run check` and `npm run lint` (repo root), then `npm run look -- --scene title` to read the hints off the screenshot.
 
 ## Movement — arrows + WASD, one vector
 
@@ -40,33 +40,29 @@ This declaration is the **only** place a button's meaning is written down:
 - **Never hand-write the title-screen control hints anywhere else.** A hand-written hint is a second source of truth that drifts. (Other screens may show contextual button text — e.g. the reference game-over screen's `` `${BUTTON_KEY.A.hint} RESTART` `` — but the key name must come from the same physical binding `BUTTON_KEY` documents, and the title screen always renders from the declarations.)
 - When an edit changes what a button does, change the `label` in the **same declaration** in the same edit. There is no separate file to keep in sync — a wrong or missing label is visible the moment the game is played.
 
-Complete setup (the pattern this game already follows):
+Complete setup — the pattern `game/app.ts` follows. The actions are declared once, with their labels, and the title screen renders its hints from exactly this list through `controlHints`, so a label can never drift from what the button does. This game declares `A` as `select` and `PAUSE` as `pause`; `B` is deliberately undeclared (see `STYLE.md`):
 
 ```ts
-import { createInput, controlHints, createAudio } from '../engine';
+import { createInput, createAudio } from '../engine';
 
 const audio = createAudio();
-// Actions are DECLARED here with their labels — the title screen renders hints
-// from these declarations (controlHints), so labels can never drift.
 const input = createInput(
   [
-    { button: 'A', label: 'start' },
+    { button: 'A', label: 'select' },
     { button: 'PAUSE', label: 'pause' },
   ],
-  { onFirstKey: () => audio.unlock() },
+  { onFirstKey: () => { audio.unlock(); } },
 );
 ```
 
-And the title-screen render, also from `main.ts`:
+And the title-screen render. The declared hints come from `controlHints(input)`, never hand-written; the movement line is the one static string, placed after them:
 
 ```ts
-// Control hints rendered FROM the action declarations — never hand-written.
-controlHints(input).forEach((hint, i) => {
-  drawTextCentered(pc.ctx, hint, W, 100 + i * 10, { color: PICO8[7] });
+const hints = controlHints(input);
+hints.forEach((hint, i) => {
+  drawTextCentered(pc.ctx, hint, { width: W, y: 100 + i * 10 }, { color: PICO8[7] });
 });
-drawTextCentered(pc.ctx, 'ARROWS/WASD MOVE', W, 100 + controlHints(input).length * 10, {
-  color: PICO8[5],
-});
+drawTextCentered(pc.ctx, 'ARROWS/WASD MOVE', { width: W, y: 100 + hints.length * 10 }, { color: PICO8[5] });
 ```
 
 ## Edge vs held semantics
@@ -79,11 +75,11 @@ The `Input` interface exposes three queries per button:
 
 Because buttons have alias keys, these are **button-level** edges: switching from one alias to another mid-hold (Space held, Z tapped) produces no `pressed` and no `released` — only the whole button going down or fully up does.
 
-**`endFrame()` must be called exactly once per update tick, after all input reads** — it clears the `pressed`/`released` edges. The reference game calls it as the last line of `update(dt)`:
+**`endFrame()` must be called exactly once per update tick, after all input reads** — it clears the `pressed`/`released` edges. Call it as the last line of `update(dt)`, after the scene's handler has read `input.dir` and the button edges:
 
 ```ts
 function update(dt: number): void {
-  // ... read input.dir, input.pressed(...), etc. ...
+  UPDATE_SCENE[scenes.current](dt);
   input.endFrame();
 }
 ```

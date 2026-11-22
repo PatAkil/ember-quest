@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$(uname -s)\" = Linux ] && [ -n \"${AIR_ARTIFACTS_DIR:-}${JBCENTRAL_EXPOSED_PORT_URL_5173:-}\" ] && [ -f \"$CLAUDE_PROJECT_DIR/scripts/setup-eyes.mjs\" ] && cd \"$CLAUDE_PROJECT_DIR\" && timeout 600 node scripts/setup-eyes.mjs 2>>/tmp/ember-setup.log; exit 0",
+            "async": true,
+            "timeout": 620
+          }
+        ]
+      }
+    ]
+  }
+}

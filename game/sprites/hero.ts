@@ -1,0 +1,32 @@
+import { PICO8 } from '../../engine';
+import { breatheFrames } from './helpers';
+
+export const heroFrames = breatheFrames([
+  '.......kpk............',
+  '.......kpk............',
+  '......kppk............',
+  '......kppk..........k.',
+  '.....kkhhkk........kwk',
+  '....khhhbbbk.......kwk',
+  '....khbbbbbsk.....kwgk',
+  '....kbbbbbbsk.....kwgk',
+  '....kbkeekbsk.....kwgk',
+  '....kbbbbbbsk....kwgk.',
+  '.....kbbbbsk.....kwgk.',
+  '...kkkkbbbkkkk...kwgk.',
+  '..khhhbbbbbbsskk.kwgk.',
+  '.khhbbbbbbbbbssskhhhhk',
+  '.kbbbkbbbbbbkbbsskhkk.',
+  '.kbbsk.bbbb.kbbsskbk..',
+  '.kssk.kbbbbk.kssskkk..',
+  '.kkk..kbhbbk..kkkk....',
+  '......kbbbbk..........',
+  '......kbbsbk..........',
+  '......kbbsbk..........',
+  '......kbkkbk..........',
+  '.....kbskksbk.........',
+  '.....kbsk.ksk.........',
+  '.....kssk.ksk.........',
+  '....kbbbk.kbbbk.......',
+  '....kkkkk.kkkkk.......',
+], { k: PICO8[0], b: PICO8[8], s: PICO8[2], h: PICO8[9], p: PICO8[7], w: PICO8[6], g: PICO8[5], e: PICO8[10] });

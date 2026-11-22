@@ -1,37 +1,22 @@
-// runtime.ts — the host contract with a PINNED wire format.
-//
-// Every message is exactly:
-//   { source: 'retrovibe', type: 'gameOver' | 'scoreChanged' | 'stateChanged', payload }
-//
-// Embed detection is window.parent !== window. When embedded, messages are
-// posted to the parent with an explicit targetOrigin (default '*' for MVP —
-// tighten at deploy). Standalone, they log to the console. The messaging-game-over
-// skill decides WHEN to send; this module enforces the shape.
+type RuntimeMessageType = 'gameOver' | 'scoreChanged' | 'stateChanged';
 
-export type RuntimeMessageType = 'gameOver' | 'scoreChanged' | 'stateChanged';
-
-export interface RuntimeMessage {
+interface RuntimeMessage {
   source: 'retrovibe';
   type: RuntimeMessageType;
   payload: unknown;
 }
 
 export interface Runtime {
-  /** True when running inside a parent frame (host embed). */
   readonly embedded: boolean;
-  /** Game reached a terminal state. payload conventionally { score, won }. */
   gameOver(payload?: { score?: number; won?: boolean }): void;
-  /** Score changed to a new value. */
   scoreChanged(score: number): void;
-  /** Scene/state transition, e.g. 'TITLE' | 'PLAYING' | 'PAUSED' | 'WIN'. */
   stateChanged(state: string): void;
-  /** Low-level send — prefer the typed helpers above. */
   send(type: RuntimeMessageType, payload: unknown): void;
 }
 
-export interface RuntimeOptions {
-  /** postMessage targetOrigin when embedded (default '*'). */
+interface RuntimeOptions {
   targetOrigin?: string;
+  onStandalone?(message: RuntimeMessage): void;
 }
 
 export function createRuntime(opts: RuntimeOptions = {}): Runtime {
@@ -43,7 +28,7 @@ export function createRuntime(opts: RuntimeOptions = {}): Runtime {
     if (embedded) {
       window.parent.postMessage(message, targetOrigin);
     } else {
-      console.log('[retrovibe]', message);
+      opts.onStandalone?.(message);
     }
   }
 

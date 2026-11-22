@@ -7,21 +7,19 @@ description: Use when the user asks to ship, publish, deploy, release, or "let m
 
 A push to `main` is a release: `.github/workflows/pages.yml` builds and deploys to **https://patakil.github.io/ember-quest/** on every push. Nothing is pushed until the gates are green, and a broken release is fixed forward or reverted, never left.
 
-## Gates (all four, in this order)
+## Gates
 
 ```
-npm run check
-npm run build
-npm run smoke          # against the running dev server — playing-the-game steps 1–3
-npm run sim -- --runs 1000 --policy balanced,random   # only when rules changed
+npm run verify -- --full
 ```
 
-The sim gate is a sanity line, not a tuning session: balanced within its target band, random under 5 %.
+It must end `TOTAL PASS`: check, lint, build, smoke, knip, jscpd, depcruise, `dist:no-hook` (the dev hook is absent from `dist/`), `look:all` (every scene boots with zero errors) and the full sim. It needs the eyes (playing-the-game step 1: `npm run setup` if `/tmp/ember-eyes.json` is missing or not ready). When rules changed, read the `sim:full` INFO line as a sanity line, not a tuning session: balanced within its target band, random under 5 %.
 
 ## Ship
 
+Check that `git status --short` lists only intended files, then:
+
 ```bash
-git status --short                 # only intended files
 git add -A && git commit -m "<what changed for the player>"
 git push origin main
 gh run watch "$(gh run list --limit 1 --json databaseId -q '.[0].databaseId')" --exit-status
@@ -30,7 +28,7 @@ curl -s https://patakil.github.io/ember-quest/ | grep -o 'assets/index-[^"]*\.js
 
 The last line prints the deployed bundle name; it must match the file in `dist/assets/` from the local build. Pages can serve the previous version for up to a minute after the run finishes — recheck before reporting.
 
-Commit messages describe the change for a player ("bosses telegraph their big hit"), not the implementation. Signing is off in this repo's config; never add `-S`.
+Commit messages describe the change for a player ("bosses telegraph their big hit"), not the implementation. Commits are unsigned; never add `-S`.
 
 ## Report
 

@@ -5,7 +5,7 @@ description: Use when wiring scene transitions, score updates, or win/lose repor
 
 # Messaging game over (and every other transition)
 
-`engine/runtime.ts` enforces the wire format — this skill only decides **when** to send. Import from the barrel: `import { createRuntime } from '../engine';`. Validate with `npm run check` (repo root).
+`engine/runtime.ts` enforces the wire format — this skill only decides **when** to send. Import from the barrel: `import { createRuntime } from '../engine';` (this game creates it once, in `game/app.ts`). Validate with `npm run check` and `npm run lint` (repo root).
 
 ## The pinned wire format
 
@@ -15,17 +15,17 @@ Every message is exactly:
 { source: 'retrovibe', type: 'gameOver' | 'scoreChanged' | 'stateChanged', payload }
 ```
 
-You never build this object yourself — call the typed helpers on the `Runtime` returned by `createRuntime()`:
+You never build this object yourself — call the typed helpers on the `Runtime` returned by `createRuntime({ targetOrigin, onStandalone })` (both optional):
 
 - `runtime.gameOver({ score, won })` — terminal state reached (payload fields optional; `won: false` for GAME_OVER, `won: true` for WIN).
 - `runtime.scoreChanged(score)` — score changed to a new value.
 - `runtime.stateChanged(state)` — scene transition, e.g. `'TITLE' | 'PLAYING' | 'PAUSED' | 'WIN'`.
 
-Embed detection is `window.parent !== window` (exposed as `runtime.embedded`). When embedded, the runtime posts to the parent frame via `postMessage` (default `targetOrigin: '*'` for MVP); standalone, it logs `'[retrovibe]'` messages to the console — so you can verify sends in the dev console without a host. For end-to-end proof of the embedded path, run the repo's parent-frame harness: with the game's dev server running on 5173 (see **playing-the-game**), run `node harness/verify.mjs` from the repo root — it embeds the game cross-origin, drives it, and exits nonzero unless all three message types arrive with the pinned envelope.
+Embed detection is `window.parent !== window` (exposed as `runtime.embedded`). When embedded, the runtime posts to the parent frame via `postMessage` (default `targetOrigin: '*'`). Standalone — which is how the Pages build and the dev server run — it hands each message to the `onStandalone(message)` callback if one was passed and otherwise does nothing: it never writes to the console (`no-console` is a lint error in `engine/` and `game/`), so a standalone page shows no trace of the sends. To watch them, pass a callback while debugging, or verify the transitions themselves through the dev hook: `npm run look -- --scene gameover` and `--scene win` print a `state` whose `scene` is `GAME_OVER` or `WIN` (and the final `score`), which proves the terminal transitions fire. This repo has no parent-frame harness; the embedded path is the engine's `postMessage` call and nothing else.
 
 ## When to send
 
-1. **`stateChanged` on every scene transition.** Wire it once through `scenes.onEnter` handlers so no transition can be missed — exactly as this game's `game/main.ts` and `game/sprites.ts` (the template patterns are already followed there) does:
+1. **`stateChanged` on every scene transition.** Wire it once through `scenes.onEnter` handlers so no transition can be missed — this game does it in one place, `wireScenes` in `game/flow.ts`, which also saves the best score on the terminal entries. The pattern:
 
    ```ts
    scenes.onEnter('PLAYING', () => {
@@ -39,7 +39,7 @@ Embed detection is `window.parent !== window` (exposed as `runtime.embedded`). W
    });
    ```
 
-2. **`scoreChanged` whenever the score changes** — at the point of mutation, e.g. the pickup branch in `main.ts`:
+2. **`scoreChanged` whenever the score changes** — at the point of mutation, e.g. where a clear adds to the score:
 
    ```ts
    score += 10;
