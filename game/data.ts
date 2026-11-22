@@ -1,4 +1,3 @@
-// deliberately breaks the no-comments rule to prove the CI gate fails
 import type {
   Biome, EnemyDef, Item, ItemEffect, LootSource, Rarity, SpellDef, SpellId,
 } from './types';
