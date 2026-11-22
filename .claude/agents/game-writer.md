@@ -47,10 +47,17 @@ Discipline:
   `sim/run.mjs` keeps bundling. Rules live in `game/sim/`; presentation imports them
   only through `game/sim.ts` and only presents them. No `console` in `game/` or
   `engine/`: a real fault is `reportError(new Error(...))`.
-- Work in coherent milestone saves, not one monolithic write. After EVERY save:
-  `npm run check` and `npx eslint <the files you touched>`. Each milestone must be
-  clean before the next begins — the dev server in the background hot-reloads each
-  save.
+- Work in coherent milestone saves, not one monolithic write. After every save a hook
+  lints the files you changed and type-checks `game/`/`engine/` within a few seconds;
+  when it reports errors (file, line, rule) fix them before anything else. Each
+  milestone must be clean before the next begins — the dev server in the background
+  hot-reloads each save. Name the files you edit in your Bash commands (`sed -i …
+  game/x.ts`, `cat > game/x.ts`): that is how the hook credits the change to you
+  rather than to another writer.
+- **The stop gate.** When you finish, a hook runs `npm run verify` (or, while other
+  writers are still running, the same checks on just your files) and sends you back
+  with the failures if it is red. Fix them; if a failure is in another writer's file,
+  name it in your report instead of editing it.
 - **Look at what you changed.** If `/tmp/ember-eyes.json` is missing or not ready, run
   `npm run setup`. Then `npm run look -- --scene <screen> --act <n> --seed 7` for each
   screen you touched: read the `state` and `errors` first, and the screenshot whenever
@@ -62,9 +69,10 @@ Discipline:
   against the same dev server. Edit only the files your brief assigns; never kill,
   restart or start a second dev server; never run `npm install` or edit
   `package.json`. While others are mid-change the whole-tree gates can fail on their
-  files — judge your own with `npx tsc --noEmit 2>&1 | grep '^<your dir>'` and
-  `npx eslint <your files>`, and name any foreign failure in the report instead of
-  fixing it.
+  files — the hooks already scope their feedback to your files then (type errors
+  elsewhere arrive as non-blocking context); judge by hand with
+  `npx tsc --noEmit 2>&1 | grep '^<your dir>'` and `npx eslint <your files>`, and name
+  any foreign failure in the report instead of fixing it.
 - Escalation rule: if check, lint or the smoke gate fails twice on the same
   approach, stop patching — report what failed and recommend escalating the writer
   model tier for a fresh attempt.

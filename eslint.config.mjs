@@ -23,7 +23,7 @@ const NODE_GLOBALS = Object.fromEntries(
 const COMMONJS_GLOBALS = { module: 'writable', require: 'readonly', __dirname: 'readonly', __filename: 'readonly' };
 
 export default defineConfig(
-  { ignores: ['dist/**', 'node_modules/**', '.vite/**'] },
+  { ignores: ['dist/**', 'node_modules/**', '.vite/**', '.claude/worktrees/**'] },
   {
     linterOptions: {
       noInlineConfig: true,

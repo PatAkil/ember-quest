@@ -11,6 +11,74 @@
             "timeout": 620
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/scripts/agent-feedback.mjs\" ] && command -v node >/dev/null 2>&1 && exec node \"$CLAUDE_PROJECT_DIR/scripts/agent-feedback.mjs\" session-start; exit 0",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/scripts/agent-feedback.mjs\" ] && command -v node >/dev/null 2>&1 && exec node \"$CLAUDE_PROJECT_DIR/scripts/agent-feedback.mjs\" subagent-start; exit 0",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|Edit|MultiEdit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/scripts/agent-feedback.mjs\" ] && command -v node >/dev/null 2>&1 && exec node \"$CLAUDE_PROJECT_DIR/scripts/agent-feedback.mjs\" edit; exit 0",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash|Edit|MultiEdit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/scripts/agent-feedback.mjs\" ] && command -v node >/dev/null 2>&1 && exec node \"$CLAUDE_PROJECT_DIR/scripts/agent-feedback.mjs\" edit; exit 0",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/scripts/agent-feedback.mjs\" ] && command -v node >/dev/null 2>&1 && exec node \"$CLAUDE_PROJECT_DIR/scripts/agent-feedback.mjs\" stop; exit 0",
+            "timeout": 600
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/scripts/agent-feedback.mjs\" ] && command -v node >/dev/null 2>&1 && exec node \"$CLAUDE_PROJECT_DIR/scripts/agent-feedback.mjs\" stop; exit 0",
+            "timeout": 600
+          }
+        ]
       }
     ]
   }

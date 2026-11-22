@@ -14,10 +14,12 @@
     "setup": "node scripts/setup-eyes.mjs",
     "look": "node scripts/look.mjs",
     "verify": "node scripts/verify.mjs",
+    "gate": "node scripts/agent-feedback.mjs gate",
     "lint": "eslint .",
     "lint:full": "npm run lint && knip && jscpd game engine scripts sim && depcruise game engine --config .dependency-cruiser.cjs",
     "sim:quick": "node sim/run.mjs --runs 500 --policy balanced,random",
-    "browse": "agent-browser"
+    "browse": "agent-browser",
+    "prepare": "node scripts/install-git-hooks.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

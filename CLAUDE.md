@@ -50,24 +50,29 @@ ember-quest/
 │   ├── setup-eyes.mjs        # npm run setup — browser + dev server, idempotent
 │   ├── look.mjs              # npm run look — state JSON + errors + one screenshot
 │   ├── verify.mjs            # npm run verify — every gate, one line each
-│   └── oracle.mjs            # behaviour-preservation proof for refactors
+│   ├── oracle.mjs            # behaviour-preservation proof for refactors
+│   ├── agent-feedback.mjs    # the hook entry: per-edit check, end-of-turn gate, pre-commit gate (npm run gate)
+│   ├── feedback-*.mjs        #   its state/fingerprint, checks, edit, stop and gate modules
+│   └── install-git-hooks.mjs # npm prepare: sets core.hooksPath=.githooks
+├── .githooks/pre-commit      # refuses to commit a tree that fails the gate
 ├── tools/eslint-no-comments.mjs   # the local no-comments lint rule
 ├── eslint.config.mjs, knip.config.js, .jscpd.json, .dependency-cruiser.cjs   # the lint suite
 ├── sim/run.mjs               # balance simulator runner (npm run sim)
 ├── smoke.mjs                 # headless boot gate (npm run smoke)
 ├── index.html                # arcade shell; game mounts into #screen
-├── .github/workflows/pages.yml   # push to main = deploy to GitHub Pages
-└── .claude/                  # settings.json (SessionStart hook), ten skills, agents/game-writer.md
+├── .github/workflows/pages.yml   # PR = full gates + pixel report; push to main = gates, then deploy
+└── .claude/                  # settings.json (the hooks below), ten skills, agents/game-writer.md
 ```
 
 ## Conventions
 
 - **Commands run at the repo root**: `dev` (Vite, port 5173, strictPort), `check`
   (`tsc --noEmit`), `lint`, `lint:full`, `build`, `smoke`, `sim`, `sim:quick`,
-  `setup`, `look`, `verify`, `browse` (agent-browser).
+  `setup`, `look`, `verify`, `gate` (verify + remember the green tree), `browse`
+  (agent-browser).
 - **Eyes first.** A SessionStart hook in `.claude/settings.json` runs `npm run setup`
-  in the background on the cloud box; it has not yet been confirmed to fire in a new
-  Air task, so if `/tmp/ember-eyes.json` is missing or does not say `"ready":true`,
+  in the background on the cloud box (seen firing in a fresh `claude -p` session here on
+  2026-11-22); if `/tmp/ember-eyes.json` is missing or does not say `"ready":true`,
   run `npm run setup` yourself. It is idempotent (a second run returns in well under a
   second): it installs `node_modules` if needed, extracts Chromium from the
   `@sparticuz/chromium` devDependency to `/tmp/chromium`, writes the wrapper
@@ -87,7 +92,9 @@ ember-quest/
   it saw; the owner remains the playtester for feel — report "builds, boots clean,
   ready to play at <URL>", never "playtested".
 - **Done means**: `npm run check` and `npm run lint` after every edit (or `npx eslint
-  <files>` for the files you touched); `npm run verify` green before a commit;
+  <files>` for the files you touched) — the hooks below now do the per-edit part and the
+  end-of-turn `verify` automatically, and the pre-commit hook refuses a red tree;
+  `npm run verify` green before a commit;
   `npm run verify -- --full` before a release or after a structural change; `npm run sim`
   reviewed whenever rules or numbers moved; for a refactor that must not change
   behaviour, the oracle (below) and `node sim/run.mjs --json` both identical.
@@ -142,6 +149,44 @@ the hook — this is what makes screenshots pixel-identical. In the page:
 enemy, clears, score, and the battle/loot/card/map slice of the current sub-scene),
 `step(n)` (n fixed ticks synchronously, one render, returns the state) and
 `press('A' | 'PAUSE' | 'UP' | 'DOWN')` (one edge press on the next tick).
+
+## Automatic feedback (hooks)
+
+Deterministic, not remembered: `.claude/settings.json` wires `scripts/agent-feedback.mjs`
+into every Claude Code session and subagent in this repo, and `.githooks/pre-commit` into
+git. All of it reads `.git/ember-feedback/` (state, incremental `tsc` info, `events.log`
+— one JSON line per hook run, the place to check that hooks fire).
+
+| When | What runs | Effect |
+|---|---|---|
+| SessionStart / SubagentStart | `session-start` / `subagent-start` | records the tree fingerprint and a file snapshot for this session or agent (~50 ms) |
+| after every Bash, Edit, Write, MultiEdit, NotebookEdit call (PostToolUse and PostToolUseFailure) | `edit` | stats the tracked + untracked non-ignored files against this agent's last snapshot; no change costs ~40 ms (node start-up). Changed files the agent can be credited with get `eslint` (uncached, those files only) and, for `game/`, `engine/`, `vite.config.ts`, an incremental `tsc` in parallel, ~2–3 s. Errors → exit 2: the model must read and fix them |
+| main agent stops (Stop), subagent stops (SubagentStop) | `stop` | if gated files (everything except `*.md`, `.claude/`, `.github/`, `.githooks/`) changed this session and the tree is not the remembered green one, runs `npm run verify` (~14 s) and blocks with its failing gates. Green trees are remembered by content fingerprint, so a repeat stop is ~40 ms |
+| `git commit` | `.githooks/pre-commit` → `precommit` | runs the same gate; refuses a red tree; a just-verified tree commits instantly. `npm run gate` runs it by hand and remembers a green result |
+
+- **Fix what the hooks report.** Per-edit feedback names file, line and rule. The stop
+  gate blocks at most 3 times in a row, and lets go at once when nothing changed since
+  its last block; it then says so to the user — the tree is still red and the commit
+  hook will refuse it.
+- **Parallel writers.** Changes are credited per agent: the file an Edit/Write names, a
+  file the Bash command names, or (Bash only) a file modified during that call that no
+  other agent claimed in the last 20 min. A writer is never blocked on another writer's
+  file. `tsc` errors in files it did not touch block only when it works alone; with other
+  agents active they arrive as non-blocking context. A subagent that stops while other
+  subagents run gets the scoped check (its own files), not the whole-tree `verify`; the
+  main agent's gate is deferred while background agents or tasks run. Limits: a Bash
+  script that edits files without naming them, run at the same moment as another
+  writer's edit, can credit either writer; the whole-tree gate still judges everyone at
+  the end.
+- **Degrades, never hangs.** Every hook has a timeout (60 s edit, 600 s stop) and a
+  watchdog; without `node_modules` it says so once and steps aside; when only the
+  browser gates fail and the eyes are not ready it releases with a message. Off Linux the
+  gate is `lint + check + build` (smoke needs the Linux browser).
+- **The commit hook** is enabled per clone by `npm ci` / `npm install` (the `prepare`
+  script sets `core.hooksPath=.githooks`; skipped when `CI` or `EMBER_NO_GIT_HOOKS` is
+  set, and it leaves an existing `core.hooksPath` or own `pre-commit` alone). Bypass in
+  an emergency (owner only): `git commit --no-verify`. `smoke` targets the one dev
+  server on 5173, so in a worktree or second clone it smokes the main checkout's server.
 
 ## Lint suite and thresholds
 
@@ -202,7 +247,10 @@ module (`data.ts` + `game/sim/` vs sprites + screens) so they do not collide. Pa
 writers share one tree and one dev server: each edits only its own files, checks its own
 files (`npx tsc --noEmit 2>&1 | grep '^<dir>'`, `npx eslint <files>`) while the others
 are mid-change, never kills or restarts the server, and leaves the whole-tree gates to
-the orchestrator once everyone reports done.
+the orchestrator once everyone reports done. The hooks (*Automatic feedback*) apply the
+same split on their own: per-agent feedback while others run, the whole-tree `verify`
+when the last one stops. Name each writer's files in its brief so its Bash edits name
+them too — that is how the hooks credit a change to the right writer.
 
 ## Engine API (this game's copy — authoritative surface is `engine/index.ts`)
 

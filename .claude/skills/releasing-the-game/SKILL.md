@@ -22,7 +22,7 @@ Check that `git status --short` lists only intended files, then:
 ```bash
 git add -A && git commit -m "<what changed for the player>"
 git push origin main
-gh run watch "$(gh run list --limit 1 --json databaseId -q '.[0].databaseId')" --exit-status
+gh run watch "$(gh run list --branch main --event push --limit 1 --json databaseId -q '.[0].databaseId')" --exit-status
 curl -s https://patakil.github.io/ember-quest/ | grep -o 'assets/index-[^"]*\.js'
 ```
 
@@ -40,4 +40,4 @@ Three things: the live URL, what changed for the player, and one line on balance
 git revert HEAD --no-edit && git push origin main
 ```
 
-Reverting re-runs the workflow and restores the previous bundle within about a minute.
+Reverting re-runs the workflow and restores the previous bundle within about a minute and a half: the gates run first (about 40 s), then the deploy.

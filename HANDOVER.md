@@ -38,8 +38,9 @@ still in history.
 ## First things to do in the new task
 
 1. **Eyes.** `cat /tmp/ember-eyes.json`. If it is missing or not `"ready":true`, run
-   `npm run setup` (the SessionStart hook in `.claude/settings.json` is meant to do this
-   in the background, but has not yet been confirmed to fire in a new Air task). It
+   `npm run setup` (the SessionStart hook in `.claude/settings.json` does this in the
+   background; it was seen firing in a fresh `claude -p` session on this box on
+   2026-11-22, but not yet in a brand-new Air task). It
    installs `node_modules` if needed, extracts Chromium from the `@sparticuz/chromium`
    devDependency, writes `/tmp/ember-chromium`, starts the dev server and proves a
    launch; a repeat run returns in well under a second. No manual apt, no
@@ -58,6 +59,20 @@ still in history.
 3. **Baseline.** `npm run verify`, then `npm run look -- --scene title` and read the
    screenshot it names.
 
+## The feedback loop is automatic now
+
+`.claude/settings.json` runs `scripts/agent-feedback.mjs` on SessionStart,
+SubagentStart, after every Bash/Edit/Write call (PostToolUse and PostToolUseFailure),
+and on Stop/SubagentStop; `.githooks/pre-commit` runs it on `git commit` (`npm ci`'s
+`prepare` sets `core.hooksPath`). An agent gets eslint + incremental tsc errors for the
+files it just changed within ~2–3 s, cannot end a turn on a red tree (at most 3 blocks,
+then it is released with a message to the user), and cannot commit one. Green trees are
+remembered by content fingerprint, so repeat stops and commits are instant. CLAUDE.md →
+*Automatic feedback* has the table and the parallel-writer rules;
+`.git/ember-feedback/events.log` shows every hook run. Observed live on 2026-11-22: the
+PostToolUse/PostToolUseFailure hooks inside a subagent (with `agent_id`), the main
+session's Stop hook, and settings edits taking effect mid-session.
+
 ## Gotchas
 
 - **The workspace auto-pushes the branch after every turn.** Commits leave immediately
@@ -71,6 +86,10 @@ still in history.
   each screenshot take 3–18 s; the wrapper's plain `--headless=shell --no-sandbox
   --disable-gpu` take about 0.1 s.
 - **knip is pinned to v5** — v6 crashes on this box.
+- **`eslint .` also lints `.claude/worktrees/`** (agent worktrees are untracked and not
+  ignored), so a writer mid-change in its worktree can turn `verify` red in the main
+  checkout. Fix pending: ignore `.claude/**` in `eslint.config.mjs` (owner-approved
+  config change needed).
 - **Lint runs without a cache**, in `npm run lint` and in `verify`, on purpose: the ESLint
   cache misses cross-file type changes.
 - The clone may arrive **shallow**; `git fetch --unshallow` for history. Other remote
