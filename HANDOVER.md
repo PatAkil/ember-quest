@@ -1,88 +1,78 @@
-# Handover — Ember Quest back on v2 (2026-11-22)
+# Handover — Ember Quest v2 with agent eyes and a lint suite (2026-11-22)
 
-For the next Air cloud task. Read this first, then `CLAUDE.md` and `DESIGN.md`.
+For the next Air cloud task. Read this first, then `CLAUDE.md` and `DESIGN.md`
+(and `STYLE.md` before touching the look).
 
 ## Where things stand
 
-The owner wants the **v2 in-browser game** (keyboard, desktop browser) back,
-and to keep building on it, not the v3 rewrite (party draft, relics, HD-2D,
-phone layout).
+The owner wants the **v2 in-browser game** (keyboard, desktop browser) and to keep
+building on it, not the v3 rewrite (party draft, relics, HD-2D, phone layout). v3 is
+still in history.
 
-- **Branch:** `air/revert-emberquest-to-browser-version-0865bcc7-2`, pushed.
-  Start the new task on it. `main` is untouched and still holds v3, which the
-  live site at https://patakil.github.io/ember-quest/ serves. Push to `main` =
-  deploy, so only release through the `releasing-the-game` skill, and only when
-  the owner asks.
-- **Commits on the branch** (on top of `main` = `71dc875`, v3):
-  - `55ded76`: tree restored byte-for-byte to `d51f54a` (v2 code + dev tooling,
-    the last commit before the v3 design and rewrite). v3 is still in history.
-  - `0cd39b8`: `smoke.mjs` takes an optional `CHROMIUM_PATH` (a browser
-    Playwright didn't download).
-  - `7a69bf1`: `vite.config.ts` works behind Air's exposed-port proxy (see below).
-  - this file.
-- **Gates at hand-off:** `npm run check` ✓, `npm run build` ✓,
-  `npm run smoke` ✓ (with `CHROMIUM_PATH`), `npm run sim` ✓. Policy win rates:
-  balanced 19 %, glass 9 %, tank 17 %, random 0 %.
-- **Seen in a real browser:** title screen with no console errors; Space → Act 1
-  "The Crypt" path map with six empty slots and the HP/MP/stat panel.
-- **No feature work yet.** The owner's next request is open: "continue with the
-  browser game and the features and functionality that were in there". Ask which
-  v2 feature or change comes first.
+- **`main`** is `93f6bc6`: PR #2 merged the v2 restore, so `main` holds v2 and a push to
+  `main` deploys it to https://patakil.github.io/ember-quest/. Only release through the
+  `releasing-the-game` skill, and only when the owner asks.
+- **This task's branch** is `air/resume-ember-quest-from-handover-doc-d4b12fb1-e`, on top
+  of the v2 handover. It added the tooling, not features:
+  - `1e6f5fe`: agent eyes — the seeded dev hook (`game/devhook.ts`), `npm run setup`,
+    `look`, `verify`, and the lint configuration.
+  - `edce53d`: every comment stripped (the style card moved to `STYLE.md`), lint autofix.
+  - `00f1c7d`: the refactor oracle (`scripts/oracle.mjs`), hold mode for pixel-identical
+    seeded screenshots, `noUncheckedIndexedAccess`.
+  - `80baa5e`: all lint debt cleaned — rules split into `game/sim/*`, the engine's
+    `draw.ts` split into `canvas/sprite/anim/font/text/fills` (+ `geometry`, `ambient`)
+    with geometry-object signatures, presentation split out of `main.ts` into
+    `app/state/flow/frame/…` and `game/screens/`, sprites into `game/sprites/`. Its
+    acceptance test was behaviour preservation: the oracle (state + pixels) identical
+    and `node sim/run.mjs --json` byte-identical to the pre-refactor baselines.
+  - then the docs and skills brought in line with all of the above.
+- **Gates at hand-off:** `npm run verify -- --full` passes on the whole tree. Full sim:
+  balanced 19 %, glass 9 %, tank 17 %, elite-hungry 19 %, chest-hungry 19 %, random 0 %.
+- **Known open item** (balance, not fixed here): the game's map links stages more
+  generously than the simulator's, so the real game is somewhat easier than the
+  *Balance state* table says — see `DESIGN.md` → *Open item*.
+- **No feature work yet.** The owner's request is still open: "continue with the browser
+  game and the features and functionality that were in there". Ask which v2 feature or
+  change comes first.
 
 ## First things to do in the new task
 
-1. **Dev server + public link.** The owner added port **5173** to the
-   environment's Exposed ports. A new task should therefore have
-   `JBCENTRAL_EXPOSED_PORT_URL_5173`. Check it:
-   ```
-   echo $JBCENTRAL_EXPOSED_PORT_URL_5173
-   npm ci
-   setsid nohup npm run dev > /tmp/dev.log 2>&1 &      # poll for "Local:" in /tmp/dev.log
-   curl -s -o /dev/null -w "%{http_code}\n" "$JBCENTRAL_EXPOSED_PORT_URL_5173/"   # want 200
-   ```
-   `vite.config.ts` reads that variable: it binds `0.0.0.0`, allows the proxy
-   hostname, and runs HMR over `wss:443`. It must be set **before** Vite starts.
-   Only give the owner the URL after it returns 200. If the variable is empty,
-   the environment change didn't apply. Air applies environment settings only to
-   newly created tasks (docs: jetbrains.com/help/air/exposed-ports.html,
-   …/manage-environments.html). Fallback: a port that IS in the env list.
-2. **Headless browser for validation** (lives in `/tmp`, gone with each task).
-   Playwright's and Chrome-for-Testing's downloads are blocked here, and Ubuntu
-   26.04's `chromium` is snap-only. The npm registry works:
-   ```
-   mkdir -p /tmp/browser && cd /tmp/browser && npm init -y && npm i agent-browser @sparticuz/chromium
-   node -e "require('@sparticuz/chromium').default.executablePath().then(console.log)"   # → /tmp/chromium
-   sudo apt-get update   # required: without it apt fails on libxfixes3 and installs nothing
-   sudo DEBIAN_FRONTEND=noninteractive apt-get install -y libnspr4 libnss3 libatk1.0-0t64 \
-     libatk-bridge2.0-0t64 libcups2t64 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 \
-     libgbm1 libpango-1.0-0 libasound2t64 libxfixes3
-   node -e "console.log(require('@sparticuz/chromium').default.args.join(' '))" > args.txt
-   printf '#!/bin/sh\nexec /tmp/chromium %s "$@"\n' "$(cat args.txt)" > /tmp/chromium-wrap && chmod +x /tmp/chromium-wrap
-   ```
-   The apt install can take over 2 minutes, so run it in the background. The
-   binary hangs with plain flags; it needs the sparticuz args (the wrapper adds them).
-   Then, from the repo root:
-   ```
-   CHROMIUM_PATH=/tmp/chromium-wrap npm run smoke
-   export AGENT_BROWSER_EXECUTABLE_PATH=/tmp/chromium-wrap
-   cd /tmp/browser && npx agent-browser open http://localhost:5173/
-   npx agent-browser click "#screen"; npx agent-browser press Space
-   npx agent-browser screenshot $AIR_ARTIFACTS_DIR/shot.png; npx agent-browser errors; npx agent-browser close
-   ```
-   Read the screenshot to judge it.
+1. **Eyes.** `cat /tmp/ember-eyes.json`. If it is missing or not `"ready":true`, run
+   `npm run setup` (the SessionStart hook in `.claude/settings.json` is meant to do this
+   in the background, but has not yet been confirmed to fire in a new Air task). It
+   installs `node_modules` if needed, extracts Chromium from the `@sparticuz/chromium`
+   devDependency, writes `/tmp/ember-chromium`, starts the dev server and proves a
+   launch; a repeat run returns in well under a second. No manual apt, no
+   `/tmp/browser` install: the old recipe is obsolete. (Setup falls back to
+   `sudo apt-get install libnspr4 libnss3 libsqlite3-0` by itself only if the launch with
+   the bundled libraries fails and passwordless sudo exists.)
+2. **Public link.** Port **5173** is in the environment's Exposed ports, so a new task
+   should have `JBCENTRAL_EXPOSED_PORT_URL_5173`; the setup marker's `url` is that
+   address when set. `vite.config.ts` reads the variable (binds `0.0.0.0`, allows the
+   proxy hostname, runs HMR over `wss:443`), so it must be set **before** Vite starts.
+   Only give the owner the URL after
+   `curl -s -o /dev/null -w "%{http_code}\n" "$JBCENTRAL_EXPOSED_PORT_URL_5173/"` prints
+   200. If the variable is empty, the environment change did not apply — Air applies
+   environment settings only to newly created tasks (docs:
+   jetbrains.com/help/air/exposed-ports.html, …/manage-environments.html).
+3. **Baseline.** `npm run verify`, then `npm run look -- --scene title` and read the
+   screenshot it names.
 
-## Gotchas learned this session
+## Gotchas
 
-- **The workspace auto-pushes the branch after every turn.** Commits leave
-  immediately (to the task branch, never `main`).
-- **Don't `pkill -f <pattern>`** when the pattern appears in your own command
-  line. It kills the shell running it (exit 144). Kill by PID:
-  `ps -eo pid,args | awk '$2=="node" && /vite/ {print $1}' | xargs -r kill`.
-  `lsof` and `ss` aren't installed.
-- The clone may arrive **shallow**; `git fetch --unshallow` for history.
-  Other remote branches: `claude/fable-credits-reset-wbtv7t` (v3 work) and
-  `claude/kotlin-multiplatform-plan-9p5h06` (a KMP mobile plan, 75 commits).
-  Neither is the target.
-- `CLAUDE.md` and the skills on this branch are the **v2** versions. They
-  describe `game/data.ts` / `sim.ts` / `sprites.ts` / `main.ts`, not v3's
-  `game/data/*` and `game/sim/*`.
+- **The workspace auto-pushes the branch after every turn.** Commits leave immediately
+  (to the task branch, never `main`).
+- **Don't `pkill -f <pattern>`** when the pattern appears in your own command line — it
+  kills the shell running it (exit 144). `lsof`, `ss` and `bc` are not installed. The
+  dev server's pid: `ps -eo pid,args | awk '$2=="node" && /vite/ {print $1}'`.
+- **Browser downloads are blocked** (`npx playwright install chromium`, Chrome for
+  Testing) and Ubuntu's `chromium` is snap-only; the npm registry works, which is why the
+  browser comes from `@sparticuz/chromium`. Its own recommended flags (software GL) make
+  each screenshot take 3–18 s; the wrapper's plain `--headless=shell --no-sandbox
+  --disable-gpu` take about 0.1 s.
+- **knip is pinned to v5** — v6 crashes on this box.
+- **Lint runs without a cache**, in `npm run lint` and in `verify`, on purpose: the ESLint
+  cache misses cross-file type changes.
+- The clone may arrive **shallow**; `git fetch --unshallow` for history. Other remote
+  branches: `claude/fable-credits-reset-wbtv7t` (v3 work) and
+  `claude/kotlin-multiplatform-plan-9p5h06` (a KMP mobile plan). Neither is the target.

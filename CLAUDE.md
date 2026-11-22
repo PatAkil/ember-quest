@@ -10,45 +10,169 @@ the game can grow on its own. Live at **https://patakil.github.io/ember-quest/**
 ```
 ember-quest/
 ├── DESIGN.md                 # the systems contract — read FIRST for any mechanics work
+├── STYLE.md                  # the visual style card — read FIRST for any look work
+├── HANDOVER.md               # where the work stands between cloud tasks
 ├── game/
-│   ├── types.ts              # shared types + tuning constants (caps, SP gains, drop rates)
-│   ├── data.ts               # ITEMS, SPELLS, ENEMIES, BIOMES, ACT_MULT — headless
-│   ├── sim.ts                # pure rules + balance policies — headless
-│   ├── sprites.ts            # hero/enemy/icon sprites
-│   └── main.ts               # screens, input, juice, rendering (the style card is atop)
+│   ├── types.ts              # shared types + tuning constants (caps, SP gains, drop rates) — headless
+│   ├── data.ts               # ITEMS, SPELLS, ENEMIES, BIOMES, ACT_MULT, validateData — headless
+│   ├── sim.ts                # barrel: the one import path for rules — headless
+│   ├── sim/                  # pure rules + balance policies, one concern per file — headless
+│   │   ├── util.ts           #   clamp, rng picks, the exhaustive ItemEffect table helper
+│   │   ├── gear.ts           #   item levels, upgrades, effective mods/effects/blurbs
+│   │   ├── hero.ts           #   createHero, derive, skill points, heals, equip, spells
+│   │   ├── ghost.ts          #   derived stats of a hypothetical equip (compare previews)
+│   │   ├── describe.ts       #   item / offer / compare text for the screens
+│   │   ├── loot.ts           #   rollLoot, applyOffer, missed scrolls
+│   │   ├── combat.ts         #   spawnEnemy, turns, damage, effects in battle
+│   │   ├── map.ts            #   the simulator's map topology (buildMap)
+│   │   ├── model.ts          #   Policy, RoomType
+│   │   ├── scoring.ts        #   how policies value a loot offer
+│   │   ├── policies.ts       #   POLICIES (random, balanced, glass, tank, routing archetypes)
+│   │   └── run.ts            #   simulateRun, RunResult, Probe
+│   ├── main.ts               # wiring only: app, game state, scene hooks, dev hook, loop
+│   ├── app.ts                # creates the engine objects (canvas, input, scenes, particles, juice, audio, CRT, runtime)
+│   ├── state.ts              # the Game type + createGame(): one object `g` with per-screen slices
+│   ├── flow.ts               # run flow: room selection, stage advance, clears, act change, startRun, scene hooks
+│   ├── frame.ts              # update/render dispatch tables per scene and sub-scene
+│   ├── mapgen.ts             # the map the screens play (generateMap)
+│   ├── theme.ts              # colours, biome looks, layout constants
+│   ├── backdrop.ts           # biome backdrops, floor, actors, battle tableau
+│   ├── widgets.ts            # bars, lines, fitted/wrapped text, blinkHz/accentHz, item icons
+│   ├── pops.ts               # floating damage/score pops
+│   ├── storage.ts            # best score in localStorage
+│   ├── lookup.ts             # at, must, noop — guarded indexed access
+│   ├── screens/              # battle, battle-view, map, loot, loot-view, levelup, card, status, title (+ pause, endings)
+│   ├── sprites.ts            # single entry point: re-exports game/sprites/*, adds enemyAnim(id)
+│   ├── sprites/              # helpers, hero, icons, and one file per biome (crypt, tundra, desert, temple)
+│   └── devhook.ts            # dev-only seeded hook (?seed, ?scene, &act, &hold, window.__ember)
 ├── engine/                   # this game's OWN copy of the Retrovibe engine — editable
+├── scripts/
+│   ├── setup-eyes.mjs        # npm run setup — browser + dev server, idempotent
+│   ├── look.mjs              # npm run look — state JSON + errors + one screenshot
+│   ├── verify.mjs            # npm run verify — every gate, one line each
+│   └── oracle.mjs            # behaviour-preservation proof for refactors
+├── tools/eslint-no-comments.mjs   # the local no-comments lint rule
+├── eslint.config.mjs, knip.config.js, .jscpd.json, .dependency-cruiser.cjs   # the lint suite
 ├── sim/run.mjs               # balance simulator runner (npm run sim)
 ├── smoke.mjs                 # headless boot gate (npm run smoke)
 ├── index.html                # arcade shell; game mounts into #screen
 ├── .github/workflows/pages.yml   # push to main = deploy to GitHub Pages
-└── .claude/skills/           # ten skills; agents/game-writer.md
+└── .claude/                  # settings.json (SessionStart hook), ten skills, agents/game-writer.md
 ```
 
 ## Conventions
 
 - **Commands run at the repo root**: `dev` (Vite, port 5173, strictPort), `check`
-  (`tsc --noEmit`), `build`, `smoke`, `sim`.
-- **Dev server lifecycle is port-based**: reclaim with `lsof -ti:5173 | xargs -r kill`;
-  launch `npm run dev` in the background and poll for `Local:   http://localhost:5173/`.
-  Launch it at the start of a session and leave it up — every save hot-reloads.
-- **Done means**: `npm run check` after every edit; `npm run build` **and**
-  `npm run smoke` green before a commit; `npm run sim` reviewed whenever rules or
-  numbers moved. The user is the playtester — Claude reports "builds, boots clean,
+  (`tsc --noEmit`), `lint`, `lint:full`, `build`, `smoke`, `sim`, `sim:quick`,
+  `setup`, `look`, `verify`, `browse` (agent-browser).
+- **Eyes first.** A SessionStart hook in `.claude/settings.json` runs `npm run setup`
+  in the background on the cloud box; it has not yet been confirmed to fire in a new
+  Air task, so if `/tmp/ember-eyes.json` is missing or does not say `"ready":true`,
+  run `npm run setup` yourself. It is idempotent (a second run returns in well under a
+  second): it installs `node_modules` if needed, extracts Chromium from the
+  `@sparticuz/chromium` devDependency to `/tmp/chromium`, writes the wrapper
+  `/tmp/ember-chromium` (plain `--headless=shell --no-sandbox --disable-gpu` flags,
+  bundled libraries via `LD_LIBRARY_PATH`), starts the dev server if port 5173 does
+  not answer, proves a launch, and writes the marker. Its log is `/tmp/ember-setup.log`,
+  the dev server's is `/tmp/ember-dev.log`.
+- **Dev server**: one, on 5173, left up all session — every save hot-reloads. Setup
+  starts it; never start a second one and never kill it to "reset" (a teammate may be
+  using it). `lsof` and `ss` are not installed and `pkill -f` kills your own shell; the
+  pid is `ps -eo pid,args | awk '$2=="node" && /vite/ {print $1}'`. Only on an explicit
+  "stop the server" pipe that into `xargs -r kill`.
+- **Look before you report.** `npm run look -- --scene battle --act 2 --seed 7` prints one
+  JSON line (`ok`, the game `state`, console/page `errors`, the screenshot path) in under
+  a second; read the state first and the screenshot whenever the look changed. Scenes:
+  `title map battle levelup loot card paused gameover win`; acts 1–4. Claude may say what
+  it saw; the owner remains the playtester for feel — report "builds, boots clean,
   ready to play at <URL>", never "playtested".
-- **Commit at green milestones, unsigned** (`commit.gpgsign=false` in this repo's
-  config). Message = what changed for the player. `git add -A` is fine here: the
+- **Done means**: `npm run check` and `npm run lint` after every edit (or `npx eslint
+  <files>` for the files you touched); `npm run verify` green before a commit;
+  `npm run verify -- --full` before a release or after a structural change; `npm run sim`
+  reviewed whenever rules or numbers moved; for a refactor that must not change
+  behaviour, the oracle (below) and `node sim/run.mjs --json` both identical.
+- **No comments, anywhere.** `//`, `/* */` and JSDoc are lint errors in every linted
+  file (`tools/eslint-no-comments.mjs`; only a shebang survives). Intent goes into names,
+  types and small functions; the why goes into `DESIGN.md` or `STYLE.md`.
+- **Commit at green milestones, unsigned** — never add `-S` (this box has no signing
+  configured). Message = what changed for the player. `git add -A` is fine here: the
   repo is the game.
 - **Push = release.** Only through **releasing-the-game**, only after the gates.
-- **Headless boundary**: `game/data.ts` and `game/sim.ts` never import the engine
-  or the DOM. Rules live in `sim.ts`; `main.ts` presents them. Break this and the
-  simulator stops bundling.
+- **Headless boundary**: `game/types.ts`, `game/data.ts`, `game/sim.ts` and `game/sim/*`
+  never import the engine, presentation modules or the DOM, and never call
+  `Math.random` (rules take an injected `rng`). Rules live in `game/sim/`; presentation
+  imports them only through the barrel `game/sim.ts`. Lint and dependency-cruiser both
+  enforce this — break it and the simulator stops bundling.
+- **No console in game or engine code** (`no-console` is an error there). A real fault
+  goes through `reportError(new Error(...))`, which surfaces as a page error, so `look`,
+  `smoke` and `verify` fail on it — `validateData()` violations and an unknown `?scene=`
+  value already do this.
 - **DESIGN.md moves with the code.** A rules change edits the contract in the same
-  milestone; a balance pass updates the *Balance state* table and its date.
+  milestone; a balance pass updates the *Balance state* table and its date. A look
+  change that alters a style-card decision edits `STYLE.md` in the same milestone.
 - **Engine edits are allowed** — the engine here is a fork owned by this game.
   New primitives go into the owning module, are re-exported from `engine/index.ts`,
-  and are added to the API table below in the same change. There is no fixture
-  verification loop here; a visual change is verified by building, smoking, and
-  the user looking at it.
+  and are added to the API table below in the same change. Game code imports the engine
+  only through the barrel (`'../engine'` from `game/`, `'../../engine'` from
+  `game/screens/` and `game/sprites/`); the engine never imports game code.
+
+## Agent eyes
+
+| Command | What it does |
+|---|---|
+| `npm run setup` | Browser + dev server, idempotent; prints `eyes: ready - … \| chromium /tmp/ember-chromium \| dev <url>`; marker `/tmp/ember-eyes.json` (`url` is the public exposed-port URL when `JBCENTRAL_EXPOSED_PORT_URL_5173` is set, else `http://localhost:5173/`). `--force` redoes everything |
+| `npm run look -- [--scene S] [--act N] [--seed N] [--keys "Down,Space"] [--steps N] [--out file.png] [--no-shot]` | One JSON line `{"ok","state","errors","shot"}`; exit 1 on any console/page error or no canvas. With `--scene` or `--seed` the page runs in hold mode and each key is followed by `--steps` (default 30) fixed ticks. Keys: `Up Down Left Right Space Esc Enter` or Playwright names (`ArrowDown`, `KeyZ`, `KeyP`). Default shot: `$AIR_ARTIFACTS_DIR/look/<scene>-a<act>-s<seed>.png`, else `/tmp/ember-look/` |
+| `npm run verify` | eyes, lint, check, build, smoke, `sim:quick` (informational: balanced and random win rates), two at a time; one `PASS/FAIL/INFO` line per gate with its time, then `TOTAL`. About 10 s |
+| `npm run verify -- --full` | adds knip, jscpd, depcruise, `dist:no-hook` (no `__ember` in `dist/`), `look:all` (every scene), and the full sim. About 30 s |
+| `node scripts/oracle.mjs --save <file>` / `--check <file>` | 72 cases (9 scenes × 4 acts × still / after `Down,Space,Space,Down,Space`, seed 7): sha256 of the state JSON and of the exact screenshot. `--check` prints `ORACLE OK` or lists each differing case as `(state)` or `(pixels)`. Save before a refactor, check after. Needs the dev server; about 80 s |
+| `npm run browse -- <command>` (or `npx agent-browser`) | Free-form interactive exploration (`open <url>`, `press Space`, `screenshot <file>`, `errors`, `eval <js>`, `close`). Export `AGENT_BROWSER_EXECUTABLE_PATH=/tmp/ember-chromium` first (setup writes it into `CLAUDE_ENV_FILE` when the harness provides one) |
+
+`smoke.mjs`, `look.mjs` and `oracle.mjs` use `/tmp/ember-chromium` automatically when
+`CHROMIUM_PATH` is unset and the wrapper exists; `SMOKE_URL` / `LOOK_URL` override the
+target. `npx playwright install chromium` is blocked in this environment — never needed.
+
+**Dev hook** (`game/devhook.ts`, installed only when `import.meta.env.DEV`; absent from
+the build, which `verify --full` proves). URL parameters: `?seed=<uint>` routes every
+random decision in the game through one seeded PRNG (absent → `Math.random`, exactly as
+shipped); `?scene=<name>&act=<1..4>` boots straight into that screen with a
+deterministic fixture (seed defaults to 1); `&hold=1` also seeds `Math.random` (ambient,
+shake) and stops the rAF loop from ticking or drawing, so frames advance only through
+the hook — this is what makes screenshots pixel-identical. In the page:
+`window.__ember.state()` (JSON: scene, subScene, act, seed, cursor, hero, derived,
+enemy, clears, score, and the battle/loot/card/map slice of the current sub-scene),
+`step(n)` (n fixed ticks synchronously, one render, returns the state) and
+`press('A' | 'PAUSE' | 'UP' | 'DOWN')` (one edge press on the next tick).
+
+## Lint suite and thresholds
+
+Owner-approved and fixed: no suppressions, no `eslint-disable` (inline config is off and
+unused directives are errors), no baseline files, no new per-file overrides, no loosened
+numbers. **Fix the code, never the config.** If a rule seems genuinely wrong for a case,
+stop and report it.
+
+| Gate | Rule |
+|---|---|
+| `npm run lint` (ESLint, typescript-eslint strict + stylistic, type-checked; uncached) | no comments · `complexity` 10 · `max-depth` 4 · `max-params` 4 · `max-lines` 400 per file (blank lines skipped) · `max-lines-per-function` 80 (blank lines skipped) · `max-nested-callbacks` 3 · `eqeqeq` · `curly` · template literals take numbers and strings only (`String(x)` otherwise) · `no-console` in `game/` and `engine/` · headless and barrel import boundaries |
+| naming convention | camelCase by default; module-level `const` may be UPPER_CASE; types PascalCase; object and type properties camelCase or UPPER_CASE (quoted keys and DOM key codes such as `ArrowUp` are free) |
+| `tsconfig.json` | `strict`, `noUncheckedIndexedAccess`, `noUnusedLocals`, `noUnusedParameters`, `noImplicitReturns` |
+| knip (`lint:full`) | no unused files, exports or dependencies. The skills and this file count as entries: an engine export cited in their code is "used" |
+| jscpd (`lint:full`) | zero duplicated blocks (50 tokens / 5 lines) across `game engine scripts sim` |
+| dependency-cruiser (`lint:full`) | no cycles, no orphans, headless stays headless, game → engine only via `engine/index.ts`, engine never imports game |
+
+Working within them:
+
+- **Lookup tables over long switches.** A `Record<Union, …>` of values or handlers is
+  one line per case and complexity 1 (`frame.ts`, `TUNE` in `engine/ambient.ts`,
+  `onEffect`'s `EffectTable` in `game/sim/util.ts`); it is also exhaustive by type.
+- **Option and geometry objects over long parameter lists.** Past four parameters,
+  group them: `{x, y}`, `{x, y, w, h}`, a style object, or a context object
+  (`FixtureContext` in the dev hook).
+- **Guard indexed access honestly.** `at(list, i)` / `must(value, what)` from
+  `game/lookup.ts` throw a clear error; fixed-length tuples (the palettes) index to a
+  plain `string`. Never `!` or a cast to silence the flag.
+- **Split along natural seams** — a screen's update vs its view, one biome's sprites per
+  file, one rules concern per `game/sim/` file — not at arbitrary line counts. A new
+  file must be imported by something (no orphans) and must not form a cycle.
 
 ## Skill routing
 
@@ -68,27 +192,42 @@ ember-quest/
 ## Models & orchestration
 
 `.claude/agents/game-writer.md` (Sonnet-class) writes code in milestone saves with
-`npm run check` after each. The orchestrator owns the dev server, smoke, sim, and
-git. **Escalation rule**: if check or smoke fails twice on the same approach,
-escalate the writer one tier (Sonnet → Opus) for a fresh attempt. **Design first**:
-mechanics changes go through `designing-mechanics` and a decision by the user
-before code moves; parallel writers are fine once the contract is written, split
-by module (data+sim vs sprites+main) so they do not collide.
+`npm run check` and lint after each, and may run `npm run verify` and `npm run look`
+itself. The orchestrator owns git, the release, `verify -- --full`, the oracle and the
+balance decisions. **Escalation rule**: if check, lint or smoke fails twice on the same
+approach, escalate the writer one tier (Sonnet → Opus) for a fresh attempt. **Design
+first**: mechanics changes go through `designing-mechanics` and a decision by the user
+before code moves; parallel writers are fine once the contract is written, split by
+module (`data.ts` + `game/sim/` vs sprites + screens) so they do not collide. Parallel
+writers share one tree and one dev server: each edits only its own files, checks its own
+files (`npx tsc --noEmit 2>&1 | grep '^<dir>'`, `npx eslint <files>`) while the others
+are mid-change, never kills or restarts the server, and leaves the whole-tree gates to
+the orchestrator once everyone reports done.
 
 ## Engine API (this game's copy — authoritative surface is `engine/index.ts`)
 
-Games import from `'../engine'`.
+Geometry arguments are plain object literals: a point `{x, y}`, a rect `{x, y, w, h}`, a
+centred row `{width, y}` (the types `Point`, `Rect`, `CenterRow` live in
+`engine/geometry.ts` and are not re-exported). Rects snap to whole logical pixels;
+a zero or negative size draws nothing.
 
 | Module | Key exports | Purpose |
 |---|---|---|
-| loop.ts | `createLoop({update, render})` → `.start()/.stop()` | Fixed-timestep (60 Hz) accumulator loop; frame-delta clamp (250 ms) + clock reset on focus; auto-pause on blur |
-| input.ts | `createInput(actions, {onFirstKey})`, `controlHints(input)`, `BUTTON_KEY` | Arrows/WASD → `input.dir`; buttons A = Space/Z, B = X/C, PAUSE = P/Esc (dedicated, aliased — down while ≥1 alias down); `pressed/held/released`, `endFrame()` per tick; labels declared in code |
-| scenes.ts | `createScenes()` → `.current/.is/.to/.onEnter` | Enforced machine `TITLE → PLAYING ⇄ PAUSED → (GAME_OVER | WIN) → restart` |
-| draw.ts | `createPixelCanvas`, `makeSprite`, `flipSprite`, `drawSprite`, `frameIndex`, `drawText`, `drawTextCentered`, `textWidth`, `blink`, `pulse`, `drawLogo`, `fillBands`, `fillDither`, `drawBevel`, `drawFrame` | Pixel-scaled canvas, ASCII-art sprites, 3×5 bitmap font (5-wide M/W). `TextOptions.shadow`/`.outline` (bool or color; mutually exclusive; outline only at `scale >= 3`, degrades to shadow at 2). `makeSprite(rows, map, {outline, flipX})` bakes a 1-cell keyline (sprite grows 1 cell per side — use the inner size for hitboxes); `flipSprite`; `frameIndex(time, fps, count)`; `drawLogo(ctx, text, W, y, {color, shade, shadow, scale})` two-tone lit-from-above logo (`color` REQUIRED, from the palette); `fillBands` (horizontal gradient bands), `fillDither` (4×4 ordered dither, 50 %/25 %, cached per context), `drawBevel` (slab with light top/left, dark bottom/right), `drawFrame` (hollow border). `blink(time, period=0.9, onRatio=0.6)`, `pulse(time, period=1.2)` are clock-driven 0..1 helpers |
-| palette.ts | `PICO8`, `GAMEBOY`, `DUSK`, `NEON`, `SUNSET`, `OCEAN`, `PALETTES`, `swapPalette`, `contrast` | Curated retro palettes (roles per index) + swap + `contrast(a,b)` legality (actors ≥3:1 vs static surfaces, ≥4.5:1 authored on any non-black ground — the CRT lift eats ~1.4×; ambient 1.8–2.5:1 band) |
-| particles.ts | `createParticles({width, height, ambient, ambientColor})` → `.update/.render/.burst/.setAmbient` | Ambient presets (stars/rain/snow/embers/bubbles) built as 2–3 depth layers with per-particle twinkle and clumping; 2–3 px impact bursts |
+| loop.ts | `createLoop({update, render}, {step?, maxFrame?})` → `.start()/.stop()/.running` | Fixed-timestep accumulator (`step` 1/60 s); frame-delta clamp `maxFrame` 0.25 s; throws `RangeError` when either is not a positive finite number. Pauses on blur / hidden tab (keeps calling `render(0)`), resets the clock on focus |
+| input.ts | `createInput(actions, {onFirstKey, target})`, `controlHints(input)`, `BUTTON_KEY`; types `Input`, `InputOptions`, `ButtonName`, `ActionDecl` | Arrows/WASD → `input.dir`; buttons A = Space/Z, B = X/C, PAUSE = P/Esc (dedicated, aliased — down while ≥1 alias down); `pressed/held/released`, `endFrame()` per tick, `actions`, `dispose()`; labels declared in code |
+| scenes.ts | `createScenes(initial = 'TITLE', {onIllegal})` → `.current/.is/.to/.onEnter`; type `SceneMachine` | Enforced machine `TITLE → PLAYING ⇄ PAUSED → (GAME_OVER \| WIN) → restart`; `PLAYING → PLAYING` and `PAUSED → TITLE` allowed. `to()` returns `false` on an illegal move and calls `onIllegal(from, to)` if given — it never writes to the console |
+| canvas.ts | `createPixelCanvas({width, height, scale = 3, parent})` → `{canvas, ctx, width, height, scale, clear(color)}` | Pixel-scaled canvas, smoothing off, scale baked into the transform; throws when `parent` is `null` |
+| sprite.ts | `makeSprite(rows, map, {outline, flipX})`, `flipSprite`, `drawSprite(ctx, sprite, {x, y}, px = 1)`; types `Sprite`, `SpriteMap` | ASCII-art sprites; `.`/space/unmapped chars are transparent. `outline` bakes a 1-cell keyline (sprite grows 1 cell per side — use the inner size for hitboxes) |
+| anim.ts | `frameIndex(time, fps, count)`, `blink(time, period = 0.9, onRatio = 0.6)` → 1/0, `pulse(time, period = 1.2)` → 0..1 | Clock-driven animation helpers |
+| font.ts | (internal) | 3×5 bitmap font, M and W 5 wide |
+| text.ts | `drawText(ctx, text, {x, y}, opts)`, `drawTextCentered(ctx, text, {width, y}, opts)`, `textWidth(text, scale = 1, spacing = 1)`, `drawLogo(ctx, text, {width, y}, {color, shade, shadow, scale = 3, spacing, shadowOffset = 1})`; type `TextOptions` | Proportional bitmap text, uppercased. `TextOptions`: `color`, `scale`, `spacing`, `shadow`/`outline` (bool or color; outline drawn only at `scale >= 3`, degrades to a shadow below). `drawTextCentered` asks for an outline by default at `scale >= 2` unless `shadow` is given. `drawLogo` is a two-tone lit-from-above wordmark; `color` is REQUIRED (it throws), from the palette |
+| fills.ts | `fillBands(ctx, rect, colors)`, `fillDither(ctx, rect, {colorA, colorB, pattern})`, `drawBevel(ctx, rect, {fill, light, dark})`, `drawFrame(ctx, rect, {color, thickness = 1})` | Horizontal bands; 4×4 ordered dither (`'checker'` 50 %, the default, or `'sparse'` 25 %; cached per context); slab with light top/left and dark bottom/right; hollow border |
+| palette.ts | `PICO8`, `GAMEBOY`, `DUSK`, `NEON`, `SUNSET`, `OCEAN`, `PALETTES`, `swapPalette`, `contrast`; type `Palette` | Curated palettes as fixed-length tuples (16 / 4 / 8 / 8 / 8 / 8), so `PICO8[7]` is a `string`; anything typed `Palette` (`readonly string[]`, e.g. a `swapPalette` result) indexes to `string \| undefined`. `contrast(a, b)` legality: actors ≥3:1 vs static surfaces, ≥4.5:1 authored on any non-black ground (the CRT lift eats ~1.4×); ambient 1.8–2.5:1 band |
+| ambient.ts | (internal) | Ambient presets built as 2–3 depth layers with per-particle twinkle and clumping |
+| particles.ts | `createParticles({width, height, ambient, ambientCount = 48, ambientColor})` → `.update/.render/.burst(x, y, opts)/.setAmbient(preset, color?)`; types `AmbientPreset`, `BurstOptions` | Ambient layer (stars/rain/snow/embers/bubbles) plus 2–3 px impact bursts (`count` 8, `speed` 90, `life` 0.5 defaults) |
 | juice.ts | `createJuice()` → `.shake/.flash/.hitStop/.frozen/.update/.preRender/.postRender` | Screen shake (rounded to whole logical px), flash, hit-stop. Order: clear → `preRender` → world → `postRender` → CRT. `flash(color, duration, origin?)`: uniform overlay peaking at 0.55 alpha, or with `origin` (`{x, y}` logical px) a RADIAL flash centred on the impact (0.75 alpha at centre, transparent at 0.55× the larger frame dimension). Pass the origin on DEATH flashes; WIN/pickup flashes stay uniform |
-| audio.ts | `createAudio()` → `.unlock/.play/.ready` | WebAudio chiptune sfx (`jump/pickup/explosion/hit/blip`); `unlock()` inside the first user gesture |
-| ui.ts | `SAFE_MARGIN`, `drawScore`, `drawLives`, `hudText`, `drawPanel`, `dimScene` | HUD helpers with enforced edge margin and a 1-px drop shadow by default; `hudText` adds a translucent plate behind large centred text; `drawPanel(pc, x, y, w, h, {color, border})`; `dimScene(pc, alpha=0.55)` darkens the frame behind an overlay (overscans 16 px so shake can't expose an edge). Dim OR plate, never both |
-| crt.ts | `createCrt()` → `.render(ctx, w, h, dt)` | Draw LAST. Halation (cached snapshot re-drawn ±1 device px, `'lighter'`), phosphor lift, scanlines (`'multiply'` toward mid-grey), vignette + flicker. `CrtOptions`: `scanlineAlpha` (0.09), `vignetteAlpha` (0.35), `flicker` (0.03), `halation` (0.09, 0 skips), `lift` (`'rgb(15,17,28)'`, `''` skips). Leaves context state as found |
-| runtime.ts | `createRuntime()` → `.gameOver/.scoreChanged/.stateChanged/.embedded/.send` | Host contract, wire format `{source:'retrovibe', type, payload}`; a no-op when not embedded (the Pages build runs standalone) |
+| audio.ts | `createAudio()` → `.unlock/.play/.ready`; type `Sfx` | WebAudio chiptune sfx (`jump/pickup/explosion/hit/blip`); `unlock()` inside the first user gesture; `play` before unlock is a silent no-op |
+| ui.ts | `SAFE_MARGIN` (8), `drawScore(pc, score, opts)`, `drawLives(pc, lives, opts)`, `hudText(pc, text, {h, v}, {color, scale, shadow, plate})`, `drawPanel(pc, rect, {color, border})`, `dimScene(pc, alpha = 0.55)` | HUD helpers with enforced edge margin and a 1-px drop shadow by default; `hudText` anchors `h: 'left' \| 'center' \| 'right'`, `v: 'top' \| 'middle' \| 'bottom'`, and adds a translucent plate behind centred text at `scale >= 2` unless `plate: false`; `drawPanel` is clamped inside `SAFE_MARGIN`; `dimScene` overscans 16 px so shake can't expose an edge. Dim OR plate, never both |
+| crt.ts | `createCrt(opts)` → `.render(ctx, w, h, dt)`; type `CrtOptions` | Draw LAST. Halation (cached snapshot re-drawn ±1 device px, `'lighter'`), phosphor lift, scanlines (`'multiply'` toward mid-grey), vignette + flicker. `CrtOptions`: `scanlineAlpha` (0.09), `vignetteAlpha` (0.35), `flicker` (0.03), `halation` (0.09, 0 skips), `lift` (`'rgb(15,17,28)'`, `''` skips) |
+| runtime.ts | `createRuntime({targetOrigin = '*', onStandalone})` → `.gameOver/.scoreChanged/.stateChanged/.embedded/.send`; type `Runtime` | Host contract, wire format `{source:'retrovibe', type, payload}`; posts to the parent frame when embedded, otherwise hands the message to `onStandalone` if given and is silent if not (the Pages build runs standalone and passes none) |
+| geometry.ts | (internal) `Point`, `Rect`, `CenterRow`, `snapRect`, `solidRect` | The geometry objects every drawing call takes |

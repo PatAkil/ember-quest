@@ -9,21 +9,24 @@ This repo IS the game. `game/` holds the code, `engine/` a per-game fork of the 
 
 ## Workflow
 
-1. **Read before editing.** `DESIGN.md` first (the contract), then the module that owns the change: `game/types.ts` (types + tuning constants), `game/data.ts` (items, spells, enemies, biomes), `game/sim.ts` (pure rules, headless), `game/sprites.ts` (art), `game/main.ts` (screens, input, rendering). Keep the module layout table in `DESIGN.md` true: `data.ts` and `sim.ts` never import the engine or the DOM, so the balance simulator keeps working.
+0. **Eyes up.** If `/tmp/ember-eyes.json` is missing or does not say `"ready":true`, run `npm run setup` (idempotent: browser, dev server on 5173, marker). Never start a second dev server.
+1. **Read before editing.** `DESIGN.md` first (the contract), `STYLE.md` for anything visual, then the one module that owns the change — the module layout table in `DESIGN.md` names it: `game/types.ts` (types + tuning constants), `game/data.ts` (items, spells, enemies, biomes), the `game/sim/<concern>.ts` file (pure rules, headless; `game/sim.ts` is the barrel), a screen in `game/screens/`, run flow in `game/flow.ts`, colours and layout in `game/theme.ts`, art in `game/sprites/`. Keep that table true: the headless files never import the engine, presentation or the DOM, so the balance simulator keeps working.
 2. **Mechanics changes go through `designing-mechanics` first** — trade-offs on the table before code moves. Then route: **balancing-with-the-simulator** after any rules change, **ensuring-arcade-visuals** for look, **improving-game-quality** for the feel pass, **handling-user-input** for controls, **messaging-game-over** for host messaging, **adding-easter-egg** for secrets.
 3. **Validation loop** — after **every** edit:
    ```
    npm run check
+   npm run lint
    ```
-4. **Milestone** — before a commit or a handoff, both must pass:
+   No comments, no suppressions, thresholds as in `CLAUDE.md` → *Lint suite and thresholds*: fix the code, never the config. Then look at what changed: `npm run look -- --scene <screen> --act <n> --seed 7` — the `state` and `errors` first, the screenshot whenever the look changed.
+4. **Milestone** — before a commit or a handoff:
    ```
-   npm run build
+   npm run verify
    ```
-   **and** the runtime smoke check via **playing-the-game** (owns the dev-server lifecycle and `npm run smoke`). A green build alone never means done. Claude never claims to have played the game — report "builds, boots clean, ready to play at <URL>"; the user is the playtester. Escalation rule: if the typecheck or smoke gate fails twice on the same approach, escalate the writer one model tier for a fresh attempt (CLAUDE.md → Models & orchestration).
-5. **Commit at every green milestone** (unsigned — the repo config disables gpg signing). Push only through **releasing-the-game**: a push to `main` is a release to the live URL.
+   must print `TOTAL PASS` (check, lint, build, smoke; `sim:quick` is informational). Before a release or after a structural change, `npm run verify -- --full`. A refactor that must not change behaviour also proves it: `node scripts/oracle.mjs --save /tmp/oracle-before.json` before, `--check /tmp/oracle-before.json` after, and `node sim/run.mjs --json > /tmp/sim-before.json` before, `node sim/run.mjs --json | cmp - /tmp/sim-before.json` after (silent = identical). **playing-the-game** owns the dev-server lifecycle and the handoff. A green build alone never means done. Claude may report what it looked at; it never claims to have played the game — report "builds, boots clean, ready to play at <URL>"; the user is the playtester. Escalation rule: if check, lint or smoke fails twice on the same approach, escalate the writer one model tier for a fresh attempt (CLAUDE.md → Models & orchestration).
+5. **Commit at every green milestone** (unsigned — never add `-S`). Push only through **releasing-the-game**: a push to `main` is a release to the live URL.
 
 ## Engine edits
 
-`engine/` is editable here — it is Ember Quest's private copy. Import from the barrel `'../engine'` as before; when a new drawing or juice primitive is needed for "wilder" graphics, add it to the engine module that owns the concern and re-export from `engine/index.ts`. Update the engine API table in `CLAUDE.md` in the same edit so the next context knows the surface.
+`engine/` is editable here — it is Ember Quest's private copy. Import from the barrel (`'../engine'`, `'../../engine'` from `game/screens/` and `game/sprites/`); when a new drawing or juice primitive is needed for "wilder" graphics, add it to the engine module that owns the concern and re-export from `engine/index.ts`. Update the engine API table in `CLAUDE.md` in the same edit so the next context knows the surface.
 
 **Restore routing:** for "the old one was better", `git log --oneline` shows milestone commits; `git checkout <hash> -- game engine` restores the code, and `git revert` unwinds a released one.

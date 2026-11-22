@@ -5,7 +5,7 @@ description: Use when a request adds, removes, or reshapes a game system (a new 
 
 # Designing mechanics
 
-`DESIGN.md` is the contract every module follows and the simulator measures against. Mechanics work starts there, not in `main.ts`. The user decides; Claude lays out the options and recommends one.
+`DESIGN.md` is the contract every module follows and the simulator measures against. Mechanics work starts there, not in the screens. The user decides; Claude lays out the options and recommends one.
 
 ## 1. Frame the change against the run
 
@@ -28,8 +28,8 @@ When the direction is agreed, edit `DESIGN.md` **first**:
 - new types and tuning constants go into the Progression / Items / Combat sections with their names (`types.ts` will carry them);
 - new screens get a line in *UI constraints* (label lengths, panel placement, which screen they interrupt);
 - **difficulty targets** get restated if the change is meant to move them (a fifth act changes "full run 15–25 %"; a meta-unlock that starts the hero stronger changes act-1 clear);
-- the module layout table stays true: rules in `sim.ts`, data in `data.ts`, presentation in `main.ts`. A mechanic the simulator cannot run is a mechanic that cannot be balanced — if it needs player skill (timing, aiming) it belongs in presentation only.
+- the module layout table stays true: rules in `game/sim/` (a new concern gets its own file, exported through the `game/sim.ts` barrel), data in `data.ts`, presentation in `game/screens/` and the modules `game/main.ts` wires. A mechanic the simulator cannot run is a mechanic that cannot be balanced — if it needs player skill (timing, aiming) it belongs in presentation only.
 
 ## 4. Then build in milestones
 
-Hand to **iterating-on-a-game**: data + sim first (headless, `npm run check`, then **balancing-with-the-simulator** to see the new system move the numbers), presentation second (screens, sprites, juice), quality pass last. A mechanic is done when its policy line in the sim report is where the contract says it should be *and* the user has played it.
+Hand to **iterating-on-a-game**: data + sim first (headless, `npm run check` and `npm run lint`, then **balancing-with-the-simulator** to see the new system move the numbers), presentation second (screens, sprites, juice — `npm run look` at each new screen; a new screen also gets a dev-hook fixture so `--scene` can reach it: the `Fixture` type, the `FIXTURES` list and a builder in `game/devhook.ts` plus the `SCENES` lists in `scripts/look.mjs`, `scripts/verify.mjs` and `scripts/oracle.mjs`), quality pass last. A mechanic is done when its policy line in the sim report is where the contract says it should be *and* the user has played it.

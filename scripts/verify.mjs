@@ -63,7 +63,7 @@ function distClean() {
 function gates() {
   const list = [
     { name: 'eyes', light: true, exec: script('scripts/setup-eyes.mjs') },
-    { name: 'lint', exec: tool('eslint', '.', '--cache', '--cache-location', 'node_modules/.cache/eslint/') },
+    { name: 'lint', exec: tool('eslint', '.') },
     { name: 'check', exec: tool('tsc', '--noEmit') },
     { name: 'build', exec: tool('vite', 'build', '--logLevel', 'warn') },
     { name: 'smoke', after: ['eyes'], exec: script('smoke.mjs') },

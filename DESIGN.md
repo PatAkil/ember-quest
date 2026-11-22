@@ -9,14 +9,17 @@ permadeath. v2 replaces the tier-upgrade gear with **skill points** and a
 | File | Owns | May import |
 |---|---|---|
 | `game/types.ts` | shared types + tuning constants (caps, SP gains) | nothing |
-| `game/data.ts` | ITEMS, LOOT_WEIGHTS, SPELLS, ENEMIES, BIOMES, ACT_MULT | `./types` only |
-| `game/sim.ts` | pure rules: derived stats, skill points, combat, loot rolls, enemy scaling | `./types`, `./data` |
-| `game/sprites.ts` | hero/enemy/icon sprites | `../engine` |
-| `game/main.ts` | screens, input, juice, rendering | everything |
+| `game/data.ts` | ITEMS, LOOT_WEIGHTS, SPELLS, ENEMIES, BIOMES, ACT_MULT, `validateData` | `./types` only |
+| `game/sim.ts` | the barrel: the only path presentation and the simulator use to reach the rules | `./sim/*` |
+| `game/sim/*.ts` | pure rules, one concern per file: `util` (clamp, rng picks, effect tables), `gear` (item levels, upgrades, effective mods/effects), `hero` (derived stats, skill points, heals, equip, spells), `ghost` (stats of a hypothetical equip), `describe` (item/offer/compare text), `loot` (loot rolls, offers, scrolls), `combat` (enemy scaling, turns, damage), `map` (the simulator's map), `model` (`Policy`, `RoomType`), `scoring` and `policies` (how the archetypes decide), `run` (`simulateRun`) | `../types`, `../data`, each other |
+| `game/sprites.ts` + `game/sprites/*.ts` | hero/enemy/icon sprites: `helpers`, `hero`, `icons`, one file per biome; `sprites.ts` re-exports them and adds `enemyAnim(id)` | `../engine` only |
+| `game/main.ts` + `app`, `state`, `flow`, `frame`, `mapgen`, `theme`, `backdrop`, `widgets`, `pops`, `storage`, `lookup`, `screens/*.ts` | presentation: `main.ts` only wires; `app` creates the engine objects; `state` holds the one `Game` object `g` with per-screen slices; `flow` runs the run (rooms, stages, clears, acts, scene hooks); `frame` dispatches update/render; `mapgen` builds the map the screens play; `screens/` one update file and one view file per screen | everything |
+| `game/devhook.ts` | the dev-only seeded hook (`?seed`, `?scene`, `&act`, `&hold`, `window.__ember`), never in the build | `../engine` types, `./sim`, presentation types |
 
-`data.ts` and `sim.ts` are **headless** (no engine, no DOM) so a balance
-simulator can bundle them (`esbuild game/sim.ts --bundle`) and Monte Carlo
-thousands of runs.
+`types.ts`, `data.ts`, `sim.ts` and `game/sim/` are **headless** (no engine, no DOM,
+no presentation import, no `Math.random` — every roll takes an injected `rng`) so the
+balance simulator can bundle them (`esbuild game/sim.ts --bundle`) and Monte Carlo
+thousands of runs. ESLint and dependency-cruiser enforce the boundary.
 
 ## Progression
 
@@ -101,11 +104,12 @@ and level-up panels sit above the actors, never over them.
 
 ## Balance state (tuned with the headless simulator, 2026-09-04)
 
-Harness: `npx esbuild game/sim.ts --bundle --format=esm --platform=node
---outfile=<tmp>/sim.bundle.mjs`, then a Node script calling `simulateRun`
-with each of `POLICIES` and a seeded PRNG. The simulator replicates the real
-map topology (stage sizes, `linkStage`), the drop rates, upgrade cards and
-boss tables, so its routing agency matches the game's.
+Harness: `npm run sim` (`sim/run.mjs`) bundles `game/sim.ts` with esbuild into a
+temporary directory, then calls `simulateRun` with each of `POLICIES` and a seeded
+PRNG (`--runs`, default 2000; `--seed`, default 1; `--policy`; `--json`). Same seed and
+same code give byte-identical `--json` output. The simulator replicates the drop
+rates, upgrade cards and boss tables; its map (`game/sim/map.ts`) uses the same stage
+sizes as the game's but its own linking — see *Open item* below.
 
 | policy | win | reach act 2 | act 3 | act 4 | boss clears a1/a2/a3/a4 |
 |---|---|---|---|---|---|
@@ -122,3 +126,13 @@ entering below 50 %. Upgrades matter without being mandatory: with upgrade
 cards disabled the balanced win rate halves. Taking a boss's scroll beats
 walking past it (33 % vs 28 % wins for balanced, 59 % vs 17 % for tank).
 Hero base: 46 HP, +6 HP per skill point; DEF/MDEF cap 42 %; `ACT_MULT` [1.0, 1.38, 2.2, 3.1].
+
+### Open item: the game's map links more generously than the simulator's
+
+A review measured that the map generator the screens use (`game/mapgen.ts`) gives
+about 74 % of nodes two onward links, against about 39 % in the simulator's
+`game/sim/map.ts`. More links mean more routing choice, so the real game is
+somewhat easier than the table above says: with the game's linking in the simulator,
+balanced wins about 24 % instead of 19 %. Not fixed in the tooling work because
+choosing which linking is right is a balance decision; it is owned by the gameplay
+work, which will re-measure this table once the two generators agree.
