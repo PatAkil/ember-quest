@@ -6,7 +6,8 @@ export type { Input, InputOptions, ButtonName, ActionDecl } from './input';
 export { createScenes } from './scenes';
 export type { SceneMachine } from './scenes';
 
-export { createPixelCanvas } from './canvas';
+export { createPixelCanvas, fitScale, autoFit } from './canvas';
+export type { PixelCanvas, FitArea } from './canvas';
 export { makeSprite, flipSprite, drawSprite } from './sprite';
 export type { Sprite, SpriteMap } from './sprite';
 export { frameIndex, blink, pulse } from './anim';

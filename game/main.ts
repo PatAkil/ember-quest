@@ -1,7 +1,7 @@
 import { createLoop } from '../engine';
 import { derive, heroActions } from './sim';
 import { validateData } from './data';
-import { installDevHook } from './devhook';
+import { HOLD, installDevHook } from './devhook';
 import { createApp } from './app';
 import { selectNode, startRun, wireScenes } from './flow';
 import { render, update } from './frame';
@@ -10,7 +10,7 @@ import { createGame, resetCursorEdge, stageAt } from './state';
 import type { Game } from './state';
 import { applyEnemyAction, onQueueDone } from './screens/battle';
 
-const app = createApp();
+const app = createApp(HOLD);
 const violations = validateData();
 if (violations.length > 0) {reportError(new Error(`[ember-quest data] ${violations.join('; ')}`));}
 const g = createGame(app);

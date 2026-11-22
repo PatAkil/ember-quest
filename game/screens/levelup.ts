@@ -26,12 +26,13 @@ export function updateLevelUp(g: Game): void {
   if (spendPoint(g.hero, key)) {
     g.app.audio.play('pickup');
     const hp = heroPos();
-    pushPop(g.pops, { x: hp.x, y: hp.y - 26 }, `+${SP_GAIN[key]} ${key}`, C_ACCENT);
+    pushPop(g.pops, { x: hp.x, y: hp.y - 26 }, `${gainText(key)} ${key}`, C_ACCENT);
   }
   if (g.hero.sp <= 0) {lu.onDone();}
 }
 
-const GAIN_TEXT: Record<StatKey, string> = { HP: '+5', MP: '+3', ATK: '+2', MAG: '+2', DEF: '+3%', MDEF: '+3%', CRIT: '+2%' };
+const PERCENT_STATS: ReadonlySet<StatKey> = new Set<StatKey>(['DEF', 'MDEF', 'CRIT']);
+const gainText = (k: StatKey): string => `+${SP_GAIN[k]}${PERCENT_STATS.has(k) ? '%' : ''}`;
 
 function currentValues(d: Derived): Record<StatKey, string> {
   return {
@@ -57,7 +58,7 @@ export function renderLevelUp(g: Game): void {
     const sel = i === g.levelUp.cursor;
     if (sel) { ctx.fillStyle = C_SEL_BAR; ctx.fillRect(Math.round(x0) + 3, y - 2, Math.round(colW) - 6, 9); }
     drawText(ctx, `${sel ? '> ' : '  '}${k}`, { x: Math.round(x0) + 6, y }, { color: sel ? C_ACCENT : C_TEXT, shadow: sel });
-    const v = `${current[k]} ${GAIN_TEXT[k]}`;
+    const v = `${current[k]} ${gainText(k)}`;
     drawText(ctx, v, { x: Math.round(x0 + colW) - 6 - textWidth(v, 1), y }, { color: sel ? C_TEXT : C_DIM });
   });
   drawTextCentered(ctx, `${BUTTON_KEY.A.hint} SPEND A POINT`, { width: W, y: panelY + panelH - 9 }, { color: blinkHz(g.clock, 1.2) ? C_TEXT : C_DIM });

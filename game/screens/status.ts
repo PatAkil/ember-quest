@@ -1,10 +1,10 @@
-import { PICO8, SAFE_MARGIN, drawPanel, drawSprite, drawText, textWidth } from '../../engine';
+import { SAFE_MARGIN, drawPanel, drawSprite, drawText, textWidth } from '../../engine';
 import { SLOTS } from '../types';
 import type { Derived } from '../types';
 import { derive, displayName, itemLevel } from '../sim';
 import { ICON_EMPTY } from '../sprites';
 import type { Game } from '../state';
-import { C_BORDER, C_DIM, C_HP, C_HP_LOW, C_MP, C_PANEL, C_TEXT, W, rarityColor } from '../theme';
+import { C_BORDER, C_DIM, C_FAINT, C_HP, C_HP_LOW, C_MP, C_PANEL, C_TEXT, W, rarityColor } from '../theme';
 import { drawBar, fitText, itemIcon, pct } from '../widgets';
 
 function drawGear(g: Game, y: number): void {
@@ -14,7 +14,7 @@ function drawGear(g: Game, y: number): void {
     const by = y + 4 + Math.floor(i / 3) * 8;
     const item = g.hero.equipment[slot];
     drawSprite(ctx, item ? itemIcon(item) : ICON_EMPTY, { x: bx, y: by }, 1);
-    drawText(ctx, item ? displayName(item, itemLevel(g.hero, slot)) : `NO ${slot}`, { x: bx + 7, y: by }, { color: item ? rarityColor(item) : PICO8[5] });
+    drawText(ctx, item ? displayName(item, itemLevel(g.hero, slot)) : `NO ${slot}`, { x: bx + 7, y: by }, { color: item ? rarityColor(item) : C_FAINT });
   });
 }
 

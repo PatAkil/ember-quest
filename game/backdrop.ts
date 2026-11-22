@@ -31,71 +31,90 @@ function fillDisc(ctx: Ctx, center: Point, r: number): void {
   }
 }
 
-function cryptBackdrop(ctx: Ctx, clock: number): void {
-  const flame = frameIndex(clock, 6, 2);
-  ctx.globalAlpha = 0.5; ctx.fillStyle = PICO8[1];
+interface Layer { ctx: Ctx; clock: number; dim: number }
+
+const fade = (l: Layer, alpha: number): void => { l.ctx.globalAlpha = alpha * l.dim; };
+
+const PILLARS = [14, 92, 148, 216];
+const SCONCE_PILLARS = [14, 216];
+const SCONCE_Y = 58;
+
+function drawSconce(l: Layer, pillarX: number): void {
+  const { ctx } = l;
+  const flame = frameIndex(l.clock, 6, 2);
+  const cx = pillarX + 4;
+  ctx.fillStyle = PICO8[5]; ctx.fillRect(cx - 2, SCONCE_Y + 6, 6, 1); ctx.fillRect(cx, SCONCE_Y + 7, 2, 2);
+  ctx.fillStyle = PICO8[4]; ctx.fillRect(cx - 1, SCONCE_Y + 4, 4, 2);
+  ctx.fillStyle = flame ? PICO8[9] : PICO8[10];
+  ctx.fillRect(cx - 1 + flame, SCONCE_Y, 3, 4); ctx.fillRect(cx, SCONCE_Y - 2 + flame, 2, 2);
+}
+
+function cryptBackdrop(l: Layer): void {
+  const { ctx } = l;
+  fade(l, 0.5); ctx.fillStyle = PICO8[1];
   ctx.fillRect(0, FLOOR_Y - 30, W, 30);
-  ctx.globalAlpha = 1;
-  for (const px of [14, 92, 148, 216]) {
+  fade(l, 1);
+  for (const px of PILLARS) {
     ctx.fillRect(px, 6, 10, FLOOR_Y - 6);
     ctx.fillRect(px - 2, 6, 14, 3);
     ctx.fillRect(px - 2, FLOOR_Y - 4, 14, 4);
   }
-  for (const tx of [40, 120, 200]) {
-    ctx.fillStyle = PICO8[4]; ctx.fillRect(tx, 44, 2, 6);
-    ctx.fillStyle = flame ? PICO8[9] : PICO8[10];
-    ctx.fillRect(tx - 1 + flame, 38, 3, 4); ctx.fillRect(tx, 36 + flame, 2, 2);
-  }
+  for (const px of SCONCE_PILLARS) {drawSconce(l, px);}
 }
 
 const PEAKS: readonly (readonly [number, number, number])[] = [[10, 26, 34], [48, 20, 24], [96, 30, 42], [140, 18, 20], [186, 26, 30], [232, 22, 26]];
 
-function tundraBackdrop(ctx: Ctx): void {
-  ctx.fillStyle = PICO8[1];
+function tundraBackdrop(l: Layer): void {
+  const { ctx } = l;
+  fade(l, 1); ctx.fillStyle = PICO8[1];
   fillDisc(ctx, { x: 60, y: 36 }, 12);
-  ctx.fillStyle = PICO8[0]; fillDisc(ctx, { x: 65, y: 33 }, 10);
-  ctx.fillStyle = PICO8[1];
+  ctx.globalAlpha = 1; ctx.fillStyle = PICO8[0]; fillDisc(ctx, { x: 65, y: 33 }, 10);
+  fade(l, 1); ctx.fillStyle = PICO8[1];
   for (const [cx, hw, h] of PEAKS) {fillPeak(ctx, { x: cx, y: FLOOR_Y }, hw, h);}
-  ctx.globalAlpha = 0.5; ctx.fillRect(0, FLOOR_Y - 18, W, 18); ctx.globalAlpha = 1;
+  fade(l, 0.5); ctx.fillRect(0, FLOOR_Y - 18, W, 18);
 }
 
-function desertBackdrop(ctx: Ctx): void {
-  ctx.globalAlpha = 0.3; ctx.fillStyle = PICO8[9];
+function desertBackdrop(l: Layer): void {
+  const { ctx } = l;
+  fade(l, 0.3); ctx.fillStyle = PICO8[9];
   fillDome(ctx, { x: 150, y: FLOOR_Y - 34 }, 22, 22);
-  ctx.globalAlpha = 0.45; ctx.fillStyle = PICO8[4];
+  fade(l, 0.45); ctx.fillStyle = PICO8[4];
   fillDome(ctx, { x: 40, y: FLOOR_Y }, 90, 30); fillDome(ctx, { x: 200, y: FLOOR_Y }, 110, 24);
-  ctx.globalAlpha = 0.6; fillDome(ctx, { x: 130, y: FLOOR_Y }, 70, 12);
-  ctx.globalAlpha = 1;
+  fade(l, 0.6); fillDome(ctx, { x: 130, y: FLOOR_Y }, 70, 12);
 }
 
 const COLUMNS = [22, 78, 162, 218];
 
-function templeBackdrop(ctx: Ctx): void {
-  ctx.globalAlpha = 0.5; ctx.fillStyle = PICO8[1];
+function templeBackdrop(l: Layer): void {
+  const { ctx } = l;
+  fade(l, 0.5); ctx.fillStyle = PICO8[1];
   ctx.fillRect(0, FLOOR_Y - 26, W, 26);
-  ctx.globalAlpha = 0.7; ctx.fillStyle = PICO8[5];
+  fade(l, 0.7); ctx.fillStyle = PICO8[5];
   for (const cx of COLUMNS) {
     ctx.fillRect(cx - 6, 10, 12, FLOOR_Y - 10);
     ctx.fillStyle = PICO8[0]; ctx.fillRect(cx - 2, 16, 1, FLOOR_Y - 22); ctx.fillRect(cx + 2, 16, 1, FLOOR_Y - 22);
     ctx.fillStyle = PICO8[5];
     ctx.fillRect(cx - 8, 10, 16, 4); ctx.fillRect(cx - 8, FLOOR_Y - 5, 16, 5);
   }
-  ctx.globalAlpha = 0.45; ctx.fillStyle = PICO8[10];
+  fade(l, 0.45); ctx.fillStyle = PICO8[10];
   for (const cx of COLUMNS) {ctx.fillRect(cx - 8, 8, 16, 2);}
+}
+
+const BACKDROPS: readonly ((l: Layer) => void)[] = [cryptBackdrop, tundraBackdrop, desertBackdrop];
+
+export function renderBiomeBackdrop(g: Game, dim = 1): void {
+  const draw = BACKDROPS[g.actIndex] ?? templeBackdrop;
+  const ctx = g.app.pc.ctx;
+  draw({ ctx, clock: g.clock, dim });
   ctx.globalAlpha = 1;
 }
 
-const BACKDROPS: readonly ((ctx: Ctx, clock: number) => void)[] = [cryptBackdrop, tundraBackdrop, desertBackdrop];
-
-export function renderBiomeBackdrop(g: Game): void {
-  const draw = BACKDROPS[g.actIndex] ?? templeBackdrop;
-  draw(g.app.pc.ctx, g.clock);
-}
+const FLOOR_BLEED = 1;
 
 export function renderFloor(g: Game): void {
   const b = biomeLook(g);
   const ctx = g.app.pc.ctx;
-  drawBevel(ctx, { x: 0, y: FLOOR_Y, w: W, h: H - FLOOR_Y }, { fill: b.floor, light: b.floorLight, dark: b.floorDark });
+  drawBevel(ctx, { x: -FLOOR_BLEED, y: FLOOR_Y, w: W + 2 * FLOOR_BLEED, h: H - FLOOR_Y }, { fill: b.floor, light: b.floorLight, dark: b.floorDark });
   fillDither(ctx, { x: 0, y: FLOOR_Y + 2, w: W, h: 2 }, { colorA: b.floor, colorB: b.floorLight, pattern: 'sparse' });
   fillDither(ctx, { x: 0, y: H - 10, w: W, h: 10 }, { colorA: b.floor, colorB: b.floorDark, pattern: 'sparse' });
 }
@@ -129,8 +148,14 @@ export function renderTableau(g: Game, withEnemy: boolean, withHero = true): voi
   if (withEnemy && enemy) {drawActor(g, enemyAnim(enemy.def.id), ENEMY_X, { phase: 0.25 });}
 }
 
-export function enemyPos(g: Game): Point {
+const enemyHeight = (g: Game): number => {
   const enemy = g.battle.enemy;
-  const h = enemy ? enemyAnim(enemy.def.id)[0].h : 0;
-  return { x: ENEMY_X, y: FLOOR_Y - h / 2 };
+  return enemy ? enemyAnim(enemy.def.id)[0].h : 0;
+};
+
+export function enemyPos(g: Game): Point {
+  return { x: ENEMY_X, y: FLOOR_Y - enemyHeight(g) / 2 };
 }
+
+export const enemyHead = (g: Game): Point => ({ x: ENEMY_X, y: FLOOR_Y - enemyHeight(g) });
+export const heroHead = (): Point => ({ x: HERO_X, y: FLOOR_Y - heroFrames[0].h });

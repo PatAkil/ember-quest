@@ -5,7 +5,7 @@ import { canAfford, derive, heroActions, spellCost } from '../sim';
 import { renderTableau } from '../backdrop';
 import { drawPops } from '../pops';
 import type { Game } from '../state';
-import { C_ACCENT, C_BORDER, C_DIM, C_HP, C_HP_LOW, C_MP, C_PANEL, C_SEL_BAR, C_TEXT, H, W } from '../theme';
+import { C_ACCENT, C_BORDER, C_DIM, C_FAINT, C_HP, C_HP_LOW, C_MP, C_PANEL, C_SEL_BAR, C_TEXT, C_WARN, H, W } from '../theme';
 import { drawBar, pct, wrap2 } from '../widgets';
 
 const hpColor = (frac: number): string => (frac < 0.25 ? C_HP_LOW : C_HP);
@@ -61,20 +61,30 @@ function actionKind(hero: Hero, a: HeroAction): DamageKind {
   return hex && a === 'SLASH' ? 'MAGIC' : SPELLS[a].kind;
 }
 
-function spellInfo(a: SpellId): { info: string; isHeal: boolean } {
+interface SpellInfo { info: string; short: string; isHeal: boolean }
+
+function spellInfo(a: SpellId): SpellInfo {
   const s = SPELLS[a];
-  if (s.heal !== undefined) {return { info: `HEAL ${Math.round(s.heal * 100)}%`, isHeal: true };}
-  return { info: `${s.scale} x${s.mult.toFixed(1)}${s.hits > 1 ? `x${s.hits}` : ''}`, isHeal: false };
+  if (s.heal !== undefined) {
+    const heal = `HEAL ${Math.round(s.heal * 100)}%`;
+    return { info: heal, short: heal, isHeal: true };
+  }
+  const mult = `x${s.mult.toFixed(1)}${s.hits > 1 ? `x${s.hits}` : ''}`;
+  return { info: `${s.scale} ${mult}`, short: mult, isHeal: false };
 }
 
-function actionInfo(g: Game, a: HeroAction): { text: string; warn: boolean } {
+const attackInfo = (hero: Hero): SpellInfo => ({ info: magicWeapon(hero) ? 'MAG x1.0' : 'ATK x1.0', short: 'x1.0', isHeal: false });
+
+interface ActionInfo { text: string; short: string; warn: boolean }
+
+function actionInfo(g: Game, a: HeroAction): ActionInfo {
   const hero = g.hero;
   const kind = actionKind(hero, a);
   const enemy = g.battle.enemy;
   const res = enemy ? (kind === 'PHYSICAL' ? enemy.def.def : enemy.def.mdef) : 0;
-  const { info, isHeal } = a === 'ATTACK' ? { info: magicWeapon(hero) ? 'MAG x1.0' : 'ATK x1.0', isHeal: false } : spellInfo(a);
+  const { info, short, isHeal } = a === 'ATTACK' ? attackInfo(hero) : spellInfo(a);
   const tag = !isHeal && res >= 20 ? ` -${res}%` : '';
-  return { text: info + tag, warn: tag !== '' };
+  return { text: info + tag, short: short + tag, warn: tag !== '' };
 }
 
 function actionLabel(hero: Hero, a: HeroAction): string {
@@ -83,18 +93,29 @@ function actionLabel(hero: Hero, a: HeroAction): string {
   return cost > 0 ? `${name} ${cost}MP` : `${name} FREE`;
 }
 
-interface MenuCell { x0: number; y: number; colW: number; sel: boolean }
+const ROW_GAP = 4;
+
+interface MenuCell { x0: number; y: number; colW: number; sel: boolean; compact: boolean }
+
+const rowLabel = (hero: Hero, a: HeroAction, sel: boolean): string => (sel ? '> ' : '  ') + actionLabel(hero, a);
+
+function overflows(g: Game, a: HeroAction, colW: number): boolean {
+  const room = Math.round(colW) - 10 - textWidth(rowLabel(g.hero, a, true), 1) - ROW_GAP;
+  return textWidth(actionInfo(g, a).text, 1) > room;
+}
 
 function drawActionRow(g: Game, a: HeroAction, cell: MenuCell): void {
   const ctx = g.app.pc.ctx;
-  const { x0, y, colW, sel } = cell;
+  const { x0, y, colW, sel, compact } = cell;
   const afford = canAfford(g.hero, a);
   if (sel) { ctx.fillStyle = C_SEL_BAR; ctx.fillRect(x0 + 2, y - 2, Math.round(colW) - 4, 9); }
-  const labelColor = sel ? C_ACCENT : afford ? C_TEXT : PICO8[5];
-  drawText(ctx, (sel ? '> ' : '  ') + actionLabel(g.hero, a), { x: x0 + 5, y }, { color: labelColor, shadow: sel });
+  const labelColor = sel ? C_ACCENT : afford ? C_TEXT : C_FAINT;
+  const label = rowLabel(g.hero, a, sel);
+  drawText(ctx, label, { x: x0 + 5, y }, { color: labelColor, shadow: sel });
   const info = actionInfo(g, a);
-  const infoColor = info.warn ? PICO8[8] : sel ? C_TEXT : C_DIM;
-  drawText(ctx, info.text, { x: x0 + Math.round(colW) - 5 - textWidth(info.text, 1), y }, { color: infoColor });
+  const text = compact ? info.short : info.text;
+  const infoColor = info.warn ? C_WARN : sel ? C_TEXT : C_DIM;
+  drawText(ctx, text, { x: x0 + Math.round(colW) - 5 - textWidth(text, 1), y }, { color: infoColor });
 }
 
 function renderActionMenu(g: Game): void {
@@ -106,9 +127,10 @@ function renderActionMenu(g: Game): void {
   const panelH = 10 + rows * 9;
   const panelY = H - SAFE_MARGIN - panelH;
   drawPanel(pc, { x: SAFE_MARGIN, y: panelY, w: W - 2 * SAFE_MARGIN, h: panelH }, { color: C_PANEL, border: C_BORDER });
+  const compact = actions.some((a) => overflows(g, a, colW));
   actions.forEach((a, i) => {
     const x0 = Math.round(SAFE_MARGIN + Math.floor(i / 3) * colW);
-    drawActionRow(g, a, { x0, y: panelY + 5 + (i % 3) * 9, colW, sel: i === g.battle.menuCursor });
+    drawActionRow(g, a, { x0, y: panelY + 5 + (i % 3) * 9, colW, sel: i === g.battle.menuCursor, compact });
   });
 }
 
@@ -125,8 +147,11 @@ function renderBattleText(g: Game): void {
   drawTextCentered(pc.ctx, lines[1], { width: W, y: H - SAFE_MARGIN - 10 }, { color, shadow: true });
 }
 
+const endingShown = (g: Game): boolean => g.app.scenes.is('GAME_OVER') || g.app.scenes.is('WIN');
+
 export function renderBattle(g: Game): void {
   renderTableau(g, true);
+  if (endingShown(g)) {return;}
   const d = derive(g.hero);
   renderEnemyHud(g);
   hudText(g.app.pc, `SCORE ${g.score}`, { h: 'right', v: 'top' }, { color: C_TEXT });

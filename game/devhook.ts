@@ -115,7 +115,7 @@ function snapshot(v: DevView, seed: number | null): unknown {
   }));
 }
 
-const HOLD = import.meta.env.DEV && new URLSearchParams(location.search).has('hold');
+export const HOLD = import.meta.env.DEV && new URLSearchParams(location.search).has('hold');
 if (HOLD) {Math.random = mulberry32(0x9e3779b9);}
 
 interface Driver {

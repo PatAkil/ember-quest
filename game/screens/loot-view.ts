@@ -20,8 +20,15 @@ const TITLE: Record<LootSource, string> = {
 
 interface Row { ctx: CanvasRenderingContext2D; y: number; sel: boolean }
 
+const MID_X = X0 + 96;
+const rightX = (text: string): number => X0 + PW - 6 - textWidth(text, 1);
+
 const rightText = (row: Row, text: string, color: string): void => {
-  drawText(row.ctx, text, { x: X0 + PW - 6 - textWidth(text, 1), y: row.y }, { color });
+  drawText(row.ctx, text, { x: rightX(text), y: row.y }, { color });
+};
+
+const midText = (row: Row, text: string, rightTag: string): void => {
+  fitText(row.ctx, text, { x: MID_X, y: row.y, maxW: rightX(rightTag) - 4 - MID_X }, { color: C_DIM });
 };
 
 function drawOfferRow(g: Game, row: Row, offer: LootOffer): void {
@@ -29,7 +36,7 @@ function drawOfferRow(g: Game, row: Row, offer: LootOffer): void {
   if (offer.kind === 'SCROLL') {
     drawSprite(ctx, ICON_TOME, { x: X0 + 14, y: y - 1 }, 1);
     drawText(ctx, `SCROLL OF ${SPELLS[offer.spell].name}`, { x: X0 + 22, y }, { color: PICO8[12], shadow: sel });
-    drawText(ctx, 'LEARN A SPELL', { x: X0 + 88, y }, { color: C_DIM });
+    midText(row, 'LEARN A SPELL', 'SCROLL');
     rightText(row, 'SCROLL', PICO8[12]);
     return;
   }
@@ -38,12 +45,12 @@ function drawOfferRow(g: Game, row: Row, offer: LootOffer): void {
   if (offer.kind === 'ITEM') {
     const owned = g.hero.equipment[item.slot];
     drawText(ctx, item.name, { x: X0 + 22, y }, { color: rarityColor(item), shadow: sel });
-    drawText(ctx, owned ? `VS ${displayName(owned, itemLevel(g.hero, item.slot))}` : `${item.slot} SLOT`, { x: X0 + 88, y }, { color: C_DIM });
+    midText(row, owned ? `VS ${displayName(owned, itemLevel(g.hero, item.slot))}` : `${item.slot} SLOT`, item.rarity);
     rightText(row, item.rarity, rarityColor(item));
     return;
   }
   drawText(ctx, displayName(item, offer.toLevel), { x: X0 + 22, y }, { color: C_ACCENT, shadow: sel });
-  drawText(ctx, offer.toLevel >= 2 ? 'AWAKEN YOUR GEAR' : 'IMPROVE YOUR GEAR', { x: X0 + 88, y }, { color: C_DIM });
+  midText(row, offer.toLevel >= 2 ? 'AWAKEN YOUR GEAR' : 'IMPROVE YOUR GEAR', 'UPGRADE');
   rightText(row, 'UPGRADE', C_ACCENT);
 }
 

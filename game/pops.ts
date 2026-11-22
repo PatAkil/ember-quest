@@ -1,7 +1,8 @@
-import { drawText, textWidth } from '../engine';
+import { PICO8, drawText, textWidth } from '../engine';
 import type { Game, Pop } from './state';
 
 const POP_LIFE = 1.1;
+const POP_BACKING = PICO8[0];
 
 interface PopAt { x: number; y: number; scale?: number }
 
@@ -22,7 +23,7 @@ export function drawPops(g: Game): void {
   const ctx = g.app.pc.ctx;
   for (const p of g.pops) {
     ctx.globalAlpha = Math.min(1, Math.max(0, (p.life / POP_LIFE) * 1.6));
-    drawText(ctx, p.text, { x: Math.round(p.x - textWidth(p.text, p.scale) / 2), y: Math.round(p.y) }, { color: p.color, scale: p.scale, shadow: p.scale < 3, outline: p.scale >= 3 });
+    drawText(ctx, p.text, { x: Math.round(p.x - textWidth(p.text, p.scale) / 2), y: Math.round(p.y) }, { color: p.color, scale: p.scale, shadow: p.scale < 3 ? POP_BACKING : false, outline: p.scale >= 3 ? POP_BACKING : false });
   }
   ctx.globalAlpha = 1;
 }

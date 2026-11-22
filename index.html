@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Retrovibe</title>
+    <title>Ember Quest</title>
     <style>
       :root { color-scheme: dark; }
       html, body {
@@ -12,42 +12,38 @@
         font-family: ui-monospace, "SF Mono", Menlo, monospace;
         overflow: hidden;
       }
-      /* Arcade cabinet chrome around the screen. */
       #cabinet {
         height: 100%;
         display: flex; flex-direction: column;
         align-items: center; justify-content: center;
-        gap: 14px;
-        padding: 20px; box-sizing: border-box;
+        gap: 6px;
+        padding: 8px; box-sizing: border-box;
       }
       #marquee {
-        color: #ffec27; letter-spacing: 0.35em; font-size: 13px;
+        color: #ffec27; letter-spacing: 0.35em; font-size: 13px; line-height: 16px;
         text-transform: uppercase; text-shadow: 0 0 8px rgba(255,236,39,0.5);
         user-select: none;
       }
       #bezel {
-        padding: 18px; border-radius: 18px;
+        padding: 10px; border-radius: 14px;
         background: linear-gradient(160deg, #23232c, #131318);
-        box-shadow: inset 0 0 0 2px #34343f, 0 20px 60px rgba(0,0,0,0.6);
-        max-width: 100%; max-height: 82vh;
+        box-shadow: inset 0 0 0 2px #34343f, 0 16px 48px rgba(0,0,0,0.6);
       }
-      /* The game module creates <canvas> and appends it here. */
       #screen {
-        display: block; border-radius: 8px; overflow: hidden;
+        display: block; border-radius: 6px; overflow: hidden;
         background: #000; line-height: 0;
       }
       #screen canvas {
         display: block; image-rendering: pixelated;
-        max-width: 100%; height: auto;
       }
       #hint {
-        color: #5f574f; font-size: 11px; letter-spacing: 0.1em; user-select: none;
+        color: #a39c94; font-size: 11px; line-height: 14px; letter-spacing: 0.1em; user-select: none;
       }
     </style>
   </head>
   <body>
     <div id="cabinet">
-      <div id="marquee">▚ Retrovibe</div>
+      <div id="marquee">▚ Ember Quest</div>
       <div id="bezel"><div id="screen"></div></div>
       <div id="hint">click the screen &amp; press a key to start</div>
     </div>
