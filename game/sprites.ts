@@ -1,30 +1,17 @@
-// Ember Quest — sprite art. Every actor is authored at px 1 at its rendered
-// size with a black keyline in the rows and 2-3 body tones; idles are two
-// frames (breathe = one mid-torso row dropped, feet planted; float = 1-px hover).
 import { makeSprite, PICO8 } from '../engine';
 import type { Sprite } from '../engine';
 
-// --- Sprite helpers ----------------------------------------------------------------
 export type Anim = [Sprite, Sprite];
-/**
- * 2-frame idle BREATHE for a grounded actor: frame B drops one mid-torso row
- * and pads the top, so the head/shoulders sink 1 px while the feet stay
- * planted — height and footprint are unchanged. Built once at setup.
- */
 function breatheFrames(rows: string[], map: Record<string, string>): Anim {
   const w = rows[0].length;
   const cut = Math.round(rows.length * 0.55);
   const squashed = ['.'.repeat(w), ...rows.slice(0, cut), ...rows.slice(cut + 1)];
   return [makeSprite(rows, map), makeSprite(squashed, map)];
 }
-/** 2-frame idle FLOAT for a hovering actor: frame B lifts the whole body 1 px. */
 function floatFrames(rows: string[], map: Record<string, string>): Anim {
   const w = rows[0].length;
   return [makeSprite(rows, map), makeSprite([...rows, '.'.repeat(w)], map)];
 }
-
-// --- Actor sprites (all authored at px 1, keyline in the rows, 2-3 body tones) ------
-// HERO — 22x27 at px 1.
 export const heroFrames = breatheFrames([
   '.......kpk............',
   '.......kpk............',
@@ -54,7 +41,6 @@ export const heroFrames = breatheFrames([
   '....kbbbk.kbbbk.......',
   '....kkkkk.kkkkk.......',
 ], { k: PICO8[0], b: PICO8[8], s: PICO8[2], h: PICO8[9], p: PICO8[7], w: PICO8[6], g: PICO8[5], e: PICO8[10] });
-// SLIME — 20x14 at px 1.
 const slimeFrames = breatheFrames([
   '.......kkkkkk.......',
   '.....kkbbbbbbkk.....',
@@ -71,7 +57,6 @@ const slimeFrames = breatheFrames([
   '.ksssbkksssssbkksssk',
   '..kkkk..kkkkk..kkkk.',
 ], { k: PICO8[0], b: PICO8[11], s: PICO8[3], h: PICO8[7] });
-// GOBLIN — 18x20 at px 1.
 const goblinFrames = breatheFrames([
   '..............kk..',
   '.............kcck.',
@@ -94,7 +79,6 @@ const goblinFrames = breatheFrames([
   '.....kssk.kssk....',
   '.....kkkk.kkkk....',
 ], { k: PICO8[0], b: PICO8[9], s: PICO8[4], h: PICO8[10], e: PICO8[8], t: PICO8[7], c: PICO8[5], w: PICO8[6], a: PICO8[4] });
-// SKELETON — 14x26 at px 1.
 const skeletonFrames = breatheFrames([
   '....kkkkkk....',
   '...kbbbbbbk...',
@@ -123,7 +107,6 @@ const skeletonFrames = breatheFrames([
   '...kbbk.kbbk..',
   '...kkkk.kkkk..',
 ], { k: PICO8[0], b: PICO8[7], s: PICO8[6], e: PICO8[8] });
-// OGRE_KING — 30x34 at px 1.
 const ogreKingFrames = breatheFrames([
   '..........kckckckck...........',
   '..........kcccccccck..........',
@@ -160,7 +143,6 @@ const ogreKingFrames = breatheFrames([
   '........kbbbbkk.kbbbbkk.......',
   '........kkkkkkk.kkkkkkk.......',
 ], { k: PICO8[0], b: PICO8[4], s: PICO8[2], h: PICO8[15], c: PICO8[10], g: PICO8[8], e: PICO8[8], t: PICO8[7], l: PICO8[5] });
-// WRAITH_LORD — 26x33 at px 1.
 const wraithLordFrames = floatFrames([
   '..........kkkkkk..........',
   '........kkddddddkk........',
@@ -196,7 +178,6 @@ const wraithLordFrames = floatFrames([
   '............ksk...........',
   '.............k............',
 ], { k: PICO8[0], b: PICO8[13], s: PICO8[2], d: PICO8[1], e: PICO8[14], h: PICO8[7] });
-// DARK_LORD — 32x32 at px 1.
 const darkLordFrames = breatheFrames([
   '..kk......................kk....',
   '.knnk....................knnk...',
@@ -231,7 +212,6 @@ const darkLordFrames = breatheFrames([
   'kccccccccccksk..kskcccccccccccck',
   '.kkkkkkkkkkkkk..kkkkkkkkkkkkkk..',
 ], { k: PICO8[0], b: PICO8[3], s: PICO8[1], h: PICO8[11], e: PICO8[8], n: PICO8[6], c: PICO8[2], g: PICO8[10] });
-// ICE_WOLF — 38x16 at px 1.
 const iceWolfFrames = breatheFrames([
   '..........kk......................k...',
   '........kkbbk....................kbk..',
@@ -250,7 +230,6 @@ const iceWolfFrames = breatheFrames([
   '....kbbsk.kbbsk.....kbsk.kssk..ksssk..',
   '....kkkk..kkkkk.....kkkk.kkkk..kkkkk..',
 ], { k: PICO8[0], b: PICO8[12], s: PICO8[1], h: PICO8[7], e: PICO8[10] });
-// ICE_BEAR — 28x18 at px 1.
 const iceBearFrames = breatheFrames([
   '.........kkkkkkkkkkk........',
   '.......kkbbbbbbbbbbbkk......',
@@ -271,7 +250,6 @@ const iceBearFrames = breatheFrames([
   '.kbbbsk.kbbsk.kbbsk.kbbssk..',
   '.kkkkkk.kkkkk.kkkkk.kkkkkk..',
 ], { k: PICO8[0], b: PICO8[7], s: PICO8[6], h: PICO8[7], e: PICO8[1], n: PICO8[5] });
-// FROST_WISP — 20x19 at px 1.
 const frostWispFrames = floatFrames([
   '.......kkkkkk.......',
   '.....kkbbbbbbkk.....',
@@ -293,7 +271,6 @@ const frostWispFrames = floatFrames([
   '..kc....k.......kc..',
   '..k..............k..',
 ], { k: PICO8[0], b: PICO8[12], s: PICO8[1], h: PICO8[7], c: PICO8[13] });
-// YETI — 33x32 at px 1.
 const yetiFrames = breatheFrames([
   '......kk.................kk......',
   '.....knnk...............knnk.....',
@@ -328,7 +305,6 @@ const yetiFrames = breatheFrames([
   '.........kbbbbbkk.kbbsskk........',
   '.........kkkkkkkk.kkkkkkk........',
 ], { k: PICO8[0], b: PICO8[6], s: PICO8[13], h: PICO8[7], e: PICO8[8], f: PICO8[12], n: PICO8[15] });
-// SANDWORM — 22x25 at px 1.
 const sandwormFrames = breatheFrames([
   '.....kkkkkkkkk........',
   '....kbbbbbbbbbk.......',
@@ -356,7 +332,6 @@ const sandwormFrames = breatheFrames([
   'kssbbbbbbbbbbbbbbssssk',
   '.kkkkkkkkkkkkkkkkkkkkk',
 ], { k: PICO8[0], b: PICO8[15], s: PICO8[4], h: PICO8[7], r: PICO8[9], m: PICO8[2] });
-// SCORPION — 30x19 at px 1.
 const scorpionFrames = breatheFrames([
   '..........................kk..',
   '.........................ktk..',
@@ -378,7 +353,6 @@ const scorpionFrames = breatheFrames([
   '.kbsk.ksk.ksk.ksk.kssk........',
   '.kkk..kkk.kkk.kkk.kkkk........',
 ], { k: PICO8[0], b: PICO8[10], s: PICO8[9], h: PICO8[7], e: PICO8[8], t: PICO8[8] });
-// MUMMY — 16x25 at px 1.
 const mummyFrames = breatheFrames([
   '.....kkkkkk.....',
   '....kbbbbbbk....',
@@ -406,7 +380,6 @@ const mummyFrames = breatheFrames([
   '....kbbskbbsk...',
   '....kkkkkkkkk...',
 ], { k: PICO8[0], b: PICO8[6], s: PICO8[13], x: PICO8[4], e: PICO8[8] });
-// SAND_GOLEM — 32x31 at px 1.
 const sandGolemFrames = breatheFrames([
   '.........kkkkkkkkkkkk...........',
   '.........khhbbbbbbbsk...........',
@@ -440,7 +413,6 @@ const sandGolemFrames = breatheFrames([
   '........khbbbbsskbbbbbsk........',
   '........kkkkkkkkkkkkkkkk........',
 ], { k: PICO8[0], b: PICO8[4], s: PICO8[2], h: PICO8[9], e: PICO8[10], c: PICO8[5] });
-// GUARDIAN — 25x27 at px 1.
 const guardianFrames = breatheFrames([
   '.....................kk..',
   '....................kwwk.',
@@ -470,7 +442,6 @@ const guardianFrames = breatheFrames([
   '......kbbbk.kbbsk........',
   '......kkkkk.kkkkk........',
 ], { k: PICO8[0], b: PICO8[10], s: PICO8[9], h: PICO8[7], e: PICO8[12], w: PICO8[6], a: PICO8[4], c: PICO8[7] });
-// ORACLE — 24x27 at px 1.
 const oracleFrames = breatheFrames([
   '...................kk...',
   '..................kook..',
@@ -500,7 +471,6 @@ const oracleFrames = breatheFrames([
   '...kbbbbbbbbbssssk......',
   '...kkkkkkkkkkkkkkk......',
 ], { k: PICO8[0], b: PICO8[13], s: PICO8[2], h: PICO8[7], f: PICO8[15], e: PICO8[1], o: PICO8[12], a: PICO8[4] });
-// PALADIN — 22x25 at px 1.
 const paladinFrames = breatheFrames([
   'kk..................kk',
   'kwk......kkkkk.....kwk',
@@ -528,7 +498,6 @@ const paladinFrames = breatheFrames([
   '..........kbbbk.kbbsk.',
   '..........kkkkk.kkkkk.',
 ], { k: PICO8[0], b: PICO8[7], s: PICO8[6], h: PICO8[10], e: PICO8[12], w: PICO8[15], d: PICO8[12], c: PICO8[10] });
-// SERAPH — 39x33 at px 1.
 const seraphFrames = floatFrames([
   '...............kgggggggk...............',
   '..............kgkkkkkkkgk..............',
@@ -564,8 +533,6 @@ const seraphFrames = floatFrames([
   '.............kbbbbbbbbbssssk...........',
   '.............kkkkkkkkkkkkkkk...........',
 ], { k: PICO8[0], b: PICO8[7], s: PICO8[6], f: PICO8[15], g: PICO8[10], e: PICO8[12], w: PICO8[7], r: PICO8[14] });
-
-/** Enemy idle frames keyed by the ENEMIES table id. */
 export const ENEMY_FRAMES: Record<string, Anim> = {
   SLIME: slimeFrames,
   GOBLIN: goblinFrames,
@@ -586,8 +553,6 @@ export const ENEMY_FRAMES: Record<string, Anim> = {
   PALADIN: paladinFrames,
   SERAPH: seraphFrames,
 };
-
-// --- Gear icon sprites (5x5, one identity hue each) -------------------------
 const iconMap = (c: string) => ({ k: PICO8[0], c });
 export const ICON_SWORD = makeSprite(['...k.', '..kc.', '.kc..', 'kc...', 'c....'], iconMap(PICO8[6]));
 export const ICON_WAND = makeSprite(['..k..', '.kck.', '..c..', '.kck.', '..k..'], iconMap(PICO8[13]));
@@ -597,8 +562,6 @@ export const ICON_CHALICE = makeSprite(['k...k', 'kcccc', '.kck.', '..k..', '.kk
 export const ICON_BOOTS = makeSprite(['kk...', 'kc...', 'kc...', 'kcccc', 'kkkkk'], iconMap(PICO8[4]));
 export const ICON_TOME = makeSprite(['kkkkk', 'kcckc', 'kcckc', 'kcckc', 'kkkkk'], iconMap(PICO8[11]));
 export const ICON_EMPTY = makeSprite(['k...k', '.....', '.....', '.....', 'k...k'], iconMap(PICO8[5]));
-
-// --- Room icon sprites (5x5) --------------------------------------------------
 const roomIconMap = (c: string) => ({ k: PICO8[0], c });
 export const fightIcon = makeSprite(['k...k', '.k.k.', '..k..', '.k.k.', 'k...k'], roomIconMap(PICO8[8]));
 export const eliteIcon = makeSprite(['k.k.k', '.kkk.', 'kkkkk', '.kkk.', 'k.k.k'], roomIconMap(PICO8[9]));

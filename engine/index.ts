@@ -1,6 +1,3 @@
-// engine/index.ts — barrel export. The reference game and all clones import the
-// engine from here: `import { createLoop, createInput, ... } from '../engine';`
-
 export { createLoop } from './loop';
 export type { GameLoop, LoopCallbacks, LoopOptions } from './loop';
 

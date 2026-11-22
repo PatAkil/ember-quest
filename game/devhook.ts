@@ -49,14 +49,14 @@ function mulberry32(seed: number): Rng {
 
 function spendAll(hero: Hero, start: number): number {
   let i = start;
-  while (hero.sp > 0 && spendPoint(hero, PLAN[i % PLAN.length])) i++;
+  while (hero.sp > 0 && spendPoint(hero, PLAN[i % PLAN.length])) {i++;}
   return i;
 }
 
 function takeLoot(hero: Hero, source: LootSource, act: number, rng: Rng): void {
   const offers = rollLoot(source, act, hero, rng);
   const pick = offers.find((o) => o.kind === 'SCROLL') ?? offers.find((o) => o.kind === 'ITEM') ?? offers[0];
-  if (pick) applyOffer(hero, pick, rng);
+  if (pick) {applyOffer(hero, pick, rng);}
   noteDeclinedScrolls(hero, offers, pick ?? null);
 }
 
@@ -67,7 +67,7 @@ function veteran(acts: number, rng: Rng): Hero {
     for (const kind of ACT_CLEARS) {
       grantClear(hero, kind);
       plan = spendAll(hero, plan);
-      if (kind !== 'NORMAL') takeLoot(hero, kind, act, rng);
+      if (kind !== 'NORMAL') {takeLoot(hero, kind, act, rng);}
     }
     fullHeal(hero);
   }
@@ -78,7 +78,7 @@ function parseParams(): { seed: number | null; fixture: Fixture | null; act: num
   const q = new URLSearchParams(location.search);
   const raw = q.get('scene');
   const fixture = raw && (FIXTURES as string[]).includes(raw) ? (raw as Fixture) : null;
-  if (raw && !fixture) console.warn(`[devhook] unknown scene "${raw}"`);
+  if (raw && !fixture) {console.warn(`[devhook] unknown scene "${raw}"`);}
   const s = Number.parseInt(q.get('seed') ?? '', 10);
   const seed = Number.isFinite(s) && s >= 0 ? s : fixture ? 1 : null;
   const a = Number.parseInt(q.get('act') ?? '1', 10);
@@ -100,25 +100,25 @@ function snapshot(v: DevView, seed: number | null): unknown {
 export function installDevHook(host: DevHost): { update(dt: number): void } {
   const { seed, fixture, act } = parseParams();
   const rng = seed === null ? null : mulberry32(seed);
-  if (rng) host.setRng(rng);
+  if (rng) {host.setRng(rng);}
   let manual = false;
   const queued: string[] = [];
 
   const key = (type: 'keydown' | 'keyup', code: string): void => { window.dispatchEvent(new KeyboardEvent(type, { code })); };
   const runTick = (dt: number): void => {
     const codes = queued.splice(0);
-    for (const c of codes) key('keydown', c);
+    for (const c of codes) {key('keydown', c);}
     host.tick(dt);
-    for (const c of codes) key('keyup', c);
-    if (codes.length) host.resetEdge();
+    for (const c of codes) {key('keyup', c);}
+    if (codes.length) {host.resetEdge();}
   };
   const press = (action: Action): void => {
-    if (!(action in KEY)) throw new Error(`unknown action ${action}`);
+    if (!(action in KEY)) {throw new Error(`unknown action ${action}`);}
     queued.push(KEY[action]);
   };
   const ticksUntil = (done: () => boolean, max: number, withA = false): void => {
     for (let i = 0; i < max && !done(); i++) {
-      if (withA) press('A');
+      if (withA) {press('A');}
       runTick(DT);
     }
   };
@@ -145,7 +145,7 @@ export function installDevHook(host: DevHost): { update(dt: number): void } {
     paused: () => { battle(); host.scenes.to('PAUSED'); },
     gameover: () => {
       battle();
-      for (let i = 0; i < 500 && !host.view().dying && host.view().enemy; i++) host.enemyTurn();
+      for (let i = 0; i < 500 && !host.view().dying && host.view().enemy; i++) {host.enemyTurn();}
       ticksUntil(() => host.scenes.is('GAME_OVER'), 240);
     },
     win: () => {
@@ -160,19 +160,19 @@ export function installDevHook(host: DevHost): { update(dt: number): void } {
     const stored = { ...localStorage };
     build[fixture]();
     localStorage.clear();
-    for (const [k, v] of Object.entries(stored)) localStorage.setItem(k, v);
+    for (const [k, v] of Object.entries(stored)) {localStorage.setItem(k, v);}
   }
 
   const api = {
     state: () => snapshot(host.view(), seed),
     step: (n = 1): unknown => {
       manual = true;
-      for (let i = 0; i < n; i++) runTick(DT);
+      for (let i = 0; i < n; i++) {runTick(DT);}
       host.render();
       return snapshot(host.view(), seed);
     },
     press,
   };
   (window as unknown as { __ember: typeof api }).__ember = api;
-  return { update: (dt) => { if (!manual) runTick(dt); } };
+  return { update: (dt) => { if (!manual) {runTick(dt);} } };
 }
