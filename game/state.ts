@@ -38,6 +38,7 @@ export interface BattleScreen {
   timer: number;
   text: string;
   color: string;
+  bufferedA: boolean;
 }
 
 export interface CardScreen { lines: string[]; onDone: () => void; art?: { icon: Sprite; color: string } }
@@ -91,7 +92,7 @@ export function createGame(app: App): Game {
     map: { stages: [], curStage: -1, reachable: [0, 1], cursor: 0, pendingNode: null },
     battle: {
       enemy: null, state: null, phase: 'MENU', menuCursor: 0, outcome: 'NONE', onWon: noop,
-      queue: [], timer: 0, text: '', color: C_TEXT,
+      queue: [], timer: 0, text: '', color: C_TEXT, bufferedA: false,
     },
     card: { lines: [], onDone: noop },
     levelUp: { cursor: 0, earned: 0, onDone: noop },

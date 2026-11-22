@@ -22,6 +22,7 @@ export const C_MP = PICO8[12];
 export const C_DMG_TAKEN = PICO8[8];
 export const C_LOG_HURT = PICO8[14];
 export const C_SEL_BAR = PICO8[2];
+export const C_SCROLL = PICO8[12];
 
 export const rarityColor = (item: Item): string => at(PICO8, RARITY_COLOR_INDEX[item.rarity]);
 

@@ -16,7 +16,7 @@ export function startBattle(g: Game, id: string, onWin: () => void): void {
   g.battle = {
     enemy, state: createBattle(enemy), onWon: onWin,
     phase: 'MENU', menuCursor: 0, outcome: 'NONE',
-    queue: [], timer: 0, text: '', color: C_TEXT,
+    queue: [], timer: 0, text: '', color: C_TEXT, bufferedA: false,
   };
   g.subScene = 'BATTLE';
   clearPops(g);
@@ -42,6 +42,7 @@ function advanceQueueStep(g: Game): void {
 
 export function onQueueDone(g: Game): void {
   const b = g.battle;
+  b.bufferedA = false;
   if (b.outcome === 'LOST') {return;}
   if (b.outcome === 'WON') {
     b.outcome = 'NONE';
@@ -142,15 +143,21 @@ function useAction(g: Game, action: HeroAction): void {
   beginQueue(g);
 }
 
+function consumeA(g: Game): boolean {
+  const hit = g.app.input.pressed('A') || g.battle.bufferedA;
+  g.battle.bufferedA = false;
+  return hit;
+}
+
 function updateMenu(g: Game): void {
   if (bannerBlocks(g)) {
-    if (g.app.input.pressed('A')) {dismissBanner(g);}
+    if (consumeA(g)) {dismissBanner(g);}
     return;
   }
   const actions = heroActions(g.hero);
   const dy = dirEdge(g);
   if (dy) { g.battle.menuCursor = wrapCursor(g.battle.menuCursor, dy, actions.length); g.app.audio.play('blip'); }
-  if (g.app.input.pressed('A')) { g.app.audio.play('blip'); useAction(g, at(heroActions(g.hero), g.battle.menuCursor)); }
+  if (consumeA(g)) { g.app.audio.play('blip'); useAction(g, at(heroActions(g.hero), g.battle.menuCursor)); }
 }
 
 function updateDying(g: Game, dt: number): void {
@@ -165,7 +172,7 @@ function updateDying(g: Game, dt: number): void {
 
 function updateQueue(g: Game, dt: number): void {
   g.battle.timer -= dt;
-  if (!g.app.input.pressed('A')) {
+  if (!consumeA(g)) {
     if (g.battle.timer <= 0) {advanceQueueStep(g);}
     return;
   }
@@ -177,7 +184,10 @@ function updateQueue(g: Game, dt: number): void {
 
 export function updateBattle(g: Game, dt: number): void {
   if (g.dying) { updateDying(g, dt); return; }
-  if (g.app.juice.frozen) {return;}
+  if (g.app.juice.frozen) {
+    if (g.app.input.pressed('A')) {g.battle.bufferedA = true;}
+    return;
+  }
   updateFx(g, dt);
   if (g.battle.phase === 'MENU') {updateMenu(g); return;}
   updateQueue(g, dt);

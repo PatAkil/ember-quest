@@ -3,7 +3,7 @@ import { renderTableau } from '../backdrop';
 import { resetCursorEdge } from '../state';
 import type { CardScreen, Game } from '../state';
 import { BAND_Y, C_ACCENT, C_BG, C_BORDER, C_DIM, C_SEL_BAR, C_TEXT, H, W } from '../theme';
-import { blinkHz, drawCommandBand } from '../widgets';
+import { blinkHz, drawCommandBand, wrap2 } from '../widgets';
 import { drawIconIn, drawMedallion } from './plate';
 import type { Rect } from './plate';
 
@@ -39,14 +39,17 @@ function drawCardFrame(ctx: CanvasRenderingContext2D, card: Rect): void {
 const promptColor = (g: Game): string => (blinkHz(g.clock, 1.2) ? C_TEXT : C_DIM);
 const promptText = (): string => `${BUTTON_KEY.A.hint} CONTINUE`;
 
-function bandScale(lines: readonly string[]): number {
-  return lines.every((l) => textWidth(l, 2) <= BAND_TEXT_W) ? 2 : 1;
+function bandLayout(lines: readonly string[]): { body: string[]; scale: number } {
+  const raw = lines.filter(Boolean).slice(0, 2);
+  if (raw.every((l) => textWidth(l, 2) <= BAND_TEXT_W)) {return { body: raw, scale: 2 };}
+  const [only] = raw;
+  const body = raw.length === 1 && only !== undefined && textWidth(only, 1) > BAND_TEXT_W ? wrap2(only, BAND_TEXT_W, 1) : raw;
+  return { body, scale: 1 };
 }
 
 function drawCardBand(g: Game, ctx: CanvasRenderingContext2D, lines: readonly string[]): void {
   drawCommandBand(ctx);
-  const body = lines.filter(Boolean).slice(0, 2);
-  const scale = bandScale(body);
+  const { body, scale } = bandLayout(lines);
   const lineH = 5 * scale + 3;
   const room = PROMPT_Y - 3 - (BAND_Y + 1);
   const top = BAND_Y + 1 + Math.round((room - (body.length * lineH - 3)) / 2);

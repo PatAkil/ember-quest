@@ -48,8 +48,10 @@ function drawWipe(ctx: Ctx, u: number): void {
 
 const DRAW: Record<RevealShape, (ctx: Ctx, u: number) => void> = { BLINDS: drawBlinds, WIPE: drawWipe };
 
+export const revealActive = (g: Game): boolean => g.reveal.t < g.reveal.dur;
+
 export function drawReveal(g: Game): void {
+  if (!revealActive(g)) {return;}
   const r = g.reveal;
-  if (r.t >= r.dur) {return;}
   DRAW[r.shape](g.app.pc.ctx, r.t / r.dur);
 }

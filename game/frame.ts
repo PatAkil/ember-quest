@@ -2,7 +2,8 @@ import { PICO8 } from '../engine';
 import type { SceneMachine } from '../engine';
 import { startPlaying } from './flow';
 import { updatePops } from './pops';
-import { drawReveal, trackReveal } from './transition';
+import { drawReveal, revealActive, trackReveal } from './transition';
+import { resetCursorEdge } from './state';
 import type { Game, SubScene } from './state';
 import { C_ACCENT, C_BG, H, W } from './theme';
 import { renderBattle } from './screens/battle-view';
@@ -38,6 +39,7 @@ function restartOnA(g: Game): void {
 
 function updatePlaying(g: Game, dt: number): void {
   if (g.app.input.pressed('PAUSE')) { g.app.audio.play('blip'); g.app.scenes.to('PAUSED'); return; }
+  if (revealActive(g)) { resetCursorEdge(g); return; }
   UPDATE_SUB[g.subScene](g, dt);
 }
 
@@ -55,6 +57,11 @@ const UPDATE_SCENE: Record<Scene, (g: Game, dt: number) => void> = {
 
 export function update(g: Game, dt: number): void {
   const { juice, particles, input, scenes } = g.app;
+  if (scenes.current === 'PAUSED') {
+    updatePaused(g);
+    input.endFrame();
+    return;
+  }
   g.clock += dt;
   juice.update(dt);
   particles.update(dt);

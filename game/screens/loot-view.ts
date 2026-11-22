@@ -1,4 +1,4 @@
-import { BUTTON_KEY, PICO8, SAFE_MARGIN, drawPanel, drawSprite, drawText, textWidth } from '../../engine';
+import { BUTTON_KEY, SAFE_MARGIN, drawPanel, drawSprite, drawText, textWidth } from '../../engine';
 import type { Sprite } from '../../engine';
 import { SPELLS } from '../data';
 import type { LootOffer, LootSource } from '../types';
@@ -6,11 +6,10 @@ import { compareOffer, describeOffer, displayName, itemLevel } from '../sim';
 import { ICON_SCROLL, ROOM_ART } from '../sprites';
 import { renderTableau } from '../backdrop';
 import type { Game } from '../state';
-import { BAND_Y, C_ACCENT, C_BORDER, C_DIM, C_HP, C_PANEL, C_SEL_BAR, C_TEXT, HERO_W, HERO_X, W, rarityColor } from '../theme';
+import { BAND_Y, C_ACCENT, C_BORDER, C_DIM, C_HP, C_PANEL, C_SCROLL, C_SEL_BAR, C_TEXT, HERO_W, HERO_X, W, rarityColor } from '../theme';
 import { blinkHz, drawCommandBand, fitText, itemIcon } from '../widgets';
 import { drawIconIn, drawMedallion } from './plate';
 
-export const C_SCROLL = PICO8[12];
 const X0 = HERO_X + HERO_W / 2 + 12;
 const PW = W - SAFE_MARGIN - X0;
 const ROW_TOP = 15;

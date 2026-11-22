@@ -193,7 +193,8 @@ function renderActionMenu(g: Game): void {
   const actions = heroActions(g.hero);
   const cols = Math.ceil(actions.length / 3);
   const colW = (W - 2 * SAFE_MARGIN) / cols;
-  if (cols > 1) { ctx.fillStyle = PICO8[5]; ctx.fillRect(W / 2, BAND_Y + 4, 1, BAND_BOTTOM - BAND_Y - 4); }
+  ctx.fillStyle = PICO8[5];
+  for (let c = 1; c < cols; c++) { ctx.fillRect(Math.round(SAFE_MARGIN + c * colW), BAND_Y + 4, 1, BAND_BOTTOM - BAND_Y - 4); }
   const fit = INFO_FITS.find((f) => !actions.some((a) => overflows(g, a, colW, f))) ?? 'tiny';
   const rows = Math.min(3, actions.length);
   const top = BAND_Y + 1 + Math.round((LOG_ROOM - (rows * ROW_PITCH - 4)) / 2);

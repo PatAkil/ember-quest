@@ -80,36 +80,41 @@ function cellHash(x: number, y: number, seed: number): number {
   h ^= h >>> 13;
   return (h >>> 0) / 4294967296;
 }
-interface CellInk { color: string; drop: number }
 function cellDeath(sprite: Sprite, cx: number, cy: number, seed: number): number {
   const order = 0.55 * cellHash(cx, cy, seed) + 0.45 * (cy / Math.max(1, sprite.h));
   return order * DISSOLVE_SPREAD;
 }
-function tinted(color: string, o: SpriteDrawOptions): string {
-  if (o.tint === undefined || color === o.tintKeep) {return color;}
+function tinted(color: string, o: SpriteDrawOptions | undefined): string {
+  if (o?.tint === undefined || color === o.tintKeep) {return color;}
   return o.tint;
 }
-function inkFor(sprite: Sprite, cell: { cx: number; cy: number; color: string }, o: SpriteDrawOptions): CellInk | null {
-  const amount = o.dissolve ?? 0;
-  const base = tinted(cell.color, o);
-  if (amount <= 0) {return { color: base, drop: 0 };}
-  const gone = amount - cellDeath(sprite, cell.cx, cell.cy, o.seed ?? 0);
-  if (gone <= 0) {return { color: base, drop: 0 };}
-  if (gone >= FRINGE_SPAN) {return null;}
-  const u = gone / FRINGE_SPAN;
-  return { color: o.fringe ?? base, drop: Math.round((o.fall ?? 0) * u * u) };
+function dissolveColor(color: string, inFringe: boolean, o: SpriteDrawOptions | undefined): string {
+  if (inFringe && o?.fringe !== undefined) {return o.fringe;}
+  return tinted(color, o);
 }
+function dissolveDrop(gone: number, o: SpriteDrawOptions | undefined): number {
+  if (gone <= 0) {return 0;}
+  const u = gone / FRINGE_SPAN;
+  return Math.round((o?.fall ?? 0) * u * u);
+}
+const pxOf = (opts: number | SpriteDrawOptions): number => (typeof opts === 'number' ? opts : (opts.px ?? 1));
+const isDissolving = (o: SpriteDrawOptions | undefined): o is SpriteDrawOptions => (o?.dissolve ?? 0) > 0;
+const cellGone = (sprite: Sprite, cx: number, cy: number, o: SpriteDrawOptions): number =>
+  (o.dissolve ?? 0) - cellDeath(sprite, cx, cy, o.seed ?? 0);
 export function drawSprite(ctx: CanvasRenderingContext2D, sprite: Sprite, at: Point, opts: number | SpriteDrawOptions = 1): void {
-  const o: SpriteDrawOptions = typeof opts === 'number' ? { px: opts } : opts;
-  const px = o.px ?? 1;
+  const o = typeof opts === 'number' ? undefined : opts;
+  const px = pxOf(opts);
+  const dissolving = isDissolving(o);
   for (let cy = 0; cy < sprite.h; cy++) {
+    const row = cy * sprite.w;
+    const py = at.y + cy * px;
     for (let cx = 0; cx < sprite.w; cx++) {
-      const color = sprite.pixels[cy * sprite.w + cx];
+      const color = sprite.pixels[row + cx];
       if (!color) {continue;}
-      const ink = inkFor(sprite, { cx, cy, color }, o);
-      if (!ink) {continue;}
-      ctx.fillStyle = ink.color;
-      ctx.fillRect(at.x + cx * px, at.y + cy * px + ink.drop * px, px, px);
+      const gone = dissolving ? cellGone(sprite, cx, cy, o) : 0;
+      if (gone >= FRINGE_SPAN) {continue;}
+      ctx.fillStyle = dissolveColor(color, gone > 0, o);
+      ctx.fillRect(at.x + cx * px, py + dissolveDrop(gone, o) * px, px, px);
     }
   }
 }

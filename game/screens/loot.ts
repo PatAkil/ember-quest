@@ -4,10 +4,9 @@ import { applyOffer, compareOffer, displayName, noteDeclinedScrolls, rollLoot, s
 import { dirEdge, pickOne, resetCursorEdge, wrapCursor } from '../state';
 import type { Game } from '../state';
 import { ICON_SCROLL } from '../sprites';
-import { C_ACCENT, heroPos, rarityColor } from '../theme';
+import { C_ACCENT, C_SCROLL, heroPos, rarityColor } from '../theme';
 import { itemIcon } from '../widgets';
 import { showCard } from './card';
-import { C_SCROLL } from './loot-view';
 
 type ItemOffer = Extract<LootOffer, { kind: 'ITEM' }>;
 type UpgradeOffer = Extract<LootOffer, { kind: 'UPGRADE' }>;
