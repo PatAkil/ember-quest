@@ -63,6 +63,9 @@ async function commitGate(repo, label) {
   if (r.pass) {
     return { code: 0, stderr: `${label}: ${r.cached ? 'tree already verified green (fingerprint cache)' : `${String(r.name)} passed in ${secs}s`}\n` };
   }
+  if (r.unsettled) {
+    return { code: 1, stderr: `${label}: files kept changing while the gate ran, so the tree was NOT verified. Wait for edits to settle and try again.\n` };
+  }
   if (r.busy) {
     return { code: 1, stderr: `${label}: another verify run held the lock for 5 minutes; try again.\n` };
   }

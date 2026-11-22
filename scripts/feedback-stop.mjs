@@ -81,6 +81,9 @@ function judge(repo, input, key, result) {
   if (result.busy) {
     return settle(repo, key, 'Ember gate: another gate held the lock for too long; this stop was not verified. Run npm run verify.');
   }
+  if (result.unsettled) {
+    return settle(repo, key, 'Ember gate: the tree kept changing while the gate ran (another writer is still editing), so this stop was NOT verified. Run npm run verify once edits settle.');
+  }
   if (result.unverifiable) {
     return settle(repo, key, 'Ember gate: only the browser gates (eyes/smoke) failed and the headless browser is not ready; run npm run setup, then npm run verify.');
   }
