@@ -92,6 +92,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     continue-on-error: true
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -125,7 +128,7 @@ jobs:
         if: steps.base.outputs.ready == 'true'
         run: |
           set +e
-          node scripts/oracle.mjs --dir /tmp/oracle/head --check /tmp/oracle/base.json > /tmp/oracle/report.txt 2>&1
+          node scripts/oracle.mjs --dir /tmp/oracle/head --save /tmp/oracle/head.json --check /tmp/oracle/base.json > /tmp/oracle/report.txt 2>&1
           code=$?
           cat /tmp/oracle/report.txt
           {
@@ -143,6 +146,49 @@ jobs:
             echo "::notice title=Pixel oracle::$(head -1 /tmp/oracle/report.txt) (see job summary)"
           fi
           exit 0
+      - name: PR comment with changed screens
+        if: steps.base.outputs.ready == 'true' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ steps.base.outputs.sha }}
+        run: |
+          short=${HEAD_SHA:0:7}
+          rel="pr-$PR/$short"
+          node scripts/oracle-comment.mjs \
+            --base /tmp/oracle/base.json --head /tmp/oracle/head.json \
+            --base-dir /tmp/oracle/base --head-dir /tmp/oracle/head \
+            --publish "/tmp/oracle/publish/$rel" \
+            --url-prefix "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/oracle-screens/$rel" \
+            --base-sha "$BASE_SHA" --head-sha "$short" \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --out /tmp/oracle/comment.md
+          if [ -d "/tmp/oracle/publish/$rel" ]; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            store=/tmp/oracle-store
+            for attempt in 1 2 3; do
+              git worktree remove --force "$store" 2>/dev/null || true; rm -rf "$store"; git worktree prune
+              if git fetch -q --depth 1 origin oracle-screens 2>/dev/null; then
+                git worktree add -q --detach "$store" FETCH_HEAD
+              else
+                git worktree add -q --orphan -b "oracle-screens-$attempt" "$store"
+              fi
+              mkdir -p "$store/pr-$PR"
+              cp -r "/tmp/oracle/publish/$rel" "$store/pr-$PR/"
+              git -C "$store" add -A
+              git -C "$store" commit -q -m "Oracle screenshots for PR #$PR at $short"
+              git -C "$store" push -q origin HEAD:refs/heads/oracle-screens && break
+              [ "$attempt" = 3 ] && { echo "::warning title=Pixel oracle::could not push screenshots; images in the comment will not load"; }
+            done
+          fi
+          id=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --jq '.[] | select(.body | startswith("<!-- ember-oracle -->")) | .id' | head -1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@/tmp/oracle/comment.md --jq .html_url
+          else
+            gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F body=@/tmp/oracle/comment.md --jq .html_url
+          fi
       - name: Base has no oracle
         if: steps.base.outputs.ready == 'false'
         run: echo "Base ${{ steps.base.outputs.sha }} has no scripts/oracle.mjs; nothing to compare." >> "$GITHUB_STEP_SUMMARY"

@@ -51,6 +51,7 @@ ember-quest/
 │   ├── look.mjs              # npm run look — state JSON + errors + one screenshot
 │   ├── verify.mjs            # npm run verify — every gate, one line each
 │   ├── oracle.mjs            # behaviour-preservation proof for refactors
+│   ├── oracle-comment.mjs    # CI: turns the PR-vs-base oracle into one sticky PR comment
 │   ├── agent-feedback.mjs    # the hook entry: per-edit check, end-of-turn gate, pre-commit gate (npm run gate)
 │   ├── feedback-*.mjs        #   its state/fingerprint, checks, edit, stop and gate modules
 │   └── install-git-hooks.mjs # npm prepare: sets core.hooksPath=.githooks
@@ -60,7 +61,7 @@ ember-quest/
 ├── sim/run.mjs               # balance simulator runner (npm run sim)
 ├── smoke.mjs                 # headless boot gate (npm run smoke)
 ├── index.html                # arcade shell; game mounts into #screen
-├── .github/workflows/pages.yml   # PR = full gates + pixel report; push to main = gates, then deploy
+├── .github/workflows/pages.yml   # PR = full gates + pixel report (a PR comment with before/after shots; images live on the `oracle-screens` branch); push to main = gates, then deploy
 └── .claude/                  # settings.json (the hooks below), ten skills, agents/game-writer.md
 ```
 
