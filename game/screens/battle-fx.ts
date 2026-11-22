@@ -104,7 +104,7 @@ export function enemyWindup(g: Game, e: EnemyInstance): number {
 }
 
 const HERO_TONE_FROM = heroFrames[0];
-const TONES = [PICO8[7], PICO8[8]] as const;
+const TONES = [PICO8[7], PICO8[12]] as const;
 const toneCache = new Map<Sprite, string>();
 
 function dominant(s: Sprite): string {

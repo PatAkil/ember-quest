@@ -10,7 +10,7 @@ import { drawCommandBand, drawGauge, pct, wrap2 } from '../widgets';
 import { bannerBlocks, meter } from '../fx';
 import type { MeterId } from '../fx-state';
 import { KIND_TAG, hasHex, magicWeapon } from './battle-fx';
-import { drawBattleFx } from './battle-fx-view';
+import { drawBanner, drawBattleFx } from './battle-fx-view';
 
 type Ctx = CanvasRenderingContext2D;
 
@@ -221,6 +221,11 @@ function renderBattleText(g: Game): void {
   });
 }
 
+function drawBandContent(g: Game): void {
+  if (bannerBlocks(g)) { drawBanner(g); return; }
+  if (g.battle.phase === 'MENU' && !g.heroDown) {renderActionMenu(g);} else {renderBattleText(g);}
+}
+
 const endingShown = (g: Game): boolean => g.app.scenes.is('GAME_OVER') || g.app.scenes.is('WIN');
 
 export function renderBattle(g: Game): void {
@@ -232,6 +237,6 @@ export function renderBattle(g: Game): void {
   renderHeroHud(g, d);
   renderScore(g);
   drawCommandBand(g.app.pc.ctx);
-  if (g.battle.phase === 'MENU' && !g.heroDown && !bannerBlocks(g)) {renderActionMenu(g);} else {renderBattleText(g);}
+  drawBandContent(g);
   drawPops(g);
 }

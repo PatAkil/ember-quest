@@ -66,6 +66,7 @@ export function flipSprite(sprite: Sprite): Sprite {
 export interface SpriteDrawOptions {
   px?: number;
   tint?: string;
+  tintKeep?: string;
   dissolve?: number;
   fringe?: string;
   fall?: number;
@@ -84,9 +85,13 @@ function cellDeath(sprite: Sprite, cx: number, cy: number, seed: number): number
   const order = 0.55 * cellHash(cx, cy, seed) + 0.45 * (cy / Math.max(1, sprite.h));
   return order * DISSOLVE_SPREAD;
 }
+function tinted(color: string, o: SpriteDrawOptions): string {
+  if (o.tint === undefined || color === o.tintKeep) {return color;}
+  return o.tint;
+}
 function inkFor(sprite: Sprite, cell: { cx: number; cy: number; color: string }, o: SpriteDrawOptions): CellInk | null {
   const amount = o.dissolve ?? 0;
-  const base = o.tint ?? cell.color;
+  const base = tinted(cell.color, o);
   if (amount <= 0) {return { color: base, drop: 0 };}
   const gone = amount - cellDeath(sprite, cell.cx, cell.cy, o.seed ?? 0);
   if (gone <= 0) {return { color: base, drop: 0 };}

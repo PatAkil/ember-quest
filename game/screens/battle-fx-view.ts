@@ -1,8 +1,8 @@
-import { PICO8, drawText, textWidth } from '../../engine';
+import { PICO8, SAFE_MARGIN, drawText, textWidth } from '../../engine';
 import { bannerAge, bannerDur, clamp01, easeOut, span } from '../fx';
 import type { Banner, Shot, ShotKind } from '../fx-state';
 import type { Game } from '../state';
-import { C_PANEL, C_TEXT, FLOOR_Y, W } from '../theme';
+import { BAND_Y, C_PANEL, C_TEXT, FLOOR_Y, H, W } from '../theme';
 import type { Point } from '../theme';
 import { drawLine } from '../widgets';
 
@@ -261,8 +261,10 @@ const SHOT_DRAW: Record<ShotKind, (f: Frame) => void> = {
   RISE: drawRise, RING: drawRing, SLASH: drawSlash, DUST: drawDust, CHARGE: drawCharge, ARC: drawArc, BLOOM: drawBloom,
 };
 
-const STRIP_Y = 45;
-const STRIP_H = 18;
+const STRIP_Y = Math.round((BAND_Y + 1 + H - SAFE_MARGIN) / 2);
+const STRIP_H = 24;
+const NAME_DY = (STRIP_H - 10) / 2;
+const TAG_DY = Math.round((STRIP_H - 5) / 2);
 const TAG_GAP = 6;
 
 function drawStrip(g: Game, b: Banner, age: number): void {
@@ -278,11 +280,11 @@ function drawStrip(g: Game, b: Banner, age: number): void {
   const slide = Math.round((1 - easeOut(span(age, 0.02, 0.2))) * 60);
   const tagW = textWidth(b.tag, 1);
   const left = Math.round((W - tagW - TAG_GAP - textWidth(b.name, 2)) / 2);
-  drawText(ctx, b.tag, { x: left - slide, y: top + 7 }, { color: b.color });
-  drawText(ctx, b.name, { x: left + tagW + TAG_GAP + slide, y: top + 4 }, { color: C_TEXT, scale: 2, shadow: true });
+  drawText(ctx, b.tag, { x: left - slide, y: top + TAG_DY }, { color: b.color });
+  drawText(ctx, b.name, { x: left + tagW + TAG_GAP + slide, y: top + NAME_DY }, { color: C_TEXT, scale: 2, shadow: true });
 }
 
-function drawBanner(g: Game): void {
+export function drawBanner(g: Game): void {
   const b = g.fx.banner;
   const age = bannerAge(g);
   if (!b?.tag || age === null || age >= bannerDur()) {return;}
@@ -296,5 +298,4 @@ export function drawBattleFx(g: Game): void {
     if (fx.t < s.t0) {continue;}
     SHOT_DRAW[s.kind]({ ctx, s, u: span(fx.t, s.t0, s.dur), t: fx.t });
   }
-  drawBanner(g);
 }

@@ -12,17 +12,25 @@ const POP_STAGGER = 8;
 const POP_CEIL = HUD_BOTTOM + 3;
 const POP_MIN_Y = POP_CEIL + Math.ceil(POP_LIFE * POP_RISE);
 const CLAMP_SHIFT = 2;
+const TALL_CLAMP = 6;
+const GAP_CLEAR = 14;
+const PLATE_PAD = 1;
 
 export interface PopAnchor { head: Point; front: number }
 
 interface PopAt { x: number; y: number; scale?: number }
+
+function slideToward(toFront: number, clamped: number): number {
+  if (clamped >= TALL_CLAMP) {return toFront + GAP_CLEAR;}
+  return Math.min(toFront, clamped * CLAMP_SHIFT);
+}
 
 export function popSpot(anchor: PopAnchor, slot = 0): Point {
   const { head, front } = anchor;
   const wanted = head.y - POP_GAP;
   const clamped = Math.max(0, POP_MIN_Y - wanted);
   const toFront = front - head.x;
-  const shift = Math.sign(toFront) * Math.min(Math.abs(toFront), clamped * CLAMP_SHIFT);
+  const shift = Math.sign(toFront) * slideToward(Math.abs(toFront), clamped);
   const stagger = slot % 2 === 1 ? Math.sign(toFront || 1) * POP_STAGGER : 0;
   return { x: head.x + shift + stagger, y: wanted + clamped + slot * POP_LINE };
 }
@@ -46,16 +54,24 @@ export function updatePops(pops: Pop[], dt: number): void {
 
 function popOrigin(p: Pop): Point {
   const half = textWidth(p.text, p.scale) / 2;
-  const x = Math.min(W - SAFE_MARGIN - half, Math.max(SAFE_MARGIN + half, p.x));
-  return { x: Math.round(x - half), y: Math.round(Math.max(POP_CEIL, p.y)) };
+  const room = half + PLATE_PAD * p.scale;
+  const x = Math.min(W - SAFE_MARGIN - room, Math.max(SAFE_MARGIN + room, p.x));
+  return { x: Math.round(x - half), y: Math.round(Math.max(POP_CEIL + PLATE_PAD * p.scale, p.y)) };
+}
+
+function drawPopPlate(ctx: CanvasRenderingContext2D, p: Pop, at: Point): void {
+  const pad = PLATE_PAD * p.scale;
+  ctx.fillStyle = POP_BACKING;
+  ctx.fillRect(at.x - pad, at.y - pad, textWidth(p.text, p.scale) + 2 * pad, 5 * p.scale + 2 * pad);
 }
 
 export function drawPops(g: Game): void {
   const ctx = g.app.pc.ctx;
   for (const p of g.pops) {
     ctx.globalAlpha = Math.min(1, Math.max(0, (p.life / POP_LIFE) * 1.6));
-    const big = p.scale >= 3;
-    drawText(ctx, p.text, popOrigin(p), { color: p.color, scale: p.scale, shadow: big ? false : POP_BACKING, outline: big ? POP_BACKING : false });
+    const at = popOrigin(p);
+    drawPopPlate(ctx, p, at);
+    drawText(ctx, p.text, at, { color: p.color, scale: p.scale, shadow: false });
   }
   ctx.globalAlpha = 1;
 }

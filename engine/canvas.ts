@@ -28,8 +28,8 @@ function applyScale(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, lo
 }
 
 function wholeScale(scale: number): number {
-  if (!Number.isFinite(scale) || scale < 1) {throw new Error(`createPixelCanvas: scale must be a positive integer, got ${scale}`);}
-  return Math.floor(scale);
+  if (!Number.isInteger(scale) || scale < 1) {throw new RangeError(`createPixelCanvas: scale must be a positive integer, got ${String(scale)}`);}
+  return scale;
 }
 
 export function createPixelCanvas(opts: CreatePixelCanvasOptions): PixelCanvas {
@@ -65,14 +65,44 @@ export function createPixelCanvas(opts: CreatePixelCanvasOptions): PixelCanvas {
   };
 }
 
-export function fitScale(logical: FitArea, area: FitArea, minScale = 2): number {
-  const fit = Math.floor(Math.min(area.width / logical.width, area.height / logical.height));
-  return Math.max(minScale, Number.isFinite(fit) ? fit : minScale);
+const MAX_BACKING_SCALE = 6;
+
+export interface DisplayFit {
+  readonly backing: number;
+  readonly display: number;
 }
 
-export function autoFit(pc: PixelCanvas, available: () => FitArea, minScale = 2): () => void {
-  const refit = (): void => { pc.resize(fitScale(pc, available(), minScale)); };
+function enlargedFit(whole: number, maxBacking: number): DisplayFit {
+  const minBacking = Math.ceil(maxBacking / 2);
+  for (let display = whole; display > maxBacking; display--) {
+    for (let backing = maxBacking; backing >= minBacking; backing--) {
+      if (display % backing === 0) {return { backing, display };}
+    }
+  }
+  return { backing: maxBacking, display: maxBacking };
+}
+
+export function fitDisplay(logical: FitArea, area: FitArea, maxBacking = MAX_BACKING_SCALE): DisplayFit {
+  const ratio = Math.min(area.width / logical.width, area.height / logical.height);
+  const fit = Number.isFinite(ratio) && ratio > 0 ? ratio : 1;
+  const cap = Math.max(1, Math.floor(maxBacking));
+  if (fit < 1) {return { backing: 1, display: fit };}
+  const whole = Math.floor(fit);
+  return whole <= cap ? { backing: whole, display: whole } : enlargedFit(whole, cap);
+}
+
+export function autoFit(pc: PixelCanvas, available: () => FitArea, maxBacking = MAX_BACKING_SCALE): () => void {
+  const refit = (): void => {
+    const fit = fitDisplay(pc, available(), maxBacking);
+    pc.resize(fit.backing);
+    pc.canvas.style.width = `${String(pc.width * fit.display)}px`;
+    pc.canvas.style.height = `${String(pc.height * fit.display)}px`;
+  };
   refit();
   window.addEventListener('resize', refit);
-  return () => { window.removeEventListener('resize', refit); };
+  return () => {
+    window.removeEventListener('resize', refit);
+    pc.canvas.style.width = '';
+    pc.canvas.style.height = '';
+  };
 }

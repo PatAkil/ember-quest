@@ -1,39 +1,64 @@
-# Handover — Ember Quest v2 with agent eyes and a lint suite (2026-11-22)
+# Handover — Ember Quest visual overhaul (2026-11-22)
 
 For the next Air cloud task. Read this first, then `CLAUDE.md` and `DESIGN.md`
 (and `STYLE.md` before touching the look).
 
 ## Where things stand
 
-The owner wants the **v2 in-browser game** (keyboard, desktop browser) and to keep
-building on it, not the v3 rewrite (party draft, relics, HD-2D, phone layout). v3 is
-still in history.
+The owner plays the **v2 in-browser game** (keyboard, desktop browser) and builds on
+it; the v3 rewrite stays in history.
 
-- **`main`** is `93f6bc6`: PR #2 merged the v2 restore, so `main` holds v2 and a push to
-  `main` deploys it to https://patakil.github.io/ember-quest/. Only release through the
-  `releasing-the-game` skill, and only when the owner asks.
-- **This task's branch** is `air/resume-ember-quest-from-handover-doc-d4b12fb1-e`, on top
-  of the v2 handover. It added the tooling, not features:
-  - `1e6f5fe`: agent eyes — the seeded dev hook (`game/devhook.ts`), `npm run setup`,
-    `look`, `verify`, and the lint configuration.
-  - `edce53d`: every comment stripped (the style card moved to `STYLE.md`), lint autofix.
-  - `00f1c7d`: the refactor oracle (`scripts/oracle.mjs`), hold mode for pixel-identical
-    seeded screenshots, `noUncheckedIndexedAccess`.
-  - `80baa5e`: all lint debt cleaned — rules split into `game/sim/*`, the engine's
-    `draw.ts` split into `canvas/sprite/anim/font/text/fills` (+ `geometry`, `ambient`)
-    with geometry-object signatures, presentation split out of `main.ts` into
-    `app/state/flow/frame/…` and `game/screens/`, sprites into `game/sprites/`. Its
-    acceptance test was behaviour preservation: the oracle (state + pixels) identical
-    and `node sim/run.mjs --json` byte-identical to the pre-refactor baselines.
-  - then the docs and skills brought in line with all of the above.
-- **Gates at hand-off:** `npm run verify -- --full` passes on the whole tree. Full sim:
-  balanced 19 %, glass 9 %, tank 17 %, elite-hungry 19 %, chest-hungry 19 %, random 0 %.
-- **Known open item** (balance, not fixed here): the game's map links stages more
-  generously than the simulator's, so the real game is somewhat easier than the
-  *Balance state* table says — see `DESIGN.md` → *Open item*.
-- **No feature work yet.** The owner's request is still open: "continue with the browser
-  game and the features and functionality that were in there". Ask which v2 feature or
-  change comes first.
+- **`main`** is `2b55b37` ("PRs get a comment showing which screens changed, with
+  before/after shots (#7)"); a push to `main` deploys to
+  https://patakil.github.io/ember-quest/. Release only through `releasing-the-game`,
+  and only when the owner asks.
+- **The overhaul branch** is `air/resume-failed-job-visual-review-7bf06496-4`
+  (`git log main..HEAD`), five commits on top of `main`:
+  - `24fe87e`: the game fills the window — whole-number scaling, the Ember Quest
+    cabinet shell, legible warnings, coloured map icons, honest level-up labels, clean
+    ending screens.
+  - `69a6b0d`: auto-commit of work in progress.
+  - `a0d598e`: battles look like a fight scene and move — 2× actors, mirrored HUD
+    plates, the command band, lunges, spell projectiles, hit flash, dissolve on kill,
+    boss banner, lagging HP bars, screen transitions (`game/fx*.ts`,
+    `game/transition.ts`, `game/screens/battle-fx*.ts`); the map gets room icons, a
+    hero marker and a lit path; loot and equip get item cards.
+  - `21467a4`: overhaul round 1 — melee lunges connect with a slash arc, bigger
+    fireball and impact blooms, no dead beats before a kill dissolves, no stray numbers
+    carried into the next fight; reward screens get the command band and the knight;
+    redrawn Ice Bear, wolf, scorpion, Dark Lord and fallen knight; readable desert sun
+    and temple columns; clearer map choices.
+  - `c029c38`: further styling and enemy presentation.
+  - then a review-fix pass (two writers, uncommitted at the time of writing): the
+    window fit (whole-number scale down to 1, CSS shrink below 240×160, backing store
+    capped at 6× with whole-number CSS enlargement above it, see `STYLE.md` → *Shell
+    and scale*), docs brought in line, and battle fixes by the second writer.
+- **Visual review:** the overhaul scored **77/100**. `npm run verify -- --full` was
+  green on the branch before the review-fix pass.
+- **Known open balance item** (unchanged): the game's map links stages more
+  generously than the simulator's — see `DESIGN.md` → *Open item*.
+
+## Open follow-ups (not fixed in the review-fix pass)
+
+- The desert sun shows beside the reward panels (`game/backdrop.ts`, the `SUN` placed
+  between knight and foe around line 80).
+- The two-column battle menu formats its columns differently.
+- Pause freezes the enemy mid entrance hop.
+- Ambient particles drift across the "ACT 4" and "VICTORY" headlines.
+- The loot panel is cramped and its title truncates.
+- The Ice Bear and fallen-knight sprites are still weak.
+- The stage half stays empty on the rest and win screens.
+- `border-radius` on `#screen` in `index.html` clips the canvas corners.
+- A presses are swallowed during hit-stop (`game/screens/battle.ts`, `updateBattle`
+  returns while `juice.frozen`, around line 180).
+- The screen wipe does not gate input.
+- Fractional `devicePixelRatio` is ignored by the fit (CSS px only), so a 125 %/150 %
+  display resamples the pixels unevenly.
+- `drawSprite` (`engine/sprite.ts`) allocates per pixel (a fresh ink object per drawn cell, every frame).
+- No gate exercises `autoFit`: hold mode pins 3×, so `smoke`, `look` and the oracle
+  never run the window fit; the viewport check was a one-off Playwright script.
+- `game/screens/loot.ts` imports a colour (`C_SCROLL`) from `loot-view.ts` — it
+  belongs in `game/theme.ts`.
 
 ## First things to do in the new task
 
@@ -57,7 +82,7 @@ still in history.
    environment settings only to newly created tasks (docs:
    jetbrains.com/help/air/exposed-ports.html, …/manage-environments.html).
 3. **Baseline.** `npm run verify`, then `npm run look -- --scene title` and read the
-   screenshot it names.
+   screenshot it names. Ask the owner which follow-up above comes first.
 
 ## The feedback loop is automatic now
 

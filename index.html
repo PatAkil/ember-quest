@@ -39,6 +39,12 @@
       #hint {
         color: #a39c94; font-size: 11px; line-height: 14px; letter-spacing: 0.1em; user-select: none;
       }
+      @media (max-width: 300px), (max-height: 260px) {
+        #cabinet { padding: 0; gap: 0; }
+        #marquee, #hint { display: none; }
+        #bezel { padding: 0; border-radius: 0; box-shadow: none; }
+        #screen { border-radius: 0; }
+      }
     </style>
   </head>
   <body>

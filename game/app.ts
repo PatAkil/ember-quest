@@ -5,7 +5,6 @@ import type { FitArea, PixelCanvas } from '../engine';
 import { W, H } from './theme';
 
 const HOLD_SCALE = 3;
-const MIN_SCALE = 2;
 
 function px(value: string): number {
   const n = Number.parseFloat(value);
@@ -31,7 +30,7 @@ function viewportArea(pc: PixelCanvas): FitArea {
 
 function mountCanvas(fixedScale: boolean): PixelCanvas {
   const pc = createPixelCanvas({ width: W, height: H, scale: HOLD_SCALE, parent: document.getElementById('screen') });
-  if (!fixedScale) {autoFit(pc, () => viewportArea(pc), MIN_SCALE);}
+  if (!fixedScale) {autoFit(pc, () => viewportArea(pc));}
   return pc;
 }
 

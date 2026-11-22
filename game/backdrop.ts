@@ -156,7 +156,7 @@ const DISSOLVE_FALL = 6;
 function inkOptions(px: number, m: Pose | undefined, seed: number): SpriteDrawOptions {
   const o: SpriteDrawOptions = { px };
   if (!m) {return o;}
-  if (m.tint) {o.tint = m.tint;}
+  if (m.tint) { o.tint = m.tint; o.tintKeep = PICO8[0]; }
   if (m.dissolve > 0) { o.dissolve = m.dissolve; o.fringe = DISSOLVE_FRINGE; o.fall = DISSOLVE_FALL; o.seed = seed; }
   return o;
 }

@@ -6,7 +6,7 @@ import { at } from '../lookup';
 import { BRACE_DUR, bannerBlocks, cue, dismissBanner, fadeProgress, flushFx, resetFx, skipToImpact, updateFx } from '../fx';
 import { biome, dirEdge, resetCursorEdge, wrapCursor } from '../state';
 import type { Game } from '../state';
-import { C_ACCENT, C_DIM, C_DMG_TAKEN, C_HP, C_MP, C_TEXT, heroPos } from '../theme';
+import { C_ACCENT, C_DIM, C_DMG_TAKEN, C_HP, C_LOG_HURT, C_MP, C_TEXT, heroPos } from '../theme';
 import { deathFx, lastHitDelay, defeatFx, enemyImpact, enemyWindup, entranceFx, heroImpact, heroWindup, popHero, prepareFx, regenAura } from './battle-fx';
 import type { PopSpec } from './battle-fx';
 import { clearPops, pushPop, scoreSpot } from '../pops';
@@ -75,7 +75,7 @@ function enemyDefeated(g: Game, e: EnemyInstance, lastHit = 0): void {
 function heroDies(g: Game, text: string): void {
   const hp = heroPos();
   const { audio, particles, juice } = g.app;
-  say(g, text, C_DMG_TAKEN);
+  say(g, text, C_LOG_HURT);
   audio.play('explosion');
   particles.burst(hp.x, hp.y, { count: 14, color: PICO8[8], speed: 150 });
   juice.shake(6, 0.5);
@@ -90,7 +90,7 @@ export function applyEnemyAction(g: Game): void {
   const { enemy, state } = g.battle;
   if (!enemy || !state) {return;}
   const r = enemyAct(g.hero, state, g.rng);
-  say(g, r.text, r.dodged ? C_TEXT : C_DMG_TAKEN);
+  say(g, r.text, r.dodged ? C_TEXT : C_LOG_HURT);
   if (r.revived) {g.battle.color = C_ACCENT;}
   enemyImpact(g, r);
   if (r.heroDead) { heroDies(g, r.text); return; }
