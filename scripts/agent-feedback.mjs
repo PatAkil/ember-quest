@@ -49,17 +49,14 @@ function unstagedRefusal(repo) {
   };
 }
 
-async function commitGate(repo, label) {
-  const refusal = label === 'pre-commit' ? unstagedRefusal(repo) : null;
-  if (refusal) {
-    return refusal;
+function committedTreeDrift(repo, verifiedFp) {
+  if (fingerprint(repo.root) !== verifiedFp) {
+    return { code: 1, stderr: 'pre-commit: files changed after the gate verified them, so this commit was NOT verified. Wait for edits to settle and try again.\n' };
   }
-  if (toolsMissing(repo.root).length) {
-    return { code: 0, stderr: `${label}: node_modules is missing, so the tree was NOT verified. Run npm ci, then npm run verify.\n` };
-  }
-  const t0 = Date.now();
-  const r = await verifyTree(repo, 300000);
-  const secs = ((Date.now() - t0) / 1000).toFixed(1);
+  return unstagedRefusal(repo);
+}
+
+function reportGate(label, r, secs) {
   if (r.pass) {
     return { code: 0, stderr: `${label}: ${r.cached ? 'tree already verified green (fingerprint cache)' : `${String(r.name)} passed in ${secs}s`}\n` };
   }
@@ -71,6 +68,21 @@ async function commitGate(repo, label) {
   }
   const advice = label === 'pre-commit' ? 'Commit refused: the tree fails the gate. Fix it, or (owner only) bypass with git commit --no-verify.' : 'Gate failed.';
   return { code: 1, stderr: `${tail(String(r.out), 80)}\n${label}: ${advice}\n` };
+}
+
+async function commitGate(repo, label) {
+  const refusal = label === 'pre-commit' ? unstagedRefusal(repo) : null;
+  if (refusal) {
+    return refusal;
+  }
+  if (toolsMissing(repo.root).length) {
+    return { code: 0, stderr: `${label}: node_modules is missing, so the tree was NOT verified. Run npm ci, then npm run verify.\n` };
+  }
+  const t0 = Date.now();
+  const r = await verifyTree(repo, 300000);
+  const secs = ((Date.now() - t0) / 1000).toFixed(1);
+  const drift = r.pass && label === 'pre-commit' ? committedTreeDrift(repo, r.fp) : null;
+  return drift ?? reportGate(label, r, secs);
 }
 
 const COMMANDS = {
