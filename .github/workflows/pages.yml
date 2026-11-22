@@ -1,37 +1,174 @@
-name: Deploy to GitHub Pages
+name: CI and Pages deploy
 
 on:
+  pull_request:
   push:
     branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
-  build:
+  gates:
+    name: Verification gates
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm run build
-      - uses: actions/upload-pages-artifact@v3
+      - run: npm ci --no-audit --no-fund
+      - name: npm run verify -- --full
+        run: npm run verify -- --full 2>&1 | tee /tmp/verify.log
+      - name: Gate summary
+        if: always()
+        run: |
+          log=/tmp/verify.log
+          [ -f "$log" ] || { echo "verify did not run" >> "$GITHUB_STEP_SUMMARY"; exit 0; }
+          awk '
+            function flush() { if (gate != "") print "::error title=Gate " gate " failed::" body; gate = "" }
+            /^FAIL  / { flush(); gate = $2; body = ""; next }
+            /^    / && gate != "" { body = body substr($0, 5) "%0A"; next }
+            { flush() }
+            END { flush() }
+          ' "$log"
+          {
+            echo "## Verification gates"
+            echo
+            echo "| Result | Gate | Time | Note |"
+            echo "|---|---|---|---|"
+            grep -E '^(PASS|FAIL|INFO)  ' "$log" | while read -r result gate secs note; do
+              echo "| $result | \`$gate\` | $secs | $note |"
+            done
+            echo
+            echo "**$(grep -E '^TOTAL ' "$log" || echo 'TOTAL missing: verify crashed')**"
+            echo
+            sim=$(grep -E '^INFO +sim:full ' "$log" | sed -E 's/^INFO +sim:full +[0-9.]+s +//')
+            echo "Simulator win rates (full run, informational): ${sim:-not reported}"
+            echo
+            echo "Screenshots of all nine screens: the \`look-screens\` artifact of this run."
+            if grep -q '^FAIL  ' "$log"; then
+              echo
+              echo '<details open><summary>verify output</summary>'
+              echo
+              echo '```'
+              cat "$log"
+              echo '```'
+              echo '</details>'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload look screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: look-screens
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            /tmp/ember-look/
+            /tmp/verify.log
+            /tmp/ember-setup.log
+            /tmp/ember-dev.log
+      - name: Upload Pages artifact (the verified dist)
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
-  deploy:
-    needs: build
+  oracle:
+    name: Pixel oracle vs base (informational)
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Eyes (Chromium + head dev server on 5173)
+        run: npm run setup
+      - name: Base checkout and dev server on 5174
+        id: base
+        run: |
+          git worktree add --detach /tmp/base HEAD^1
+          echo "sha=$(git rev-parse --short HEAD^1)" >> "$GITHUB_OUTPUT"
+          if [ ! -f /tmp/base/scripts/oracle.mjs ]; then echo "ready=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          cd /tmp/base
+          npm ci --no-audit --no-fund
+          setsid nohup node_modules/.bin/vite --port 5174 --strictPort > /tmp/base-dev.log 2>&1 < /dev/null &
+          for i in $(seq 60); do
+            curl -fs -o /dev/null http://localhost:5174/ && { echo "ready=true" >> "$GITHUB_OUTPUT"; exit 0; }
+            sleep 0.5
+          done
+          echo "base dev server did not start"; cat /tmp/base-dev.log; exit 1
+      - name: Oracle on base
+        if: steps.base.outputs.ready == 'true'
+        working-directory: /tmp/base
+        run: LOOK_URL=http://localhost:5174/ node scripts/oracle.mjs --dir /tmp/oracle/base --save /tmp/oracle/base.json
+      - name: Oracle on head, compared with base
+        if: steps.base.outputs.ready == 'true'
+        run: |
+          set +e
+          node scripts/oracle.mjs --dir /tmp/oracle/head --check /tmp/oracle/base.json > /tmp/oracle/report.txt 2>&1
+          code=$?
+          cat /tmp/oracle/report.txt
+          {
+            echo "## Pixel oracle: PR head vs base ${{ steps.base.outputs.sha }}"
+            echo
+            echo "Seeded state and pixel hashes of 9 screens x 4 acts x 2 input runs, both sides rendered on this runner. Informational: a PR that changes visuals or rules is expected to differ."
+            echo
+            echo '```'
+            cat /tmp/oracle/report.txt
+            echo '```'
+            echo
+            echo "Both sides' screenshots: the \`oracle-screens\` artifact."
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$code" -ne 0 ]; then
+            echo "::notice title=Pixel oracle::$(head -1 /tmp/oracle/report.txt) (see job summary)"
+          fi
+          exit 0
+      - name: Base has no oracle
+        if: steps.base.outputs.ready == 'false'
+        run: echo "Base ${{ steps.base.outputs.sha }} has no scripts/oracle.mjs; nothing to compare." >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload oracle screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oracle-screens
+          if-no-files-found: ignore
+          retention-days: 14
+          path: |
+            /tmp/oracle/
+            /tmp/ember-setup.log
+            /tmp/base-dev.log
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: gates
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
