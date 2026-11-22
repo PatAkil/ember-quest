@@ -1,6 +1,6 @@
-export type RuntimeMessageType = 'gameOver' | 'scoreChanged' | 'stateChanged';
+type RuntimeMessageType = 'gameOver' | 'scoreChanged' | 'stateChanged';
 
-export interface RuntimeMessage {
+interface RuntimeMessage {
   source: 'retrovibe';
   type: RuntimeMessageType;
   payload: unknown;
@@ -14,8 +14,9 @@ export interface Runtime {
   send(type: RuntimeMessageType, payload: unknown): void;
 }
 
-export interface RuntimeOptions {
+interface RuntimeOptions {
   targetOrigin?: string;
+  onStandalone?(message: RuntimeMessage): void;
 }
 
 export function createRuntime(opts: RuntimeOptions = {}): Runtime {
@@ -27,7 +28,7 @@ export function createRuntime(opts: RuntimeOptions = {}): Runtime {
     if (embedded) {
       window.parent.postMessage(message, targetOrigin);
     } else {
-      console.log('[retrovibe]', message);
+      opts.onStandalone?.(message);
     }
   }
 

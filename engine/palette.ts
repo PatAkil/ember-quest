@@ -1,6 +1,10 @@
 export type Palette = readonly string[];
 
-export const PICO8: Palette = [
+type FixedPalette<N extends number, Acc extends readonly string[] = readonly []> = Acc['length'] extends N
+  ? Acc
+  : FixedPalette<N, readonly [...Acc, string]>;
+
+export const PICO8: FixedPalette<16> = [
   '#000000',
   '#1D2B53',
   '#7E2553',
@@ -18,23 +22,23 @@ export const PICO8: Palette = [
   '#FF77A8',
   '#FFCCAA',
 ];
-export const GAMEBOY: Palette = ['#0f380f', '#306230', '#8bac0f', '#9bbc0f'];
-export const DUSK: Palette = [
+export const GAMEBOY: FixedPalette<4> = ['#0f380f', '#306230', '#8bac0f', '#9bbc0f'];
+export const DUSK: FixedPalette<8> = [
   '#0d0221', '#241734', '#3b2352', '#5a3a7e',
   '#7b5aa6', '#a678de', '#d59bf6', '#f6c6ea',
 ];
 
-export const NEON: Palette = [
+export const NEON: FixedPalette<8> = [
   '#0b0221', '#1d0f3c', '#33125c', '#6e2594',
   '#ff2975', '#ff6ec7', '#00f0ff', '#f8f8ff',
 ];
 
-export const SUNSET: Palette = [
+export const SUNSET: FixedPalette<8> = [
   '#1f0a24', '#45152e', '#7a2130', '#b0413e',
   '#e2703a', '#ff9b54', '#ffd166', '#fff1d0',
 ];
 
-export const OCEAN: Palette = [
+export const OCEAN: FixedPalette<8> = [
   '#04101e', '#0a2239', '#134a6b', '#1f7a8c',
   '#2ab7ca', '#5ce1e6', '#a9f0d1', '#f0fff1',
 ];

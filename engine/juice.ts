@@ -1,55 +1,127 @@
-export interface Juice {
+import type { Point } from './geometry';
+
+interface Juice {
   shake(intensity: number, duration: number): void;
-  flash(color: string, duration: number, origin?: { x: number; y: number }): void;
+  flash(color: string, duration: number, origin?: Point): void;
   hitStop(duration: number): void;
   readonly frozen: boolean;
   update(dt: number): void;
   preRender(ctx: CanvasRenderingContext2D): void;
   postRender(ctx: CanvasRenderingContext2D, width: number, height: number): void;
 }
+
+interface Flash {
+  readonly trigger: (color: string, duration: number, origin?: Point) => void;
+  update(dt: number): void;
+  render(ctx: CanvasRenderingContext2D, width: number, height: number): void;
+}
+
+interface Shake {
+  readonly trigger: (intensity: number, duration: number) => void;
+  update(dt: number): void;
+  apply(ctx: CanvasRenderingContext2D): void;
+}
+
 const PEAK_UNIFORM = 0.55;
 const RADIAL_PEAK = 0.75;
 const RADIUS_SCALE = 0.55;
+const FLASH_HOLD = 0.12;
+
 function withAlpha(color: string, alpha: number): string {
   const hex = color.trim();
   if (/^#[0-9a-fA-F]{6}$/.test(hex)) {
     const n = parseInt(hex.slice(1), 16);
     return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
   }
-  return `rgba(0,0,0,${alpha === 0 ? 0 : alpha * 0})`;
+  return 'rgba(0,0,0,0)';
 }
-export function createJuice(): Juice {
-  let shakeAmp = 0;
-  let shakeTime = 0;
-  let shakeDur = 0;
-  let flashColor = '#FFFFFF';
-  let flashTime = 0;
-  let flashDur = 0;
-  let flashX = 0;
-  let flashY = 0;
-  let flashRadial = false;
 
+function flashShape(t: number): number {
+  if (t > 1 - FLASH_HOLD) {return 1;}
+  const u = t / (1 - FLASH_HOLD);
+  return u * u;
+}
+
+function radialFlash(ctx: CanvasRenderingContext2D, color: string, origin: Point, radius: number): CanvasGradient {
+  const g = ctx.createRadialGradient(origin.x, origin.y, 0, origin.x, origin.y, radius);
+  g.addColorStop(0, color);
+  g.addColorStop(0.14, withAlpha(color, 0.8));
+  g.addColorStop(0.42, withAlpha(color, 0.24));
+  g.addColorStop(1, withAlpha(color, 0));
+  return g;
+}
+
+function createFlash(): Flash {
+  let color = '#FFFFFF';
+  let time = 0;
+  let dur = 0;
+  let origin: Point = { x: 0, y: 0 };
+  let radial = false;
   let grad: CanvasGradient | null = null;
   let gradKey = '';
+  function gradientFor(ctx: CanvasRenderingContext2D, width: number, height: number): CanvasGradient {
+    const key = `${color}|${origin.x}|${origin.y}|${width}|${height}`;
+    if (key !== gradKey || grad === null) {
+      grad = radialFlash(ctx, color, origin, RADIUS_SCALE * Math.max(width, height));
+      gradKey = key;
+    }
+    return grad;
+  }
+  return {
+    trigger(c, duration, at) {
+      color = c;
+      time = duration;
+      dur = duration;
+      radial = !!at;
+      if (at) {origin = { x: at.x, y: at.y };}
+    },
+    update(dt) {
+      if (time > 0) {time = Math.max(0, time - dt);}
+    },
+    render(ctx, width, height) {
+      if (time <= 0 || dur <= 0) {return;}
+      const t = Math.max(0, time / dur);
+      ctx.globalAlpha = (radial ? RADIAL_PEAK : PEAK_UNIFORM) * flashShape(t);
+      ctx.fillStyle = radial ? gradientFor(ctx, width, height) : color;
+      ctx.fillRect(0, 0, width, height);
+      ctx.globalAlpha = 1;
+    },
+  };
+}
+
+function createShake(): Shake {
+  let amp = 0;
+  let time = 0;
+  let dur = 0;
+  return {
+    trigger(intensity, duration) {
+      if (intensity >= amp * (time / (dur || 1)) || time <= 0) {
+        amp = intensity;
+        time = duration;
+        dur = duration;
+      }
+    },
+    update(dt) {
+      if (time > 0) {time = Math.max(0, time - dt);}
+    },
+    apply(ctx) {
+      if (time <= 0 || dur <= 0) {return;}
+      const mag = amp * (time / dur);
+      ctx.translate(
+        Math.round((Math.random() * 2 - 1) * mag),
+        Math.round((Math.random() * 2 - 1) * mag),
+      );
+    },
+  };
+}
+
+export function createJuice(): Juice {
+  const shake = createShake();
+  const flash = createFlash();
   let freezeTime = 0;
   return {
-    shake(intensity, duration) {
-      if (intensity >= shakeAmp * (shakeTime / (shakeDur || 1)) || shakeTime <= 0) {
-        shakeAmp = intensity;
-        shakeTime = duration;
-        shakeDur = duration;
-      }
-    },
-    flash(color, duration, origin) {
-      flashColor = color;
-      flashTime = duration;
-      flashDur = duration;
-      flashRadial = !!origin;
-      if (origin) {
-        flashX = origin.x;
-        flashY = origin.y;
-      }
-    },
+    shake: shake.trigger,
+    flash: flash.trigger,
     hitStop(duration) {
       freezeTime = Math.max(freezeTime, duration);
     },
@@ -58,53 +130,16 @@ export function createJuice(): Juice {
     },
     update(dt) {
       if (freezeTime > 0) {freezeTime = Math.max(0, freezeTime - dt);}
-      if (shakeTime > 0) {shakeTime = Math.max(0, shakeTime - dt);}
-      if (flashTime > 0) {flashTime = Math.max(0, flashTime - dt);}
+      shake.update(dt);
+      flash.update(dt);
     },
     preRender(ctx) {
       ctx.save();
-      if (shakeTime > 0 && shakeDur > 0) {
-        const falloff = shakeTime / shakeDur;
-        const mag = shakeAmp * falloff;
-        ctx.translate(
-          Math.round((Math.random() * 2 - 1) * mag),
-          Math.round((Math.random() * 2 - 1) * mag),
-        );
-      }
+      shake.apply(ctx);
     },
     postRender(ctx, width, height) {
       ctx.restore();
-      if (flashTime > 0 && flashDur > 0) {
-        const t = Math.max(0, flashTime / flashDur);
-        const PEAK = flashRadial ? RADIAL_PEAK : PEAK_UNIFORM;
-        const HOLD = 0.12;
-        let shape;
-        if (t > 1 - HOLD) {
-          shape = 1;
-        } else {
-          const u = t / (1 - HOLD);
-          shape = u * u;
-        }
-        ctx.globalAlpha = PEAK * shape;
-        if (flashRadial) {
-          const radius = RADIUS_SCALE * Math.max(width, height);
-          const key = flashColor + '|' + flashX + '|' + flashY + '|' + width + '|' + height;
-          if (key !== gradKey || grad === null) {
-            const g = ctx.createRadialGradient(flashX, flashY, 0, flashX, flashY, radius);
-            g.addColorStop(0, flashColor);
-            g.addColorStop(0.14, withAlpha(flashColor, 0.8));
-            g.addColorStop(0.42, withAlpha(flashColor, 0.24));
-            g.addColorStop(1, withAlpha(flashColor, 0));
-            grad = g;
-            gradKey = key;
-          }
-          ctx.fillStyle = grad;
-        } else {
-          ctx.fillStyle = flashColor;
-        }
-        ctx.fillRect(0, 0, width, height);
-        ctx.globalAlpha = 1;
-      }
+      flash.render(ctx, width, height);
     },
   };
 }

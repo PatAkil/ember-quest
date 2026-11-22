@@ -16,7 +16,8 @@
     "verify": "node scripts/verify.mjs",
     "lint": "eslint .",
     "lint:full": "npm run lint && knip && jscpd game engine scripts sim && depcruise game engine --config .dependency-cruiser.cjs",
-    "sim:quick": "node sim/run.mjs --runs 500 --policy balanced,random"
+    "sim:quick": "node sim/run.mjs --runs 500 --policy balanced,random",
+    "browse": "agent-browser"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

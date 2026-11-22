@@ -1,28 +1,28 @@
-export interface LoopCallbacks {
+interface LoopCallbacks {
   update(dt: number): void;
   render(alpha: number): void;
 }
 
-export interface LoopOptions {
+interface LoopOptions {
   step?: number;
   maxFrame?: number;
 }
 
-export interface GameLoop {
+interface GameLoop {
   start(): void;
   stop(): void;
   readonly running: boolean;
 }
 
+function positive(v: number | undefined, fallback: number, name: string): number {
+  if (v === undefined) {return fallback;}
+  if (Number.isFinite(v) && v > 0) {return v;}
+  throw new RangeError(`createLoop: ${name} must be a positive finite number of seconds, got ${String(v)}`);
+}
+
 export function createLoop(cbs: LoopCallbacks, opts: LoopOptions = {}): GameLoop {
-  const valid = (v: number | undefined, fallback: number, name: string): number => {
-    if (v === undefined) {return fallback;}
-    if (Number.isFinite(v) && v > 0) {return v;}
-    console.warn(`[loop] invalid ${name} (${v}), falling back to ${fallback}`);
-    return fallback;
-  };
-  const step = valid(opts.step, 1 / 60, 'step');
-  const maxFrame = valid(opts.maxFrame, 0.25, 'maxFrame');
+  const step = positive(opts.step, 1 / 60, 'step');
+  const maxFrame = positive(opts.maxFrame, 0.25, 'maxFrame');
 
   let running = false;
   let paused = false;

@@ -1,4 +1,4 @@
-export type Scene = 'TITLE' | 'PLAYING' | 'PAUSED' | 'GAME_OVER' | 'WIN';
+type Scene = 'TITLE' | 'PLAYING' | 'PAUSED' | 'GAME_OVER' | 'WIN';
 
 const ALLOWED: Readonly<Record<Scene, readonly Scene[]>> = {
   TITLE: ['PLAYING'],
@@ -15,7 +15,11 @@ export interface SceneMachine {
   onEnter(s: Scene, fn: () => void): void;
 }
 
-export function createScenes(initial: Scene = 'TITLE'): SceneMachine {
+interface SceneOptions {
+  onIllegal?(from: Scene, to: Scene): void;
+}
+
+export function createScenes(initial: Scene = 'TITLE', opts: SceneOptions = {}): SceneMachine {
   let current = initial;
   const enterHandlers = new Map<Scene, (() => void)[]>();
 
@@ -31,7 +35,7 @@ export function createScenes(initial: Scene = 'TITLE'): SceneMachine {
         return false;
       }
       if (!ALLOWED[current].includes(s)) {
-        console.warn(`[scenes] illegal transition ${current} -> ${s} ignored`);
+        opts.onIllegal?.(current, s);
         return false;
       }
       current = s;

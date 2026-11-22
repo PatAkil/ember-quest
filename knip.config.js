@@ -41,14 +41,8 @@ const documentedEngineApi = (text, filename) => {
 
 export default {
   entry: [
-    'game/main.ts',
-    'sim/run.mjs',
-    'smoke.mjs',
     'scripts/*.mjs',
-    'vite.config.ts',
-    'eslint.config.mjs',
     'knip.config.js',
-    '.dependency-cruiser.cjs',
     'CLAUDE.md',
     '.claude/skills/*/SKILL.md',
   ],

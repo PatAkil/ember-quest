@@ -107,7 +107,7 @@ export interface EnemyInstance {
 }
 export interface Biome {
   name: string;
-  normals: string[];
+  normals: [string, ...string[]];
   elites: string[];
   boss: string;
   scroll?: SpellId;
