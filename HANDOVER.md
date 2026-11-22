@@ -52,6 +52,7 @@ phone layout).
    ```
    mkdir -p /tmp/browser && cd /tmp/browser && npm init -y && npm i agent-browser @sparticuz/chromium
    node -e "require('@sparticuz/chromium').default.executablePath().then(console.log)"   # → /tmp/chromium
+   sudo apt-get update   # required: without it apt fails on libxfixes3 and installs nothing
    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y libnspr4 libnss3 libatk1.0-0t64 \
      libatk-bridge2.0-0t64 libcups2t64 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 \
      libgbm1 libpango-1.0-0 libasound2t64 libxfixes3
