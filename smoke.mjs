@@ -18,7 +18,10 @@ import { chromium } from 'playwright';
 const URL = process.env.SMOKE_URL || 'http://localhost:5173/';
 const errors = [];
 
-const browser = await chromium.launch();
+// CHROMIUM_PATH: a system/npm Chromium where Playwright's own download is unavailable.
+const browser = await chromium.launch(
+  process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {},
+);
 try {
   const page = await browser.newPage();
   page.on('console', (msg) => {
