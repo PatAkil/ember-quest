@@ -124,7 +124,7 @@ function stepMeter(m: Meter, target: number, dt: number): void {
 
 const METERS: readonly MeterId[] = ['heroHp', 'heroMp', 'enemyHp'];
 
-export function snapMeters(g: Game): void {
+function snapMeters(g: Game): void {
   for (const id of METERS) {
     const v = meterTarget(g, id);
     g.fx.meters[id] = { shown: v, ghost: v, last: v, hold: 0 };

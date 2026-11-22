@@ -6,7 +6,7 @@ import type { Point } from './theme';
 
 interface Box { x: number; y: number; w: number; h: number }
 
-export interface Gauge { frac: number; color: string; ghost?: number; ghostColor?: string }
+interface Gauge { frac: number; color: string; ghost?: number; ghostColor?: string }
 
 const fillW = (w: number, frac: number): number => Math.max(0, Math.round(w * Math.max(0, Math.min(1, frac))));
 
