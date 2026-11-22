@@ -40,6 +40,7 @@ function pageUrl() {
       url.searchParams.set(name, opts[name]);
     }
   }
+  if (opts.seed || opts.scene) {url.searchParams.set('hold', '1');}
   return url.href;
 }
 

@@ -993,4 +993,4 @@ const dev = import.meta.env.DEV ? installDevHook({
     map: mapStages, curStage, reachable,
   }),
 }) : null;
-createLoop({ update: dev ? dev.update : update, render }).start();
+createLoop(dev ?? { update, render }).start();

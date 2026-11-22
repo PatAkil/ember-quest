@@ -97,11 +97,14 @@ function snapshot(v: DevView, seed: number | null): unknown {
   }));
 }
 
-export function installDevHook(host: DevHost): { update(dt: number): void } {
+const HOLD = import.meta.env.DEV && new URLSearchParams(location.search).has('hold');
+if (HOLD) {Math.random = mulberry32(0x9e3779b9);}
+
+export function installDevHook(host: DevHost): { update(dt: number): void; render(): void } {
   const { seed, fixture, act } = parseParams();
   const rng = seed === null ? null : mulberry32(seed);
   if (rng) {host.setRng(rng);}
-  let manual = false;
+  let manual = HOLD;
   const queued: string[] = [];
 
   const key = (type: 'keydown' | 'keyup', code: string): void => { window.dispatchEvent(new KeyboardEvent(type, { code })); };
@@ -174,5 +177,8 @@ export function installDevHook(host: DevHost): { update(dt: number): void } {
     press,
   };
   (window as unknown as { __ember: typeof api }).__ember = api;
-  return { update: (dt) => { if (!manual) {runTick(dt);} } };
+  return {
+    update: (dt) => { if (!manual) {runTick(dt);} },
+    render: () => { if (!HOLD) {host.render();} },
+  };
 }
