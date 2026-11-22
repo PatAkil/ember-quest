@@ -23,7 +23,7 @@ const CURVES: Record<MoveKind, readonly Key[]> = {
   RECOIL: [[0, 0, 0, 'LIN'], [0.03, -1, 0, 'OUT'], [0.22, 0, 0, 'INOUT']],
   DODGE: [[0, 0, 0, 'LIN'], [0.08, -1, -0.3, 'OUT'], [0.24, -1, 0, 'LIN'], [0.4, 0, 0, 'INOUT']],
   ENTER: [[0, -1, -0.3, 'LIN'], [0.26, 0, 0.03, 'OUT'], [0.32, 0, 0, 'OUT']],
-  BRACE: [[0, 0, 0, 'LIN'], [0.14, -1, 0.25, 'OUT'], [0.36, -1.15, 0.25, 'LIN'], [0.45, 0, 0, 'IN']],
+  BRACE: [[0, 0, 0, 'LIN'], [0.1, -1, 0.25, 'OUT'], [0.24, -1.15, 0.25, 'LIN'], [0.3, 0, 0, 'IN']],
 };
 
 const lastKey = (keys: readonly Key[]): Key => keys[keys.length - 1] ?? [0, 0, 0, 'LIN'];
@@ -157,7 +157,7 @@ export function skipToImpact(g: Game): number | null {
 
 export function flushFx(g: Game): void {
   const fx = g.fx;
-  fx.moves = []; fx.shots = []; fx.tints = []; fx.banner = null;
+  fx.banner = null;
   for (let n = 0; n < 64 && fx.cues.length; n++) {
     const next = fx.cues.shift();
     next?.fire();

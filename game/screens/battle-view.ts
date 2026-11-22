@@ -75,9 +75,15 @@ function renderHeroHud(g: Game, d: Derived): void {
   drawBarRow(g, HERO_PLATE, ROW_B, { label: 'HP', id: 'heroHp', max: d.maxHp });
   drawBarRow(g, HERO_PLATE, ROW_C, { label: 'MP', id: 'heroMp', max: d.maxMp, color: C_MP });
   const stacks = g.battle.state?.rampStacks ?? 0;
-  if (stacks > 0) {drawText(ctx, `RAMP ${stacks}`, { x: innerLeft(HERO_PLATE), y: HUD_BOTTOM + 3 }, { color: C_WARN, shadow: true });}
+  if (stacks > 0) {drawRampTag(ctx, stacks);}
 }
 
+function drawRampTag(ctx: Ctx, stacks: number): void {
+  const text = `RAMP ${stacks}`;
+  const at = { x: innerLeft(HERO_PLATE), y: HUD_BOTTOM + 3 };
+  ctx.fillStyle = PICO8[0]; ctx.fillRect(at.x - 2, at.y - 2, textWidth(text, 1) + 4, 9);
+  drawText(ctx, text, at, { color: C_WARN });
+}
 
 function resistText(def: { def: number; mdef: number }): string {
   if (def.def < def.mdef) {return `RES MAG ${def.mdef}%`;}

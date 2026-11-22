@@ -50,7 +50,7 @@ const scorpionFrames = breatheFrames([
   '.........ksskkssssssskssk........',
   '........ksssksssksssksssk........',
   '.........kkk.kkk.kkk.kkk.........',
-], { k: PICO8[0], b: PICO8[10], s: PICO8[9], e: PICO8[8], t: PICO8[8] });
+], { k: PICO8[0], b: PICO8[9], s: PICO8[4], e: PICO8[8], t: PICO8[8] });
 const mummyFrames = breatheFrames([
   '.....kkkkkk.....',
   '....kbbbbbbk....',

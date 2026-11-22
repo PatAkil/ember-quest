@@ -1,4 +1,4 @@
-import { PICO8, drawSprite } from '../../engine';
+import { PICO8 } from '../../engine';
 import { HERO_PIP, ROOM_ART } from '../sprites';
 import type { RoomArt } from '../sprites';
 import { STAGE_SIZES } from '../mapgen';
@@ -54,13 +54,14 @@ const CURSOR_LOOK: NodeLook = { ring: C_ACCENT, variant: 'icon' };
 const nodeLook = (state: NodeState): NodeLook => (state === 'CURSOR' ? CURSOR_LOOK : LOOKS[state]);
 
 const OPEN_HALO = PICO8[5];
+const CURSOR_HALO_LOW = PICO8[9];
 const openBeat = (g: Game): boolean => accentHz(g.clock, 1, 0.5);
 
 function drawNodeRings(g: Game, c: Point, state: NodeState, ring: string): void {
   const ctx = g.app.pc.ctx;
   if (state !== 'CURSOR' && state !== 'OPEN') {return;}
   drawRing(ctx, squareAt(c, PLATE - 2), ring);
-  if (state === 'CURSOR') {drawRing(ctx, squareAt(c, HALO), cursorBeat(g) ? C_ACCENT : C_TEXT);}
+  if (state === 'CURSOR') {drawRing(ctx, squareAt(c, HALO), cursorBeat(g) ? C_ACCENT : CURSOR_HALO_LOW);}
   else {drawRing(ctx, squareAt(c, HALO), openBeat(g) ? C_DIM : OPEN_HALO);}
 }
 
@@ -162,7 +163,7 @@ export function drawHeroMarker(g: Game): void {
     drawIconIn(ctx, HERO_PIP, { ...plate, y: plate.y - heroBob(g) }, 1);
     return;
   }
-  const c = nodeCentre(g, here);
-  const top = c.y - (PLATE - 1) / 2;
-  drawSprite(ctx, HERO_PIP, { x: c.x - (HERO_PIP.w - 1) / 2, y: top - HERO_PIP.h + 2 - heroBob(g) }, 1);
+  const plate = squareAt(nodeCentre(g, here), PLATE);
+  drawMedallion(ctx, plate, C_ACCENT);
+  drawIconIn(ctx, HERO_PIP, { ...plate, y: plate.y - heroBob(g) }, 1);
 }

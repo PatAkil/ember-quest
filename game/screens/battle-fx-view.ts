@@ -1,4 +1,4 @@
-import { PICO8, drawText, drawTextCentered, textWidth } from '../../engine';
+import { PICO8, drawText, textWidth } from '../../engine';
 import { bannerAge, bannerDur, clamp01, easeOut, span } from '../fx';
 import type { Banner, Shot, ShotKind } from '../fx-state';
 import type { Game } from '../state';
@@ -261,8 +261,9 @@ const SHOT_DRAW: Record<ShotKind, (f: Frame) => void> = {
   RISE: drawRise, RING: drawRing, SLASH: drawSlash, DUST: drawDust, CHARGE: drawCharge, ARC: drawArc, BLOOM: drawBloom,
 };
 
-const STRIP_Y = 50;
-const STRIP_H = 26;
+const STRIP_Y = 45;
+const STRIP_H = 18;
+const TAG_GAP = 6;
 
 function drawStrip(g: Game, b: Banner, age: number): void {
   const ctx = g.app.pc.ctx;
@@ -275,8 +276,10 @@ function drawStrip(g: Game, b: Banner, age: number): void {
   ctx.fillStyle = C_PANEL; ctx.fillRect(-16, top + 2, W + 32, 1); ctx.fillRect(-16, top + h - 3, W + 32, 1);
   if (h < STRIP_H - 2) {return;}
   const slide = Math.round((1 - easeOut(span(age, 0.02, 0.2))) * 60);
-  drawText(ctx, b.tag, { x: Math.round((W - textWidth(b.tag, 1)) / 2) - slide, y: top + 5 }, { color: b.color });
-  drawTextCentered(ctx, b.name, { width: W + slide * 2, y: top + 12 }, { color: C_TEXT, scale: 2, shadow: true });
+  const tagW = textWidth(b.tag, 1);
+  const left = Math.round((W - tagW - TAG_GAP - textWidth(b.name, 2)) / 2);
+  drawText(ctx, b.tag, { x: left - slide, y: top + 7 }, { color: b.color });
+  drawText(ctx, b.name, { x: left + tagW + TAG_GAP + slide, y: top + 4 }, { color: C_TEXT, scale: 2, shadow: true });
 }
 
 function drawBanner(g: Game): void {

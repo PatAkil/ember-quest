@@ -27,6 +27,8 @@ export function popSpot(anchor: PopAnchor, slot = 0): Point {
   return { x: head.x + shift + stagger, y: wanted + clamped + slot * POP_LINE };
 }
 
+export const scoreSpot = (): Point => ({ x: W / 2, y: POP_MIN_Y });
+
 export function pushPop(pops: Pop[], at: PopAt, text: string, color: string): void {
   pops.push({ x: at.x, y: at.y, life: POP_LIFE, text, color, scale: at.scale ?? 2 });
 }

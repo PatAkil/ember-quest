@@ -9,8 +9,7 @@ import type { Game } from '../state';
 import { C_ACCENT, C_DIM, C_DMG_TAKEN, C_HP, C_MP, C_TEXT, heroPos } from '../theme';
 import { deathFx, lastHitDelay, defeatFx, enemyImpact, enemyWindup, entranceFx, heroImpact, heroWindup, popHero, prepareFx, regenAura } from './battle-fx';
 import type { PopSpec } from './battle-fx';
-import { clearPops, pushPop } from '../pops';
-import { enemyPos } from '../backdrop';
+import { clearPops, pushPop, scoreSpot } from '../pops';
 
 export function startBattle(g: Game, id: string, onWin: () => void): void {
   const enemy = spawnEnemy(id, g.clears, g.actIndex);
@@ -58,13 +57,14 @@ export function onQueueDone(g: Game): void {
 }
 
 const DEFEAT_HOLD = 1.0;
+const PREPARE_DELAY = 0.2;
+const ENEMY_TURN_HOLD = 0.8;
 const DEFEAT_SAY_DELAY = 0.4;
 
 function enemyDefeated(g: Game, e: EnemyInstance, lastHit = 0): void {
   cue(g, lastHit, () => {
     defeatFx(g, e);
-    const p = enemyPos(g);
-    pushPop(g.pops, { x: p.x, y: p.y }, '+100', C_ACCENT);
+    pushPop(g.pops, scoreSpot(), '+100', C_ACCENT);
   });
   cue(g, lastHit + DEFEAT_SAY_DELAY, () => { say(g, `${e.def.name} DEFEATED!`, C_ACCENT); });
   g.battle.outcome = 'WON';
@@ -117,8 +117,9 @@ function landHeroAction(g: Game, action: HeroAction, slot: number): void {
   say(g, r.text, r.crit ? C_ACCENT : C_TEXT);
   heroImpact(g, action, r, slot);
   if (r.enemyDefeated) { enemyDefeated(g, e, lastHitDelay(r.hits.length)); return; }
-  push(g, BRACE_DUR, () => { say(g, `${e.def.name} PREPARES...`, C_DIM); prepareFx(g); });
-  push(g, 0.9, () => { enemyStep(g, e); });
+  g.battle.timer = PREPARE_DELAY + lastHitDelay(r.hits.length);
+  push(g, BRACE_DUR, () => { prepareFx(g); });
+  push(g, ENEMY_TURN_HOLD, () => { enemyStep(g, e); });
 }
 
 function heroStep(g: Game, action: HeroAction): void {

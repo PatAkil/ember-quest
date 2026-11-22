@@ -80,18 +80,18 @@ function tundraBackdrop(l: Layer): void {
 }
 
 const SUN_X = Math.round((HERO_X + HERO_W / 2 + ENEMY_FRONT) / 2);
-
-const SUN_BASE = FLOOR_Y - 32;
-const SUN_BANDS = [4, 9, 13];
+const SUN: Point = { x: SUN_X, y: FLOOR_Y - 42 };
+const SUN_R = 13;
+const SUN_CORE_R = 9;
 
 function drawSun(l: Layer): void {
+  if (l.dim < 1) {return;}
   const { ctx } = l;
   fade(l, 1); ctx.fillStyle = PICO8[9];
-  fillDome(ctx, { x: SUN_X, y: SUN_BASE }, 22, 22);
+  fillDisc(ctx, SUN, SUN_R);
   ctx.fillStyle = PICO8[10];
-  fillDome(ctx, { x: SUN_X, y: SUN_BASE - 10 }, 10, 10);
-  ctx.globalAlpha = 1; ctx.fillStyle = PICO8[0];
-  for (const dy of SUN_BANDS) {ctx.fillRect(SUN_X - 23, SUN_BASE - dy, 47, dy > 8 ? 1 : 2);}
+  fillDisc(ctx, SUN, SUN_CORE_R);
+  ctx.fillStyle = PICO8[7]; ctx.fillRect(SUN.x - 4, SUN.y - 5, 3, 1); ctx.fillRect(SUN.x - 5, SUN.y - 4, 1, 2);
 }
 
 function desertBackdrop(l: Layer): void {
@@ -103,7 +103,7 @@ function desertBackdrop(l: Layer): void {
 }
 
 const COLUMNS = [22, 78, 162, 218];
-const COLUMN_TOP = 46;
+const COLUMN_TOP = 50;
 
 function drawColumn(ctx: Ctx, cx: number): void {
   const shaft = FLOOR_Y - COLUMN_TOP;
@@ -148,7 +148,7 @@ export function renderFloor(g: Game): void {
   fillDither(ctx, { x: 0, y: H - 10, w: W, h: 10 }, { colorA: b.floor, colorB: b.floorDark, pattern: 'sparse' });
 }
 
-interface ActorPose { phase: number; px?: number; motion?: Pose; seed?: number }
+interface ActorPose { phase: number; px?: number; motion?: Pose; seed?: number; elite?: boolean }
 
 const DISSOLVE_FRINGE = PICO8[9];
 const DISSOLVE_FALL = 6;
@@ -161,14 +161,39 @@ function inkOptions(px: number, m: Pose | undefined, seed: number): SpriteDrawOp
   return o;
 }
 
+const ELITE_RIM = PICO8[8];
+const ELITE_GLOW = PICO8[2];
+const RIM_OFFSETS: readonly Point[] = [{ x: -1, y: 0 }, { x: 1, y: 0 }, { x: 0, y: -1 }, { x: 0, y: 1 }];
+
+function drawEliteRim(ctx: Ctx, f: Sprite, at: Point, px: number): void {
+  for (const o of RIM_OFFSETS) {drawSprite(ctx, f, { x: at.x + o.x, y: at.y + o.y }, { px, tint: ELITE_RIM });}
+}
+
+function drawEliteGlow(ctx: Ctx, span: { x: number; w: number }, px: number): void {
+  ctx.fillStyle = ELITE_GLOW;
+  ctx.fillRect(span.x - 2 * px, FLOOR_Y - 1, span.w + 4 * px, 3 + px);
+  ctx.fillStyle = ELITE_RIM;
+  ctx.fillRect(span.x, FLOOR_Y + 1 + px, span.w, 1);
+}
+
+const STILL: Pose = { dx: 0, dy: 0, tint: null, dissolve: 0 };
+
+function actorPlacement(f: Sprite, cx: number, px: number, m: Pose): { span: { x: number; w: number }; at: Point } {
+  const span = { x: Math.round(cx - (f.w * px) / 2) + m.dx, w: f.w * px };
+  return { span, at: { x: span.x, y: FLOOR_Y - f.h * px + m.dy } };
+}
+
 export function drawActor(g: Game, frames: Anim, cx: number, pose: ActorPose): void {
   const ctx = g.app.pc.ctx;
   const px = pose.px ?? ACTOR_PX;
   const f = animFrame(frames, g.clock + pose.phase);
-  const dx = pose.motion?.dx ?? 0;
-  const sx = Math.round(cx - (f.w * px) / 2) + dx;
-  if ((pose.motion?.dissolve ?? 0) < 0.6) {drawGroundShadow(ctx, { x: sx, w: f.w * px }, px);}
-  drawSprite(ctx, f, { x: sx, y: FLOOR_Y - f.h * px + (pose.motion?.dy ?? 0) }, inkOptions(px, pose.motion, pose.seed ?? 0));
+  const m = pose.motion ?? STILL;
+  const { span, at } = actorPlacement(f, cx, px, m);
+  const elite = pose.elite === true && !m.tint && m.dissolve <= 0;
+  if (elite) {drawEliteGlow(ctx, span, px);}
+  if (m.dissolve < 0.6) {drawGroundShadow(ctx, span, px);}
+  if (elite) {drawEliteRim(ctx, f, at, px);}
+  drawSprite(ctx, f, at, inkOptions(px, pose.motion, pose.seed ?? 0));
 }
 
 function drawGroundShadow(ctx: Ctx, span: { x: number; w: number }, px: number): void {
@@ -232,7 +257,9 @@ export function renderTableau(g: Game, withEnemy: boolean, withHero = true): voi
   renderFloor(g);
   if (withHero) {drawHero(g);}
   const enemy = g.battle.enemy;
-  if (withEnemy && enemy) {drawActor(g, enemyAnim(enemy.def.id), enemyBox(g).x, { phase: 0.25, motion: actorPose(g, 'ENEMY'), seed: seedOf(enemy.def.id) });}
+  if (!withEnemy || !enemy) {return;}
+  const pose = { phase: 0.25, motion: actorPose(g, 'ENEMY'), seed: seedOf(enemy.def.id), elite: enemy.def.kind === 'ELITE' };
+  drawActor(g, enemyAnim(enemy.def.id), enemyBox(g).x, pose);
 }
 
 export function enemyPos(g: Game): Point {

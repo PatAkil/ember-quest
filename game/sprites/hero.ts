@@ -34,14 +34,14 @@ export const heroFrames = breatheFrames([
 ], HERO_MAP);
 
 export const heroFallen = makeSprite([
-  '..................kkk...........................',
-  '.......kkkkkk.kkkkbbbk..........kkk.............',
-  '......khheeehkhhhbbbbbk........kbbsk............',
-  '......kbbeeeehhhhbbbbbbkkkkkkkkkbbsk............',
-  '.....kbbbbbbbbhhhbbbbbbhbbbbbbbbbbsk............',
-  '...k.kbbbbbbbbbhhhhhhsshbbbbbbbbbbsk...k........',
-  '..kpkkbbbbbbbbbhhhhhhsshbbbbbbbbbbskkkkhkkkkkkk.',
-  '.kpppppsssssssssssssssshssssssssbbskghhhwwwwwwwk',
-  'kppppppsssssssssssssssshssssssssssskkhhhgggggggk',
-  '.kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk..kkkkkkkkkk.',
-], { ...HERO_MAP });
+  '.........kkkkk......................kkkk..............',
+  '........keeeeek....................khhbbk.............',
+  '.......kkkkkkkkk.kkkkkkkkkk.......khbbbbsk..kkk.......',
+  '.....kkhhkffffk.khhhhhhhhhhk.....khbbkkbsk.kppk.kek...',
+  '..kk.khbbkfkfkkkhbbbbbbbbbbskk..khbbk.kbbskkpwgkkek...',
+  '.kppkkbbbkffkgkkbbbbbbbbbbbsshkkhbbk...kbbskwwgkkekkk.',
+  'kpppwkbbbbkkkgkkkkkkkkkkkwwkkhbkbbsk....kbhhkwgkkepppk',
+  'kppwwwkbbbbbsgkhbbbbbbbbkwwgkbbkbbsk.....khhkwgkkewwwk',
+  'kpwwwwwksssskgkssssssssskkkkkssksssk......kkkkkkkekkk.',
+  '.kkkkkkkkkkkk.kkkkkkkkkkkkkk.kkkkkkkk.........kk.k....',
+], { ...HERO_MAP, f: PICO8[15] });
