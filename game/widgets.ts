@@ -6,11 +6,22 @@ import type { Point } from './theme';
 
 interface Box { x: number; y: number; w: number; h: number }
 
-export function drawBar(ctx: CanvasRenderingContext2D, box: Box, frac: number, color: string): void {
+export interface Gauge { frac: number; color: string; ghost?: number; ghostColor?: string }
+
+const fillW = (w: number, frac: number): number => Math.max(0, Math.round(w * Math.max(0, Math.min(1, frac))));
+
+export function drawGauge(ctx: CanvasRenderingContext2D, box: Box, gauge: Gauge): void {
   const { x, y, w, h } = box;
   ctx.fillStyle = PICO8[5]; ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = color; ctx.fillRect(x, y, Math.max(0, Math.round(w * Math.max(0, Math.min(1, frac)))), h);
+  if (gauge.ghost !== undefined && gauge.ghost > gauge.frac) {
+    ctx.fillStyle = gauge.ghostColor ?? PICO8[7]; ctx.fillRect(x, y, fillW(w, gauge.ghost), h);
+  }
+  ctx.fillStyle = gauge.color; ctx.fillRect(x, y, fillW(w, gauge.frac), h);
   drawFrame(ctx, { x, y, w, h }, { color: PICO8[0], thickness: 1 });
+}
+
+export function drawBar(ctx: CanvasRenderingContext2D, box: Box, frac: number, color: string): void {
+  drawGauge(ctx, box, { frac, color });
 }
 
 export function drawLine(ctx: CanvasRenderingContext2D, from: Point, to: Point, color: string): void {
@@ -33,15 +44,30 @@ export function fitText(ctx: CanvasRenderingContext2D, text: string, box: FitBox
   drawText(ctx, t, { x: box.x, y: box.y }, opts);
 }
 
-export function wrap2(text: string, maxW: number): [string] | [string, string] {
-  if (textWidth(text, 1) <= maxW) {return [text];}
-  const words = text.split(' ');
+function greedyFirst(words: readonly string[], maxW: number, scale: number): string {
   let first = '';
   for (const w of words) {
     const t = first ? `${first} ${w}` : w;
-    if (textWidth(t, 1) > maxW) {break;}
+    if (textWidth(t, scale) > maxW) {break;}
     first = t;
   }
+  return first;
+}
+
+function balancedFirst(words: readonly string[], maxW: number, scale: number): string {
+  let best = '';
+  let bestW = Infinity;
+  for (let i = 1; i < words.length; i++) {
+    const a = words.slice(0, i).join(' ');
+    const widest = Math.max(textWidth(a, scale), textWidth(words.slice(i).join(' '), scale));
+    if (widest <= maxW && widest < bestW) { best = a; bestW = widest; }
+  }
+  return best || greedyFirst(words, maxW, scale);
+}
+
+export function wrap2(text: string, maxW: number, scale = 1): [string] | [string, string] {
+  if (textWidth(text, scale) <= maxW) {return [text];}
+  const first = balancedFirst(text.split(' '), maxW, scale);
   return [first, text.slice(first.length).trim()];
 }
 

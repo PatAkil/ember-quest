@@ -1,11 +1,13 @@
-import { PICO8 } from '../../engine';
 import { ITEMS, SPELLS } from '../data';
 import type { LootOffer, LootSource, SpellId } from '../types';
 import { applyOffer, compareOffer, displayName, noteDeclinedScrolls, rollLoot, skipMend } from '../sim';
 import { dirEdge, pickOne, resetCursorEdge, wrapCursor } from '../state';
 import type { Game } from '../state';
-import { C_ACCENT, heroPos } from '../theme';
+import { ICON_SCROLL } from '../sprites';
+import { C_ACCENT, heroPos, rarityColor } from '../theme';
+import { itemIcon } from '../widgets';
 import { showCard } from './card';
+import { C_SCROLL } from './loot-view';
 
 type ItemOffer = Extract<LootOffer, { kind: 'ITEM' }>;
 type UpgradeOffer = Extract<LootOffer, { kind: 'UPGRADE' }>;
@@ -35,21 +37,26 @@ export function startLoot(g: Game, source: LootSource, onDone: () => void): void
 
 function learnedScroll(g: Game, spell: SpellId): void {
   const hp = heroPos();
-  g.app.particles.burst(hp.x, hp.y - 10, { count: 14, color: PICO8[12], speed: 100 });
-  g.app.juice.flash(PICO8[12], 0.3);
+  g.app.particles.burst(hp.x, hp.y - 10, { count: 14, color: C_SCROLL, speed: 100 });
+  g.app.juice.flash(C_SCROLL, 0.3);
   const sp = SPELLS[spell];
-  showCard(g, [`YOU LEARNED ${sp.name}!`, `${sp.scale} x${sp.mult.toFixed(1)}${sp.hits > 1 ? ` x${sp.hits}` : ''}  ${sp.cost} MP  ${sp.kind}`], g.loot.onDone);
+  const stats = `${sp.scale} X${sp.mult.toFixed(1)}${sp.hits > 1 ? ` X${sp.hits}` : ''}  ${sp.cost} MP  ${sp.kind}`;
+  showCard(g, ['YOU LEARNED', sp.name, stats], g.loot.onDone, { icon: ICON_SCROLL, color: C_SCROLL });
 }
 
 function equipped(g: Game, offer: ItemOffer, r: Applied): void {
-  showCard(g, [`EQUIPPED ${offer.item.name}`, r.replaced ? `${r.replaced.name} IS LEFT BEHIND` : offer.item.blurb], g.loot.onDone);
+  const item = offer.item;
+  const detail = r.replaced ? `${r.replaced.name} IS LEFT BEHIND` : item.blurb;
+  showCard(g, ['EQUIPPED', item.name, detail], g.loot.onDone, { icon: itemIcon(item), color: rarityColor(item) });
 }
 
 function upgraded(g: Game, offer: UpgradeOffer, r: Applied, delta: string): void {
   const hp = heroPos();
   g.app.particles.burst(hp.x, hp.y, { count: 12, color: C_ACCENT, speed: 90 });
   const awakens = offer.toLevel >= 2;
-  showCard(g, [awakens ? `${offer.item.name} AWAKENS!` : displayName(offer.item, offer.toLevel), awakens ? r.line : delta], g.loot.onDone);
+  const item = offer.item;
+  const lines = [awakens ? 'AWAKENED' : 'UPGRADED', displayName(item, offer.toLevel), awakens ? r.line : delta];
+  showCard(g, lines, g.loot.onDone, { icon: itemIcon(item), color: rarityColor(item) });
 }
 
 function takeOffer(g: Game, offer: LootOffer): void {

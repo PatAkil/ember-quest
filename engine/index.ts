@@ -8,8 +8,8 @@ export type { SceneMachine } from './scenes';
 
 export { createPixelCanvas, fitScale, autoFit } from './canvas';
 export type { PixelCanvas, FitArea } from './canvas';
-export { makeSprite, flipSprite, drawSprite } from './sprite';
-export type { Sprite, SpriteMap } from './sprite';
+export { makeSprite, flipSprite, drawSprite, rotateSprite } from './sprite';
+export type { Sprite, SpriteMap, SpriteDrawOptions } from './sprite';
 export { frameIndex, blink, pulse } from './anim';
 export { drawText, drawTextCentered, textWidth, drawLogo } from './text';
 export type { TextOptions } from './text';

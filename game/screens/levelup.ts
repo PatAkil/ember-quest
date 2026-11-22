@@ -1,13 +1,13 @@
-import { BUTTON_KEY, SAFE_MARGIN, drawPanel, drawText, drawTextCentered, textWidth } from '../../engine';
+import { BUTTON_KEY, SAFE_MARGIN, drawPanel, drawText, textWidth } from '../../engine';
 import { STAT_KEYS, SP_GAIN } from '../types';
 import type { Derived, StatKey } from '../types';
 import { derive, spendPoint } from '../sim';
-import { renderTableau } from '../backdrop';
+import { heroAnchor, renderTableau } from '../backdrop';
 import { at } from '../lookup';
-import { drawPops, pushPop } from '../pops';
+import { drawPops, popSpot, pushPop } from '../pops';
 import { dirEdge, resetCursorEdge, wrapCursor } from '../state';
 import type { Game } from '../state';
-import { C_ACCENT, C_BORDER, C_DIM, C_PANEL, C_SEL_BAR, C_TEXT, W, heroPos } from '../theme';
+import { C_ACCENT, C_BORDER, C_DIM, C_PANEL, C_SEL_BAR, C_TEXT, HERO_W, HERO_X, W } from '../theme';
 import { blinkHz, pct } from '../widgets';
 
 export function startLevelUp(g: Game, earned: number, onDone: () => void): void {
@@ -25,8 +25,7 @@ export function updateLevelUp(g: Game): void {
   const key = at(STAT_KEYS, lu.cursor);
   if (spendPoint(g.hero, key)) {
     g.app.audio.play('pickup');
-    const hp = heroPos();
-    pushPop(g.pops, { x: hp.x, y: hp.y - 26 }, `${gainText(key)} ${key}`, C_ACCENT);
+    pushPop(g.pops, popSpot(heroAnchor()), `${gainText(key)} ${key}`, C_ACCENT);
   }
   if (g.hero.sp <= 0) {lu.onDone();}
 }
@@ -40,27 +39,34 @@ function currentValues(d: Derived): Record<StatKey, string> {
   };
 }
 
+const PANEL = { x: HERO_X + HERO_W / 2 + 12, y: SAFE_MARGIN, h: 100 };
+const PANEL_W = W - SAFE_MARGIN - PANEL.x;
+const ROWS_Y = PANEL.y + 25;
+const ROW_PITCH = 9;
+
+const centreX = (text: string, scale: number): number => Math.round(PANEL.x + (PANEL_W - textWidth(text, scale)) / 2);
+
+function drawStatRow(g: Game, k: StatKey, i: number, current: Record<StatKey, string>): void {
+  const ctx = g.app.pc.ctx;
+  const y = ROWS_Y + i * ROW_PITCH;
+  const sel = i === g.levelUp.cursor;
+  if (sel) { ctx.fillStyle = C_SEL_BAR; ctx.fillRect(PANEL.x + 3, y - 2, PANEL_W - 6, 9); }
+  drawText(ctx, `${sel ? '> ' : '  '}${k}`, { x: PANEL.x + 6, y }, { color: sel ? C_ACCENT : C_TEXT, shadow: sel });
+  const v = `${current[k]} ${gainText(k)}`;
+  drawText(ctx, v, { x: PANEL.x + PANEL_W - 6 - textWidth(v, 1), y }, { color: sel ? C_TEXT : C_DIM });
+}
+
 export function renderLevelUp(g: Game): void {
   const { pc } = g.app;
   renderTableau(g, false);
-  const d = derive(g.hero);
   const ctx = pc.ctx;
-  const panelY = SAFE_MARGIN + 2;
-  const panelH = 62;
-  drawPanel(pc, { x: 16, y: panelY, w: W - 32, h: panelH }, { color: C_PANEL, border: C_BORDER });
-  const title = `LEVEL UP  +${g.levelUp.earned} SP   ${g.hero.sp} TO SPEND`;
-  drawTextCentered(ctx, title, { width: W, y: panelY + 5 }, { color: C_ACCENT, shadow: true });
-  const current = currentValues(d);
-  const colW = (W - 32) / 2;
-  STAT_KEYS.forEach((k, i) => {
-    const col = Math.floor(i / 4); const row = i % 4;
-    const x0 = 16 + col * colW; const y = panelY + 16 + row * 9;
-    const sel = i === g.levelUp.cursor;
-    if (sel) { ctx.fillStyle = C_SEL_BAR; ctx.fillRect(Math.round(x0) + 3, y - 2, Math.round(colW) - 6, 9); }
-    drawText(ctx, `${sel ? '> ' : '  '}${k}`, { x: Math.round(x0) + 6, y }, { color: sel ? C_ACCENT : C_TEXT, shadow: sel });
-    const v = `${current[k]} ${gainText(k)}`;
-    drawText(ctx, v, { x: Math.round(x0 + colW) - 6 - textWidth(v, 1), y }, { color: sel ? C_TEXT : C_DIM });
-  });
-  drawTextCentered(ctx, `${BUTTON_KEY.A.hint} SPEND A POINT`, { width: W, y: panelY + panelH - 9 }, { color: blinkHz(g.clock, 1.2) ? C_TEXT : C_DIM });
+  drawPanel(pc, { x: PANEL.x, y: PANEL.y, w: PANEL_W, h: PANEL.h }, { color: C_PANEL, border: C_BORDER });
+  drawText(ctx, 'LEVEL UP', { x: centreX('LEVEL UP', 2), y: PANEL.y + 4 }, { color: C_ACCENT, scale: 2, shadow: true });
+  const sub = `+${g.levelUp.earned} SP   ${g.hero.sp} TO SPEND`;
+  drawText(ctx, sub, { x: centreX(sub, 1), y: PANEL.y + 17 }, { color: C_TEXT });
+  const current = currentValues(derive(g.hero));
+  STAT_KEYS.forEach((k, i) => { drawStatRow(g, k, i, current); });
+  const prompt = `${BUTTON_KEY.A.hint} SPEND A POINT`;
+  drawText(ctx, prompt, { x: centreX(prompt, 1), y: PANEL.y + PANEL.h - 10 }, { color: blinkHz(g.clock, 1.2) ? C_TEXT : C_DIM });
   drawPops(g);
 }

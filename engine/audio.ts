@@ -1,4 +1,4 @@
-export type Sfx = 'jump' | 'pickup' | 'explosion' | 'hit' | 'blip';
+export type Sfx = 'jump' | 'pickup' | 'explosion' | 'hit' | 'blip' | 'whoosh';
 
 interface Audio {
   readonly ready: boolean;
@@ -43,15 +43,20 @@ function whiteNoise(ctx: AudioContext, dur: number): AudioBuffer {
   return buf;
 }
 
-function noise(v: Voice, dur: number, vol = 0.3): void {
+interface Sweep { type: BiquadFilterType; from: number; to: number }
+
+const RUMBLE: Sweep = { type: 'lowpass', from: 1400, to: 180 };
+const RUSH: Sweep = { type: 'bandpass', from: 500, to: 2600 };
+
+function noise(v: Voice, dur: number, vol = 0.3, sweep: Sweep = RUMBLE): void {
   const { ctx, master } = v;
   const t0 = ctx.currentTime;
   const src = ctx.createBufferSource();
   src.buffer = whiteNoise(ctx, dur);
   const filter = ctx.createBiquadFilter();
-  filter.type = 'lowpass';
-  filter.frequency.setValueAtTime(1400, t0);
-  filter.frequency.exponentialRampToValueAtTime(180, t0 + dur);
+  filter.type = sweep.type;
+  filter.frequency.setValueAtTime(sweep.from, t0);
+  filter.frequency.exponentialRampToValueAtTime(sweep.to, t0 + dur);
   const g = ctx.createGain();
   g.gain.setValueAtTime(vol, t0);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
@@ -77,6 +82,9 @@ const SFX: Readonly<Record<Sfx, (v: Voice) => void>> = {
   },
   blip: (v) => {
     tone(v, { freq: 880, dur: 0.05, type: 'square', vol: 0.12 });
+  },
+  whoosh: (v) => {
+    noise(v, 0.16, 0.22, RUSH);
   },
 };
 

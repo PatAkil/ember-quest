@@ -1,29 +1,36 @@
 import {
-  BUTTON_KEY, PICO8, SAFE_MARGIN, controlHints, dimScene, drawFrame, drawLogo, drawSprite, drawTextCentered, hudText, textWidth,
+  BUTTON_KEY, PICO8, SAFE_MARGIN, controlHints, dimScene, drawFrame, drawLogo, drawText, drawTextCentered, hudText, textWidth,
 } from '../../engine';
 import { SLOTS } from '../types';
 import { displayName, itemLevel } from '../sim';
-import { ENEMY_FRAMES, animFrame, heroFrames } from '../sprites';
+import { ENEMY_FRAMES, heroFrames } from '../sprites';
 import { drawActor, renderBiomeBackdrop, renderFloor } from '../backdrop';
 import type { Game } from '../state';
-import { C_ACCENT, C_BORDER, C_DIM, C_TEXT, FLOOR_Y, H, HERO_X, W } from '../theme';
+import { C_ACCENT, C_BORDER, C_DIM, C_TEXT, FLOOR_Y, H, W } from '../theme';
 import { blinkHz, fitText } from '../widgets';
+
+const POSTER_PX = 3;
+const POSTER_X = 52;
+const FOE_X = 164;
+const COPY_X = 160;
+
+function copyLine(ctx: CanvasRenderingContext2D, text: string, y: number, color: string): void {
+  drawText(ctx, text, { x: Math.round(COPY_X - textWidth(text, 1) / 2), y }, { color, shadow: true });
+}
 
 export function renderTitle(g: Game): void {
   const { pc, particles, input } = g.app;
   const ctx = pc.ctx;
   renderBiomeBackdrop(g); particles.render(ctx); renderFloor(g);
-  const hf = animFrame(heroFrames, g.clock);
-  ctx.fillStyle = PICO8[0]; ctx.fillRect(HERO_X - hf.w + 6, FLOOR_Y - 1, hf.w * 2 - 12, 3);
-  drawSprite(ctx, hf, { x: HERO_X - hf.w, y: FLOOR_Y - hf.h * 2 }, 2);
-  drawActor(g, ENEMY_FRAMES.SLIME, 170, { phase: 0.5 });
-  drawLogo(ctx, 'EMBER QUEST', { width: W, y: 12 }, { color: C_ACCENT, shade: PICO8[9], shadow: PICO8[2], scale: 3 });
-  drawTextCentered(ctx, 'A ROGUELIKE DESCENT', { width: W, y: 34 }, { color: C_DIM, shadow: true });
-  drawTextCentered(ctx, 'FOUR ACTS  ONE LIFE  YOUR BUILD', { width: W, y: 44 }, { color: C_TEXT, shadow: true });
-  drawTextCentered(ctx, `PRESS ${BUTTON_KEY.A.hint} TO DESCEND`, { width: W, y: 122 }, { color: blinkHz(g.clock, 1.2) ? C_ACCENT : C_TEXT, shadow: true });
+  drawActor(g, heroFrames, POSTER_X, { phase: 0, px: POSTER_PX });
+  drawActor(g, ENEMY_FRAMES.SLIME, FOE_X, { phase: 0.5 });
+  drawLogo(ctx, 'EMBER QUEST', { width: W, y: 10 }, { color: C_ACCENT, shade: PICO8[9], shadow: PICO8[2], scale: 3 });
+  copyLine(ctx, 'A ROGUELIKE DESCENT', 38, C_DIM);
+  copyLine(ctx, 'FOUR ACTS  ONE LIFE  YOUR BUILD', 48, C_TEXT);
+  drawTextCentered(ctx, `PRESS ${BUTTON_KEY.A.hint} TO DESCEND`, { width: W, y: 120 }, { color: blinkHz(g.clock, 1.2) ? C_ACCENT : C_TEXT, shadow: true });
   const hintOpts = { color: C_TEXT, shadow: true };
-  drawTextCentered(ctx, 'UP/DOWN  MOVE CURSOR', { width: W, y: 134 }, hintOpts);
-  controlHints(input).forEach((h, i) => { drawTextCentered(ctx, h, { width: W, y: 142 + i * 8 }, hintOpts); });
+  drawTextCentered(ctx, 'UP/DOWN  MOVE CURSOR', { width: W, y: 131 }, hintOpts);
+  controlHints(input).forEach((h, i) => { drawTextCentered(ctx, h, { width: W, y: 139 + i * 8 }, hintOpts); });
   if (g.best > 0) {hudText(pc, `BEST ${g.best}`, { h: 'right', v: 'top' }, { color: C_DIM });}
 }
 

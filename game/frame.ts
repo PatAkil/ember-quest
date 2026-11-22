@@ -2,6 +2,7 @@ import { PICO8 } from '../engine';
 import type { SceneMachine } from '../engine';
 import { startPlaying } from './flow';
 import { updatePops } from './pops';
+import { drawReveal, trackReveal } from './transition';
 import type { Game, SubScene } from './state';
 import { C_ACCENT, C_BG, H, W } from './theme';
 import { renderBattle } from './screens/battle-view';
@@ -59,6 +60,7 @@ export function update(g: Game, dt: number): void {
   particles.update(dt);
   updatePops(g.pops, dt);
   UPDATE_SCENE[scenes.current](g, dt);
+  trackReveal(g, dt);
   input.endFrame();
 }
 
@@ -81,6 +83,7 @@ export function render(g: Game): void {
   pc.clear(C_BG);
   juice.preRender(pc.ctx);
   RENDER_SCENE[scenes.current](g);
+  drawReveal(g);
   juice.postRender(pc.ctx, W, H);
   crt.render(pc.ctx, W, H, 1 / 60);
 }

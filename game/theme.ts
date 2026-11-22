@@ -3,6 +3,7 @@ import type { AmbientPreset } from '../engine';
 import type { Item } from './types';
 import { RARITY_COLOR_INDEX } from './data';
 import { at } from './lookup';
+import { heroFrames } from './sprites';
 
 export const W = 240;
 export const H = 160;
@@ -42,6 +43,14 @@ export const BIOME_LOOK: readonly BiomeLook[] = [
 export interface Point { x: number; y: number }
 
 export const FLOOR_Y = 112;
-export const HERO_X = 56;
-export const ENEMY_X = 176;
-export const heroPos = (): Point => ({ x: HERO_X, y: FLOOR_Y - 14 });
+export const ACTOR_PX = 2;
+export const HERO_X = 70;
+export const ENEMY_FRONT = 136;
+export const ENEMY_MIN_X = 162;
+export const HUD_BOTTOM = 35;
+export const BAND_Y = 118;
+
+const HERO_SPRITE = heroFrames[0];
+export const HERO_W = HERO_SPRITE.w * ACTOR_PX;
+export const HERO_H = HERO_SPRITE.h * ACTOR_PX;
+export const heroPos = (): Point => ({ x: HERO_X, y: FLOOR_Y - HERO_H / 2 });

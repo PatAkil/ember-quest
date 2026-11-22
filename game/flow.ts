@@ -2,6 +2,7 @@ import { BIOMES, ENEMIES, BOSS_ENTRY_HEAL } from './data';
 import type { EnemyKind, Hero, LootSource } from './types';
 import { createHero, fullHeal, grantClear, healFraction } from './sim';
 import { at, must } from './lookup';
+import { resetFx } from './fx';
 import { generateMap } from './mapgen';
 import { biome, biomeLook, pickOne, resetCursorEdge, stageAt } from './state';
 import type { Game, MapNode, RoomType } from './state';
@@ -99,6 +100,7 @@ export function startRun(g: Game, hero: Hero = createHero(), act = 0, clears = 0
   g.dying = false; g.heroDown = false;
   g.battle.enemy = null; g.battle.state = null;
   g.pops.length = 0;
+  resetFx(g);
   enterAct(g);
 }
 

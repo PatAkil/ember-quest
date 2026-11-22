@@ -1,11 +1,14 @@
 import type { BattleState, EnemyInstance, Hero, LootOffer, LootSource, Rng } from './types';
 import { BIOMES } from './data';
 import { createHero } from './sim';
+import type { Sprite } from '../engine';
 import type { App } from './app';
 import { BIOME_LOOK, C_TEXT } from './theme';
 import type { BiomeLook } from './theme';
 import { loadBest } from './storage';
 import { at, noop } from './lookup';
+import { createFx, createReveal } from './fx-state';
+import type { FxState, Reveal } from './fx-state';
 
 export type SubScene = 'MAP' | 'BATTLE' | 'LEVELUP' | 'LOOT' | 'CARD';
 export type RoomType = 'FIGHT' | 'ELITE' | 'REST' | 'LOOT' | 'BOSS';
@@ -37,7 +40,7 @@ export interface BattleScreen {
   color: string;
 }
 
-export interface CardScreen { lines: string[]; onDone: () => void }
+export interface CardScreen { lines: string[]; onDone: () => void; art?: { icon: Sprite; color: string } }
 export interface LevelUpScreen { cursor: number; earned: number; onDone: () => void }
 export interface LootScreen { offers: LootOffer[]; cursor: number; source: LootSource; onDone: () => void }
 
@@ -57,6 +60,8 @@ export interface Game {
   dying: boolean;
   heroDown: boolean;
   pops: Pop[];
+  fx: FxState;
+  reveal: Reveal;
   map: MapState;
   battle: BattleScreen;
   card: CardScreen;
@@ -81,6 +86,8 @@ export function createGame(app: App): Game {
     dying: false,
     heroDown: false,
     pops: [],
+    fx: createFx(),
+    reveal: createReveal(),
     map: { stages: [], curStage: -1, reachable: [0, 1], cursor: 0, pendingNode: null },
     battle: {
       enemy: null, state: null, phase: 'MENU', menuCursor: 0, outcome: 'NONE', onWon: noop,

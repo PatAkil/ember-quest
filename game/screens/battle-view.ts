@@ -1,36 +1,81 @@
-import { PICO8, SAFE_MARGIN, drawPanel, drawText, drawTextCentered, hudText, textWidth } from '../../engine';
+import { PICO8, SAFE_MARGIN, drawPanel, drawText, drawTextCentered, textWidth } from '../../engine';
 import { SPELLS } from '../data';
-import type { DamageKind, Derived, EnemyKind, Hero, HeroAction, SpellId } from '../types';
+import type { DamageKind, Derived, Hero, HeroAction, SpellId } from '../types';
 import { canAfford, derive, heroActions, spellCost } from '../sim';
 import { renderTableau } from '../backdrop';
 import { drawPops } from '../pops';
 import type { Game } from '../state';
-import { C_ACCENT, C_BORDER, C_DIM, C_FAINT, C_HP, C_HP_LOW, C_MP, C_PANEL, C_SEL_BAR, C_TEXT, C_WARN, H, W } from '../theme';
-import { drawBar, pct, wrap2 } from '../widgets';
+import { BAND_Y, C_ACCENT, C_BORDER, C_DIM, C_FAINT, C_HP, C_HP_LOW, C_MP, C_PANEL, C_SEL_BAR, C_TEXT, C_WARN, H, HUD_BOTTOM, W } from '../theme';
+import { drawGauge, pct, wrap2 } from '../widgets';
+import { bannerBlocks, meter } from '../fx';
+import type { MeterId } from '../fx-state';
+import { KIND_TAG, hasHex, magicWeapon } from './battle-fx';
+import { drawBattleFx } from './battle-fx-view';
+
+type Ctx = CanvasRenderingContext2D;
 
 const hpColor = (frac: number): string => (frac < 0.25 ? C_HP_LOW : C_HP);
+
+interface Box { x: number; y: number; w: number; h: number }
+
+const PLATE_W = 96;
+const PLATE_PAD = 4;
+const ROW_A = 4;
+const ROW_B = 11;
+const ROW_C = 18;
+const NUM_RESERVE = textWidth('999/999', 1);
+const HERO_PLATE: Box = { x: SAFE_MARGIN, y: SAFE_MARGIN, w: PLATE_W, h: HUD_BOTTOM - SAFE_MARGIN };
+const ENEMY_PLATE: Box = { ...HERO_PLATE, x: W - SAFE_MARGIN - PLATE_W };
+
+const innerLeft = (b: Box): number => b.x + PLATE_PAD;
+const innerRight = (b: Box): number => b.x + b.w - PLATE_PAD;
+
+interface BarRow { label: string; id: MeterId; max: number; color?: string }
+
+function drawBarRow(g: Game, plate: Box, dy: number, row: BarRow): void {
+  const ctx = g.app.pc.ctx;
+  const y = plate.y + dy;
+  const m = meter(g, row.id);
+  const max = Math.max(1, row.max);
+  drawText(ctx, row.label, { x: innerLeft(plate), y }, { color: C_TEXT });
+  const num = `${Math.round(m.shown)}/${row.max}`;
+  const nx = innerRight(plate) - Math.max(NUM_RESERVE, textWidth(num, 1));
+  const bx = innerLeft(plate) + 10;
+  const frac = m.shown / max;
+  drawGauge(ctx, { x: bx, y, w: nx - 4 - bx, h: 5 }, { frac, ghost: m.ghost / max, color: row.color ?? hpColor(frac) });
+  drawText(ctx, num, { x: innerRight(plate) - textWidth(num, 1), y }, { color: C_DIM });
+}
+
+function statSegments(d: Derived, short: boolean): string[] {
+  const [atk, mag, crit] = short ? ['A', 'M', 'C'] : ['ATK', 'MAG', 'CRIT'];
+  return [`${atk} ${d.atk}`, `${mag} ${d.mag}`, `${crit} ${pct(d.crit)}`];
+}
+
+function drawStatLine(ctx: Ctx, plate: Box, d: Derived): void {
+  const room = innerRight(plate) - innerLeft(plate);
+  const wide = statSegments(d, false);
+  const fits = wide.reduce((n, t) => n + textWidth(t, 1), 0) + 8 <= room;
+  const segs = fits ? wide : statSegments(d, true);
+  const used = segs.reduce((n, t) => n + textWidth(t, 1), 0);
+  const gap = (room - used) / (segs.length - 1);
+  let x = innerLeft(plate);
+  for (const t of segs) {
+    drawText(ctx, t, { x: Math.round(x), y: plate.y + ROW_A }, { color: C_DIM });
+    x += textWidth(t, 1) + gap;
+  }
+}
 
 function renderHeroHud(g: Game, d: Derived): void {
   const { pc } = g.app;
   const ctx = pc.ctx;
-  const hero = g.hero;
-  drawPanel(pc, { x: SAFE_MARGIN, y: SAFE_MARGIN, w: 132, h: 32 }, { color: C_PANEL, border: C_BORDER });
-  drawText(ctx, 'HP', { x: SAFE_MARGIN + 4, y: SAFE_MARGIN + 4 }, { color: C_TEXT });
-  drawBar(ctx, { x: SAFE_MARGIN + 16, y: SAFE_MARGIN + 4, w: 56, h: 5 }, hero.hp / d.maxHp, hpColor(hero.hp / d.maxHp));
-  drawText(ctx, `${hero.hp}/${d.maxHp}`, { x: SAFE_MARGIN + 76, y: SAFE_MARGIN + 4 }, { color: C_DIM });
-  drawText(ctx, 'MP', { x: SAFE_MARGIN + 4, y: SAFE_MARGIN + 12 }, { color: C_TEXT });
-  drawBar(ctx, { x: SAFE_MARGIN + 16, y: SAFE_MARGIN + 12, w: 56, h: 5 }, hero.mp / d.maxMp, C_MP);
-  drawText(ctx, `${hero.mp}/${d.maxMp}`, { x: SAFE_MARGIN + 76, y: SAFE_MARGIN + 12 }, { color: C_DIM });
-  const line = `ATK ${d.atk} MAG ${d.mag} CRIT ${pct(d.crit)}`;
-  drawText(ctx, line, { x: SAFE_MARGIN + 4, y: SAFE_MARGIN + 22 }, { color: C_DIM });
+  drawPanel(pc, HERO_PLATE, { color: C_PANEL, border: C_BORDER });
+  drawStatLine(ctx, HERO_PLATE, d);
+  drawBarRow(g, HERO_PLATE, ROW_B, { label: 'HP', id: 'heroHp', max: d.maxHp });
+  drawBarRow(g, HERO_PLATE, ROW_C, { label: 'MP', id: 'heroMp', max: d.maxMp, color: C_MP });
   const stacks = g.battle.state?.rampStacks ?? 0;
-  if (stacks > 0) {
-    const ramp = `RAMP ${stacks}`;
-    drawText(ctx, ramp, { x: SAFE_MARGIN + 128 - textWidth(ramp, 1), y: SAFE_MARGIN + 22 }, { color: PICO8[9] });
-  }
+  if (stacks > 0) {drawText(ctx, `RAMP ${stacks}`, { x: innerLeft(HERO_PLATE), y: HUD_BOTTOM + 3 }, { color: C_WARN, shadow: true });}
 }
 
-const KIND_TAG: Record<EnemyKind, string> = { BOSS: ' BOSS', ELITE: ' ELITE', NORMAL: '' };
 
 function resistText(def: { def: number; mdef: number }): string {
   if (def.def < def.mdef) {return `RES MAG ${def.mdef}%`;}
@@ -40,20 +85,28 @@ function resistText(def: { def: number; mdef: number }): string {
 function renderEnemyHud(g: Game): void {
   const e = g.battle.enemy;
   if (!e) {return;}
-  const ctx = g.app.pc.ctx;
-  const right = (text: string): number => W - SAFE_MARGIN - textWidth(text, 1);
+  const { pc } = g.app;
+  const ctx = pc.ctx;
+  const plate = ENEMY_PLATE;
+  drawPanel(pc, plate, { color: C_PANEL, border: C_BORDER });
+  drawText(ctx, e.def.name, { x: innerLeft(plate), y: plate.y + ROW_A }, { color: C_TEXT });
   const tag = KIND_TAG[e.def.kind];
-  drawText(ctx, e.def.name, { x: right(e.def.name + tag), y: SAFE_MARGIN + 9 }, { color: C_TEXT, shadow: true });
-  if (tag) {drawText(ctx, tag.trim(), { x: right(tag.trim()), y: SAFE_MARGIN + 9 }, { color: C_ACCENT, shadow: true });}
-  drawBar(ctx, { x: W - SAFE_MARGIN - 80, y: SAFE_MARGIN + 17, w: 80, h: 5 }, e.hp / e.maxHp, hpColor(e.hp / e.maxHp));
+  if (tag) {drawText(ctx, tag, { x: innerRight(plate) - textWidth(tag, 1), y: plate.y + ROW_A }, { color: C_ACCENT });}
+  drawBarRow(g, plate, ROW_B, { label: 'HP', id: 'enemyHp', max: e.maxHp });
   const physical = e.def.atkType === 'PHYSICAL';
-  drawText(ctx, physical ? 'STRIKES' : 'HEXES', { x: W - SAFE_MARGIN - 80, y: SAFE_MARGIN + 24 }, { color: physical ? PICO8[9] : PICO8[14], shadow: true });
+  drawText(ctx, physical ? 'STRIKES' : 'HEXES', { x: innerLeft(plate), y: plate.y + ROW_C }, { color: physical ? C_WARN : PICO8[14] });
   const res = resistText(e.def);
-  if (res) {drawText(ctx, res, { x: right(res), y: SAFE_MARGIN + 24 }, { color: C_DIM, shadow: true });}
+  if (res) {drawText(ctx, res, { x: innerRight(plate) - textWidth(res, 1), y: plate.y + ROW_C }, { color: C_DIM });}
 }
 
-const hasHex = (hero: Hero): boolean => Object.values(hero.equipment).some((it) => it.effect.kind === 'HEX_STRIKE');
-const magicWeapon = (hero: Hero): boolean => hero.equipment.WEAPON?.weaponKind === 'MAGIC';
+function renderScore(g: Game): void {
+  const ctx = g.app.pc.ctx;
+  const mid = (HERO_PLATE.x + HERO_PLATE.w + ENEMY_PLATE.x) / 2;
+  const centred = (text: string): number => Math.round(mid - textWidth(text, 1) / 2);
+  const value = String(g.score);
+  drawText(ctx, 'SCORE', { x: centred('SCORE'), y: SAFE_MARGIN + ROW_A }, { color: C_DIM, shadow: true });
+  drawText(ctx, value, { x: centred(value), y: SAFE_MARGIN + ROW_B }, { color: C_TEXT, shadow: true });
+}
 
 function actionKind(hero: Hero, a: HeroAction): DamageKind {
   const hex = hasHex(hero);
@@ -118,33 +171,48 @@ function drawActionRow(g: Game, a: HeroAction, cell: MenuCell): void {
   drawText(ctx, text, { x: x0 + Math.round(colW) - 5 - textWidth(text, 1), y }, { color: infoColor });
 }
 
+const ROW_PITCH = 9;
+const BAND_BOTTOM = H - SAFE_MARGIN;
+const LOG_ROOM = BAND_BOTTOM - BAND_Y - 1;
+
+function renderBand(g: Game): void {
+  const ctx = g.app.pc.ctx;
+  ctx.fillStyle = PICO8[0]; ctx.fillRect(0, BAND_Y - 1, W, 1);
+  ctx.fillStyle = C_PANEL; ctx.fillRect(0, BAND_Y, W, H - BAND_Y);
+  ctx.fillStyle = C_BORDER; ctx.fillRect(0, BAND_Y, W, 1);
+}
+
 function renderActionMenu(g: Game): void {
-  const { pc } = g.app;
+  const ctx = g.app.pc.ctx;
   const actions = heroActions(g.hero);
-  const rows = Math.min(3, actions.length);
   const cols = Math.ceil(actions.length / 3);
   const colW = (W - 2 * SAFE_MARGIN) / cols;
-  const panelH = 10 + rows * 9;
-  const panelY = H - SAFE_MARGIN - panelH;
-  drawPanel(pc, { x: SAFE_MARGIN, y: panelY, w: W - 2 * SAFE_MARGIN, h: panelH }, { color: C_PANEL, border: C_BORDER });
+  if (cols > 1) { ctx.fillStyle = PICO8[5]; ctx.fillRect(W / 2, BAND_Y + 4, 1, BAND_BOTTOM - BAND_Y - 4); }
   const compact = actions.some((a) => overflows(g, a, colW));
+  const rows = Math.min(3, actions.length);
+  const top = BAND_Y + 1 + Math.round((LOG_ROOM - (rows * ROW_PITCH - 4)) / 2);
   actions.forEach((a, i) => {
     const x0 = Math.round(SAFE_MARGIN + Math.floor(i / 3) * colW);
-    drawActionRow(g, a, { x0, y: panelY + 5 + (i % 3) * 9, colW, sel: i === g.battle.menuCursor, compact });
+    drawActionRow(g, a, { x0, y: top + (i % 3) * ROW_PITCH, colW, sel: i === g.battle.menuCursor, compact });
   });
 }
 
+const LOG_MAX_W = W - 2 * SAFE_MARGIN - 8;
+
+function logLayout(text: string): { lines: string[]; scale: number } {
+  const big = wrap2(text, LOG_MAX_W, 2);
+  if (big.every((l) => textWidth(l, 2) <= LOG_MAX_W)) {return { lines: big, scale: 2 };}
+  return { lines: wrap2(text, LOG_MAX_W), scale: 1 };
+}
+
 function renderBattleText(g: Game): void {
-  const { pc } = g.app;
-  const color = g.battle.color;
-  drawPanel(pc, { x: SAFE_MARGIN, y: H - SAFE_MARGIN - 22, w: W - 2 * SAFE_MARGIN, h: 22 }, { color: C_PANEL, border: C_BORDER });
-  const lines = wrap2(g.battle.text, W - 2 * SAFE_MARGIN - 10);
-  if (lines.length === 1) {
-    drawTextCentered(pc.ctx, lines[0], { width: W, y: H - SAFE_MARGIN - 15 }, { color, shadow: true });
-    return;
-  }
-  drawTextCentered(pc.ctx, lines[0], { width: W, y: H - SAFE_MARGIN - 18 }, { color, shadow: true });
-  drawTextCentered(pc.ctx, lines[1], { width: W, y: H - SAFE_MARGIN - 10 }, { color, shadow: true });
+  const ctx = g.app.pc.ctx;
+  const { lines, scale } = logLayout(g.battle.text);
+  const lineH = 5 * scale + 3;
+  const top = BAND_Y + 1 + Math.round((LOG_ROOM - (lines.length * lineH - 3)) / 2);
+  lines.forEach((line, i) => {
+    drawTextCentered(ctx, line, { width: W, y: top + i * lineH }, { color: g.battle.color, scale, shadow: true });
+  });
 }
 
 const endingShown = (g: Game): boolean => g.app.scenes.is('GAME_OVER') || g.app.scenes.is('WIN');
@@ -152,10 +220,12 @@ const endingShown = (g: Game): boolean => g.app.scenes.is('GAME_OVER') || g.app.
 export function renderBattle(g: Game): void {
   renderTableau(g, true);
   if (endingShown(g)) {return;}
+  drawBattleFx(g);
   const d = derive(g.hero);
   renderEnemyHud(g);
-  hudText(g.app.pc, `SCORE ${g.score}`, { h: 'right', v: 'top' }, { color: C_TEXT });
   renderHeroHud(g, d);
-  if (g.battle.phase === 'MENU' && !g.heroDown) {renderActionMenu(g);} else {renderBattleText(g);}
+  renderScore(g);
+  renderBand(g);
+  if (g.battle.phase === 'MENU' && !g.heroDown && !bannerBlocks(g)) {renderActionMenu(g);} else {renderBattleText(g);}
   drawPops(g);
 }
