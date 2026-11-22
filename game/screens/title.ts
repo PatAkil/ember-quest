@@ -18,7 +18,7 @@ export function renderTitle(g: Game): void {
   drawSprite(ctx, hf, { x: HERO_X - hf.w, y: FLOOR_Y - hf.h * 2 }, 2);
   drawActor(g, ENEMY_FRAMES.SLIME, 170, { phase: 0.5 });
   drawLogo(ctx, 'EMBER QUEST', { width: W, y: 12 }, { color: C_ACCENT, shade: PICO8[9], shadow: PICO8[2], scale: 3 });
-  drawTextCentered(ctx, 'A ROGUELIKE DESCENT TEST', { width: W, y: 34 }, { color: C_DIM, shadow: true });
+  drawTextCentered(ctx, 'A ROGUELIKE DESCENT', { width: W, y: 34 }, { color: C_DIM, shadow: true });
   drawTextCentered(ctx, 'FOUR ACTS  ONE LIFE  YOUR BUILD', { width: W, y: 44 }, { color: C_TEXT, shadow: true });
   drawTextCentered(ctx, `PRESS ${BUTTON_KEY.A.hint} TO DESCEND`, { width: W, y: 122 }, { color: blinkHz(g.clock, 1.2) ? C_ACCENT : C_TEXT, shadow: true });
   const hintOpts = { color: C_DIM, shadow: true };
