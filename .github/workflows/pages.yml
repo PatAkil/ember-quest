@@ -169,8 +169,8 @@ jobs:
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
             store=/tmp/oracle-store
             for attempt in 1 2 3; do
-              git worktree remove --force "$store" 2>/dev/null; rm -rf "$store"; git worktree prune
-              if git fetch -q --depth 1 origin oracle-screens; then
+              git worktree remove --force "$store" 2>/dev/null || true; rm -rf "$store"; git worktree prune
+              if git fetch -q --depth 1 origin oracle-screens 2>/dev/null; then
                 git worktree add -q --detach "$store" FETCH_HEAD
               else
                 git worktree add -q --orphan -b "oracle-screens-$attempt" "$store"
