@@ -10,13 +10,27 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "smoke": "node smoke.mjs",
-    "sim": "node sim/run.mjs"
+    "sim": "node sim/run.mjs",
+    "setup": "node scripts/setup-eyes.mjs",
+    "look": "node scripts/look.mjs",
+    "verify": "node scripts/verify.mjs",
+    "lint": "eslint .",
+    "lint:full": "npm run lint && knip && jscpd game engine scripts sim && depcruise game engine --config .dependency-cruiser.cjs",
+    "sim:quick": "node sim/run.mjs --runs 500 --policy balanced,random"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@sparticuz/chromium": "^153.0.0",
     "@types/node": "^22.20.1",
-    "typescript": "5.9.3",
-    "vite": "7.3.6",
+    "agent-browser": "^0.43.0",
+    "dependency-cruiser": "^18.8.0",
+    "esbuild": "^0.25.0",
+    "eslint": "^10.15.0",
+    "jscpd": "^5.4.3",
+    "knip": "^5.88.1",
     "playwright": "1.56.1",
-    "esbuild": "^0.25.0"
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.73.0",
+    "vite": "7.3.6"
   }
 }

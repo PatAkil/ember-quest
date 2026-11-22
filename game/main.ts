@@ -62,13 +62,14 @@ import {
 } from './sprites';
 import type { Anim } from './sprites';
 import { STAT_KEYS, SP_GAIN, SLOTS } from './types';
-import type { Hero, Item, Slot, StatKey, SpellId, LootSource, LootOffer, EnemyKind, EnemyInstance, BattleState, HeroAction, Derived } from './types';
+import type { Rng, Hero, Item, Slot, StatKey, SpellId, LootSource, LootOffer, EnemyKind, EnemyInstance, BattleState, HeroAction, Derived } from './types';
 import { BIOMES, ENEMIES, ITEMS, SPELLS, RARITY_COLOR_INDEX, BOSS_ENTRY_HEAL, validateData } from './data';
 import {
   createHero, derive, heroActions, spellCost, canAfford, spendPoint, grantClear, healFraction, fullHeal,
   spawnEnemy, createBattle, startTurn, heroAct, enemyAct, rollLoot, skipMend,
   applyOffer, compareOffer, describeOffer, displayName, itemLevel, noteDeclinedScrolls,
 } from './sim';
+import { installDevHook } from './devhook';
 
 // --- Setup -------------------------------------------------------------------
 const W = 240;
@@ -118,6 +119,7 @@ const BIOME_LOOK: BiomeLook[] = [
   { floor: PICO8[6], floorLight: PICO8[7], floorDark: PICO8[5], ambient: 'bubbles', ambientColor: PICO8[10] },
 ];
 
+let rng: Rng = Math.random;
 let clock = 0; // ONE clock, fed by fixed-step dt, drives every animation.
 
 // --- Map generation -------------------------------------------------------------
@@ -126,7 +128,7 @@ interface MapNode { type: RoomType; stage: number; slot: number; links: number[]
 const STAGE_SIZES = [2, 3, 2, 3, 2, 3]; // 6 stages, then a 1-node BOSS stage
 
 function pickRoomType(): RoomType {
-  const r = Math.random();
+  const r = rng();
   if (r < 0.15) return 'ELITE';
   if (r < 0.30) return 'REST';
   if (r < 0.42) return 'LOOT';
@@ -147,8 +149,8 @@ function linkStage(cur: MapNode[], next: MapNode[]): void {
   for (let i = 0; i < a; i++) {
     const straight = Math.round((i * (b - 1)) / Math.max(1, a - 1));
     const floorLo = Math.max(i >= 1 ? his[i - 1] - 1 : 0, i >= 2 ? his[i - 2] : 0);
-    const span = b >= 2 && Math.random() < 0.85 ? 2 : 1;
-    let lo = Math.max(floorLo, Math.min(straight - (span === 2 && Math.random() < 0.5 ? 1 : 0), b - 1));
+    const span = b >= 2 && rng() < 0.85 ? 2 : 1;
+    let lo = Math.max(floorLo, Math.min(straight - (span === 2 && rng() < 0.5 ? 1 : 0), b - 1));
     let hi = Math.min(b - 1, lo + span - 1);
     if (hi < lo) hi = lo;
     // keep the span honest when it was clipped at the bottom edge
@@ -183,17 +185,17 @@ function generateMap(): MapNode[][] {
   // No elite before the first clear — an elite against base stats is a coin flip, not a choice.
   for (const n of stages[0]) if (n.type === 'ELITE') n.type = 'FIGHT';
   if (!stages.slice(1, 6).some((st) => st.some((n) => n.type === 'ELITE'))) {
-    const st = stages[2]; st[Math.floor(Math.random() * st.length)].type = 'ELITE';
+    const st = stages[2]; st[Math.floor(rng() * st.length)].type = 'ELITE';
   }
   if (!stages.slice(0, 6).some((st) => st.some((n) => n.type === 'REST'))) {
-    const st = stages[4]; st[Math.floor(Math.random() * st.length)].type = 'REST';
+    const st = stages[4]; st[Math.floor(rng() * st.length)].type = 'REST';
   }
   // A chest every act — and when we have to invent one, make it the REST's
   // sibling so "rest or loot" is a choice the route forces at least once.
   if (!stages.slice(0, 6).some((st) => st.some((n) => n.type === 'LOOT'))) {
     const restStage = stages.slice(0, 6).find((st) => st.length > 1 && st.some((n) => n.type === 'REST')) ?? stages[3];
     const cands = restStage.filter((n) => n.type !== 'REST');
-    (cands[Math.floor(Math.random() * cands.length)] ?? restStage[0]).type = 'LOOT';
+    (cands[Math.floor(rng() * cands.length)] ?? restStage[0]).type = 'LOOT';
   }
   for (let s = 0; s < stages.length - 1; s++) linkStage(stages[s], stages[s + 1]);
   return stages;
@@ -278,13 +280,13 @@ function updateLevelUp(): void {
 }
 
 // --- Loot screen (choose one item, or keep gear + mend) --------------------------
-const pickOne = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+const pickOne = <T,>(arr: T[]): T => arr[Math.floor(rng() * arr.length)];
 let lootOffers: LootOffer[] = [];
 let lootCursor = 0;
 let lootSource: LootSource = 'FIGHT';
 let lootOnDone: () => void = () => {};
 function startLoot(source: LootSource, onDone: () => void): void {
-  lootOffers = rollLoot(source, actIndex, hero, Math.random);
+  lootOffers = rollLoot(source, actIndex, hero, rng);
   // Bad-luck guard: a knight with no weapon cannot out-damage anything, so the
   // first item offers of a run always include one (a common blade or wand).
   const itemIdx = lootOffers.map((o, i) => (o.kind === 'ITEM' ? i : -1)).filter((i) => i >= 0);
@@ -309,7 +311,7 @@ function updateLoot(): void {
     if (lootCursor < lootOffers.length) {
       const offer = lootOffers[lootCursor];
       const delta = compareOffer(hero, offer);
-      const r = applyOffer(hero, offer, Math.random);
+      const r = applyOffer(hero, offer, rng);
       noteDeclinedScrolls(hero, lootOffers, offer);
       audio.play('pickup');
       if (offer.kind === 'SCROLL') {
@@ -407,9 +409,9 @@ function enterAct(): void {
   resetCursorEdge();
 }
 
-function startRun(): void {
-  hero = createHero();
-  clears = 0; score = 0; actIndex = 0; dying = false; heroDown = false; enemy = null; battle = null; pops.length = 0;
+function startRun(h: Hero = createHero(), act = 0, c = 0): void {
+  hero = h;
+  clears = c; score = c * 100; actIndex = act; dying = false; heroDown = false; enemy = null; battle = null; pops.length = 0;
   enterAct();
 }
 
@@ -507,7 +509,7 @@ function heroDies(text: string): void {
 
 function applyEnemyAction(): void {
   if (!enemy || !battle) return;
-  const r = enemyAct(hero, battle, Math.random);
+  const r = enemyAct(hero, battle, rng);
   const hp = heroPos();
   curText = r.text; curColor = r.dodged ? C_TEXT : C_DMG_TAKEN;
   if (r.dodged) { audio.play('blip'); pushPop(hp.x, hp.y - 8, 'MISS', C_DIM); }
@@ -541,7 +543,7 @@ function applyHeroAction(action: HeroAction): void {
   if (turn.mpRegen > 0) pushPop(hp.x, hp.y - 22, `+${turn.mpRegen} MP`, C_MP);
   if (turn.hpRegen > 0) pushPop(hp.x + 18, hp.y - 30, `+${turn.hpRegen} HP`, C_HP);
   if (turn.bloodLoss > 0) pushPop(hp.x - 16, hp.y - 30, `-${turn.bloodLoss}`, C_DMG_TAKEN);
-  const r = heroAct(hero, battle, action, Math.random);
+  const r = heroAct(hero, battle, action, rng);
   curText = r.text; curColor = r.crit ? C_ACCENT : C_TEXT;
   const p = enemyPos();
   r.hits.forEach((h, i) => {
@@ -1140,4 +1142,18 @@ function render(): void {
   crt.render(pc.ctx, W, H, 1 / 60);
 }
 
-createLoop({ update, render }).start();
+const dev = import.meta.env.DEV ? installDevHook({
+  scenes, setRng: (r) => { rng = r; }, tick: update, render, resetEdge: resetCursorEdge, startRun, selectNode,
+  nextNodes: () => reachable.map((i) => mapStages[curStage + 1][i]),
+  bossNode: () => mapStages[mapStages.length - 1][0],
+  winBattle: () => { pendingOutcome = 'WON'; onQueueDone(); },
+  enemyTurn: applyEnemyAction,
+  view: () => ({
+    scene: scenes.current, subScene, act: actIndex + 1, hero, derived: derive(hero), enemy, clears, score, dying,
+    cursors: { MAP: cursor, BATTLE: menuCursor, LEVELUP: luCursor, LOOT: lootCursor, CARD: 0 },
+    battlePhase, battleText: curText, actions: heroActions(hero), offers: lootOffers, card: cardLines,
+    map: mapStages, curStage, reachable,
+  }),
+}) : null;
+
+createLoop({ update: dev ? dev.update : update, render }).start();
