@@ -45,6 +45,11 @@ export function gatedFiles(root) {
   return out === null ? [] : [...new Set(out.split('\0').filter(isGated))].sort();
 }
 
+export function gatedPathsNotInIndex(root) {
+  const out = `${git(root, ['diff', '-z', '--name-only']) ?? ''}${git(root, ['ls-files', '-z', '--others', '--exclude-standard']) ?? ''}`;
+  return [...new Set(out.split('\0').filter(isGated))].sort();
+}
+
 export function statSnapshot(root, files) {
   const snap = {};
   for (const file of files) {

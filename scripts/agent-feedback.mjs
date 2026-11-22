@@ -3,7 +3,7 @@ import { killChildren, tail, toolsMissing } from './feedback-checks.mjs';
 import { handleEdit } from './feedback-edit.mjs';
 import { verifyTree } from './feedback-gate.mjs';
 import { handleStop } from './feedback-stop.mjs';
-import { agentKey, findRepo, fingerprint, freshAgent, git, logEvent, updateState } from './feedback-state.mjs';
+import { agentKey, findRepo, fingerprint, freshAgent, logEvent, gatedPathsNotInIndex, updateState } from './feedback-state.mjs';
 
 const LIMIT_MS = { edit: 55000, stop: 580000, 'session-start': 25000, 'subagent-start': 25000, precommit: 590000, gate: 590000 };
 const READS_HOOK_INPUT = new Set(['edit', 'stop', 'session-start', 'subagent-start']);
@@ -37,13 +37,23 @@ function subagentStart(input, repo) {
   return { code: 0 };
 }
 
-function unstagedNote(repo) {
-  const out = git(repo.root, ['diff', '--name-only']) ?? '';
-  const files = out.split('\n').filter((f) => f !== '' && !f.endsWith('.md'));
-  return files.length ? `note: unstaged changes (${files.slice(0, 5).join(', ')}) were part of the verified tree but are not in this commit.\n` : '';
+function unstagedRefusal(repo) {
+  const files = gatedPathsNotInIndex(repo.root);
+  if (!files.length) {
+    return null;
+  }
+  const more = files.length > 8 ? ` (+${String(files.length - 8)} more)` : '';
+  return {
+    code: 1,
+    stderr: `pre-commit: these files are on disk but not staged, so the verified tree would not be the committed tree:\n  ${files.slice(0, 8).join('\n  ')}${more}\npre-commit: Commit refused. Stage or stash them first (git stash --keep-index --include-untracked), or (owner only) bypass with git commit --no-verify.\n`,
+  };
 }
 
 async function commitGate(repo, label) {
+  const refusal = label === 'pre-commit' ? unstagedRefusal(repo) : null;
+  if (refusal) {
+    return refusal;
+  }
   if (toolsMissing(repo.root).length) {
     return { code: 0, stderr: `${label}: node_modules is missing, so the tree was NOT verified. Run npm ci, then npm run verify.\n` };
   }
@@ -51,7 +61,7 @@ async function commitGate(repo, label) {
   const r = await verifyTree(repo, 300000);
   const secs = ((Date.now() - t0) / 1000).toFixed(1);
   if (r.pass) {
-    return { code: 0, stderr: `${label}: ${r.cached ? 'tree already verified green (fingerprint cache)' : `${String(r.name)} passed in ${secs}s`}\n${label === 'pre-commit' ? unstagedNote(repo) : ''}` };
+    return { code: 0, stderr: `${label}: ${r.cached ? 'tree already verified green (fingerprint cache)' : `${String(r.name)} passed in ${secs}s`}\n` };
   }
   if (r.busy) {
     return { code: 1, stderr: `${label}: another verify run held the lock for 5 minutes; try again.\n` };
