@@ -7,8 +7,8 @@ import { at } from '../lookup';
 import { drawPops, popSpot, pushPop } from '../pops';
 import { dirEdge, resetCursorEdge, wrapCursor } from '../state';
 import type { Game } from '../state';
-import { C_ACCENT, C_BORDER, C_DIM, C_PANEL, C_SEL_BAR, C_TEXT, HERO_W, HERO_X, W } from '../theme';
-import { blinkHz, pct } from '../widgets';
+import { BAND_Y, C_ACCENT, C_BORDER, C_DIM, C_PANEL, C_SEL_BAR, C_TEXT, HERO_W, HERO_X, W } from '../theme';
+import { blinkHz, drawCommandBand, pct } from '../widgets';
 
 export function startLevelUp(g: Game, earned: number, onDone: () => void): void {
   if (g.hero.sp <= 0) { onDone(); return; }
@@ -39,10 +39,14 @@ function currentValues(d: Derived): Record<StatKey, string> {
   };
 }
 
-const PANEL = { x: HERO_X + HERO_W / 2 + 12, y: SAFE_MARGIN, h: 100 };
+const PANEL = { x: HERO_X + HERO_W / 2 + 12, y: SAFE_MARGIN, h: 94 };
 const PANEL_W = W - SAFE_MARGIN - PANEL.x;
-const ROWS_Y = PANEL.y + 25;
-const ROW_PITCH = 9;
+const ROWS_Y = PANEL.y + 20;
+const ROW_PITCH = 10;
+const STAT_HINT: Record<StatKey, string> = {
+  HP: 'MORE MAX HEALTH', MP: 'MORE MAX MANA', ATK: 'PHYSICAL HITS LAND HARDER', MAG: 'MAGIC HITS LAND HARDER',
+  DEF: 'SOFTENS PHYSICAL BLOWS', MDEF: 'SOFTENS HEXES', CRIT: 'CHANCE TO LAND A CRITICAL HIT',
+};
 
 const centreX = (text: string, scale: number): number => Math.round(PANEL.x + (PANEL_W - textWidth(text, scale)) / 2);
 
@@ -56,17 +60,27 @@ function drawStatRow(g: Game, k: StatKey, i: number, current: Record<StatKey, st
   drawText(ctx, v, { x: PANEL.x + PANEL_W - 6 - textWidth(v, 1), y }, { color: sel ? C_TEXT : C_DIM });
 }
 
+function drawSpendBand(g: Game): void {
+  const ctx = g.app.pc.ctx;
+  drawCommandBand(ctx);
+  const left = `${g.hero.sp} SP TO SPEND`;
+  drawText(ctx, left, { x: SAFE_MARGIN + 4, y: BAND_Y + 7 }, { color: C_ACCENT, scale: 2, shadow: true });
+  const earned = `+${g.levelUp.earned} EARNED`;
+  drawText(ctx, earned, { x: W - SAFE_MARGIN - 4 - textWidth(earned, 1), y: BAND_Y + 10 }, { color: C_DIM });
+  const key = at(STAT_KEYS, g.levelUp.cursor);
+  drawText(ctx, `${key} ${gainText(key)}  ${STAT_HINT[key]}`, { x: SAFE_MARGIN + 4, y: BAND_Y + 22 }, { color: C_TEXT });
+  const prompt = `${BUTTON_KEY.A.hint} SPEND A POINT`;
+  drawText(ctx, prompt, { x: SAFE_MARGIN + 4, y: BAND_Y + 31 }, { color: blinkHz(g.clock, 1.2) ? C_ACCENT : C_DIM });
+}
+
 export function renderLevelUp(g: Game): void {
   const { pc } = g.app;
   renderTableau(g, false);
   const ctx = pc.ctx;
   drawPanel(pc, { x: PANEL.x, y: PANEL.y, w: PANEL_W, h: PANEL.h }, { color: C_PANEL, border: C_BORDER });
-  drawText(ctx, 'LEVEL UP', { x: centreX('LEVEL UP', 2), y: PANEL.y + 4 }, { color: C_ACCENT, scale: 2, shadow: true });
-  const sub = `+${g.levelUp.earned} SP   ${g.hero.sp} TO SPEND`;
-  drawText(ctx, sub, { x: centreX(sub, 1), y: PANEL.y + 17 }, { color: C_TEXT });
+  drawText(ctx, 'LEVEL UP', { x: centreX('LEVEL UP', 2), y: PANEL.y + 5 }, { color: C_ACCENT, scale: 2, shadow: true });
   const current = currentValues(derive(g.hero));
   STAT_KEYS.forEach((k, i) => { drawStatRow(g, k, i, current); });
-  const prompt = `${BUTTON_KEY.A.hint} SPEND A POINT`;
-  drawText(ctx, prompt, { x: centreX(prompt, 1), y: PANEL.y + PANEL.h - 10 }, { color: blinkHz(g.clock, 1.2) ? C_TEXT : C_DIM });
+  drawSpendBand(g);
   drawPops(g);
 }

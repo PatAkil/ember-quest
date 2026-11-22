@@ -1,5 +1,6 @@
 import { PICO8, drawBevel, drawSprite, fillDither, frameIndex, rotateSprite } from '../engine';
 import { animFrame, enemyAnim, heroFrames } from './sprites';
+import { heroFallen } from './sprites/hero';
 import type { Anim } from './sprites';
 import type { Sprite, SpriteDrawOptions } from '../engine';
 import { actorPose, fadeProgress } from './fx';
@@ -80,30 +81,52 @@ function tundraBackdrop(l: Layer): void {
 
 const SUN_X = Math.round((HERO_X + HERO_W / 2 + ENEMY_FRONT) / 2);
 
+const SUN_BASE = FLOOR_Y - 32;
+const SUN_BANDS = [4, 9, 13];
+
+function drawSun(l: Layer): void {
+  const { ctx } = l;
+  fade(l, 1); ctx.fillStyle = PICO8[9];
+  fillDome(ctx, { x: SUN_X, y: SUN_BASE }, 22, 22);
+  ctx.fillStyle = PICO8[10];
+  fillDome(ctx, { x: SUN_X, y: SUN_BASE - 10 }, 10, 10);
+  ctx.globalAlpha = 1; ctx.fillStyle = PICO8[0];
+  for (const dy of SUN_BANDS) {ctx.fillRect(SUN_X - 23, SUN_BASE - dy, 47, dy > 8 ? 1 : 2);}
+}
+
 function desertBackdrop(l: Layer): void {
   const { ctx } = l;
-  fade(l, 0.3); ctx.fillStyle = PICO8[9];
-  fillDome(ctx, { x: SUN_X, y: FLOOR_Y - 34 }, 22, 22);
+  drawSun(l);
   fade(l, 0.45); ctx.fillStyle = PICO8[4];
   fillDome(ctx, { x: 40, y: FLOOR_Y }, 90, 30); fillDome(ctx, { x: 200, y: FLOOR_Y }, 110, 24);
   fade(l, 0.6); fillDome(ctx, { x: 130, y: FLOOR_Y }, 70, 12);
 }
 
 const COLUMNS = [22, 78, 162, 218];
+const COLUMN_TOP = 46;
+
+function drawColumn(ctx: Ctx, cx: number): void {
+  const shaft = FLOOR_Y - COLUMN_TOP;
+  ctx.fillStyle = PICO8[5];
+  ctx.fillRect(cx - 6, COLUMN_TOP, 12, shaft);
+  ctx.fillRect(cx - 8, COLUMN_TOP, 16, 4); ctx.fillRect(cx - 8, FLOOR_Y - 5, 16, 5);
+  ctx.fillStyle = PICO8[0];
+  ctx.fillRect(cx - 2, COLUMN_TOP + 6, 1, shaft - 12); ctx.fillRect(cx + 2, COLUMN_TOP + 6, 1, shaft - 12);
+}
+
+function drawCapital(ctx: Ctx, cx: number): void {
+  ctx.fillStyle = PICO8[10]; ctx.fillRect(cx - 9, COLUMN_TOP - 4, 18, 3);
+  ctx.fillStyle = PICO8[9]; ctx.fillRect(cx - 8, COLUMN_TOP - 1, 16, 1);
+}
 
 function templeBackdrop(l: Layer): void {
   const { ctx } = l;
   fade(l, 0.5); ctx.fillStyle = PICO8[1];
   ctx.fillRect(0, FLOOR_Y - 26, W, 26);
-  fade(l, 0.7); ctx.fillStyle = PICO8[5];
-  for (const cx of COLUMNS) {
-    ctx.fillRect(cx - 6, 10, 12, FLOOR_Y - 10);
-    ctx.fillStyle = PICO8[0]; ctx.fillRect(cx - 2, 16, 1, FLOOR_Y - 22); ctx.fillRect(cx + 2, 16, 1, FLOOR_Y - 22);
-    ctx.fillStyle = PICO8[5];
-    ctx.fillRect(cx - 8, 10, 16, 4); ctx.fillRect(cx - 8, FLOOR_Y - 5, 16, 5);
-  }
-  fade(l, 0.45); ctx.fillStyle = PICO8[10];
-  for (const cx of COLUMNS) {ctx.fillRect(cx - 8, 8, 16, 2);}
+  fade(l, 0.7);
+  for (const cx of COLUMNS) {drawColumn(ctx, cx);}
+  fade(l, 1);
+  for (const cx of COLUMNS) {drawCapital(ctx, cx);}
 }
 
 const BACKDROPS: readonly ((l: Layer) => void)[] = [cryptBackdrop, tundraBackdrop, desertBackdrop];
@@ -153,49 +176,14 @@ function drawGroundShadow(ctx: Ctx, span: { x: number; w: number }, px: number):
   ctx.fillRect(span.x + 3 * px, FLOOR_Y - 1, span.w - 6 * px, 2 + px);
 }
 
-interface Cells { x0: number; x1: number; y0: number; y1: number }
-
-const inCells = (c: Cells, x: number, y: number): boolean => x >= c.x0 && x < c.x1 && y >= c.y0 && y < c.y1;
-
-function cropSprite(s: Sprite, c: Cells, keep: boolean): Sprite {
-  const w = keep ? c.x1 - c.x0 : s.w;
-  const h = keep ? c.y1 - c.y0 : s.h;
-  const pixels: (string | null)[] = [];
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const sx = keep ? x + c.x0 : x; const sy = keep ? y + c.y0 : y;
-      pixels.push(keep || !inCells(c, sx, sy) ? s.pixels[sy * s.w + sx] ?? null : null);
-    }
-  }
-  return { w, h, pixels };
-}
-
-const BLADE_CELLS: Cells = { x0: 17, x1: 22, y0: 3, y1: 14 };
-const FALLEN_BODY = cropSprite(heroFrames[0], BLADE_CELLS, false);
-const FALLEN_BLADE = cropSprite(heroFrames[0], BLADE_CELLS, true);
-const BODY_SINK = 3;
-const BLADE_SINK = 1;
-const BLADE_LEAD = 3;
-
-interface Lying { sprite: Sprite; left: number; sink: number; turn: 1 | -1 }
-
-function drawLying(ctx: Ctx, l: Lying): void {
-  const len = l.sprite.h * ACTOR_PX;
-  const tall = l.sprite.w * ACTOR_PX;
-  const floor = FLOOR_Y + l.sink * ACTOR_PX;
-  ctx.save();
-  if (l.turn < 0) {ctx.translate(Math.round(l.left), floor);} else {ctx.translate(Math.round(l.left) + len, floor - tall);}
-  ctx.rotate((l.turn * Math.PI) / 2);
-  drawSprite(ctx, l.sprite, { x: 0, y: 0 }, ACTOR_PX);
-  ctx.restore();
-}
+const FALLEN_SINK = 2;
 
 function drawFallenHero(ctx: Ctx): void {
-  const len = FALLEN_BODY.h * ACTOR_PX;
-  const left = HERO_X - len / 2;
-  drawGroundShadow(ctx, { x: HERO_X - HERO_W / 2, w: HERO_W }, ACTOR_PX);
-  drawLying(ctx, { sprite: FALLEN_BODY, left, sink: BODY_SINK, turn: -1 });
-  drawLying(ctx, { sprite: FALLEN_BLADE, left: left + len + BLADE_LEAD * ACTOR_PX, sink: BLADE_SINK, turn: 1 });
+  const w = heroFallen.w * ACTOR_PX;
+  const x = Math.round(HERO_X - w / 2);
+  const y = FLOOR_Y + FALLEN_SINK * ACTOR_PX - heroFallen.h * ACTOR_PX;
+  drawGroundShadow(ctx, { x, w: w - 16 * ACTOR_PX }, ACTOR_PX);
+  drawSprite(ctx, heroFallen, { x, y }, ACTOR_PX);
 }
 
 const FALL_FRAMES: readonly { sprite: Sprite; shift: number; sink: number }[] = [

@@ -2,6 +2,7 @@ import { PICO8, blink, drawFrame, drawText, textWidth } from '../engine';
 import type { Sprite } from '../engine';
 import { ICON_SWORD, ICON_WAND, ICON_ARMOR, ICON_NECKLACE, ICON_CHALICE, ICON_BOOTS, ICON_TOME } from './sprites';
 import type { Item, Slot } from './types';
+import { BAND_Y, C_BORDER, C_PANEL, H, W } from './theme';
 import type { Point } from './theme';
 
 interface Box { x: number; y: number; w: number; h: number }
@@ -25,10 +26,17 @@ export function drawBar(ctx: CanvasRenderingContext2D, box: Box, frac: number, c
 }
 
 export function drawLine(ctx: CanvasRenderingContext2D, from: Point, to: Point, color: string): void {
+  drawDashed(ctx, { from, to, every: 1 }, color);
+}
+
+interface Dash { from: Point; to: Point; every: number }
+
+export function drawDashed(ctx: CanvasRenderingContext2D, dash: Dash, color: string): void {
+  const { from, to, every } = dash;
   const dx = to.x - from.x; const dy = to.y - from.y;
   const steps = Math.max(Math.abs(dx), Math.abs(dy), 1);
   ctx.fillStyle = color;
-  for (let i = 0; i <= steps; i++) {
+  for (let i = 0; i <= steps; i += every) {
     ctx.fillRect(Math.round(from.x + (dx * i) / steps), Math.round(from.y + (dy * i) / steps), 1, 1);
   }
 }
@@ -78,3 +86,9 @@ export const accentHz = (clock: number, hz: number, duty = 0.2): boolean => blin
 
 const SLOT_ICON: Record<Slot, Sprite> = { WEAPON: ICON_SWORD, ARMOR: ICON_ARMOR, NECKLACE: ICON_NECKLACE, BOOTS: ICON_BOOTS, CHALICE: ICON_CHALICE, TOME: ICON_TOME };
 export function itemIcon(item: Item): Sprite { return item.slot === 'WEAPON' && item.weaponKind === 'MAGIC' ? ICON_WAND : SLOT_ICON[item.slot]; }
+
+export function drawCommandBand(ctx: CanvasRenderingContext2D): void {
+  ctx.fillStyle = PICO8[0]; ctx.fillRect(0, BAND_Y - 1, W, 1);
+  ctx.fillStyle = C_PANEL; ctx.fillRect(0, BAND_Y, W, H - BAND_Y);
+  ctx.fillStyle = C_BORDER; ctx.fillRect(0, BAND_Y, W, 1);
+}

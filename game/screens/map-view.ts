@@ -6,7 +6,7 @@ import { stageAt } from '../state';
 import type { Game, MapNode, RoomType } from '../state';
 import { C_ACCENT, C_DIM, C_FAINT, C_TEXT } from '../theme';
 import type { Point } from '../theme';
-import { accentHz, drawLine } from '../widgets';
+import { accentHz, drawDashed } from '../widgets';
 import { drawIconIn, drawMedallion, drawRing, squareAt } from './plate';
 
 const ART: Record<RoomType, RoomArt> = ROOM_ART;
@@ -53,6 +53,17 @@ const LOOKS: Record<Exclude<NodeState, 'CURSOR'>, NodeLook> = {
 const CURSOR_LOOK: NodeLook = { ring: C_ACCENT, variant: 'icon' };
 const nodeLook = (state: NodeState): NodeLook => (state === 'CURSOR' ? CURSOR_LOOK : LOOKS[state]);
 
+const OPEN_HALO = PICO8[5];
+const openBeat = (g: Game): boolean => accentHz(g.clock, 1, 0.5);
+
+function drawNodeRings(g: Game, c: Point, state: NodeState, ring: string): void {
+  const ctx = g.app.pc.ctx;
+  if (state !== 'CURSOR' && state !== 'OPEN') {return;}
+  drawRing(ctx, squareAt(c, PLATE - 2), ring);
+  if (state === 'CURSOR') {drawRing(ctx, squareAt(c, HALO), cursorBeat(g) ? C_ACCENT : C_TEXT);}
+  else {drawRing(ctx, squareAt(c, HALO), openBeat(g) ? C_DIM : OPEN_HALO);}
+}
+
 function drawNode(g: Game, node: MapNode): void {
   const ctx = g.app.pc.ctx;
   const c = nodeCentre(g, node);
@@ -60,7 +71,7 @@ function drawNode(g: Game, node: MapNode): void {
   const look = nodeLook(state);
   const plate = squareAt(c, PLATE);
   drawMedallion(ctx, plate, look.ring);
-  if (state === 'CURSOR') {drawRing(ctx, squareAt(c, HALO), cursorBeat(g) ? C_ACCENT : C_TEXT);}
+  drawNodeRings(g, c, state, look.ring);
   drawIconIn(ctx, ART[node.type][look.variant], plate, 1);
 }
 
@@ -79,22 +90,26 @@ function routeOf(g: Game, e: Edge): Route {
   return [{ x: a.x + PORT, y: a.y + fan }, { x: b.x - PORT, y: b.y - fan }];
 }
 
-function strokeRoute(ctx: CanvasRenderingContext2D, route: Route, offset: Point, color: string): void {
+interface Pen { offset: Point; color: string; every: number }
+
+function strokeRoute(ctx: CanvasRenderingContext2D, route: Route, pen: Pen): void {
   for (let i = 1; i < route.length; i++) {
     const p = route[i - 1]; const q = route[i];
-    if (p && q) {drawLine(ctx, { x: p.x + offset.x, y: p.y + offset.y }, { x: q.x + offset.x, y: q.y + offset.y }, color);}
+    if (!p || !q) {continue;}
+    const from = { x: p.x + pen.offset.x, y: p.y + pen.offset.y };
+    drawDashed(ctx, { from, to: { x: q.x + pen.offset.x, y: q.y + pen.offset.y }, every: pen.every }, pen.color);
   }
 }
 
-interface EdgeStyle { color: string; cased: boolean }
+interface EdgeStyle { color: string; cased: boolean; every?: number }
 
 function drawEdge(g: Game, e: Edge, style: EdgeStyle): void {
   const ctx = g.app.pc.ctx;
   const route = routeOf(g, e);
   if (style.cased) {
-    for (const o of CASING_OFFSETS) {strokeRoute(ctx, route, o, C_CASING);}
+    for (const o of CASING_OFFSETS) {strokeRoute(ctx, route, { offset: o, color: C_CASING, every: 1 });}
   }
-  strokeRoute(ctx, route, { x: 0, y: 0 }, style.color);
+  strokeRoute(ctx, route, { offset: { x: 0, y: 0 }, color: style.color, every: style.every ?? 1 });
 }
 
 function edgesOf(g: Game, node: MapNode): Edge[] {
@@ -118,8 +133,8 @@ function edgeRole(g: Game, e: Edge): EdgeRole {
 const ROLE_ORDER: readonly EdgeRole[] = ['PAST', 'AHEAD', 'PREVIEW', 'WALKED', 'CHOICE', 'TAKEN'];
 
 const ROLE_STYLE: Record<EdgeRole, EdgeStyle> = {
-  PAST: { color: C_ROUTE_PAST, cased: false },
-  AHEAD: { color: C_FAINT, cased: false },
+  PAST: { color: C_ROUTE_PAST, cased: false, every: 2 },
+  AHEAD: { color: C_FAINT, cased: false, every: 2 },
   PREVIEW: { color: C_DIM, cased: true },
   WALKED: { color: C_ACCENT, cased: true },
   CHOICE: { color: C_TEXT, cased: true },

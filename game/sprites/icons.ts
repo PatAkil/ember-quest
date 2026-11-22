@@ -65,16 +65,16 @@ export const ICON_CHALICE = keyed([
 ], { Y: PICO8[10], W: PICO8[7], O: PICO8[9] });
 
 const TOME_ROWS = [
-  'DGGGGG.',
-  'DGGGGGW',
-  'DGYYGGW',
-  'DGYYGGW',
-  'DGGGGGW',
-  'DGGGGGW',
-  '.WWWWWW',
+  'DDGGGG.',
+  'DYGGGGW',
+  'DDGYYGP',
+  'DDGYYGW',
+  'DYGGGGP',
+  'DDGGGGW',
+  '.DWPWPW',
 ];
-export const ICON_TOME = keyed(TOME_ROWS, { G: PICO8[11], D: PICO8[3], Y: PICO8[10], W: PICO8[7] });
-export const ICON_SCROLL = keyed(TOME_ROWS, { G: PICO8[12], D: PICO8[13], Y: PICO8[7], W: PICO8[7] });
+export const ICON_TOME = keyed(TOME_ROWS, { G: PICO8[11], D: PICO8[3], Y: PICO8[10], W: PICO8[7], P: PICO8[6] });
+export const ICON_SCROLL = keyed(TOME_ROWS, { G: PICO8[12], D: PICO8[13], Y: PICO8[7], W: PICO8[7], P: PICO8[6] });
 
 export const ICON_EMPTY = makeSprite([
   '.........',

@@ -3,13 +3,13 @@ import type { EnemyInstance, HeroAction } from '../types';
 import { SPELLS } from '../data';
 import { canAfford, createBattle, enemyAct, heroAct, heroActions, spawnEnemy, startTurn } from '../sim';
 import { at } from '../lookup';
-import { bannerBlocks, cue, dismissBanner, fadeProgress, flushFx, resetFx, skipToImpact, updateFx } from '../fx';
+import { BRACE_DUR, bannerBlocks, cue, dismissBanner, fadeProgress, flushFx, resetFx, skipToImpact, updateFx } from '../fx';
 import { biome, dirEdge, resetCursorEdge, wrapCursor } from '../state';
 import type { Game } from '../state';
 import { C_ACCENT, C_DIM, C_DMG_TAKEN, C_HP, C_MP, C_TEXT, heroPos } from '../theme';
-import { deathFx, defeatFx, enemyImpact, enemyWindup, entranceFx, heroImpact, heroWindup, popHero, regenAura } from './battle-fx';
+import { deathFx, lastHitDelay, defeatFx, enemyImpact, enemyWindup, entranceFx, heroImpact, heroWindup, popHero, prepareFx, regenAura } from './battle-fx';
 import type { PopSpec } from './battle-fx';
-import { pushPop } from '../pops';
+import { clearPops, pushPop } from '../pops';
 import { enemyPos } from '../backdrop';
 
 export function startBattle(g: Game, id: string, onWin: () => void): void {
@@ -20,6 +20,7 @@ export function startBattle(g: Game, id: string, onWin: () => void): void {
     queue: [], timer: 0, text: '', color: C_TEXT,
   };
   g.subScene = 'BATTLE';
+  clearPops(g);
   resetFx(g);
   entranceFx(g, enemy);
   if (enemy.def.kind !== 'NORMAL') {say(g, `${enemy.def.name} BARS THE WAY!`, C_ACCENT);}
@@ -56,14 +57,19 @@ export function onQueueDone(g: Game): void {
   b.menuCursor = Math.min(b.menuCursor, heroActions(g.hero).length - 1);
 }
 
-function enemyDefeatedStep(g: Game, e: EnemyInstance): void {
-  push(g, 1.0, () => {
-    say(g, `${e.def.name} DEFEATED!`, C_ACCENT);
+const DEFEAT_HOLD = 1.0;
+const DEFEAT_SAY_DELAY = 0.4;
+
+function enemyDefeated(g: Game, e: EnemyInstance, lastHit = 0): void {
+  cue(g, lastHit, () => {
     defeatFx(g, e);
     const p = enemyPos(g);
     pushPop(g.pops, { x: p.x, y: p.y }, '+100', C_ACCENT);
-    g.battle.outcome = 'WON';
   });
+  cue(g, lastHit + DEFEAT_SAY_DELAY, () => { say(g, `${e.def.name} DEFEATED!`, C_ACCENT); });
+  g.battle.outcome = 'WON';
+  g.battle.queue.length = 0;
+  g.battle.timer = lastHit + DEFEAT_HOLD;
 }
 
 function heroDies(g: Game, text: string): void {
@@ -88,7 +94,7 @@ export function applyEnemyAction(g: Game): void {
   if (r.revived) {g.battle.color = C_ACCENT;}
   enemyImpact(g, r);
   if (r.heroDead) { heroDies(g, r.text); return; }
-  if (r.enemyDefeated) {enemyDefeatedStep(g, enemy);}
+  if (r.enemyDefeated) {enemyDefeated(g, enemy);}
 }
 
 function enemyStep(g: Game, e: EnemyInstance): void {
@@ -110,8 +116,8 @@ function landHeroAction(g: Game, action: HeroAction, slot: number): void {
   const r = heroAct(g.hero, state, action, g.rng);
   say(g, r.text, r.crit ? C_ACCENT : C_TEXT);
   heroImpact(g, action, r, slot);
-  if (r.enemyDefeated) {enemyDefeatedStep(g, e); return;}
-  push(g, 0.7, () => { say(g, `${e.def.name} PREPARES...`, C_DIM); });
+  if (r.enemyDefeated) { enemyDefeated(g, e, lastHitDelay(r.hits.length)); return; }
+  push(g, BRACE_DUR, () => { say(g, `${e.def.name} PREPARES...`, C_DIM); prepareFx(g); });
   push(g, 0.9, () => { enemyStep(g, e); });
 }
 
@@ -151,7 +157,7 @@ function updateDying(g: Game, dt: number): void {
   updateFx(g, dt);
   if (fadeProgress(g.fx, g.fx.fall) < 1) {return;}
   g.deathBiome = biome(g).name; g.dying = false;
-  g.pops.length = 0;
+  clearPops(g);
   resetFx(g);
   g.app.scenes.to('GAME_OVER');
 }
@@ -162,8 +168,10 @@ function updateQueue(g: Game, dt: number): void {
     if (g.battle.timer <= 0) {advanceQueueStep(g);}
     return;
   }
+  const before = g.battle.timer;
   const skipped = skipToImpact(g);
-  if (skipped === null) {advanceQueueStep(g);} else {g.battle.timer -= skipped;}
+  if (skipped === null) { advanceQueueStep(g); return; }
+  if (g.battle.timer === before) {g.battle.timer -= skipped;}
 }
 
 export function updateBattle(g: Game, dt: number): void {

@@ -1,8 +1,8 @@
 import type { Point } from './theme';
 
 export type Actor = 'HERO' | 'ENEMY';
-export type MoveKind = 'LUNGE' | 'HEAVY' | 'CAST' | 'RECOIL' | 'DODGE' | 'ENTER';
-export type ShotKind = 'ORB' | 'HEX' | 'WAVE' | 'BOLT' | 'SKYBOLT' | 'MOTES' | 'RISE' | 'RING' | 'SLASH' | 'DUST' | 'CHARGE';
+export type MoveKind = 'LUNGE' | 'HEAVY' | 'CAST' | 'RECOIL' | 'DODGE' | 'ENTER' | 'BRACE';
+export type ShotKind = 'ORB' | 'HEX' | 'WAVE' | 'BOLT' | 'SKYBOLT' | 'MOTES' | 'RISE' | 'RING' | 'SLASH' | 'DUST' | 'CHARGE' | 'ARC' | 'BLOOM';
 export type MeterId = 'heroHp' | 'heroMp' | 'enemyHp';
 
 export interface Move { actor: Actor; kind: MoveKind; t0: number; size: number }

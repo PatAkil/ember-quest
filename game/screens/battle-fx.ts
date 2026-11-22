@@ -4,10 +4,11 @@ import type { EnemyActResult, EnemyInstance, EnemyKind, Hero, HeroAction, HeroAc
 import { enemyAnim, heroFrames } from '../sprites';
 import { enemyAnchor, enemyPos, heroAnchor } from '../backdrop';
 import { addMove, addShot, addTint, cue, holdMeter, meter } from '../fx';
+import { enemyContact, enemyReach, heroContact, heroReach } from './battle-reach';
 import type { Actor, ShotKind } from '../fx-state';
 import { popSpot, pushPop } from '../pops';
 import type { Game } from '../state';
-import { C_ACCENT, C_DIM, C_DMG_TAKEN, C_HP, C_MP, C_TEXT, FLOOR_Y, HERO_H, HERO_W, HERO_X, enemyColor, heroPos } from '../theme';
+import { C_ACCENT, C_DIM, C_DMG_TAKEN, C_HP, C_MP, C_TEXT, FLOOR_Y, HERO_H, HERO_W, HERO_X, HUD_BOTTOM, enemyColor, heroPos } from '../theme';
 import type { Point } from '../theme';
 
 type Archetype = 'MELEE' | 'HEAVY' | 'SHOT' | 'SKY' | 'AURA';
@@ -29,6 +30,8 @@ const LAUNCH = 0.1;
 const STAGGER = 0.16;
 const MOTES_FLIGHT = 0.3;
 
+export const lastHitDelay = (hits: number): number => STAGGER * Math.max(0, hits - 1);
+
 export const hasHex = (hero: Hero): boolean => Object.values(hero.equipment).some((it) => it.effect.kind === 'HEX_STRIKE');
 export const magicWeapon = (hero: Hero): boolean => hero.equipment.WEAPON?.weaponKind === 'MAGIC';
 
@@ -42,18 +45,24 @@ function enemyLook(e: EnemyInstance): Look {
   return { arch: 'SHOT', impact: 0.28, shot: 'HEX', color: enemyColor(e.def.id), glow: PICO8[7] };
 }
 
-interface Side { actor: Actor; foe: Actor; cast: Point; hit: Point; feet: Point; head: Point }
+interface Side { actor: Actor; foe: Actor; cast: Point; hit: Point; feet: Point; head: Point; contact: Point; reach: number }
 
 const heroCast = (): Point => ({ x: HERO_X + HERO_W / 2 + 2, y: FLOOR_Y - Math.round(HERO_H * 0.55) });
 
 function heroSide(g: Game): Side {
-  return { actor: 'HERO', foe: 'ENEMY', cast: heroCast(), hit: enemyPos(g), feet: { x: HERO_X, y: FLOOR_Y - 4 }, head: heroAnchor().head };
+  return {
+    actor: 'HERO', foe: 'ENEMY', cast: heroCast(), hit: enemyPos(g), feet: { x: HERO_X, y: FLOOR_Y - 4 }, head: heroAnchor().head,
+    contact: enemyContact(g), reach: heroReach(g),
+  };
 }
 
 function enemySide(g: Game): Side {
   const p = enemyPos(g);
   const a = enemyAnchor(g);
-  return { actor: 'ENEMY', foe: 'HERO', cast: { x: a.front - 2, y: p.y }, hit: heroPos(), feet: { x: p.x, y: FLOOR_Y - 4 }, head: a.head };
+  return {
+    actor: 'ENEMY', foe: 'HERO', cast: { x: a.front - 2, y: p.y }, hit: heroPos(), feet: { x: p.x, y: FLOOR_Y - 4 }, head: a.head,
+    contact: heroContact(), reach: enemyReach(g),
+  };
 }
 
 const whooshAt = (g: Game, delay: number): void => { cue(g, delay, () => { g.app.audio.play('whoosh'); }); };
@@ -64,14 +73,14 @@ function launch(g: Game, s: Side, l: Look, flight: number): void {
   whooshAt(g, LAUNCH);
 }
 
-const SKY_TOP = 0;
+const SKY_TOP = HUD_BOTTOM + 3;
 
 function skyStrike(g: Game, s: Side, l: Look, delay: number): void {
   addShot(g, { kind: 'SKYBOLT', dur: 0.2, from: { x: s.hit.x + 5, y: SKY_TOP }, to: s.hit, color: l.color, glow: l.glow }, delay);
 }
 
 const WINDUP: Record<Archetype, (g: Game, s: Side, l: Look) => void> = {
-  MELEE: (g, s) => { addMove(g, s.actor, 'LUNGE', s.actor === 'HERO' ? 16 : 14); whooshAt(g, 0.07); },
+  MELEE: (g, s) => { addMove(g, s.actor, 'LUNGE', s.reach); whooshAt(g, 0.07); },
   HEAVY: (g, s) => { addMove(g, s.actor, 'HEAVY', 16); whooshAt(g, 0.12); },
   SHOT: (g, s, l) => { addMove(g, s.actor, 'CAST', 4); launch(g, s, l, l.impact - LAUNCH); },
   SKY: (g, s, l) => {
@@ -123,7 +132,7 @@ interface Blow { target: Actor; at: Point; crit: boolean; heavy: boolean; burst:
 function react(g: Game, b: Blow): void {
   const { audio, particles, juice } = g.app;
   addTint(g, b.target, toneFor(g, b.target), b.crit ? 0.12 : 0.07);
-  addMove(g, b.target, 'RECOIL', b.crit ? 6 : b.heavy ? 5 : 3);
+  addMove(g, b.target, 'RECOIL', b.crit ? 8 : b.heavy ? 7 : 6);
   if (b.crit) {
     audio.play('explosion'); juice.shake(4, 0.3); juice.flash(C_ACCENT, 0.3); juice.hitStop(0.08);
     particles.burst(b.at.x, b.at.y, { count: 12, color: C_ACCENT, speed: 130 });
@@ -139,10 +148,22 @@ function hitPop(g: Game, h: Hit, slot: number): void {
   pushPop(g.pops, { ...popSpot(enemyAnchor(g), slot), scale: h.crit ? 3 : 2 }, `-${h.dmg}${h.crit ? '!' : ''}`, color);
 }
 
+const ARC_DUR = 0.1;
+const BLOOM_DUR = 0.22;
+
+function impactMark(g: Game, s: Side, l: Look): void {
+  if (l.arch === 'MELEE') {
+    const to = { x: s.contact.x + Math.sign(s.hit.x - s.cast.x), y: s.contact.y };
+    addShot(g, { kind: 'ARC', dur: ARC_DUR, from: s.contact, to, color: l.color, glow: l.glow });
+  }
+  if (l.arch === 'SHOT') {addShot(g, { kind: 'BLOOM', dur: BLOOM_DUR, from: s.hit, to: s.hit, color: l.color, glow: l.glow });}
+}
+
 function landHit(g: Game, l: Look, h: Hit, slot: number): void {
   const s = heroSide(g);
   const e = g.battle.enemy;
   hitPop(g, h, slot);
+  impactMark(g, s, l);
   react(g, { target: 'ENEMY', at: s.hit, crit: h.crit, heavy: l.arch === 'HEAVY', burst: e ? enemyColor(e.def.id) : C_TEXT });
   if (l.shot === 'SLASH' || (l.arch === 'MELEE' && slot > 0)) {addShot(g, { kind: 'SLASH', dur: 0.26, from: s.hit, to: s.hit, color: l.color, glow: l.glow });}
   if (l.arch === 'HEAVY') {addShot(g, { kind: 'DUST', dur: 0.32, from: { x: HERO_X + 16, y: FLOOR_Y }, to: { x: s.hit.x + 12, y: FLOOR_Y }, color: l.color, glow: l.glow });}
@@ -231,6 +252,8 @@ export function enemyImpact(g: Game, r: EnemyActResult): void {
     return;
   }
   pushPop(g.pops, popSpot(heroAnchor()), `-${r.dmg}`, C_DMG_TAKEN);
+  const e = g.battle.enemy;
+  if (e) {impactMark(g, enemySide(g), enemyLook(e));}
   if (r.heroDead) {return;}
   react(g, { target: 'HERO', at: heroPos(), crit: false, heavy: false, burst: PICO8[8] });
   g.app.juice.shake(3, 0.25);
@@ -256,7 +279,7 @@ export function defeatFx(g: Game, e: EnemyInstance): void {
   g.app.particles.burst(p.x, p.y, { count: 10 + Math.round(mag * 10), color, speed: 120 + mag * 60 });
   g.app.juice.shake(4 + mag * 3, 0.35 + mag * 0.15);
   addTint(g, 'ENEMY', toneFor(g, 'ENEMY'), 0.1);
-  g.fx.dissolve = { t0: g.fx.t + 0.1, dur: boss ? 0.8 : 0.7 };
+  g.fx.dissolve = { t0: g.fx.t + 0.03, dur: boss ? 0.8 : 0.7 };
   if (!boss) {return;}
   const half = { w: (p.x - a.front), h: p.y - a.head.y };
   for (const [at, fx, fy] of BOSS_BURSTS) {
@@ -272,5 +295,11 @@ export const KIND_TAG: Record<EnemyKind, string> = { BOSS: 'BOSS', ELITE: 'ELITE
 
 export function entranceFx(g: Game, e: EnemyInstance): void {
   addMove(g, 'ENEMY', 'ENTER', 48);
-  g.fx.banner = { t0: g.fx.t, name: e.def.name, tag: KIND_TAG[e.def.kind], color: e.def.kind === 'BOSS' ? PICO8[8] : C_ACCENT };
+  const tag = KIND_TAG[e.def.kind];
+  if (!tag) {return;}
+  g.fx.banner = { t0: g.fx.t, name: e.def.name, tag, color: e.def.kind === 'BOSS' ? PICO8[8] : C_ACCENT };
 }
+
+const BRACE_PULL = 5;
+
+export function prepareFx(g: Game): void { addMove(g, 'ENEMY', 'BRACE', BRACE_PULL); }

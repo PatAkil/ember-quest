@@ -31,6 +31,8 @@ export function pushPop(pops: Pop[], at: PopAt, text: string, color: string): vo
   pops.push({ x: at.x, y: at.y, life: POP_LIFE, text, color, scale: at.scale ?? 2 });
 }
 
+export function clearPops(g: Game): void { g.pops.length = 0; }
+
 export function updatePops(pops: Pop[], dt: number): void {
   for (let i = pops.length - 1; i >= 0; i--) {
     const p = pops[i];

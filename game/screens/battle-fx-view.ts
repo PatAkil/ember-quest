@@ -1,9 +1,8 @@
 import { PICO8, drawText, drawTextCentered, textWidth } from '../../engine';
 import { bannerAge, bannerDur, clamp01, easeOut, span } from '../fx';
 import type { Banner, Shot, ShotKind } from '../fx-state';
-import { enemyAnchor } from '../backdrop';
 import type { Game } from '../state';
-import { C_PANEL, C_TEXT, FLOOR_Y, HUD_BOTTOM, W } from '../theme';
+import { C_PANEL, C_TEXT, FLOOR_Y, W } from '../theme';
 import type { Point } from '../theme';
 import { drawLine } from '../widgets';
 
@@ -35,19 +34,21 @@ const hash = (a: number, b: number): number => {
 
 const travel = (u: number): number => 0.35 * u + 0.65 * u * u;
 
+const ORB_TAIL: readonly (readonly [number, number])[] = [[0.3, 1], [0.24, 1], [0.18, 2], [0.12, 2], [0.06, 3]];
+
 function drawOrb(f: Frame): void {
   const { ctx, s } = f;
   const u = travel(f.u);
-  const trail = [PICO8[8], PICO8[8], s.color, s.color];
   const flick = Math.floor(f.t * 30);
-  trail.forEach((c, i) => {
-    const p = along(s, Math.max(0, u - 0.06 * (4 - i)), 6);
-    dot(ctx, { x: p.x, y: p.y + (hash(i, flick) - 0.5) * 3 }, 2 + i, c);
+  ORB_TAIL.forEach(([lag, r], i) => {
+    if (u - lag <= 0) {return;}
+    const p = along(s, u - lag, 6);
+    blob(ctx, { x: p.x, y: p.y + (hash(i, flick) - 0.5) * 4 }, r, i < 2 ? PICO8[8] : s.color);
   });
   const head = along(s, u, 6);
-  blob(ctx, head, 3, s.color);
-  blob(ctx, { x: head.x + 1, y: head.y }, 1, s.glow);
-  dot(ctx, { x: head.x + 1, y: head.y }, 1, PICO8[7]);
+  blob(ctx, head, 4, s.color);
+  blob(ctx, { x: head.x + 1, y: head.y }, 2, s.glow);
+  dot(ctx, { x: head.x + 1, y: head.y }, 2, PICO8[7]);
 }
 
 function drawHex(f: Frame): void {
@@ -99,8 +100,9 @@ function drawBolt(f: Frame): void {
     drawLine(ctx, { x: prev.x, y: prev.y + 1 }, { x: next.x, y: next.y + 1 }, c);
     prev = next;
   }
-  blob(ctx, head, 3, s.color);
-  blob(ctx, head, 1, s.glow);
+  blob(ctx, head, 4, s.color);
+  blob(ctx, head, 2, s.glow);
+  dot(ctx, head, 1, PICO8[7]);
 }
 
 const SKY_SEGMENTS = 7;
@@ -194,6 +196,43 @@ function drawSlash(f: Frame): void {
   }
 }
 
+const ARC_R = 13;
+const ARC_SPREAD = 1.2;
+const ARC_EDGE = 0.45;
+
+function drawArc(f: Frame): void {
+  const { ctx, s, u } = f;
+  const d = s.to.x < s.from.x ? -1 : 1;
+  const c = { x: s.from.x - d * 7, y: s.from.y };
+  const head = lerp(-ARC_SPREAD, ARC_SPREAD, Math.min(1, u * 2));
+  const thick = u < 0.6 ? 3 : 2;
+  for (let a = -ARC_SPREAD; a <= head; a += 0.1) {
+    const r = ARC_R - Math.abs(a) * 4;
+    const edge = head - a < ARC_EDGE;
+    dot(ctx, { x: c.x + d * Math.cos(a) * r, y: c.y + Math.sin(a) * r }, edge ? thick + 1 : thick, edge ? PICO8[7] : s.glow);
+  }
+}
+
+const BLOOM_SWELL = 0.35;
+
+function drawBloom(f: Frame): void {
+  const { ctx, s, u } = f;
+  const p = s.from;
+  if (u < BLOOM_SWELL) {
+    const k = u / BLOOM_SWELL;
+    blob(ctx, p, Math.round(lerp(3, 8, k)), s.color);
+    blob(ctx, p, Math.round(lerp(1, 4, k)), s.glow);
+    dot(ctx, p, 3, PICO8[7]);
+    return;
+  }
+  if (u > 0.7 && Math.floor(f.t * 30) % 2 === 1) {return;}
+  const r = lerp(9, 17, easeOut((u - BLOOM_SWELL) / (1 - BLOOM_SWELL)));
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2 + 0.3;
+    dot(ctx, { x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r * 0.85 }, u < 0.7 ? 2 : 1, i % 2 ? s.glow : s.color);
+  }
+}
+
 function drawDust(f: Frame): void {
   const { ctx, s, u } = f;
   const headX = lerp(s.from.x, s.to.x, easeOut(Math.min(1, u * 1.6)));
@@ -219,7 +258,7 @@ function drawCharge(f: Frame): void {
 
 const SHOT_DRAW: Record<ShotKind, (f: Frame) => void> = {
   ORB: drawOrb, HEX: drawHex, WAVE: drawWave, BOLT: drawBolt, SKYBOLT: drawSkybolt, MOTES: drawMotes,
-  RISE: drawRise, RING: drawRing, SLASH: drawSlash, DUST: drawDust, CHARGE: drawCharge,
+  RISE: drawRise, RING: drawRing, SLASH: drawSlash, DUST: drawDust, CHARGE: drawCharge, ARC: drawArc, BLOOM: drawBloom,
 };
 
 const STRIP_Y = 50;
@@ -227,7 +266,7 @@ const STRIP_H = 26;
 
 function drawStrip(g: Game, b: Banner, age: number): void {
   const ctx = g.app.pc.ctx;
-  const open = easeOut(span(age, 0, 0.1)) * (1 - span(age, 0.58, 0.12));
+  const open = easeOut(span(age, 0, 0.1)) * (1 - span(age, bannerDur() - 0.12, 0.12));
   const h = Math.round(STRIP_H * open);
   if (h <= 0) {return;}
   const top = STRIP_Y - Math.round(h / 2);
@@ -240,20 +279,11 @@ function drawStrip(g: Game, b: Banner, age: number): void {
   drawTextCentered(ctx, b.name, { width: W + slide * 2, y: top + 12 }, { color: C_TEXT, scale: 2, shadow: true });
 }
 
-function drawNameTag(g: Game, b: Banner, age: number): void {
-  const a = enemyAnchor(g);
-  const ctx = g.app.pc.ctx;
-  ctx.globalAlpha = 1 - span(age, bannerDur(g) - 0.3, 0.3);
-  const x = Math.round(a.head.x - textWidth(b.name, 1) / 2);
-  drawText(ctx, b.name, { x, y: Math.max(HUD_BOTTOM + 4, a.head.y - 10) }, { color: C_TEXT, shadow: true });
-  ctx.globalAlpha = 1;
-}
-
 function drawBanner(g: Game): void {
   const b = g.fx.banner;
   const age = bannerAge(g);
-  if (!b || age === null || age >= bannerDur(g)) {return;}
-  if (b.tag) {drawStrip(g, b, age);} else {drawNameTag(g, b, age);}
+  if (!b?.tag || age === null || age >= bannerDur()) {return;}
+  drawStrip(g, b, age);
 }
 
 export function drawBattleFx(g: Game): void {

@@ -37,7 +37,7 @@ export const BIOME_LOOK: readonly BiomeLook[] = [
   { floor: PICO8[5], floorLight: PICO8[6], floorDark: PICO8[1], ambient: 'embers', ambientColor: PICO8[9] },
   { floor: PICO8[1], floorLight: PICO8[12], floorDark: PICO8[0], ambient: 'snow', ambientColor: PICO8[7] },
   { floor: PICO8[4], floorLight: PICO8[9], floorDark: PICO8[2], ambient: 'embers', ambientColor: PICO8[15] },
-  { floor: PICO8[6], floorLight: PICO8[7], floorDark: PICO8[5], ambient: 'bubbles', ambientColor: PICO8[10] },
+  { floor: PICO8[13], floorLight: PICO8[7], floorDark: PICO8[5], ambient: 'bubbles', ambientColor: PICO8[10] },
 ];
 
 export interface Point { x: number; y: number }

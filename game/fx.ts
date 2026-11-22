@@ -23,10 +23,12 @@ const CURVES: Record<MoveKind, readonly Key[]> = {
   RECOIL: [[0, 0, 0, 'LIN'], [0.03, -1, 0, 'OUT'], [0.22, 0, 0, 'INOUT']],
   DODGE: [[0, 0, 0, 'LIN'], [0.08, -1, -0.3, 'OUT'], [0.24, -1, 0, 'LIN'], [0.4, 0, 0, 'INOUT']],
   ENTER: [[0, -1, -0.3, 'LIN'], [0.26, 0, 0.03, 'OUT'], [0.32, 0, 0, 'OUT']],
+  BRACE: [[0, 0, 0, 'LIN'], [0.14, -1, 0.25, 'OUT'], [0.36, -1.15, 0.25, 'LIN'], [0.45, 0, 0, 'IN']],
 };
 
 const lastKey = (keys: readonly Key[]): Key => keys[keys.length - 1] ?? [0, 0, 0, 'LIN'];
 const moveDur = (kind: MoveKind): number => lastKey(CURVES[kind])[0];
+export const BRACE_DUR = moveDur('BRACE');
 
 interface Offset { x: number; y: number }
 
@@ -167,8 +169,7 @@ export function resetFx(g: Game): void {
   snapMeters(g);
 }
 
-const BANNER_DUR = 0.7;
-const TAG_DUR = 0.9;
+const BANNER_DUR = 1.1;
 
 export const bannerAge = (g: Game): number | null => (g.fx.banner ? g.fx.t - g.fx.banner.t0 : null);
 
@@ -177,7 +178,7 @@ export function bannerBlocks(g: Game): boolean {
   return b !== null && b.tag !== '' && g.fx.t - b.t0 < BANNER_DUR;
 }
 
-export const bannerDur = (g: Game): number => (g.fx.banner?.tag ? BANNER_DUR : TAG_DUR);
+export const bannerDur = (): number => BANNER_DUR;
 
 export function dismissBanner(g: Game): void {
   g.fx.banner = null;

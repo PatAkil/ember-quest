@@ -6,7 +6,7 @@ import { renderTableau } from '../backdrop';
 import { drawPops } from '../pops';
 import type { Game } from '../state';
 import { BAND_Y, C_ACCENT, C_BORDER, C_DIM, C_FAINT, C_HP, C_HP_LOW, C_MP, C_PANEL, C_SEL_BAR, C_TEXT, C_WARN, H, HUD_BOTTOM, W } from '../theme';
-import { drawGauge, pct, wrap2 } from '../widgets';
+import { drawCommandBand, drawGauge, pct, wrap2 } from '../widgets';
 import { bannerBlocks, meter } from '../fx';
 import type { MeterId } from '../fx-state';
 import { KIND_TAG, hasHex, magicWeapon } from './battle-fx';
@@ -46,6 +46,8 @@ function drawBarRow(g: Game, plate: Box, dy: number, row: BarRow): void {
   drawText(ctx, num, { x: innerRight(plate) - textWidth(num, 1), y }, { color: C_DIM });
 }
 
+const STAT_AIR = 18;
+
 function statSegments(d: Derived, short: boolean): string[] {
   const [atk, mag, crit] = short ? ['A', 'M', 'C'] : ['ATK', 'MAG', 'CRIT'];
   return [`${atk} ${d.atk}`, `${mag} ${d.mag}`, `${crit} ${pct(d.crit)}`];
@@ -54,7 +56,7 @@ function statSegments(d: Derived, short: boolean): string[] {
 function drawStatLine(ctx: Ctx, plate: Box, d: Derived): void {
   const room = innerRight(plate) - innerLeft(plate);
   const wide = statSegments(d, false);
-  const fits = wide.reduce((n, t) => n + textWidth(t, 1), 0) + 8 <= room;
+  const fits = wide.reduce((n, t) => n + textWidth(t, 1), 0) + STAT_AIR <= room;
   const segs = fits ? wide : statSegments(d, true);
   const used = segs.reduce((n, t) => n + textWidth(t, 1), 0);
   const gap = (room - used) / (segs.length - 1);
@@ -128,7 +130,7 @@ function spellInfo(a: SpellId): SpellInfo {
 
 const attackInfo = (hero: Hero): SpellInfo => ({ info: magicWeapon(hero) ? 'MAG x1.0' : 'ATK x1.0', short: 'x1.0', isHeal: false });
 
-interface ActionInfo { text: string; short: string; warn: boolean }
+interface ActionInfo { text: string; short: string; tiny: string; warn: boolean }
 
 function actionInfo(g: Game, a: HeroAction): ActionInfo {
   const hero = g.hero;
@@ -137,7 +139,7 @@ function actionInfo(g: Game, a: HeroAction): ActionInfo {
   const res = enemy ? (kind === 'PHYSICAL' ? enemy.def.def : enemy.def.mdef) : 0;
   const { info, short, isHeal } = a === 'ATTACK' ? attackInfo(hero) : spellInfo(a);
   const tag = !isHeal && res >= 20 ? ` -${res}%` : '';
-  return { text: info + tag, short: short + tag, warn: tag !== '' };
+  return { text: info + tag, short: short + tag, tiny: short, warn: tag !== '' };
 }
 
 function actionLabel(hero: Hero, a: HeroAction): string {
@@ -146,41 +148,39 @@ function actionLabel(hero: Hero, a: HeroAction): string {
   return cost > 0 ? `${name} ${cost}MP` : `${name} FREE`;
 }
 
-const ROW_GAP = 4;
+const ROW_GAP = 7;
+const INFO_PAD = 9;
+const BAR_INSET = 3;
 
-interface MenuCell { x0: number; y: number; colW: number; sel: boolean; compact: boolean }
+type InfoFit = 'text' | 'short' | 'tiny';
+const INFO_FITS: readonly InfoFit[] = ['text', 'short', 'tiny'];
+
+interface MenuCell { x0: number; y: number; colW: number; sel: boolean; fit: InfoFit }
 
 const rowLabel = (hero: Hero, a: HeroAction, sel: boolean): string => (sel ? '> ' : '  ') + actionLabel(hero, a);
 
-function overflows(g: Game, a: HeroAction, colW: number): boolean {
-  const room = Math.round(colW) - 10 - textWidth(rowLabel(g.hero, a, true), 1) - ROW_GAP;
-  return textWidth(actionInfo(g, a).text, 1) > room;
+function overflows(g: Game, a: HeroAction, colW: number, fit: InfoFit): boolean {
+  const room = Math.round(colW) - 5 - INFO_PAD - textWidth(rowLabel(g.hero, a, true), 1) - ROW_GAP;
+  return textWidth(actionInfo(g, a)[fit], 1) > room;
 }
 
 function drawActionRow(g: Game, a: HeroAction, cell: MenuCell): void {
   const ctx = g.app.pc.ctx;
-  const { x0, y, colW, sel, compact } = cell;
+  const { x0, y, colW, sel, fit } = cell;
   const afford = canAfford(g.hero, a);
-  if (sel) { ctx.fillStyle = C_SEL_BAR; ctx.fillRect(x0 + 2, y - 2, Math.round(colW) - 4, 9); }
+  if (sel) { ctx.fillStyle = C_SEL_BAR; ctx.fillRect(x0 + BAR_INSET, y - 2, Math.round(colW) - 2 * BAR_INSET, 9); }
   const labelColor = sel ? C_ACCENT : afford ? C_TEXT : C_FAINT;
   const label = rowLabel(g.hero, a, sel);
   drawText(ctx, label, { x: x0 + 5, y }, { color: labelColor, shadow: sel });
   const info = actionInfo(g, a);
-  const text = compact ? info.short : info.text;
+  const text = info[fit];
   const infoColor = info.warn ? C_WARN : sel ? C_TEXT : C_DIM;
-  drawText(ctx, text, { x: x0 + Math.round(colW) - 5 - textWidth(text, 1), y }, { color: infoColor });
+  drawText(ctx, text, { x: x0 + Math.round(colW) - INFO_PAD - textWidth(text, 1), y }, { color: infoColor });
 }
 
 const ROW_PITCH = 9;
 const BAND_BOTTOM = H - SAFE_MARGIN;
 const LOG_ROOM = BAND_BOTTOM - BAND_Y - 1;
-
-function renderBand(g: Game): void {
-  const ctx = g.app.pc.ctx;
-  ctx.fillStyle = PICO8[0]; ctx.fillRect(0, BAND_Y - 1, W, 1);
-  ctx.fillStyle = C_PANEL; ctx.fillRect(0, BAND_Y, W, H - BAND_Y);
-  ctx.fillStyle = C_BORDER; ctx.fillRect(0, BAND_Y, W, 1);
-}
 
 function renderActionMenu(g: Game): void {
   const ctx = g.app.pc.ctx;
@@ -188,12 +188,12 @@ function renderActionMenu(g: Game): void {
   const cols = Math.ceil(actions.length / 3);
   const colW = (W - 2 * SAFE_MARGIN) / cols;
   if (cols > 1) { ctx.fillStyle = PICO8[5]; ctx.fillRect(W / 2, BAND_Y + 4, 1, BAND_BOTTOM - BAND_Y - 4); }
-  const compact = actions.some((a) => overflows(g, a, colW));
+  const fit = INFO_FITS.find((f) => !actions.some((a) => overflows(g, a, colW, f))) ?? 'tiny';
   const rows = Math.min(3, actions.length);
   const top = BAND_Y + 1 + Math.round((LOG_ROOM - (rows * ROW_PITCH - 4)) / 2);
   actions.forEach((a, i) => {
     const x0 = Math.round(SAFE_MARGIN + Math.floor(i / 3) * colW);
-    drawActionRow(g, a, { x0, y: top + (i % 3) * ROW_PITCH, colW, sel: i === g.battle.menuCursor, compact });
+    drawActionRow(g, a, { x0, y: top + (i % 3) * ROW_PITCH, colW, sel: i === g.battle.menuCursor, fit });
   });
 }
 
@@ -225,7 +225,7 @@ export function renderBattle(g: Game): void {
   renderEnemyHud(g);
   renderHeroHud(g, d);
   renderScore(g);
-  renderBand(g);
+  drawCommandBand(g.app.pc.ctx);
   if (g.battle.phase === 'MENU' && !g.heroDown && !bannerBlocks(g)) {renderActionMenu(g);} else {renderBattleText(g);}
   drawPops(g);
 }
