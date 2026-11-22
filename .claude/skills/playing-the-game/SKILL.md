@@ -47,7 +47,7 @@ Each prints one JSON line — `ok`, the game `state` (scene, sub-scene, act, her
 npm run verify
 ```
 
-One line per gate — eyes, lint, check, build, smoke, `sim:quick` (INFO, never fails) — then `TOTAL PASS` or `TOTAL FAIL (<gates>)` with the tail of each failing gate's output. The smoke gate (`smoke.mjs`) drives the headless Chromium against `http://localhost:5173/`: the page loads, a `<canvas>` is attached after the game module ran, and zero `console.error` / `pageerror` fire over 40 frames. A nonzero exit is a hard gate failure: read the output, fix, repeat from step 2.
+One line per gate — eyes, lint, check, build, smoke, `sim:quick` (INFO, never fails) — then `TOTAL PASS` or `TOTAL FAIL (<gates>)` with the tail of each failing gate's output. The smoke gate (`smoke.mjs`) drives the headless Chromium against `http://localhost:5173/`: the page loads, a `<canvas>` is attached after the game module ran, and zero `console.error` / `pageerror` fire over 40 frames. A nonzero exit is a hard gate failure: read the output, fix, repeat from step 2. The same gate also runs on its own — the end-of-turn hook runs `verify` when code changed and blocks while it is red, and the pre-commit hook refuses a red tree (CLAUDE.md → *Automatic feedback*). `npm run gate` runs `verify` and remembers a green tree so the next stop and commit skip it.
 
 ### 4. Hand off — with the server UP
 
