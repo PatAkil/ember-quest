@@ -21,6 +21,7 @@ interface DevHost {
   tick(dt: number): void;
   render(): void;
   resetEdge(): void;
+  syncReveal(): void;
   startRun(hero: Hero, act: number, clears: number): void;
   selectNode(node: DevNode): void;
   nextNodes(): DevNode[];
@@ -214,6 +215,7 @@ export function installDevHook(host: DevHost): { update(dt: number): void; rende
   if (fixture !== null && rng !== null) {
     const build = fixtureBuilders({ host, driver, rng, act })[fixture];
     preservingStorage(build);
+    host.syncReveal();
   }
 
   const api = {

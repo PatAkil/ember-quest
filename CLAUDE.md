@@ -44,7 +44,7 @@ ember-quest/
 │   ├── pops.ts               # floating damage/score pops
 │   ├── storage.ts            # best score in localStorage
 │   ├── lookup.ts             # at, must, noop — guarded indexed access
-│   ├── screens/              # one update + one view per screen: battle/battle-view, map/map-view, loot/loot-view, levelup, card, status (pause, endings), title
+│   ├── screens/              # one update + one view per screen: battle/battle-view, map/map-view, loot/loot-view, levelup, card, status (map status panel), title (title, pause, endings)
 │   │   ├── battle-fx.ts      #   choreography of a turn: wind-ups, impacts, pops, regen aura, defeat, entrance, death
 │   │   ├── battle-fx-view.ts #   draws the shots (orbs, bolts, slashes, blooms …) and the boss/elite banner strip
 │   │   ├── battle-reach.ts   #   lunge distances and contact points between the knight and the foe

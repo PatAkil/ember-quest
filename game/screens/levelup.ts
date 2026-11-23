@@ -25,7 +25,7 @@ export function updateLevelUp(g: Game): void {
   const key = at(STAT_KEYS, lu.cursor);
   if (spendPoint(g.hero, key)) {
     g.app.audio.play('pickup');
-    pushPop(g.pops, popSpot(heroAnchor()), `${gainText(key)} ${key}`, C_ACCENT);
+    pushPop(g.pops, { x: Math.round((SAFE_MARGIN + PANEL.x) / 2), y: popSpot(heroAnchor()).y }, `${gainText(key)} ${key}`, C_ACCENT);
   }
   if (g.hero.sp <= 0) {lu.onDone();}
 }

@@ -6,7 +6,7 @@ import type { Anim } from './sprites/helpers';
 
 export type { Anim } from './sprites/helpers';
 export { animFrame } from './sprites/helpers';
-export { heroFrames } from './sprites/hero';
+export { heroFallen, heroFrames } from './sprites/hero';
 export {
   ICON_SWORD, ICON_WAND, ICON_ARMOR, ICON_NECKLACE, ICON_CHALICE, ICON_BOOTS, ICON_TOME, ICON_EMPTY, ICON_SCROLL,
   HERO_PIP, ROOM_ART,

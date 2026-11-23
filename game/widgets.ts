@@ -52,31 +52,32 @@ export function fitText(ctx: CanvasRenderingContext2D, text: string, box: FitBox
   drawText(ctx, t, { x: box.x, y: box.y }, opts);
 }
 
-function greedyFirst(words: readonly string[], maxW: number, scale: number): string {
-  let first = '';
-  for (const w of words) {
-    const t = first ? `${first} ${w}` : w;
-    if (textWidth(t, scale) > maxW) {break;}
-    first = t;
+function greedySplit(words: readonly string[], maxW: number, scale: number): number {
+  let split = 1;
+  for (let i = 2; i < words.length; i++) {
+    if (textWidth(words.slice(0, i).join(' '), scale) > maxW) {break;}
+    split = i;
   }
-  return first;
+  return split;
 }
 
-function balancedFirst(words: readonly string[], maxW: number, scale: number): string {
-  let best = '';
+function balancedSplit(words: readonly string[], maxW: number, scale: number): number {
+  let best = 0;
   let bestW = Infinity;
   for (let i = 1; i < words.length; i++) {
-    const a = words.slice(0, i).join(' ');
-    const widest = Math.max(textWidth(a, scale), textWidth(words.slice(i).join(' '), scale));
-    if (widest <= maxW && widest < bestW) { best = a; bestW = widest; }
+    const widest = Math.max(textWidth(words.slice(0, i).join(' '), scale), textWidth(words.slice(i).join(' '), scale));
+    if (widest <= maxW && widest < bestW) { best = i; bestW = widest; }
   }
-  return best || greedyFirst(words, maxW, scale);
+  return best || greedySplit(words, maxW, scale);
 }
 
 export function wrap2(text: string, maxW: number, scale = 1): [string] | [string, string] {
-  if (textWidth(text, scale) <= maxW) {return [text];}
-  const first = balancedFirst(text.split(' '), maxW, scale);
-  return [first, text.slice(first.length).trim()];
+  const trimmed = text.trim();
+  if (textWidth(trimmed, scale) <= maxW) {return [trimmed];}
+  const words = trimmed.split(/\s+/);
+  if (words.length <= 1) {return [trimmed];}
+  const split = balancedSplit(words, maxW, scale);
+  return [words.slice(0, split).join(' '), words.slice(split).join(' ')];
 }
 
 export const pct = (n: number): string => `${Math.round(n)}%`;

@@ -85,7 +85,7 @@ function enlargedFit(whole: number, maxBacking: number): DisplayFit {
 export function fitDisplay(logical: FitArea, area: FitArea, maxBacking = MAX_BACKING_SCALE): DisplayFit {
   const ratio = Math.min(area.width / logical.width, area.height / logical.height);
   const fit = Number.isFinite(ratio) && ratio > 0 ? ratio : 1;
-  const cap = Math.max(1, Math.floor(maxBacking));
+  const cap = Number.isFinite(maxBacking) ? Math.max(1, Math.floor(maxBacking)) : MAX_BACKING_SCALE;
   if (fit < 1) {return { backing: 1, display: fit };}
   const whole = Math.floor(fit);
   return whole <= cap ? { backing: whole, display: whole } : enlargedFit(whole, cap);

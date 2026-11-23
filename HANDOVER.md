@@ -12,8 +12,8 @@ it; the v3 rewrite stays in history.
   before/after shots (#7)"); a push to `main` deploys to
   https://patakil.github.io/ember-quest/. Release only through `releasing-the-game`,
   and only when the owner asks.
-- **The overhaul branch** is `air/resume-failed-job-visual-review-7bf06496-4`
-  (`git log main..HEAD`), five commits on top of `main`:
+- **The overhaul branch** is `visual-overhaul` (`git log main..HEAD`, remote
+  `air/resume-failed-job-visual-review-7bf06496-4`), built on top of `main`:
   - `24fe87e`: the game fills the window — whole-number scaling, the Ember Quest
     cabinet shell, legible warnings, coloured map icons, honest level-up labels, clean
     ending screens.
@@ -29,36 +29,29 @@ it; the v3 rewrite stays in history.
     redrawn Ice Bear, wolf, scorpion, Dark Lord and fallen knight; readable desert sun
     and temple columns; clearer map choices.
   - `c029c38`: further styling and enemy presentation.
-  - then a review-fix pass (two writers, uncommitted at the time of writing): the
-    window fit (whole-number scale down to 1, CSS shrink below 240×160, backing store
-    capped at 6× with whole-number CSS enlargement above it, see `STYLE.md` → *Shell
-    and scale*), docs brought in line, and battle fixes by the second writer.
-- **Visual review:** the overhaul scored **77/100**. `npm run verify -- --full` was
-  green on the branch before the review-fix pass.
+  - `d7bb7b9`, `4509197`, and PR #8 adversarial review fixes (committed on the branch):
+    the window fit (whole-number scale down to 1, CSS shrink below 240×160, backing
+    store capped at 6× with whole-number CSS enlargement above it, see `STYLE.md` →
+    *Shell and scale*), docs brought in line, and battle/menu/sprite fixes (hit-stop A
+    buffering, wipe input gating, uniform two-column battle menu, desert sun hidden on
+    reward/card screens, zero-allocation `drawSprite`, `C_SCROLL` in `game/theme.ts`,
+    sharp `#screen` corners).
+- **Visual review:** the overhaul scored **77/100**.
 - **Known open balance item** (unchanged): the game's map links stages more
   generously than the simulator's — see `DESIGN.md` → *Open item*.
 
-## Open follow-ups (not fixed in the review-fix pass)
+## Open follow-ups
 
-- The desert sun shows beside the reward panels (`game/backdrop.ts`, the `SUN` placed
-  between knight and foe around line 80).
-- The two-column battle menu formats its columns differently.
-- Pause freezes the enemy mid entrance hop.
+- Pause freezes the enemy mid entrance hop (in the devhook paused fixture).
 - Ambient particles drift across the "ACT 4" and "VICTORY" headlines.
 - The loot panel is cramped and its title truncates.
 - The Ice Bear and fallen-knight sprites are still weak.
 - The stage half stays empty on the rest and win screens.
-- `border-radius` on `#screen` in `index.html` clips the canvas corners.
-- A presses are swallowed during hit-stop (`game/screens/battle.ts`, `updateBattle`
-  returns while `juice.frozen`, around line 180).
-- The screen wipe does not gate input.
 - Fractional `devicePixelRatio` is ignored by the fit (CSS px only), so a 125 %/150 %
   display resamples the pixels unevenly.
-- `drawSprite` (`engine/sprite.ts`) allocates per pixel (a fresh ink object per drawn cell, every frame).
-- No gate exercises `autoFit`: hold mode pins 3×, so `smoke`, `look` and the oracle
-  never run the window fit; the viewport check was a one-off Playwright script.
-- `game/screens/loot.ts` imports a colour (`C_SCROLL`) from `loot-view.ts` — it
-  belongs in `game/theme.ts`.
+- No gate asserts on `autoFit` across viewports: `look` and the oracle run in hold mode
+  (3×) and `smoke` does not check canvas sizing or resize behaviour; the viewport check
+  was a one-off Playwright script.
 
 ## First things to do in the new task
 
@@ -111,10 +104,6 @@ session's Stop hook, and settings edits taking effect mid-session.
   each screenshot take 3–18 s; the wrapper's plain `--headless=shell --no-sandbox
   --disable-gpu` take about 0.1 s.
 - **knip is pinned to v5** — v6 crashes on this box.
-- **`eslint .` also lints `.claude/worktrees/`** (agent worktrees are untracked and not
-  ignored), so a writer mid-change in its worktree can turn `verify` red in the main
-  checkout. Fix pending: ignore `.claude/**` in `eslint.config.mjs` (owner-approved
-  config change needed).
 - **Lint runs without a cache**, in `npm run lint` and in `verify`, on purpose: the ESLint
   cache misses cross-file type changes.
 - The clone may arrive **shallow**; `git fetch --unshallow` for history. Other remote

@@ -100,7 +100,7 @@ not from stat inflation alone.
 Logical screen 240×160, font 4 px per char at scale 1. Battle log line
 <= 52 chars, or it wraps to two lines. Item names <= 13 chars, enemy names
 <= 12, spell names <= 9. Every panel is placed with `SAFE_MARGIN`; the loot
-and level-up panels sit above the actors, never over them.
+and level-up panels sit beside the hero, never over him.
 
 ## Balance state (tuned with the headless simulator, 2026-09-04)
 

@@ -50,6 +50,11 @@ const DRAW: Record<RevealShape, (ctx: Ctx, u: number) => void> = { BLINDS: drawB
 
 export const revealActive = (g: Game): boolean => g.reveal.t < g.reveal.dur;
 
+export function syncReveal(g: Game): void {
+  g.reveal.last = g.subScene;
+  g.reveal.t = g.reveal.dur;
+}
+
 export function drawReveal(g: Game): void {
   if (!revealActive(g)) {return;}
   const r = g.reveal;

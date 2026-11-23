@@ -71,7 +71,7 @@ export function update(g: Game, dt: number): void {
   input.endFrame();
 }
 
-const renderPlaying = (g: Game): void => { RENDER_SUB[g.subScene](g); };
+const renderPlaying = (g: Game): void => { RENDER_SUB[g.subScene](g); drawReveal(g); };
 
 const renderPaused = (g: Game): void => { renderPlaying(g); renderPausedOverlay(g); };
 const renderGameOver = (g: Game): void => { renderPlaying(g); renderEndingOverlay(g, { headline: g.deathBiome, color: PICO8[8], sub: 'YOU DIED IN' }); };
@@ -90,7 +90,6 @@ export function render(g: Game): void {
   pc.clear(C_BG);
   juice.preRender(pc.ctx);
   RENDER_SCENE[scenes.current](g);
-  drawReveal(g);
   juice.postRender(pc.ctx, W, H);
   crt.render(pc.ctx, W, H, 1 / 60);
 }

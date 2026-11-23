@@ -275,7 +275,7 @@ function drawStrip(g: Game, b: Banner, age: number): void {
   const top = STRIP_Y - Math.round(h / 2);
   ctx.fillStyle = PICO8[0]; ctx.fillRect(-16, top, W + 32, h);
   ctx.fillStyle = b.color; ctx.fillRect(-16, top, W + 32, 1); ctx.fillRect(-16, top + h - 1, W + 32, 1);
-  ctx.fillStyle = C_PANEL; ctx.fillRect(-16, top + 2, W + 32, 1); ctx.fillRect(-16, top + h - 3, W + 32, 1);
+  if (h >= 6) { ctx.fillStyle = C_PANEL; ctx.fillRect(-16, top + 2, W + 32, 1); ctx.fillRect(-16, top + h - 3, W + 32, 1); }
   if (h < STRIP_H - 2) {return;}
   const slide = Math.round((1 - easeOut(span(age, 0.02, 0.2))) * 60);
   const tagW = textWidth(b.tag, 1);

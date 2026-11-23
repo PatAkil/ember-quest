@@ -7,7 +7,7 @@ import { BRACE_DUR, bannerBlocks, cue, dismissBanner, fadeProgress, flushFx, res
 import { biome, dirEdge, resetCursorEdge, wrapCursor } from '../state';
 import type { Game } from '../state';
 import { C_ACCENT, C_DIM, C_DMG_TAKEN, C_HP, C_LOG_HURT, C_MP, C_TEXT, heroPos } from '../theme';
-import { deathFx, lastHitDelay, defeatFx, enemyImpact, enemyWindup, entranceFx, heroImpact, heroWindup, popHero, prepareFx, regenAura } from './battle-fx';
+import { MOTES_FLIGHT, deathFx, lastHitDelay, defeatFx, enemyImpact, enemyWindup, entranceFx, heroImpact, heroWindup, popHero, prepareFx, regenAura } from './battle-fx';
 import type { PopSpec } from './battle-fx';
 import { clearPops, pushPop, scoreSpot } from '../pops';
 
@@ -33,6 +33,7 @@ function say(g: Game, text: string, color: string): void { g.battle.text = text;
 function beginQueue(g: Game): void { g.battle.phase = 'QUEUE'; advanceQueueStep(g); }
 
 function advanceQueueStep(g: Game): void {
+  if (g.battle.queue.length === 0 && g.battle.outcome === 'WON') { onQueueDone(g); return; }
   flushFx(g);
   const step = g.battle.queue.shift();
   if (!step) { onQueueDone(g); return; }
@@ -114,11 +115,12 @@ function turnStartPops(g: Game): PopSpec[] {
 function landHeroAction(g: Game, action: HeroAction, slot: number): void {
   const { enemy: e, state } = g.battle;
   if (!e || !state) {return;}
+  const preHp = e.hp;
   const r = heroAct(g.hero, state, action, g.rng);
   say(g, r.text, r.crit ? C_ACCENT : C_TEXT);
-  heroImpact(g, action, r, slot);
+  heroImpact(g, { action, result: r, slot, preHp });
   if (r.enemyDefeated) { enemyDefeated(g, e, lastHitDelay(r.hits.length)); return; }
-  g.battle.timer = PREPARE_DELAY + lastHitDelay(r.hits.length);
+  g.battle.timer = Math.max(PREPARE_DELAY + lastHitDelay(r.hits.length), r.healed > 0 ? MOTES_FLIGHT : 0);
   push(g, BRACE_DUR, () => { prepareFx(g); });
   push(g, ENEMY_TURN_HOLD, () => { enemyStep(g, e); });
 }
@@ -151,6 +153,7 @@ function consumeA(g: Game): boolean {
 
 function updateMenu(g: Game): void {
   if (bannerBlocks(g)) {
+    resetCursorEdge(g);
     if (consumeA(g)) {dismissBanner(g);}
     return;
   }

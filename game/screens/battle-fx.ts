@@ -28,7 +28,7 @@ const STRIKE_LOOK: Look = { arch: 'MELEE', impact: 0.18, shot: null, color: PICO
 const HEXBOLT_LOOK: Look = { arch: 'SHOT', impact: 0.26, shot: 'BOLT', color: PICO8[14], glow: PICO8[7] };
 const LAUNCH = 0.1;
 const STAGGER = 0.16;
-const MOTES_FLIGHT = 0.3;
+export const MOTES_FLIGHT = 0.3;
 
 export const lastHitDelay = (hits: number): number => STAGGER * Math.max(0, hits - 1);
 
@@ -169,13 +169,18 @@ function landHit(g: Game, l: Look, h: Hit, slot: number): void {
   if (l.arch === 'HEAVY') {addShot(g, { kind: 'DUST', dur: 0.32, from: { x: HERO_X + 16, y: FLOOR_Y }, to: { x: s.hit.x + 12, y: FLOOR_Y }, color: l.color, glow: l.glow });}
 }
 
-function stagedHit(g: Game, l: Look, h: Hit, slot: number): void {
-  const delay = STAGGER * slot;
+interface StagedHit { look: Look; hit: Hit; slot: number; drop: number }
+
+function stagedHit(g: Game, st: StagedHit): void {
+  const delay = STAGGER * st.slot;
   const s = heroSide(g);
-  holdMeter(g, 'enemyHp', h.dmg);
-  if (l.arch === 'SHOT') {addShot(g, { kind: l.shot ?? 'BOLT', dur: delay, from: s.cast, to: s.hit, color: l.color, glow: l.glow });}
-  if (l.arch === 'SKY') {skyStrike(g, s, l, delay - 0.02);}
-  cue(g, delay, () => { holdMeter(g, 'enemyHp', -h.dmg); landHit(g, l, h, slot); });
+  if (st.drop > 0) {holdMeter(g, 'enemyHp', st.drop);}
+  if (st.look.arch === 'SHOT') {addShot(g, { kind: st.look.shot ?? 'BOLT', dur: delay, from: s.cast, to: s.hit, color: st.look.color, glow: st.look.glow });}
+  if (st.look.arch === 'SKY') {skyStrike(g, s, st.look, delay - 0.02);}
+  cue(g, delay, () => {
+    if (st.drop > 0) {holdMeter(g, 'enemyHp', -st.drop);}
+    landHit(g, st.look, st.hit, st.slot);
+  });
 }
 
 export interface PopSpec { text: string; color: string }
@@ -212,10 +217,19 @@ function drainBack(g: Game, r: HeroActResult, slot: number): void {
   });
 }
 
-export function heroImpact(g: Game, action: HeroAction, r: HeroActResult, slot: number): void {
+interface HeroImpact { action: HeroAction; result: HeroActResult; slot: number; preHp: number }
+
+export function heroImpact(g: Game, imp: HeroImpact): void {
+  const { action, result: r, slot, preHp } = imp;
   const l = heroLook(g.hero, action);
   if (!r.hits.length) { selfRestore(g, r, slot); return; }
-  r.hits.forEach((h, i) => { if (i === 0) {landHit(g, l, h, 0);} else {stagedHit(g, l, h, i);} });
+  let rem = Math.max(0, preHp - (r.hits[0]?.dmg ?? 0));
+  r.hits.forEach((h, i) => {
+    if (i === 0) { landHit(g, l, h, 0); return; }
+    const drop = Math.min(rem, h.dmg);
+    rem -= drop;
+    stagedHit(g, { look: l, hit: h, slot: i, drop });
+  });
   if (r.healed > 0) {drainBack(g, r, slot);} else if (r.mpRestored > 0) {popHero(g, restorePops(r), slot);}
 }
 

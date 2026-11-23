@@ -146,7 +146,7 @@ export function renderLoot(g: Game): void {
   drawText(ctx, TITLE[g.loot.source], { x: panelCentre(TITLE[g.loot.source]), y: panelY + 5 }, { color: C_ACCENT, shadow: true });
   for (let i = 0; i < rows; i++) {
     const row: Row = { ctx, y: panelY + ROW_TOP + i * ROW_PITCH, sel: i === g.loot.cursor };
-    if (row.sel) { ctx.fillStyle = C_SEL_BAR; ctx.fillRect(X0 + 3, row.y - 2, PW - 6, ROW_PITCH - 1); }
+    if (row.sel) { ctx.fillStyle = C_SEL_BAR; ctx.fillRect(X0 + 3, row.y - 1, PW - 6, ROW_PITCH - 1); }
     if (row.sel) {drawText(ctx, '>', { x: X0 + 4, y: row.y + 1 }, { color: C_ACCENT });}
     const offer = g.loot.offers[i];
     if (offer) {drawOfferRow(row, offerFace(g, offer));} else {drawKeepRow(row);}

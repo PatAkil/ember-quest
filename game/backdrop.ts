@@ -1,6 +1,5 @@
 import { PICO8, drawBevel, drawSprite, fillDither, frameIndex, rotateSprite } from '../engine';
-import { animFrame, enemyAnim, heroFrames } from './sprites';
-import { heroFallen } from './sprites/hero';
+import { animFrame, enemyAnim, heroFallen, heroFrames } from './sprites';
 import type { Anim } from './sprites';
 import type { Sprite, SpriteDrawOptions } from '../engine';
 import { actorPose, fadeProgress } from './fx';
@@ -36,7 +35,7 @@ function fillDisc(ctx: Ctx, center: Point, r: number): void {
   }
 }
 
-interface Layer { ctx: Ctx; clock: number; dim: number }
+interface Layer { ctx: Ctx; clock: number; dim: number; showSun: boolean }
 
 const fade = (l: Layer, alpha: number): void => { l.ctx.globalAlpha = alpha * l.dim; };
 
@@ -85,7 +84,7 @@ const SUN_R = 13;
 const SUN_CORE_R = 9;
 
 function drawSun(l: Layer): void {
-  if (l.dim < 1) {return;}
+  if (l.dim < 1 || !l.showSun) {return;}
   const { ctx } = l;
   fade(l, 1); ctx.fillStyle = PICO8[9];
   fillDisc(ctx, SUN, SUN_R);
@@ -131,10 +130,10 @@ function templeBackdrop(l: Layer): void {
 
 const BACKDROPS: readonly ((l: Layer) => void)[] = [cryptBackdrop, tundraBackdrop, desertBackdrop];
 
-export function renderBiomeBackdrop(g: Game, dim = 1): void {
+export function renderBiomeBackdrop(g: Game, dim = 1, showSun = true): void {
   const draw = BACKDROPS[g.actIndex] ?? templeBackdrop;
   const ctx = g.app.pc.ctx;
-  draw({ ctx, clock: g.clock, dim });
+  draw({ ctx, clock: g.clock, dim, showSun });
   ctx.globalAlpha = 1;
 }
 
@@ -252,7 +251,7 @@ function enemyBox(g: Game): { x: number; w: number; h: number } {
 }
 
 export function renderTableau(g: Game, withEnemy: boolean, withHero = true): void {
-  renderBiomeBackdrop(g);
+  renderBiomeBackdrop(g, 1, withEnemy);
   g.app.particles.render(g.app.pc.ctx);
   renderFloor(g);
   if (withHero) {drawHero(g);}
