@@ -1,22 +1,28 @@
 import { PICO8 } from '../../engine';
-import type { EnemyActResult, EnemyInstance, EnemyKind, HeroAction, HeroActResult } from '../types';
+import type { EnemyInstance, HeroAction } from '../types';
+import { SPELLS } from '../data';
 import { canAfford, createBattle, enemyAct, heroAct, heroActions, spawnEnemy, startTurn } from '../sim';
-import { enemyPos } from '../backdrop';
 import { at } from '../lookup';
-import { pushPop } from '../pops';
+import { BRACE_DUR, bannerBlocks, cue, dismissBanner, fadeProgress, flushFx, resetFx, skipToImpact, updateFx } from '../fx';
 import { biome, dirEdge, resetCursorEdge, wrapCursor } from '../state';
 import type { Game } from '../state';
-import { C_ACCENT, C_DIM, C_DMG_TAKEN, C_HP, C_MP, C_TEXT, enemyColor, heroPos } from '../theme';
-import type { Point } from '../theme';
+import { C_ACCENT, C_DIM, C_DMG_TAKEN, C_HP, C_LOG_HURT, C_MP, C_TEXT, heroPos } from '../theme';
+import { MOTES_FLIGHT, deathFx, lastHitDelay, defeatFx, enemyImpact, enemyWindup, entranceFx, heroImpact, heroWindup, popHero, prepareFx, regenAura } from './battle-fx';
+import type { PopSpec } from './battle-fx';
+import { clearPops, pushPop, scoreSpot } from '../pops';
 
 export function startBattle(g: Game, id: string, onWin: () => void): void {
   const enemy = spawnEnemy(id, g.clears, g.actIndex);
   g.battle = {
     enemy, state: createBattle(enemy), onWon: onWin,
     phase: 'MENU', menuCursor: 0, outcome: 'NONE',
-    queue: [], timer: 0, text: '', color: C_TEXT,
+    queue: [], timer: 0, text: '', color: C_TEXT, bufferedA: false,
   };
   g.subScene = 'BATTLE';
+  clearPops(g);
+  resetFx(g);
+  entranceFx(g, enemy);
+  if (enemy.def.kind !== 'NORMAL') {say(g, `${enemy.def.name} BARS THE WAY!`, C_ACCENT);}
   resetCursorEdge(g);
 }
 
@@ -27,6 +33,8 @@ function say(g: Game, text: string, color: string): void { g.battle.text = text;
 function beginQueue(g: Game): void { g.battle.phase = 'QUEUE'; advanceQueueStep(g); }
 
 function advanceQueueStep(g: Game): void {
+  if (g.battle.queue.length === 0 && g.battle.outcome === 'WON') { onQueueDone(g); return; }
+  flushFx(g);
   const step = g.battle.queue.shift();
   if (!step) { onQueueDone(g); return; }
   step.run();
@@ -35,12 +43,14 @@ function advanceQueueStep(g: Game): void {
 
 export function onQueueDone(g: Game): void {
   const b = g.battle;
+  b.bufferedA = false;
   if (b.outcome === 'LOST') {return;}
   if (b.outcome === 'WON') {
     b.outcome = 'NONE';
     const cb = b.onWon;
     b.enemy = null; b.state = null;
     b.phase = 'MENU';
+    resetFx(g);
     cb();
     return;
   }
@@ -48,25 +58,26 @@ export function onQueueDone(g: Game): void {
   b.menuCursor = Math.min(b.menuCursor, heroActions(g.hero).length - 1);
 }
 
-const DEFEAT_MAGNITUDE: Record<EnemyKind, number> = { BOSS: 1, ELITE: 0.6, NORMAL: 0.3 };
+const DEFEAT_HOLD = 1.0;
+const PREPARE_DELAY = 0.2;
+const ENEMY_TURN_HOLD = 0.8;
+const DEFEAT_SAY_DELAY = 0.4;
 
-function enemyDefeatedStep(g: Game, e: EnemyInstance): void {
-  const p = enemyPos(g);
-  const mag = DEFEAT_MAGNITUDE[e.def.kind];
-  push(g, 1.0, () => {
-    say(g, `${e.def.name} DEFEATED!`, C_ACCENT);
-    g.app.audio.play('explosion');
-    g.app.particles.burst(p.x, p.y, { count: 10 + Math.round(mag * 10), color: enemyColor(e.def.id), speed: 120 + mag * 60 });
-    g.app.juice.shake(4 + mag * 3, 0.35 + mag * 0.15);
-    pushPop(g.pops, { x: p.x, y: p.y - 24 }, '+100', C_ACCENT);
-    g.battle.outcome = 'WON';
+function enemyDefeated(g: Game, e: EnemyInstance, lastHit = 0): void {
+  cue(g, lastHit, () => {
+    defeatFx(g, e);
+    pushPop(g.pops, scoreSpot(), '+100', C_ACCENT);
   });
+  cue(g, lastHit + DEFEAT_SAY_DELAY, () => { say(g, `${e.def.name} DEFEATED!`, C_ACCENT); });
+  g.battle.outcome = 'WON';
+  g.battle.queue.length = 0;
+  g.battle.timer = lastHit + DEFEAT_HOLD;
 }
 
 function heroDies(g: Game, text: string): void {
   const hp = heroPos();
   const { audio, particles, juice } = g.app;
-  say(g, text, C_DMG_TAKEN);
+  say(g, text, C_LOG_HURT);
   audio.play('explosion');
   particles.burst(hp.x, hp.y, { count: 14, color: PICO8[8], speed: 150 });
   juice.shake(6, 0.5);
@@ -74,83 +85,53 @@ function heroDies(g: Game, text: string): void {
   juice.hitStop(0.4);
   g.dying = true; g.heroDown = true;
   g.battle.outcome = 'LOST';
-}
-
-function heroStruck(g: Game, r: EnemyActResult, hp: Point): boolean {
-  const { audio, particles, juice } = g.app;
-  pushPop(g.pops, { x: hp.x, y: hp.y - 8 }, `-${r.dmg}`, C_DMG_TAKEN);
-  if (r.heroDead) { heroDies(g, r.text); return false; }
-  audio.play('hit');
-  particles.burst(hp.x, hp.y, { count: 5, color: PICO8[8] });
-  juice.shake(3, 0.25);
-  juice.flash(PICO8[8], 0.2);
-  if (r.revived) {
-    juice.flash(C_ACCENT, 0.6, { x: hp.x, y: hp.y });
-    particles.burst(hp.x, hp.y, { count: 16, color: C_ACCENT, speed: 140 });
-    audio.play('pickup');
-    g.battle.color = C_ACCENT;
-  }
-  return true;
+  deathFx(g);
 }
 
 export function applyEnemyAction(g: Game): void {
   const { enemy, state } = g.battle;
   if (!enemy || !state) {return;}
   const r = enemyAct(g.hero, state, g.rng);
-  const hp = heroPos();
-  say(g, r.text, r.dodged ? C_TEXT : C_DMG_TAKEN);
-  if (r.dodged) { g.app.audio.play('blip'); pushPop(g.pops, { x: hp.x, y: hp.y - 8 }, 'MISS', C_DIM); }
-  else if (!heroStruck(g, r, hp)) {return;}
-  if (r.reflected > 0) {
-    const p = enemyPos(g);
-    pushPop(g.pops, { x: p.x, y: p.y - 8 }, `-${r.reflected}`, PICO8[9]);
-    g.app.particles.burst(p.x, p.y, { count: 5, color: PICO8[9] });
-  }
-  if (r.enemyDefeated) {enemyDefeatedStep(g, enemy);}
+  say(g, r.text, r.dodged ? C_TEXT : C_LOG_HURT);
+  if (r.revived) {g.battle.color = C_ACCENT;}
+  enemyImpact(g, r);
+  if (r.heroDead) { heroDies(g, r.text); return; }
+  if (r.enemyDefeated) {enemyDefeated(g, enemy);}
 }
 
-function turnStartPops(g: Game, hp: Point): void {
+function enemyStep(g: Game, e: EnemyInstance): void {
+  cue(g, enemyWindup(g, e), () => { applyEnemyAction(g); }, true);
+}
+
+function turnStartPops(g: Game): PopSpec[] {
   const turn = startTurn(g.hero);
-  if (turn.mpRegen > 0) {pushPop(g.pops, { x: hp.x, y: hp.y - 22 }, `+${turn.mpRegen} MP`, C_MP);}
-  if (turn.hpRegen > 0) {pushPop(g.pops, { x: hp.x + 18, y: hp.y - 30 }, `+${turn.hpRegen} HP`, C_HP);}
-  if (turn.bloodLoss > 0) {pushPop(g.pops, { x: hp.x - 16, y: hp.y - 30 }, `-${turn.bloodLoss}`, C_DMG_TAKEN);}
+  const specs: PopSpec[] = [];
+  if (turn.mpRegen > 0) {specs.push({ text: `+${turn.mpRegen} MP`, color: C_MP });}
+  if (turn.hpRegen > 0) {specs.push({ text: `+${turn.hpRegen} HP`, color: C_HP });}
+  if (turn.bloodLoss > 0) {specs.push({ text: `-${turn.bloodLoss}`, color: C_DMG_TAKEN });}
+  return specs;
 }
 
-function hitFeedback(g: Game, r: HeroActResult, e: EnemyInstance): void {
-  const { audio, particles, juice } = g.app;
-  const p = enemyPos(g);
-  r.hits.forEach((h, i) => {
-    const color = h.crit ? C_ACCENT : h.kind === 'MAGIC' ? PICO8[14] : C_TEXT;
-    pushPop(g.pops, { x: p.x + (i - (r.hits.length - 1) / 2) * 26, y: p.y - 8 - i * 6, scale: h.crit ? 3 : 2 }, `-${h.dmg}${h.crit ? '!' : ''}`, color);
-  });
-  if (!r.hits.length) {
-    const hp = heroPos();
-    audio.play('pickup');
-    particles.burst(hp.x, hp.y, { count: 8, color: C_HP, speed: 60 });
-    return;
-  }
-  if (r.crit) {
-    audio.play('explosion'); juice.shake(4, 0.3); juice.flash(C_ACCENT, 0.3); juice.hitStop(0.08);
-    particles.burst(p.x, p.y, { count: 12, color: C_ACCENT, speed: 130 });
-  } else {
-    audio.play('hit'); juice.shake(2, 0.2); juice.flash(C_ACCENT, 0.2);
-    particles.burst(p.x, p.y, { count: 6, color: enemyColor(e.def.id) });
-  }
-}
-
-function applyHeroAction(g: Game, action: HeroAction): void {
+function landHeroAction(g: Game, action: HeroAction, slot: number): void {
   const { enemy: e, state } = g.battle;
   if (!e || !state) {return;}
-  const hp = heroPos();
-  turnStartPops(g, hp);
+  const preHp = e.hp;
   const r = heroAct(g.hero, state, action, g.rng);
   say(g, r.text, r.crit ? C_ACCENT : C_TEXT);
-  hitFeedback(g, r, e);
-  if (r.healed > 0) {pushPop(g.pops, { x: hp.x, y: hp.y - 14 }, `+${r.healed} HP`, C_HP);}
-  if (r.mpRestored > 0) {pushPop(g.pops, { x: hp.x + 14, y: hp.y - 20 }, `+${r.mpRestored} MP`, C_MP);}
-  if (r.enemyDefeated) {enemyDefeatedStep(g, e); return;}
-  push(g, 0.7, () => { say(g, `${e.def.name} PREPARES...`, C_DIM); });
-  push(g, 0.9, () => { applyEnemyAction(g); });
+  heroImpact(g, { action, result: r, slot, preHp });
+  if (r.enemyDefeated) { enemyDefeated(g, e, lastHitDelay(r.hits.length)); return; }
+  g.battle.timer = Math.max(PREPARE_DELAY + lastHitDelay(r.hits.length), r.healed > 0 ? MOTES_FLIGHT : 0);
+  push(g, BRACE_DUR, () => { prepareFx(g); });
+  push(g, ENEMY_TURN_HOLD, () => { enemyStep(g, e); });
+}
+
+function heroStep(g: Game, action: HeroAction): void {
+  if (!g.battle.enemy) {return;}
+  const turnPops = turnStartPops(g);
+  say(g, action === 'ATTACK' ? 'HERO ATTACKS!' : `HERO CASTS ${SPELLS[action].name}!`, C_DIM);
+  popHero(g, turnPops);
+  if (turnPops.length) {regenAura(g);}
+  cue(g, heroWindup(g, action), () => { landHeroAction(g, action, turnPops.length); }, true);
 }
 
 function useAction(g: Game, action: HeroAction): void {
@@ -160,29 +141,57 @@ function useAction(g: Game, action: HeroAction): void {
     beginQueue(g);
     return;
   }
-  push(g, 0.9, () => { applyHeroAction(g, action); });
+  push(g, 0.9, () => { heroStep(g, action); });
   beginQueue(g);
 }
 
+function consumeA(g: Game): boolean {
+  const hit = g.app.input.pressed('A') || g.battle.bufferedA;
+  g.battle.bufferedA = false;
+  return hit;
+}
+
 function updateMenu(g: Game): void {
+  if (bannerBlocks(g)) {
+    resetCursorEdge(g);
+    if (consumeA(g)) {dismissBanner(g);}
+    return;
+  }
   const actions = heroActions(g.hero);
   const dy = dirEdge(g);
   if (dy) { g.battle.menuCursor = wrapCursor(g.battle.menuCursor, dy, actions.length); g.app.audio.play('blip'); }
-  if (g.app.input.pressed('A')) { g.app.audio.play('blip'); useAction(g, at(heroActions(g.hero), g.battle.menuCursor)); }
+  if (consumeA(g)) { g.app.audio.play('blip'); useAction(g, at(heroActions(g.hero), g.battle.menuCursor)); }
+}
+
+function updateDying(g: Game, dt: number): void {
+  if (g.app.juice.frozen) {return;}
+  updateFx(g, dt);
+  if (fadeProgress(g.fx, g.fx.fall) < 1) {return;}
+  g.deathBiome = biome(g).name; g.dying = false;
+  clearPops(g);
+  resetFx(g);
+  g.app.scenes.to('GAME_OVER');
+}
+
+function updateQueue(g: Game, dt: number): void {
+  g.battle.timer -= dt;
+  if (!consumeA(g)) {
+    if (g.battle.timer <= 0) {advanceQueueStep(g);}
+    return;
+  }
+  const before = g.battle.timer;
+  const skipped = skipToImpact(g);
+  if (skipped === null) { advanceQueueStep(g); return; }
+  if (g.battle.timer === before) {g.battle.timer -= skipped;}
 }
 
 export function updateBattle(g: Game, dt: number): void {
-  if (g.dying) {
-    if (!g.app.juice.frozen) {
-      g.deathBiome = biome(g).name; g.dying = false;
-      g.app.scenes.to('GAME_OVER');
-    }
+  if (g.dying) { updateDying(g, dt); return; }
+  if (g.app.juice.frozen) {
+    if (g.app.input.pressed('A')) {g.battle.bufferedA = true;}
     return;
   }
-  if (g.battle.phase === 'MENU') {
-    updateMenu(g);
-    return;
-  }
-  g.battle.timer -= dt;
-  if (g.battle.timer <= 0 || g.app.input.pressed('A')) {advanceQueueStep(g);}
+  updateFx(g, dt);
+  if (g.battle.phase === 'MENU') {updateMenu(g); return;}
+  updateQueue(g, dt);
 }

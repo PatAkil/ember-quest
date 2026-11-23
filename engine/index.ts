@@ -6,9 +6,10 @@ export type { Input, InputOptions, ButtonName, ActionDecl } from './input';
 export { createScenes } from './scenes';
 export type { SceneMachine } from './scenes';
 
-export { createPixelCanvas } from './canvas';
-export { makeSprite, flipSprite, drawSprite } from './sprite';
-export type { Sprite, SpriteMap } from './sprite';
+export { createPixelCanvas, fitDisplay, autoFit } from './canvas';
+export type { PixelCanvas, FitArea, DisplayFit } from './canvas';
+export { makeSprite, flipSprite, drawSprite, rotateSprite } from './sprite';
+export type { Sprite, SpriteMap, SpriteDrawOptions } from './sprite';
 export { frameIndex, blink, pulse } from './anim';
 export { drawText, drawTextCentered, textWidth, drawLogo } from './text';
 export type { TextOptions } from './text';

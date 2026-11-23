@@ -2,6 +2,8 @@ import { BIOMES, ENEMIES, BOSS_ENTRY_HEAL } from './data';
 import type { EnemyKind, Hero, LootSource } from './types';
 import { createHero, fullHeal, grantClear, healFraction } from './sim';
 import { at, must } from './lookup';
+import { resetFx } from './fx';
+import { clearPops } from './pops';
 import { generateMap } from './mapgen';
 import { biome, biomeLook, pickOne, resetCursorEdge, stageAt } from './state';
 import type { Game, MapNode, RoomType } from './state';
@@ -46,8 +48,11 @@ function onActCleared(g: Game): void {
   showCard(g, [`${biome(g).name} AWAITS...`, 'THE DESCENT CONTINUES'], () => { enterAct(g); });
 }
 
+const freshStage = (g: Game, next: () => void) => (): void => { clearPops(g); next(); };
+
 function levelThenLoot(g: Game, sp: number, source: LootSource, done: () => void): void {
-  startLevelUp(g, sp, () => { startLoot(g, source, done); });
+  clearPops(g);
+  startLevelUp(g, sp, freshStage(g, () => { startLoot(g, source, freshStage(g, done)); }));
 }
 
 function fightRoom(g: Game, kind: 'NORMAL' | 'ELITE'): void {
@@ -78,7 +83,7 @@ function restRoom(g: Game): void {
 
 const normalRoom = (g: Game): void => { fightRoom(g, 'NORMAL'); };
 const eliteRoom = (g: Game): void => { fightRoom(g, 'ELITE'); };
-const lootRoom = (g: Game): void => { startLoot(g, 'LOOT', () => { advanceStage(g); }); };
+const lootRoom = (g: Game): void => { startLoot(g, 'LOOT', freshStage(g, () => { advanceStage(g); })); };
 
 const ROOMS: Record<RoomType, (g: Game, node: MapNode) => void> = {
   FIGHT: normalRoom,
@@ -98,7 +103,8 @@ export function startRun(g: Game, hero: Hero = createHero(), act = 0, clears = 0
   g.clears = clears; g.score = clears * 100; g.actIndex = act;
   g.dying = false; g.heroDown = false;
   g.battle.enemy = null; g.battle.state = null;
-  g.pops.length = 0;
+  clearPops(g);
+  resetFx(g);
   enterAct(g);
 }
 

@@ -1,16 +1,17 @@
 import { createLoop } from '../engine';
 import { derive, heroActions } from './sim';
 import { validateData } from './data';
-import { installDevHook } from './devhook';
+import { HOLD, installDevHook } from './devhook';
 import { createApp } from './app';
 import { selectNode, startRun, wireScenes } from './flow';
 import { render, update } from './frame';
 import { at } from './lookup';
 import { createGame, resetCursorEdge, stageAt } from './state';
 import type { Game } from './state';
+import { syncReveal } from './transition';
 import { applyEnemyAction, onQueueDone } from './screens/battle';
 
-const app = createApp();
+const app = createApp(HOLD);
 const violations = validateData();
 if (violations.length > 0) {reportError(new Error(`[ember-quest data] ${violations.join('; ')}`));}
 const g = createGame(app);
@@ -31,6 +32,7 @@ const tick = (dt: number): void => { update(g, dt); };
 const draw = (): void => { render(g); };
 const dev = import.meta.env.DEV ? installDevHook({
   scenes: app.scenes, setRng: (r) => { g.rng = r; }, tick, render: draw, resetEdge: () => { resetCursorEdge(g); },
+  syncReveal: () => { syncReveal(g); },
   startRun: (hero, act, clears) => { startRun(g, hero, act, clears); },
   selectNode: (node) => { selectNode(g, node); },
   nextNodes: () => g.map.reachable.map((i) => at(stageAt(g, g.map.curStage + 1), i)),

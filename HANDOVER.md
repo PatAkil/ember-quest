@@ -1,39 +1,57 @@
-# Handover — Ember Quest v2 with agent eyes and a lint suite (2026-11-22)
+# Handover — Ember Quest visual overhaul (2026-11-22)
 
 For the next Air cloud task. Read this first, then `CLAUDE.md` and `DESIGN.md`
 (and `STYLE.md` before touching the look).
 
 ## Where things stand
 
-The owner wants the **v2 in-browser game** (keyboard, desktop browser) and to keep
-building on it, not the v3 rewrite (party draft, relics, HD-2D, phone layout). v3 is
-still in history.
+The owner plays the **v2 in-browser game** (keyboard, desktop browser) and builds on
+it; the v3 rewrite stays in history.
 
-- **`main`** is `93f6bc6`: PR #2 merged the v2 restore, so `main` holds v2 and a push to
-  `main` deploys it to https://patakil.github.io/ember-quest/. Only release through the
-  `releasing-the-game` skill, and only when the owner asks.
-- **This task's branch** is `air/resume-ember-quest-from-handover-doc-d4b12fb1-e`, on top
-  of the v2 handover. It added the tooling, not features:
-  - `1e6f5fe`: agent eyes — the seeded dev hook (`game/devhook.ts`), `npm run setup`,
-    `look`, `verify`, and the lint configuration.
-  - `edce53d`: every comment stripped (the style card moved to `STYLE.md`), lint autofix.
-  - `00f1c7d`: the refactor oracle (`scripts/oracle.mjs`), hold mode for pixel-identical
-    seeded screenshots, `noUncheckedIndexedAccess`.
-  - `80baa5e`: all lint debt cleaned — rules split into `game/sim/*`, the engine's
-    `draw.ts` split into `canvas/sprite/anim/font/text/fills` (+ `geometry`, `ambient`)
-    with geometry-object signatures, presentation split out of `main.ts` into
-    `app/state/flow/frame/…` and `game/screens/`, sprites into `game/sprites/`. Its
-    acceptance test was behaviour preservation: the oracle (state + pixels) identical
-    and `node sim/run.mjs --json` byte-identical to the pre-refactor baselines.
-  - then the docs and skills brought in line with all of the above.
-- **Gates at hand-off:** `npm run verify -- --full` passes on the whole tree. Full sim:
-  balanced 19 %, glass 9 %, tank 17 %, elite-hungry 19 %, chest-hungry 19 %, random 0 %.
-- **Known open item** (balance, not fixed here): the game's map links stages more
-  generously than the simulator's, so the real game is somewhat easier than the
-  *Balance state* table says — see `DESIGN.md` → *Open item*.
-- **No feature work yet.** The owner's request is still open: "continue with the browser
-  game and the features and functionality that were in there". Ask which v2 feature or
-  change comes first.
+- **`main`** is `2b55b37` ("PRs get a comment showing which screens changed, with
+  before/after shots (#7)"); a push to `main` deploys to
+  https://patakil.github.io/ember-quest/. Release only through `releasing-the-game`,
+  and only when the owner asks.
+- **The overhaul branch** is `visual-overhaul` (`git log main..HEAD`, remote
+  `air/resume-failed-job-visual-review-7bf06496-4`), built on top of `main`:
+  - `24fe87e`: the game fills the window — whole-number scaling, the Ember Quest
+    cabinet shell, legible warnings, coloured map icons, honest level-up labels, clean
+    ending screens.
+  - `69a6b0d`: auto-commit of work in progress.
+  - `a0d598e`: battles look like a fight scene and move — 2× actors, mirrored HUD
+    plates, the command band, lunges, spell projectiles, hit flash, dissolve on kill,
+    boss banner, lagging HP bars, screen transitions (`game/fx*.ts`,
+    `game/transition.ts`, `game/screens/battle-fx*.ts`); the map gets room icons, a
+    hero marker and a lit path; loot and equip get item cards.
+  - `21467a4`: overhaul round 1 — melee lunges connect with a slash arc, bigger
+    fireball and impact blooms, no dead beats before a kill dissolves, no stray numbers
+    carried into the next fight; reward screens get the command band and the knight;
+    redrawn Ice Bear, wolf, scorpion, Dark Lord and fallen knight; readable desert sun
+    and temple columns; clearer map choices.
+  - `c029c38`: further styling and enemy presentation.
+  - `d7bb7b9`, `4509197`, and PR #8 adversarial review fixes (committed on the branch):
+    the window fit (whole-number scale down to 1, CSS shrink below 240×160, backing
+    store capped at 6× with whole-number CSS enlargement above it, see `STYLE.md` →
+    *Shell and scale*), docs brought in line, and battle/menu/sprite fixes (hit-stop A
+    buffering, wipe input gating, uniform two-column battle menu, desert sun hidden on
+    reward/card screens, zero-allocation `drawSprite`, `C_SCROLL` in `game/theme.ts`,
+    sharp `#screen` corners).
+- **Visual review:** the overhaul scored **77/100**.
+- **Known open balance item** (unchanged): the game's map links stages more
+  generously than the simulator's — see `DESIGN.md` → *Open item*.
+
+## Open follow-ups
+
+- Pause freezes the enemy mid entrance hop (in the devhook paused fixture).
+- Ambient particles drift across the "ACT 4" and "VICTORY" headlines.
+- The loot panel is cramped and its title truncates.
+- The Ice Bear and fallen-knight sprites are still weak.
+- The stage half stays empty on the rest and win screens.
+- Fractional `devicePixelRatio` is ignored by the fit (CSS px only), so a 125 %/150 %
+  display resamples the pixels unevenly.
+- No gate asserts on `autoFit` across viewports: `look` and the oracle run in hold mode
+  (3×) and `smoke` does not check canvas sizing or resize behaviour; the viewport check
+  was a one-off Playwright script.
 
 ## First things to do in the new task
 
@@ -57,7 +75,7 @@ still in history.
    environment settings only to newly created tasks (docs:
    jetbrains.com/help/air/exposed-ports.html, …/manage-environments.html).
 3. **Baseline.** `npm run verify`, then `npm run look -- --scene title` and read the
-   screenshot it names.
+   screenshot it names. Ask the owner which follow-up above comes first.
 
 ## The feedback loop is automatic now
 
@@ -86,10 +104,6 @@ session's Stop hook, and settings edits taking effect mid-session.
   each screenshot take 3–18 s; the wrapper's plain `--headless=shell --no-sandbox
   --disable-gpu` take about 0.1 s.
 - **knip is pinned to v5** — v6 crashes on this box.
-- **`eslint .` also lints `.claude/worktrees/`** (agent worktrees are untracked and not
-  ignored), so a writer mid-change in its worktree can turn `verify` red in the main
-  checkout. Fix pending: ignore `.claude/**` in `eslint.config.mjs` (owner-approved
-  config change needed).
 - **Lint runs without a cache**, in `npm run lint` and in `verify`, on purpose: the ESLint
   cache misses cross-file type changes.
 - The clone may arrive **shallow**; `git fetch --unshallow` for history. Other remote

@@ -2,6 +2,8 @@ import { PICO8 } from '../engine';
 import type { SceneMachine } from '../engine';
 import { startPlaying } from './flow';
 import { updatePops } from './pops';
+import { drawReveal, revealActive, trackReveal } from './transition';
+import { resetCursorEdge } from './state';
 import type { Game, SubScene } from './state';
 import { C_ACCENT, C_BG, H, W } from './theme';
 import { renderBattle } from './screens/battle-view';
@@ -37,6 +39,7 @@ function restartOnA(g: Game): void {
 
 function updatePlaying(g: Game, dt: number): void {
   if (g.app.input.pressed('PAUSE')) { g.app.audio.play('blip'); g.app.scenes.to('PAUSED'); return; }
+  if (revealActive(g)) { resetCursorEdge(g); return; }
   UPDATE_SUB[g.subScene](g, dt);
 }
 
@@ -54,15 +57,21 @@ const UPDATE_SCENE: Record<Scene, (g: Game, dt: number) => void> = {
 
 export function update(g: Game, dt: number): void {
   const { juice, particles, input, scenes } = g.app;
+  if (scenes.current === 'PAUSED') {
+    updatePaused(g);
+    input.endFrame();
+    return;
+  }
   g.clock += dt;
   juice.update(dt);
   particles.update(dt);
   updatePops(g.pops, dt);
   UPDATE_SCENE[scenes.current](g, dt);
+  trackReveal(g, dt);
   input.endFrame();
 }
 
-const renderPlaying = (g: Game): void => { RENDER_SUB[g.subScene](g); };
+const renderPlaying = (g: Game): void => { RENDER_SUB[g.subScene](g); drawReveal(g); };
 
 const renderPaused = (g: Game): void => { renderPlaying(g); renderPausedOverlay(g); };
 const renderGameOver = (g: Game): void => { renderPlaying(g); renderEndingOverlay(g, { headline: g.deathBiome, color: PICO8[8], sub: 'YOU DIED IN' }); };
