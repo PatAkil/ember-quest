@@ -1,6 +1,6 @@
 # Ember Quest — gameplay overhaul plan (v3 rules: "The Long Descent")
 
-Status: DRAFT 4 (after review rounds 1–3). Owner's brief: more gameplay depth and a
+Status: DRAFT 5 (after review rounds 1–4). Owner's brief: more gameplay depth and a
 better experience; picking up an item must stop feeling like a blind loss; a bigger
 item pool; the run must not end at the fourth boss — endless, harder, procedurally
 generated; JRPG taste; visuals stay unless there is a good argument. Goal: a
@@ -61,7 +61,7 @@ the death recap ends with a **NEXT TIME** line built from the killing move.
 ## File ownership rule (applies to every milestone)
 
 `game/types.ts`, `game/state.ts`, `game/frame.ts`, `game/flow.ts`, `game/app.ts`,
-`game/devhook.ts`, `game/sim.ts` (barrel), `game/sim/model.ts` (`Policy`, `RoomType`),
+`game/main.ts`, `game/devhook.ts`, `scripts/look.mjs` (`SCENES`, `HOOK_ACTIONS`), `game/sim.ts` (barrel), `game/sim/model.ts` (`Policy`, `RoomType`),
 `game/data.ts` (barrel, see below), `game/pops.ts`, `game/fx.ts`, `game/fx-state.ts`
 and the three `SCENES` lists in `scripts/` are **foundation files**. Each milestone starts
 with one *foundation step* by a single writer: new types, exported signatures with
@@ -70,9 +70,11 @@ after that commit do parallel writers start, and they fill in bodies in their ow
 files only.
 
 `game/data.ts` (328 lines) would pass 400: content moves to `game/rules/items.ts`,
-`game/rules/enemies.ts` (defs, moves, phases, affixes), `game/rules/events.ts`,
-`game/rules/pacts.ts`, `game/rules/validate.ts`; `game/data.ts` stays the import path
-and re-exports (`game/rules/**` is already in the headless lists of ESLint and
+`game/rules/enemies.ts` (defs, moves, phases, affixes), `game/rules/world.ts`
+(`SPELLS`, `BIOMES`, `LOOT_WEIGHTS`, `ACT_MULT` and the constants — so `validate.ts`
+never imports `data.ts` back), `game/rules/validate.ts`, and later
+`game/rules/events.ts` (M3) and `game/rules/pacts.ts` (M4b) — created when they have
+content, never as empty files; `game/data.ts` stays the import path and re-exports (`game/rules/**` is already in the headless lists of ESLint and
 dependency-cruiser). Planned splits elsewhere: `sim/run.ts` → `run.ts` + `run-rooms.ts`
 + `run-tally.ts`; `sim/policies.ts` → `policies.ts` + `policy-battle.ts` +
 `policy-choices.ts`; `screens/battle-fx.ts` → + `battle-fx-verbs.ts`;
@@ -103,6 +105,12 @@ hint is the old item's name only (`RUSTY BLADE+1`, fits 64 px) or `EMPTY SLOT`.
   good — GLASS — and to save a GEAR trip.)
 - A loot screen shows at most 4 offers (boons that add cards stop at 4), so the
   panel (4 offers + KEEP = 5 rows) never reaches the band.
+- **Screen model.** New sub-scenes are `GEAR` and one shared `PICK` (later `EVENT`,
+  `THRESHOLD`, `PACT`). `PickScreen { title; rows: PickRow[]; cursor; onPick(i);
+  onCancel() }` serves both `DROP WHICH?` and `UPGRADE WHICH?` and is opened by loot,
+  events and the ASH rest alike — "B returns to where it was opened from" is its
+  `onCancel`. The EQUIP/STOW toggle is `LootScreen.stow: boolean`. Files:
+  `screens/pick.ts` + `pick-view.ts`, `screens/gear.ts` + `gear-view.ts`.
 - Pack full and something must enter it → `DROP WHICH?`: the pack items + the
   entering one (5 rows, the panel's maximum; the band shows the highlighted item's
   card). A drops it for good; B cancels back to the offers. Dropping the newcomer
@@ -115,10 +123,12 @@ hint is the old item's name only (`RUSTY BLADE+1`, fits 64 px) or `EMPTY SLOT`.
   nothing back.
 - KEEP YOUR GEAR (25 % mend) stays: "another option in the pack" vs "heal now".
 
-**A3. Scouting.** Every FIGHT/ELITE node's enemy is rolled at map generation
-(`MapNode.enemyId`); the map readout for the highlighted node shows
-`ELITE  FROST WISP  HEXES  WEAK WATER` (name, attack kind, weakness; affix words in
-the descent). The boss readout does the same.
+**A3. Scouting.** Every FIGHT/ELITE node's enemy is rolled at map generation by the
+headless generator (`generateMap(rng, shape, pools)`, after linking; `MapNode.enemyId`;
+`flow.ts` fight rooms read it instead of rolling; the dev hook's `enter()` sets it
+when it retypes a node); the map readout for the highlighted node shows
+`ELITE  FROST WISP  HEXES  WEAK WATER` (name, attack kind; the weakness joins in
+M2b, affix words in the descent). The boss readout does the same.
 
 **A4. GEAR screen** (sub-scene `GEAR`): **B on the map**; B again returns. Two
 112 px columns at 14 px pitch: left the six slots with the worn item, right the pack.
@@ -126,7 +136,7 @@ Up/Down runs over slots then pack rows. A on a pack row swaps it into its slot; 
 a slot row unequips it into the pack if there is room (else a refusal blip). No
 discard here. The band shows `compareFull` of the highlighted pack item against
 what is worn (or the worn item's own card). Free and unlimited on the map,
-impossible in battle. The map hint line shows `X GEAR`.
+impossible in battle. The map's top-left corner shows `X GEAR` (opposite SCORE).
 
 **A5. UPGRADE cards choose their target.** `rollLoot` returns
 `{ kind: 'UPGRADE_ANY' }` in game and sim. Taking it opens `UPGRADE WHICH?`: every
@@ -150,8 +160,8 @@ helper so archetypes override only what differs.
 
 Rules files: `combat.ts` (hero actions), new `enemy-turn.ts` (enemy action, intent,
 phase), `element.ts`, `status.ts` (BURN, WARD timers), `burst.ts`.
-`EnemyInstance` gains `def, mdef` (copied from the definition at spawn, then changed
-by affixes/WARD — **all resist math and the enemy plate read the instance**),
+`EnemyInstance` gains `resPhys, resMagic` (copied from the definition's `def`/`mdef`
+at spawn, then changed by affixes — **all resist math and the enemy plate read the instance**),
 `affixes, burn, wardTurns, phase, cycleIndex, mended, staggered`.
 `HeroAction = 'ATTACK' | 'GUARD' | 'BURST' | 'POTION' | SpellId`. `HeroActResult`
 gains `broke, weak`; `EnemyActResult` gains `move, guarded, parried, staggered,
@@ -184,12 +194,16 @@ does the cycle become `phase2.moves` at index 0, which is the next intent shown.
 and only for damaging moves; a dodged move still advances the cycle and a dodged
 SCORCH applies no BURN.
 
-**BREAK.** While the shown intent is `HEAVY` (the foe is wound up), a hero action
-that deals at least `BREAK_AT[kind]` of the foe's max HP (NORMAL 30 %, ELITE 20 %,
-BOSS 12 %) cancels the blow: pop `BREAK!`, the foe is `STAGGERED` and loses that
-turn (the cycle steps past the HEAVY). So a wind-up poses a question each time:
-GUARD it (free; take 1.1×; riposte) or spend the big spell, a weakness hit or the
-BURST to break it (take nothing; costs the resource).
+**BREAK** (arrives in M2b with elements and BURST). While the shown intent is
+`HEAVY`, a hero action breaks it when it is a BURST, a hit on the foe's weakness, or
+any damaging action while `PUNISH_WINDUP` is worn — **and** it deals at least
+`BREAK_AT[kind]` of the foe's max HP (NORMAL 25 %, ELITE 15 %, BOSS 8 %; a floor
+only). Pop `BREAK!`; the foe is `STAGGERED` and loses that turn (the cycle steps
+past the HEAVY). So a wind-up poses a question: GUARD it (free; take 1.1×; riposte)
+or spend the right resource to break it (take nothing). Order after a hero action:
+(1) BREAK check; (2) phase check — on a switch the shown move still resolves unless
+it was broken. "The telegraph never lies" exempts broken moves. The sim report
+counts break attempts and successes per tier and act.
 
 **B2. GUARD.** Always available. Until the hero's next turn damage taken ×0.5
 (after DEF/MDEF; REFLECT uses the reduced number; BURN/BLOOD ticks are not
@@ -253,8 +267,9 @@ if an affordable action reaches the threshold (BURST only against elites and
 bosses); else GUARD when the unguarded hit ≥ 20 % of current HP. BURST otherwise on
 elites/bosses when the foe is WARDED, its resist ≥ 25, or the hit kills. POTION
 below 35 % HP when the fight is not won this turn. Expected damage goes through
-weakness. Control policy **`naive`** = balanced without GUARD, BREAK, BURST timing,
-POTION or weakness awareness; target naive ≤ 75 % of balanced's win rate,
+weakness. Control policy **`naive`** = balanced without GUARD, BREAK, BURST timing
+or weakness awareness (it drinks potions exactly like balanced, so the gap measures
+the verbs); M2a also reports balanced with potions disabled; target naive ≤ 75 % of balanced's win rate,
 **measured at the end of M2a before anything is tuned** — if the gap is thinner, the
 GUARD factor drops (0.5 → 0.35, HEAVY stays 2.2) until guarding matters.
 
@@ -286,11 +301,15 @@ cycle, every boss a `phase2`.
 
 - **THRESHOLD** (sub-scene, after the Seraph's loot and again after the last boss
   of every depth): `ASCEND` → WIN, banking a glory bonus of `1000 × depth`.
-  `DESCEND` → the run continues with `g.won = true`; dying down there keeps the
-  score but not the next bonus — push your luck. A later death shows the GAME
+  `DESCEND` stakes the score: the run continues with `g.won = true`, and a death
+  below keeps the score banked at the last THRESHOLD plus half of what was earned
+  since. Push your luck. A later death shows the GAME
   OVER presentation with the headline `FELL AT DEPTH 2` and reports
   `runtime.gameOver({ score, won: true })`. Scene machine unchanged.
-- **Stage counter** `n` = index of the act being played (0-based, never resets);
+- **Stage counter** `n` = index of the act being played (0-based, never resets):
+  `g.actIndex` becomes `n` and `g.plan: ActPlan` is the current act; rules that took
+  `act` take `n` (tables indexed by act clamp with `min(n, 3)`); the biome and its
+  look come from `plan.biomeIndex`;
   `depth = floor(n / 4) + 1`. `actMult(n) = ACT_MULT[n]` for n ≤ 3, else
   `ACT_MULT[3] × DESCENT_GROWTH^(n − 3)`; `DESCENT_GROWTH` starts at **1.08** (HP and
   ATK both scale, so threat grows ≈ 1.17× per act) and is tuned to the targets;
@@ -308,11 +327,15 @@ cycle, every boss a `phase2`.
   (`DEPTH 2  ACT 1  THE TUNDRA`).
 - **THE HOLLOW** — a mirror of the hero, built at spawn by `hollowOf(hero, n)`:
   the hero's sprite, mirrored and drawn in one dark tint (`drawSprite` `tint`);
-  attack kind = the hero's weapon kind; ATK from the hero's best swing × 0.5; HP =
-  hero max HP × 4 × `actMult(n) / ACT_MULT[3]`; DEF/MDEF = the hero's; affixes read
-  off the hero's gear (DRAIN → VAMPIRIC, REFLECT → THORNED, dodge ≥ 15 → SWIFT,
-  BURN_ON_HIT → SEARING, DEF ≥ 30 → ARMORED, MDEF ≥ 30 → WARDED); a fixed cycle with
-  one wind-up. It tests the build you made and is different every run. (First thing
+  attack kind = the hero's weapon kind; ATK = 0.5 × the hero's plain ATTACK base
+  (ATK or MAG by weapon kind; no crit, opener, RAMP, TWIN, riposte or BURST) ×
+  `actMult(n) / ACT_MULT[3]`; resists = the hero's DEF/MDEF capped at 40; HP = 8 ×
+  the hero's plain ATTACK after those resists, at least 2 × hero max HP; at most 3
+  affixes read off the hero's gear in this order: DRAIN → VAMPIRIC, REFLECT →
+  THORNED, dodge ≥ 15 → SWIFT, BURN_ON_HIT → SEARING; a fixed cycle with one
+  wind-up. `ENEMIES.HOLLOW` is a BOSS placeholder definition (sprite = hero), exempt
+  from biome membership and `phase2`, with no signature item. Pass line: zero STALL
+  deaths against it. It tests the build you made and is different every run. (First thing
   cut if M4b runs long: the depth then ends on the plan's biome boss.)
 - **Affixes** (depth ≥ 2 only; normals `depth − 2`, elites and bosses `depth − 1`,
   max 3, no repeats on one foe): `VAMPIRIC` (heals 30 % of damage dealt), `ARMORED`
@@ -369,8 +392,10 @@ choose by a scored heuristic (HP-rich → trade HP).
 ## Pillar F — The experience around the run
 
 - **Seeded runs + save/resume.** `game/sim/util.ts` gains `createSeededRng(seed):
-  { next: Rng; getState(): number; setState(s: number): void }` (the dev hook's
-  `mulberry32` moves there). `startRun` draws a random seed and installs a seeded
+  { next: Rng; getState(): number; setState(s: number): void }` (the dev hook's and
+  `sim/run.mjs`'s `mulberry32` move there). From M0 `Game` holds `rngSource:
+  SeededRng` with `g.rng = rngSource.next`, and `DevHost.setRng` takes a
+  `SeededRng`, so the state is always readable. `startRun` draws a random seed and installs a seeded
   rng **unless the dev hook already installed one** (the hook's rng always wins;
   CLAUDE.md's dev-hook text is updated). The run is saved to localStorage whenever
   the map is shown and **just before a room's handler runs** — the hero as on the
@@ -394,8 +419,11 @@ choose by a scored heuristic (HP-rich → trade HP).
 ## Pillar G — Tooling
 
 - **One map generator**: the game's `generateMap` moves into `game/sim/map.ts` as
-  `generateMap(rng, { stageSizes, weights })` with today's values as defaults and
-  the same rng call order; `game/mapgen.ts` becomes the adapter adding
+  `generateMap(rng, shape?)` with today's values as defaults (weights kept as the
+  same cumulative fractions) and the same rng call order; `at`/`pickOneIndex` move
+  to `sim/util.ts` and `game/lookup.ts` re-exports them; one deliberate fix:
+  `ensureLoot` never overwrites an ELITE (today 0.5 % of maps lose their only
+  elite that way), so "ELITE, REST and LOOT present" is a true invariant; `game/mapgen.ts` becomes the adapter adding
   `stage/slot/cleared`; the simulator's own linking is deleted; `RoomType` (with
   `BOSS`) lives in `sim/model.ts`, is exported through the `game/sim.ts` barrel, and
   `state.ts` re-exports it from there. M0's oracle stays pixel-identical;
@@ -434,11 +462,11 @@ Each milestone: foundation step → parallel writers on disjoint files → gates
 |---|---|---|---|
 | M0 | DESIGN.md v3 contract; one map generator; `rules` gate; seeded rng; `data.ts` split into `game/rules/*` | one writer | oracle identical; balanced re-baselined and recorded |
 | M1 | Input contract; A1 compare; A2 pack; A3 scouting; A4 GEAR; A5 chosen upgrades | rules (`sim/pack, hero, gear, loot, describe, scoring, map, policies, policy-choices, run*`) ∥ screens (`mapgen`, `screens/loot*, gear*, upgrade-pick, status, map*`) | balanced ≥ M0's rate; pack rules tests green |
-| M2a | B1 moves/intents/phases/BREAK, B2 GUARD/parry, B3 menu + POTION, B7 plate + strips, `naive` | rules (`sim/combat, enemy-turn, status, policies, policy-battle`, `rules/enemies`) ∥ screens (`screens/battle*`) | naive ≤ 75 % of balanced; no stall deaths |
-| M2b | B4 elements + preview, B5 BURN, B6 BURST | rules (`sim/element, status, burst`, `rules/enemies`) ∥ screens (`battle-tags, battle-fx-verbs, battle-menu`) | story run within 10 points of target |
+| M2a | B1 moves/intents/phases (SCORCH is a plain 0.7× hit until M2b), B2 GUARD/parry, B3 menu + POTION, B7 plate + strips, `naive`. Foundation also: `hero.potions`, REST refill (`run-rooms`, `flow`), `POP_CEIL` | rules (`sim/combat, enemy-turn, status, policies, policy-battle`) ∥ cycles (`rules/enemies` + their `validate` rules) ∥ screens (`screens/battle*`) | naive ≤ 75 % of balanced; no stall deaths |
+| M2b | B4 elements + preview, B5 BURN, B6 BURST, BREAK | rules (`sim/element, status, burst`, `rules/enemies`) ∥ screens (`battle-tags, battle-fx-verbs, battle-menu`) | story run within 10 points of target |
 | M3 | Item pool + spells (C) · EVENT rooms (E) | items (`rules/items`, effect tables in `gear, describe, scoring`) ∥ battle behaviour of the new kinds and spells (`sim/combat, enemy-turn, element, burst, status`, then `screens/battle-fx*`) ∥ events (`rules/events`, `run-rooms`, `policy-choices`, event screen + icon) | every new kind picked; no item > 70 % |
 | M4a | THRESHOLD, `actMult`, `planAct` (remix, invaders, stages), score, best | rules (`sim/descent, run*`) ∥ screens (`threshold, title, endings, map-view`) | depth distribution reported; `actMult` tests |
-| M4b | Affixes, pacts, PACT screen, THE HOLLOW | rules (`sim/descent, enemy-turn`, `rules/pacts`) ∥ screens (`pact, battle-tags, pause`, hollow sprite) | ≈ 40 % of descenders clear depth 2 (± 15) |
+| M4b | Affixes, pacts, PACT screen, THE HOLLOW (foundation: `ENEMIES.HOLLOW` + validate exemptions) | rules (`sim/descent, enemy-turn`, `rules/pacts`) ∥ screens (`pact, battle-tags, pause`, hollow sprite) | ≈ 40 % of descenders clear depth 2 (± 15) |
 | M5 | Save/resume, run summary + NEXT TIME, pause menu (F) | `storage` + save rules ∥ `title`/ending/pause views | save round-trip test; look at every scene |
 | M6 | Balance to the targets; DESIGN.md balance table; HANDOVER.md; `verify -- --full`; oracle re-saved | orchestrator | all targets |
 
