@@ -3,6 +3,7 @@ import { SLOTS, type Item, type OwnedItem, type Slot } from '../types';
 import { awakenPreview, describeItem, displayName, effectiveBlurb, effectiveEffect, packSize } from '../sim';
 import { renderBiomeBackdrop } from '../backdrop';
 import { ICON_EMPTY } from '../sprites';
+import { decisionReady } from '../state';
 import type { Game } from '../state';
 import { C_ACCENT, C_BORDER, C_DIM, C_FAINT, C_PANEL, C_SEL_BAR, C_TEXT, C_WARN, W, rarityColor } from '../theme';
 import { awakenWords, blinkHz, drawCommandBand, fitText, itemIcon } from '../widgets';
@@ -134,7 +135,9 @@ function drawHeader(g: Game, ctx: CanvasRenderingContext2D): void {
   const act = actionHint(g);
   const back = `${BUTTON_KEY.B.hint} BACK`;
   const hint = act ? `${act}   ${back}` : back;
-  drawText(ctx, hint, { x: W - SAFE_MARGIN - textWidth(hint, 1), y: TITLE_Y }, { color: C_DIM, shadow: true });
+  const x = W - SAFE_MARGIN - textWidth(hint, 1);
+  drawText(ctx, hint, { x, y: TITLE_Y }, { color: C_DIM, shadow: true });
+  if (act && !decisionReady(g)) {drawText(ctx, act, { x, y: TITLE_Y }, { color: C_FAINT, shadow: true });}
 }
 
 export function renderGear(g: Game): void {

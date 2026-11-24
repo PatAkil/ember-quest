@@ -7,7 +7,8 @@ import {
   resolveOverflow, resolveUpgrade, rollLoot, skipMend, upgradableTargets,
 } from '../sim';
 import type { AppliedOffer } from '../sim';
-import { actRef, armA, dirEdge, dirEdgeX, resetCursorEdge, takeA, wrapCursor } from '../state';
+import { actRef, dirEdge, dirEdgeX, resetCursorEdge, takeA, wrapCursor } from '../state';
+import { armDecision } from '../transition';
 import type { CardScreen, Game, PickRow } from '../state';
 
 type CardArt = NonNullable<CardScreen['art']>;
@@ -40,7 +41,7 @@ export function startLoot(g: Game, source: LootSource, exit: LootExit): void {
   }
   g.subScene = 'LOOT';
   resetCursorEdge(g);
-  armA(g);
+  armDecision(g);
 }
 
 export const choosesStow = (g: Game, offer: LootOffer | undefined): boolean =>
@@ -164,7 +165,7 @@ function upgradeRow(g: Game, offer: UpgradeOffer): PickRow {
 function backToOffers(g: Game): void {
   g.subScene = 'LOOT';
   resetCursorEdge(g);
-  armA(g);
+  armDecision(g);
 }
 
 export function chooseUpgrade(g: Game): void {

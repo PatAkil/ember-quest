@@ -13,7 +13,6 @@ const KILL_LINE: Record<Exclude<DeathRecord['cause'], ''>, (d: DeathRecord) => [
   BLOW: (d) => [`SLAIN BY ${d.killerName}`, `ITS ${d.move} DEALT ${String(d.damage)}${d.guarded ? ' THROUGH YOUR GUARD' : ''}`],
   THORNS: (d) => [`SLAIN BY ${d.killerName}`, `ITS THORNS STRUCK BACK FOR ${String(d.damage)}`],
   BURN: (d) => [`BURNED DOWN FIGHTING ${d.killerName}`, `THE LAST BURN TICK DEALT ${String(d.damage)}`],
-  BLOOD: (d) => [`BLED OUT FIGHTING ${d.killerName}`, `THE BLOOD PRICE TOOK ${String(d.damage)}`],
 };
 
 function killerLines(d: DeathRecord): RecapLine[] {

@@ -1,3 +1,4 @@
+import { decisionHold } from './transition';
 import type { SceneMachine } from '../engine';
 import { ACTS_PER_DEPTH, EMBER_MAX } from './types';
 import type { BattleState, Hero, Derived, EnemyInstance, EnemyKind, HeroAction, LootOffer, LootSource, MoveId, PactId, Rng, SpellId, StatKey } from './types';
@@ -239,7 +240,7 @@ function ticksUntil(driver: Driver, done: () => boolean, max: number, withA = fa
 }
 
 const ARM_TICKS = 70;
-const A_TICKS = 16;
+const A_TICKS = Math.ceil(decisionHold('LOOT') / DT) + 1;
 
 function settle(driver: Driver, ticks: number): void {
   for (let i = 0; i < ticks; i++) {driver.runTick(DT);}

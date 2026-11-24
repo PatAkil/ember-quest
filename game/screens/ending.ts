@@ -1,5 +1,6 @@
 import { BUTTON_KEY, PICO8, dimScene, drawText, drawTextCentered, textWidth } from '../../engine';
 import { depthOf } from '../sim';
+import { renderBiomeBackdrop, renderFloor } from '../backdrop';
 import { armed } from '../state';
 import type { Game } from '../state';
 import { END_ARM } from './threshold';
@@ -83,6 +84,9 @@ function drawTally(g: Game, ending: Ending): void {
 function renderEndingOverlay(g: Game, ending: Ending): void {
   const { pc } = g.app;
   const ctx = pc.ctx;
+  renderBiomeBackdrop(g);
+  g.app.particles.render(ctx);
+  renderFloor(g);
   dimScene(pc, 0.6);
   drawCardFrame(ctx, HEADLINE_CARD);
   drawTextCentered(ctx, ending.sub, { width: W, y: HEADLINE_CARD.y + 6 }, { color: ending.subColor, shadow: true });

@@ -1,5 +1,8 @@
 # Ember Quest — gameplay overhaul plan (v3 rules: "The Long Descent")
 
+> **Historical.** This is the reviewed plan the v3 overhaul followed. `DESIGN.md` is the
+> contract; numbers here were superseded by later balance passes.
+
 Status: FINAL (five review rounds folded in; execution follows this text). Owner's brief: more gameplay depth and a
 better experience; picking up an item must stop feeling like a blind loss; a bigger
 item pool; the run must not end at the fourth boss — endless, harder, procedurally

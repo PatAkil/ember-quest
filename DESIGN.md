@@ -1,10 +1,14 @@
-# Ember Quest — systems design (v2: skill points + loot table)
+# Ember Quest — systems design (v3: The Long Descent)
 
-v3 (The Long Descent) is in progress — the approved contract is OVERHAUL_PLAN.md; sections move here as milestones land.
+This file is **the** systems contract for v3, "The Long Descent": every rule and number
+the game plays by is stated here and matches `game/types.ts` and `game/rules/*`.
+`OVERHAUL_PLAN.md` is the historical plan v3 was built from; its numbers were superseded
+by the balance passes recorded below and it is not a contract.
 
 A roguelike JRPG: branching node map per act, turn-based one-on-one battles,
-permadeath. v2 replaces the tier-upgrade gear with **skill points** and a
-**loot table of named items with unique effects**.
+permadeath, **skill points** and a **loot table of named items with unique effects**
+(from v2), and since v3 a 4-item pack, battle verbs, EVENT rooms and an endless descent
+past the fourth act.
 
 ## Module layout (the contract lives in `game/types.ts`)
 
@@ -280,15 +284,17 @@ enemy's move, intent, cycle and phase), `status` (turn start, BURN, WARD, `heroF
   jitter) is the same whatever the hero chose, and a reloaded turn replays exactly. The
   simulator draws a room seed from the run rng at each fight's start and plays every turn
   through the same function. `heroAct` / `enemyAct` stay as the internals it composes.
-- **Battle log lines** (rules text, ≤ 52 chars; the screens show them as given). A hit on
-  a GUARD reads `YOU BLOCK HALF - <FOE> STILL HITS FOR n`, a chained guard `A TIRED GUARD
-  - <FOE> STILL HITS FOR n`, a parry `PARRIED! THE BLOW ONLY GRAZES YOU FOR n` (never
-  `PARRIED FOR n`, which read as damage dealt), a dodged parry `DODGED AND PARRIED! YOUR
-  NEXT STRIKE HITS HARDER`, a burning hit ends `- YOU BURN!` when it fits. A guarded blow
-  that kills keeps its guard word (review round 4): `PARRIED, BUT <FOE> HITS FOR n - YOU
-  FALL!` (HEAVY), `BLOCKED, BUT …` (a guard or AEGIS), `TIRED GUARD, BUT …` (a chained
-  guard), and with a REVIVE `<WORD>, BUT <FOE> FELLS YOU - YOU RISE!`; when the foe's name
-  would push the line past 52 it reads `<WORD>, BUT IT …`. WARD `<FOE>
+- **Battle log lines** (rules text, ≤ 52 chars; the screens show them as given). Every
+  guarded blow names the hero as the one who takes the damage (review round 5: `PARRIED
+  FOR n` and `THE BLOW ONLY GRAZES YOU` both read as damage dealt): a GUARD or AEGIS reads
+  `YOU BLOCK - TAKE n`, a chained guard `YOUR GUARD TIRES - TAKE n`, a parried HEAVY `YOU
+  PARRY - TAKE n - YOUR NEXT STRIKE HITS HARDER` (the tail dropped when it would not fit),
+  a dodged parry `DODGED AND PARRIED! YOUR NEXT STRIKE HITS HARDER`, a burning hit ends `-
+  YOU BURN!` when it fits. A guarded blow that kills keeps the same head: `YOU PARRY - TAKE
+  n - YOU FALL!` (`YOU BLOCK …`, `YOUR GUARD TIRES …`; past 52 chars the number goes:
+  `<HEAD> - YOU FALL!`), and with a REVIVE `<HEAD> - <FOE> FELLS YOU - YOU RISE!` (`<HEAD> -
+  IT FELLS YOU - YOU RISE!` when the foe's name would push it past 52). An unguarded hit
+  reads `<FOE> STRIKES YOU FOR n!` (HEXES, WINDS UP AT, SMASHES, SCORCHES). WARD `<FOE>
   RAISES A WARD - YOUR HITS SOFTEN`; a broken foe `<FOE> IS STAGGERED AND LOSES ITS TURN`;
   burn ticks `YOU BURN FOR n` / `THE FLAMES TAKE YOU! (n)` / `<FOE> BURNS FOR n [AND
   FALLS!]`.
@@ -315,10 +321,16 @@ enemy's move, intent, cycle and phase), `status` (turn start, BURN, WARD, `heroF
   PUNISH_WINDUP worn; n the real floor `ceil(BREAK_AT[kind] × maxHp)`) / `NOT WEAK: NO BREAK`
   (orange, for a damaging command that is not eligible) against a shown HEAVY,
   `RIPOSTE X1.5`. Every damaging command's first line opens with `~n DMG`
-  (`expectedHeroDamage`: no jitter, no crit). GUARD shows the expected blow `TAKE ~g OF u`
-  (`expectedFoeDamage`, guarded / unguarded), under `PARRY THE HEAVY BLOW` on a HEAVY, and
-  `GUARD WON'T SAVE YOU` in pink with the take line pink when the guarded blow is at least
-  the hero's HP; POTION `HEAL 40% HP`; BURST `IGNORES ARMOR+WARDS`. The hint line reads
+  (`expectedHeroDamage`: no jitter, no crit, on the hero as the turn start leaves him —
+  regen and BLOOD applied first, so LOW HP gear is judged at hit-time HP). GUARD shows the
+  expected blow `TAKE ~g OF u` (`expectedFoeDamage`, guarded / unguarded, with the foe's
+  phase switch and its enrage step folded in when its next calm action crosses
+  `ENRAGE_AFTER`), under `PARRY THE HEAVY BLOW` on a HEAVY, and `GUARD WON'T SAVE YOU` in
+  pink with the take line pink when `g + expectedPreBlowLoss(hero, battle)` is at least the
+  hero's HP (`expectedPreBlowLoss(hero, battle, action = 'GUARD')`: the HP the hero loses
+  this turn before the foe's blow — turn-start regen and BLOOD, his own action, thorns and
+  his BURN tick — computed by running `startTurn` and `heroAct` on a shadow copy, so it is
+  exactly the real turn; the `estimate` rules group checks it over 6000 GUARD turns); POTION `HEAL 40% HP`; BURST `IGNORES ARMOR+WARDS`. The hint line reads
   `HEAVY BLOW NEXT (~u): GUARD, OR BREAK IT` on a HEAVY, `WINDING UP: HIT NOW, GUARD NEXT
   TURN` on a WINDUP, and otherwise `ATTACKS GLANCE OFF: TRY MAGIC` when ATTACK is resisted
   (an element below 1 or 20 %+ resist, ward included) and an affordable damaging spell is
@@ -569,8 +581,8 @@ the descent (see *Balance state → The descent*).
   BURST); its own blows strike **the hero's weaker resist** (MAGIC when best DEF > best
   MDEF, PHYSICAL when MDEF > DEF, else the kind of the stronger stat: ATK → PHYSICAL, MAG
   → MAGIC; review round 2 — the mirror finds the crack in a DEF-stacked tank);
-  ATK = `HOLLOW_ATK_SHARE` 0.7 × base × `actMult(n) / ACT_MULT[3]`; resists = the best
-  DEF/MDEF capped at `HOLLOW_RES_CAP` 40; HP = `HOLLOW_HP_HITS` 30 × base × (1 − the
+  ATK = `HOLLOW_ATK_SHARE` 0.65 × base × `actMult(n) / ACT_MULT[3]`; resists = the best
+  DEF/MDEF capped at `HOLLOW_RES_CAP` 40; HP = `HOLLOW_HP_HITS` 22 × base × (1 − the
   resist the hero's strongest damage faces: MDEF for MAG; DEF for ATK, or the lower of the
   two when the hero owns a HEX_STRIKE item), at least `HOLLOW_HP_FLOOR` 2 × best max HP;
   at most 3 affixes read off the worn gear in order (DRAIN →
@@ -677,8 +689,11 @@ the descent (see *Balance state → The descent*).
 - **THRESHOLD presentation**: no row is lit until Up or Down (see *Arming and input*) and A is ignored for the first
   1.0 s (the headline types itself in; both choices are drawn faint until then), so a
   player mashing through the VICTORY, LEVEL UP and loot screens cannot confirm either way
-  by accident; DESCEND is an explicit Down + A. PACT arms after 0.5 s the same way. The
+  by accident; DESCEND is an explicit Down + A. PACT arms after 0.5 s the same way and also
+  opens with no row lit. The
   depth card after the pact reads `DEPTH n` / `<BIOME> AWAITS...` / `SWORN TO <PACT>`.
+  A plain act change reads `<BIOME> AWAITS...` / `THE ROAD GOES ON` in depth 1 ("the descent"
+  names the post-Seraph mode on the title) and `THE DESCENT CONTINUES` from depth 2 on.
 - **Simulator**: `simulateRun(policy, rng, { descend })`; `descend` is off by default, so
   `npm run sim` still ends at the Seraph (its `--json` was byte-identical across the
   foundation step). With it on, runs descend until death or n = `SIM_MAX_N` (= `RUN_MAX_N`, 400), taking a
@@ -827,8 +842,10 @@ the run rng; the moment the foe dies the rng is re-seeded to
   depth 11; foes grow ×1.15 per act, so n = 400 means foes ×5e24, unreachable in practice:
   the deepest simulated run reaches n ≈ 15. A rules test spawns every planned foe and THE
   HOLLOW at n = 397 and 400 and round-trips a mid-battle save there; the battle readers
-  bound damage-scaled numbers — foe HP/ATK/burn, `foeMark`, the hero's burn — only by
-  "finite", not 1e9. Past the cap the game plays on but a save is refused, so CONTINUE
+  bound damage-scaled numbers — foe HP/ATK/burn, `foeMark`, the hero's burn — at 1e60
+  (`SCALED` in `save-check.ts`; legitimate play at n = 400 peaks near 1e28, while a
+  hand-edited 1e308 printed `9.69e+307` and overflowed to Infinity/NaN downstream — review
+  round 5; a rules test rejects 1e308 in each of those six fields). Past the cap the game plays on but a save is refused, so CONTINUE
   would be lost; the threshold does not stop the descent); more
   bosses than acts or clears; `won` / `descentClears` disagreeing with `n` (descended ⇔
   n ≥ 4); `banked` above the score; a dead hero (HP ≤ 0); the same item id owned twice; a
@@ -871,22 +888,37 @@ the run rng; the moment the foe dies the rng is re-seeded to
   until it is a fresh press: A must be up at some point after the screen opened (`armA`
   records whether it is already up) and the press must land on a later tick (`armA` /
   `takeA` in `game/state.ts`), so an A held through a battle's last beat or a card cannot
-  spend SP, take an offer, skip a card or walk into the next room — while every new press
-  made once the screen is drawn acts at once (one press = one action; no dwell, and the
-  0.16–0.2 s screen reveal does not swallow input). The title's
-  confirm re-arms when it opens. **The battle menu** is armed the same way when a battle
-  opens, when the entrance banner is skipped and after every turn's queue, so the A that
-  skipped a turn's animation (or was buffered during a hit-stop) never chooses the next
-  command; the next fresh press does, from the first frame the menu is drawn. A during the ELITE / BOSS banner skips the banner (as A skips to the next impact
-  in a turn); directions are not read until it is gone. THRESHOLD (1.0 s) and PACT (0.5 s) additionally wait that
-  long, and GAME OVER and WIN (1.0 s, prompt faint until then) are armed by time
-  (`armed`). PAUSED reads plain presses (the clock is frozen there).
+  spend SP, take an offer, skip a card or walk into the next room. The title's confirm
+  re-arms when it opens.
+- **Permanent choices wait for a readable beat.** On the screens whose choice cannot be
+  taken back — LEVEL UP, the loot screen and the event gift, PICK (UPGRADE / DROP / GIVE UP
+  WHICH?), the EVENT screen and GEAR — `armDecision` (`game/transition.ts`) arms A with a
+  hold of the screen reveal (0.16 s wipe) plus `DECIDE_BEAT` (0.15 s, `game/state.ts`): A is
+  ignored until the reveal has finished and that beat has passed, and the screen's A prompt
+  is drawn faint (`C_FAINT`, `decisionPromptColor` / `decisionReady`) until then, so the wait
+  never looks like a dropped press. Directions work at once. Plain continue cards and the
+  MAP keep acting on the first fresh press (one press = one action, no dwell). THRESHOLD
+  (1.0 s) and PACT (0.5 s) keep their own longer waits (`armed`), and GAME OVER and WIN
+  (1.0 s, prompt faint until then) are armed by time. PAUSED reads plain presses (the
+  clock is frozen there). (Chosen so that mashing A through a boss's VICTORY can no longer
+  descend, seal a pact, take loot and pick an upgrade target inside a second: the mash now
+  stalls on PACT, which has no preselected row.)
+- **The battle menu** is armed when a battle opens, when the entrance banner is skipped and
+  after every turn's queue, so the A that skipped a turn's animation (or was buffered during
+  a hit-stop) never chooses the next command; the next fresh press does, from the first
+  frame the menu is drawn. After a turn the cursor leaves POTION and BURST for ATTACK (both
+  are one-off verbs), and when it was left on MAGIC A also waits one `DECIDE_BEAT`, so a
+  masher repeats ATTACK at worst and never drinks or bursts by accident. A during the
+  ELITE / BOSS banner skips the banner (as A skips to the next impact in a turn);
+  directions are not read until it is gone.
 - **THRESHOLD has no default.** It opens with neither row lit and the detail column reading
   `TWO PATHS - NO TURNING BACK` / `ASCEND ENDS THE RUN` / `DESCEND GOES DEEPER` /
   `UP/DOWN TO CHOOSE`; Up lights ASCEND, Down lights DESCEND (the cursor clamps: Down,Down
   stays on DESCEND, Up,Up on ASCEND), and only then does an armed A choose. An A that
   cannot choose yet blips and turns the prompt line into a blinking `CHOOSE: UP / DOWN` for
-  1.2 s. PACT's rows clamp the same way. (Chosen over a second `END THE RUN HERE?` confirm: one deliberate direction
+  1.2 s. PACT works the same way: no pact is lit until Up or Down (either lights the top row), A
+  before that blips and nudges, and the detail column reads `A PACT BINDS YOU FOR GOOD` /
+  `EACH HAS A CURSE AND A BOON` / `UP/DOWN TO CHOOSE`; its rows clamp too. (Chosen over a second `END THE RUN HERE?` confirm: one deliberate direction
   press is enough to stop a masher, and both paths are treated alike.)
 - **Grids** (the battle commands and the spell list, 2 columns): Left/Right step through
   the list in reading order (Right from the right column goes to the next row's left cell,
@@ -968,257 +1000,101 @@ pacts joined with ` / ` on lines <= 172 px.
 
 ## Balance state (measured with the headless simulator, 2026-11-24)
 
-### Review round 4 (2026-11-24)
+The one current table: `node sim/run.mjs` (2000 runs per policy, seed 1), on the tree after
+review round 5 (the MUMMY trim below; the round-5 rules changes — preview helpers, guard
+log lines, save caps, sign-aware event checks — do not move the simulator). Harness:
+`sim/run.mjs` bundles `game/sim.ts` with esbuild (`sim/bundle.mjs`) and plays `simulateRun`
+with each of `POLICIES` on a seeded PRNG (`--runs`, `--seed`, `--policy`, `--json`,
+`--story`, `--descent-only`, `--items`, `--events`, `--no-potions`); same seed and code give
+byte-identical `--json`. It plays the game's own map generator and turn function
+(`resolveTurn`); `sim/descent-report.mjs` and `sim/items-report.mjs` hold the extra
+sections.
 
-The act-2 wall. Blind playtest bots died to the YETI in 11 of 21 runs; in the simulator the
-naive policy (no verbs — the newcomer proxy) was killed by the YETI in 405 of 2000 runs, its
-top killer, with an act-2 boss clear of 75 % against balanced's 97 %. Smoothing: **YETI
-atkBase 6.8 → 5.8** (×1.17 still above the DARK LORD's 5.3 ×1.0; HP, MEND and the double
-wind-up phase 2 untouched). 6.2 was tried first and moved naive's act-2 boss clear only to
-79 %. No act-3/4 compensation was needed: every win rate stayed in its band. The same run
-also carries the round-4 events change (every event has a free option: THE EMBER SHRINE's
-GRASP THE COAL → WARM YOUR HANDS, THE BLOOD TITHE's PAY IN BLOOD → REFUSE THE TITHE, A
-WEEPING STATUE's WALK ON → CATCH A SINGLE TEAR, the blessing open at full HP).
-
-`node sim/run.mjs` (2000 runs, seed 1):
-
-| policy | win | reach act 2 | act 3 | act 4 | boss clears a1/a2/a3/a4 |
+| policy | win | reach act 2 / 3 / 4 | boss clears a1/a2/a3/a4 | boss turns med/p90 a3, a4 (> 16) | top killers |
 |---|---|---|---|---|---|
-| balanced | 38 % | 99 % | 93 % | 66 % | 99/98/86/76 |
-| naive (no verbs) | 15 % | 92 % | 68 % | 37 % | 92/82/72/63 |
-| glass (all offence) | 17 % | 99 % | 83 % | 43 % | 99/96/76/66 |
-| tank (HP/DEF, physical) | 35 % | 99 % | 87 % | 53 % | 99/94/78/83 |
-| elite-hungry routing | 37 % | 99 % | 92 % | 66 % | 99/98/87/74 |
-| chest-hungry routing | 30 % | 96 % | 88 % | 63 % | 98/96/86/63 |
-| random picks + points | 0 % | 20 % | 0 % | 0 % | 31/8/–/– |
+| balanced | 39 % | 98 / 91 / 68 % | 99/98/88/75 | 6/11 (1 %), 8/12 (3 %) | SERAPH 265, MUMMY 247, PALADIN 237, SAND GOLEM 182 |
+| naive (no verbs) | 16 % | 91 / 66 / 38 % | 92/81/73/65 | 6/10 (1 %), 7/12 (3 %) | YETI 301, SAND GOLEM 273, MUMMY 260, PALADIN 234 |
+| glass (all offence) | 18 % | 99 / 85 / 45 % | 100/96/73/62 | 4/7 (0 %), 5/8 (0 %) | MUMMY 371, SAND GOLEM 324, PALADIN 247, SERAPH 214 |
+| tank (HP/DEF, physical) | 35 % | 98 / 87 / 57 % | 99/95/79/82 | 10/16 (8 %), 10/16 (9 %) | SAND GOLEM 296, MUMMY 271, PALADIN 234, SERAPH 160 |
+| elite-hungry routing | 40 % | 99 / 92 / 69 % | 99/98/88/73 | 6/11 (1 %), 8/12 (2 %) | SERAPH 299, MUMMY 239, PALADIN 224, SAND GOLEM 194 |
+| chest-hungry routing | 31 % | 96 / 89 / 64 % | 98/97/85/63 | 6/12 (1 %), 9/13 (4 %) | SERAPH 362, SAND GOLEM 229, ORACLE 149, MUMMY 125 |
+| random picks + points | 0 % | 20 / 0 / 0 % | 31/8/–/– | – | DARK LORD 884, SKELETON 307 |
 
-naive/balanced = **0.40**. Naive's YETI deaths 405 → 295 (now second to the MUMMY 309);
-before the change, naive reached act 3 in 61 % of runs. Descent (same run): balanced beats
-the Seraph 762/2000, clears depth 2 in 37 % / depth 3 in 7 % of those, mean final n 7.4;
-tank 63 % / 26 % / d4 2 %, n 9.4; naive 30 % / 5 %, n 6.5; glass 28 % / 5 %; elite-hungry
-32 % / 6 %; chest-hungry 46 % / 10 %. THE HOLLOW is the top descent killer for every
-policy; 0 stalls.
+naive/balanced = **0.41**. 0 STALL deaths. Balanced per run: GUARD 5.3 (PARRY 5.5), BURST
+5.1, POTION 3.0, BREAK succeeded/attempted 0.39/0.66 normals, 0.96/1.39 elites, 1.94/2.58
+bosses, phase 2 reached 3.2 times. Boss HP at spawn 164 / 333 / 667 / 1284; balanced's
+phase-2 HEAVY 30 / 39 / 61 / 63 % of max HP (glass 90 / 80 % at the Golem / Seraph); the p25
+build nets ≥ 7 % of the boss's HP per turn at every boss (tank 47 / 665 at the Golem).
 
-### Review round 2 (2026-11-24)
-
-`node sim/run.mjs --runs 2000` (seed 1) after the round-2 rules: BURN ticks after the
-burning side's own action, `resolveTurn` with per-turn rng streams (the simulator now plays
-the game's turn function), the first-fight weapon guarantee, boss MEND 6 %, and this
-retune: `ACT_MULT` [1.3, 1.75, 2.8, 3.8] → [1.3, 1.8, 3.05, 4.3]; SAND GOLEM hpBase 195 → 115,
-atkBase 7.6 → 9.0, DEF 40 → 25; THE SERAPH hpBase 205 → 120, atkBase 5.7 → 6.2, DEF 15 → 8;
-MUMMY atkBase 5.6 → 5.3; `DESCENT_GROWTH` 1.16 → 1.15; THE HOLLOW strikes the weaker resist
-with `HOLLOW_HIT_FLOOR` 0.12. Rules and starter weapon alone (old numbers) moved balanced
-37 → 45 % and stretched tank's boss fights to a median 16 turns at the Golem (41 % of them
-over 16 turns): a human-like player met a ~860-HP Golem and a ~1500-HP Seraph that only a
-200-damage caster could beat.
-
-| policy | win | reach act 2 | act 3 | act 4 | boss clears a1/a2/a3/a4 |
-|---|---|---|---|---|---|
-| balanced | 39 % | 99 % | 91 % | 65 % | 99/97/88/76 |
-| naive (no verbs) | 15 % | 92 % | 63 % | 36 % | 93/77/76/60 |
-| glass (all offence) | 18 % | 99 % | 82 % | 45 % | 99/94/77/62 |
-| tank (HP/DEF, physical) | 35 % | 98 % | 86 % | 55 % | 99/93/79/82 |
-| elite-hungry routing | 40 % | 99 % | 91 % | 65 % | 99/97/87/76 |
-| chest-hungry routing | 30 % | 96 % | 87 % | 62 % | 98/94/85/65 |
-| random picks + points | 0 % | 20 % | 0 % | 0 % | 33/9/0/– |
-
-naive/balanced = **0.37**. 0 STALL deaths. Top killers (balanced): MUMMY 290, SERAPH 246,
-PALADIN 220, SAND GOLEM 185; (naive): YETI 375, MUMMY 298, SAND GOLEM 226. Item pick rates
-(balanced + glass + tank, `--items`) span 7 % (JADE AMULET) to 64 % (LUCKY BOOTS).
-
-Boss fights per archetype — turns, median / p90 (share over 16 turns), every fight won or
-lost; boss HP is the mean at spawn, the phase-2 HEAVY share is one HEAVY through the hero's
-DEF/MDEF over max HP at entry:
-
-| policy | DARK LORD | YETI | SAND GOLEM | THE SERAPH | p25 dmg/turn at Golem / Seraph |
-|---|---|---|---|---|---|
-| balanced | 6/10 (0 %) | 6/10 (0 %) | 6/11 (1 %) | 8/12 (3 %) | 78 / 121 |
-| naive | 7/11 (0 %) | 7/11 (0 %) | 6/10 (1 %) | 7/13 (4 %) | 78 / 114 |
-| glass | 5/8 (0 %) | 4/7 (0 %) | 4/7 (0 %) | 5/8 (0 %) | 108 / 161 |
-| tank | 8/11 (0 %) | 9/13 (1 %) | 10/15 (6 %) | 10/15 (7 %) | 48 / 93 |
-| elite-hungry | 6/10 (0 %) | 5/10 (0 %) | 6/11 (0 %) | 7/12 (2 %) | 78 / 124 |
-| chest-hungry | 7/10 (0 %) | 6/11 (1 %) | 6/12 (2 %) | 8/13 (5 %) | 72 / 110 |
-
-Boss HP 164 / 334 / 669 / 1288 (was 164 / 324 / 870 / 1544); balanced phase-2 HEAVY
-30 / 43 / 61 / 63 % of max HP (glass 89 / 80 % at the Golem / Seraph, tank 48 / 45 %). The
-p25 build nets ≥ 7 % of the boss's HP per turn at every boss (tank: 48 / 669 at the Golem,
-93 / 1288 at the Seraph). Boss MEND (6 %, once per phase) is 40 at the Golem and 77 at the
-Seraph; WARD never sits next to MEND in a cycle. Before the retune (round-2 rules, old
-numbers) the same table read: balanced Golem 8/15 (7 %), Seraph 10/17 (12 %); tank 16/23
-(41 %), 14/20 (29 %); chest-hungry 9/16, 11/18.
-
-Descent (`--descent-only`, of the runs that beat the Seraph):
-
-| policy | beat Seraph | clear d2 | d3 | d4 | d5 | deaths ELITE / BOSS / HOLLOW / THORNS / NORMAL |
-|---|---|---|---|---|---|---|
-| balanced | 789 | 39 % | 7 % | 0 % | 0 | 41 / 14 / 38 / 5 / 2 % |
-| naive | 288 | 25 % | 3 % | 0 % | 0 | 46 / 26 / 22 / 5 / 1 % |
-| glass | 357 | 24 % | 4 % | 0.3 % | 0 | 50 / 23 / 19 / 4 / 3 % |
-| tank | 721 | 63 % | 24 % | 3 % | 0 | 33 / 17 / 40 / 9 / 1 % |
-| elite-hungry | 737 | 33 % | 5 % | 0.1 % | 0 | 47 / 16 / 28 / 7 / 1 % |
-| chest-hungry | 625 | 44 % | 10 % | 0.3 % | 0 | 23 / 28 / 40 / 4 / 5 % |
-
-The tank still descends best (depth-2 clears 63 % against balanced 39 %; the gap was 68 / 40
-before). The Hollow is not what carries it: with every Hollow STRIKE pinned at 15 % of max
-HP the tank still clears depth 2 in ~65 %; it outlasts the depth's elites and bosses.
-Pact win-through pooled: ASH 41, TITHE 39, IRON 36, MISER 33, HUNTER 30, BRITTLE 29,
-STORM 23, HEX 19 %.
-
-### Before review round 2
-
-Harness: `npm run sim` (`sim/run.mjs`) bundles `game/sim.ts` with esbuild into a
-temporary directory (`sim/bundle.mjs`), then calls `simulateRun` with each of
-`POLICIES` and a seeded PRNG (`createSeededRng`; `--runs`, default 2000; `--seed`,
-default 1; `--policy`; `--json`; `--no-potions`). Same seed and same code give
-byte-identical `--json` output. The simulator replicates the drop rates, upgrade cards and
-boss tables, and plays **the same map generator as the game** (`game/sim/map.ts`). Every
-text run also prints, per policy, the boss-fight turns (median / p90 / share over 16), the
-p25 damage per turn against each boss's HP and the phase-2 HEAVY share
-(`sim/descent-report.mjs` holds the boss and descent reports, `sim/items-report.mjs` the
-item and event ones).
-Numbers below: 2000 runs, seed 1, after the 2026-11-24 "teach before it punishes" pass
-(review round 1: the rules fixes R1–R17, the act-entry potion, the ELITE cap and the
-retune below). `--items` adds a per-item table (offered, pick rate when offered, runs
-holding it at the end and their win rate) over balanced + glass + tank, and the effect
-kinds worn at the end.
-
-| policy | win | reach act 2 | act 3 | act 4 | boss clears a1/a2/a3/a4 |
-|---|---|---|---|---|---|
-| balanced | 37 % | 92 % | 83 % | 61 % | 97/97/84/68 |
-| naive (no verbs) | 17 % | 81 % | 55 % | 34 % | 86/77/73/63 |
-| glass (all offence) | 18 % | 94 % | 78 % | 45 % | 98/94/71/49 |
-| tank (HP/DEF, physical) | 33 % | 93 % | 80 % | 48 % | 96/93/67/76 |
-| elite-hungry routing | 39 % | 93 % | 86 % | 63 % | 97/98/84/69 |
-| chest-hungry routing | 28 % | 88 % | 79 % | 55 % | 96/94/79/59 |
-| random picks + points | 0 % | 13 % | 0 % | 0 % | 26/10/0/– |
-
-naive/balanced = **0.47** (target 0.375–0.75 by the floors). 0 STALL deaths in any policy.
-Top killers (balanced): SERAPH 352, SAND GOLEM 235, MUMMY 170, PALADIN 108, FROST WISP
-103; (naive): YETI 335, DARK LORD 257, SAND GOLEM 249, SERAPH 202. Verb use per run
-(balanced): GUARD 5.7 (PARRY 6.0), BURST 5.2, POTION 3.0, phase 2 reached 3.0 times.
-
-Bosses vs the balanced hero (means at boss entry; HEAVY share = one phase-2 HEAVY,
-×`HEAVY_MULT` 2.0 ×1.15, through the hero's DEF/MDEF, over max HP; phase 1 is ÷1.15):
-
-| boss | HP | turns to kill | HEAVY share phase 2 / 1 |
-|---|---|---|---|
-| DARK LORD | 164 | 6.9 | 34 / 30 % |
-| YETI | 324 | 6.1 | 48 / 42 % |
-| SAND GOLEM | 870 | 9.5 | 56 / 49 % |
-| THE SERAPH | 1544 | 10.6 | 60 / 52 % |
-
-A first-fight GOBLIN HEAVY is 4.6 × 1.3 × 2.0 ≈ 12 (±10 % jitter) = 26 % of a fresh
-hero's 46 HP. The first act-2 normals at ~4.5 clears: ICE WOLF ~103 HP, ICE BEAR ~113,
-both under the act-1 boss's ~164; act-3 normals (~240 at 9 clears) and act-4 normals
-(~410 at 13) sit well under the Yeti (324) and the Golem (870).
-
-**Tuning on 2026-11-24** (blind playtest: a first-time player died at the Yeti in most of
-9 runs, act 1 was mashable, the first act-2 normal out-HP'd the act-1 boss, the Yeti was a
-383-HP sponge whose HEAVY did 68 of 82 HP, act 3's map was mostly elites): `ACT_MULT`
-[1.15, 1.95, 2.78, 3.41] → [1.3, 1.75, 2.8, 3.8]; `HEAVY_MULT` 2.2 → 2.0; act-1 normals
-bite harder (SLIME atkBase 3.5 → 4.0, GOBLIN 4 → 4.6, SKELETON 4 → 4.6); DARK LORD hpBase
-95 → 112, atkBase 6.6 → 5.3; YETI hpBase 120 → 110, atkBase 8.4 → 6.8; SAND GOLEM hpBase
-215 → 195, atkBase 8.2 → 7.6; THE SERAPH hpBase 172 → 205, atkBase 7.8 → 5.7; a potion
-back on entering each act; at most half of a stage ELITE. Before the pass (same seed):
-balanced 35 %, naive 9 % (reach act 3 35 %), glass 15 %, tank 20 %, random 0 %; Yeti 383 HP,
-its phase-2 HEAVY 68 % of the balanced hero's max HP, the act-1 boss died in 4.9 turns.
-
-Story numbers before the 2026-11-24 pass, for reference:
-
-| policy | win | reach act 2 | act 3 | act 4 | boss clears a1/a2/a3/a4 |
-|---|---|---|---|---|---|
-| balanced | 35 % | 99 % | 71 % | 50 % | 99/84/82/74 |
-| naive (no verbs) | 9 % | 91 % | 35 % | 19 % | 91/53/66/60 |
-| glass (all offence) | 15 % | 99 % | 60 % | 32 % | 99/78/67/54 |
-| tank (HP/DEF, physical) | 20 % | 99 % | 53 % | 25 % | 99/67/58/85 |
-| random picks + points | 0 % | 33 % | 0 % | 0 % | 43/0/–/– |
-
-M3 item findings: every item is picked 8–68 % of the times it is offered to balanced/glass/
-tank (top LUCKY BOOTS 68, SHADOW EDGE 64, EMBER TREADS 59, TITAN PLATE 58, DARK CROWN 55;
-bottom GOLEM FIST 8, RUNE TORC 8, JADE AMULET 9, OAK STAFF 9, GLASS SABER 10). Adding 25
-items diluted the pool: with the new items offered but never taken balanced fell from 37 % to
-28 %, so the new RARE/EPIC items carry real stat lines and the conditional kinds (PUNISH,
-PARRY, COUNTER) big multipliers, while `EFFECT_VALUE` rates them low (the policies took
-them over better items when they were scored like the old kinds). Old items retuned: SHADOW
-EDGE crit 18 → 12 (was picked 80 %), BLOOD CUP ATK/MAG 6 → 4 (73 %), GOLEM FIST atk 15 → 19
-+8 % crit, opener 2.2 → 2.5 and the THUNDER scroll's policy score 34 → 28 (it was never
-taken over the scroll), RUNE STAFF mag 10 → 12 +4 MP, RUNE TORC +14 HP +1 HP/turn, JADE
-AMULET mdef 18 → 20 +6 MP, WAR CLEAVER atk 10 → 12 +4 % crit, PLATE ARMOR +10 HP, GLASS SABER
-atk 12 → 15, NIGHT SCEPTRE mag 17 → 20. PARRY_POWER and GUARD_MANA only exist on common
-awakenings, so few runs end wearing them (10 and 18 of 6000).
-
-M3, before the pass — verb use per run (balanced): GUARD 4.6 (PARRY 4.7), BURST 4.4, POTION 2.2, BREAK
-succeeded/attempted 0.25/0.39 normals, 0.62/0.97 elites, 1.56/1.94 bosses (the attempt
-count misses PUNISH and IMBUE breaks: `run-battle` counts weakness spells and BURST only);
-phase 2 reached 2.9 times. naive/balanced = **0.27** (target ≤ 0.75). 0 STALL deaths in
-any policy; BURN ticks end 5.2 % of balanced runs (104 / 2000).
-
-M2 (2026-11-24), for reference: balanced 38 %, naive 10 %, glass 22 %, tank 19 %, random 0 %.
-
-Tuning in M2: `ACT_MULT` [1.0, 1.38, 2.2, 3.1] → [1.15, 1.95, 2.78, 3.41]; FROST WISP
-hpBase 76 → 70, atkBase 5.2 → 4.8. Before tuning (new cycles and verbs, old numbers)
-balanced won 74 % and naive 42 % (ratio 0.57): potions and BURST are the bulk of the new
-hero power (balanced without potions: 56 %), so `GUARD_FACTOR` stays 0.5. The naive gap
-is wide because an unguarded HEAVY is 2.2× and naive casts resisted or unweighted
-elements; the YETI's double wind-up phase 2 alone ends 37 % of naive runs.
-
-Elites now kill as many balanced runs as bosses (27 % vs 30 %; M1 26 % vs 39 %): FROST
-WISP (330 deaths) and MUMMY (199) are the walls of acts 2 and 3.
-
-M1 (2026-11-24, pre-verbs), for reference: balanced 32 %, glass 20 %, tank 27 %,
-elite-hungry 33 %, chest-hungry 22 %, random 0 %. M0 (2026-11-23): balanced 24.9 %.
-
-Act-4 boss vs the balanced hero: ~10.6 turns to kill, each landed hit ≈ 19 % of max HP.
-Balanced fights ~4.2 elites and opens ~3.9 chests per run. Hero base: 46 HP, +6 HP per skill point;
-DEF/MDEF cap 42 %; `ACT_MULT` [1.3, 1.75, 2.8, 3.8].
-
-Findings from the 2026-09-04 tuning pass (on the simulator's old map, not re-measured
-since): elites kill 4 % of heroes entering above 70 % HP and ~50 % of those entering
-below 50 %; with upgrade cards disabled the balanced win rate halves; taking a boss's
-scroll beats walking past it (33 % vs 28 % wins for balanced, 59 % vs 17 % for tank).
-
-### The descent (2026-11-24)
-
-`node sim/run.mjs --descent-only` (2000 runs per policy, seed 1, `descend: true`). Shares
-are of the runs that beat the Seraph; deaths are of those descenders who died below
-depth 1 (THORNS = killed by THORNED backlash; affix column = the killer carried it, one
-death can count several).
+Descent (same run; shares of the runs that beat the Seraph, deaths of the descenders who
+died below depth 1; THORNS = killed by THORNED backlash):
 
 | policy | beat Seraph | clear d2 | d3 | d4 | d5 | final n mean / median | deaths ELITE / BOSS / HOLLOW / THORNS / NORMAL |
 |---|---|---|---|---|---|---|---|
-| balanced | 742 | 40 % | 6 % | 0.1 % | 0 | 7.7 / 7 | 29 / 20 / 45 / 5 / 1 % |
-| naive | 305 | 30 % | 6 % | 0.3 % | 0 | 6.8 / 7 | 42 / 26 / 29 / 2 / 1 % |
-| glass | 317 | 30 % | 4 % | 0 % | 0 | 6.5 / 6 | 35 / 35 / 23 / 6 / 1 % |
-| tank | 668 | 68 % | 23 % | 1.5 % | 0 | 9.5 / 10 | 19 / 31 / 42 / 8 / 0 % |
-| elite-hungry | 760 | 36 % | 5 % | 0.4 % | 0 | 7.3 / 7 | 38 / 20 / 34 / 7 / 1 % |
-| chest-hungry | 634 | 52 % | 9 % | 0.2 % | 0 | 8.4 / 8 | 14 / 32 / 47 / 5 / 2 % |
+| balanced | 759 | 39 % | 8 % | 0.1 % | 0 | 7.5 / 7 | 44 / 14 / 37 / 4 / 1 % |
+| naive | 318 | 22 % | 4 % | 0 % | 0 | 6.2 / 5 | 54 / 20 / 19 / 4 / 2 % |
+| glass | 359 | 28 % | 5 % | 0.3 % | 0 | 6.4 / 5 | 48 / 26 / 19 / 5 / 3 % |
+| tank | 736 | 59 % | 22 % | 2 % | 0 | 9.0 / 9 | 31 / 19 / 39 / 11 / 1 % |
+| elite-hungry | 755 | 31 % | 5 % | 0.1 % | 0 | 6.7 / 6 | 49 / 15 / 27 / 7 / 1 % |
+| chest-hungry | 595 | 46 % | 10 % | 0.5 % | 0 | 8.0 / 7 | 23 / 25 / 42 / 5 / 5 % |
 
-(2026-11-24, after the review-round-1 pass: THE HOLLOW sized off the best loadout with its
-STRIKE capped, `DESCENT_GROWTH` 1.16, `ACT_MULT[3]` 3.8.) 0 STALL deaths in any policy;
-nobody clears depth 5. THE HOLLOW is now the main descent wall (top killer in every
-policy; balanced: HOLLOW 357, SERAPH 89, MUMMY 76, FROST WISP 60); the tank, whose Hollow
-mirrors a modest ATK, descends best. Pact win-through pooled over the non-random policies:
-ASH 45, TITHE 39, IRON 35, MISER 34, HUNTER 34, BRITTLE 33, STORM 28, HEX 20 %.
+THE HOLLOW is the top descent killer for every policy (balanced: HOLLOW 299, FROST WISP
+129, MUMMY 112, PALADIN 57). Affix on the killer (balanced): SWIFT 57 %, THORNED 37 %,
+VAMPIRIC 25 %, WARDED 16 %, SEARING 16 %, ARMORED 9 %. Pact win-through pooled over the
+non-random policies: ASH 41, TITHE 38, IRON 35, MISER 33, BRITTLE 33, HUNTER 29, HEX 21,
+STORM 19 %.
 
-M4 descent table, for reference: balanced 675 beat the Seraph, cleared d2/d3 38/11 %;
-tank 42/5 %; glass 15/1 %. Affix on the killer then (balanced): SWIFT 50 %, THORNED 37 %,
-SEARING 26 %, WARDED 22 %, VAMPIRIC 21 %, ARMORED 13 %.
+**Open balance items** (known, not yet addressed):
 
-M4 pact win-through (took it, then cleared the depth it was sworn at), within policy:
-balanced IRON 37 %, ASH 36 %, TITHE 34 %, HUNTER 28 %, MISER 28 %, HEX 25 %; tank 26–37 %
-(HEX 33 %); elite-hungry 21–32 % (HEX 21 %, its most taken after HUNTER); chest-hungry
-18–40 % (HEX 18 % on 22 takes); glass 12–17 % for BRITTLE, STORM, TITHE, HEX. Pooled over
-the non-random policies 15–33 %: ASH 33, IRON 33, MISER 32, TITHE 32, HUNTER 29, HEX 21,
-BRITTLE 15, STORM 15 (the last two are glass's picks, and glass descends worst).
+- **The tank's descent advantage.** It clears depth 2 in 59 % of descents against
+  balanced's 39 % and depth 3 in 22 % against 8 %. The Hollow does not carry it (with every
+  Hollow STRIKE pinned at 15 % of max HP it still clears depth 2 in ~65 %); it outlasts the
+  depth's elites and bosses. Its act-3/4 boss fights also sit at the p90 edge (16 turns,
+  8–9 % over 16).
+- **naive and glass on their floors.** 16 % and 18 % against the ≥ 15 % / ≥ 18 % targets;
+  any act-3/4 tightening must be paid for elsewhere.
+- **Balanced's depth-3 clear below its aim**: 8 % against ≈ 10 %.
+- **MUMMY and PALADIN elites as top killers**: MUMMY is balanced's second killer, glass's
+  first and naive's third; PALADIN is in every sane policy's top four. Elites end 29 % of
+  balanced story runs (bosses 26 %).
+- **Pure physical builds lack a break other than BURST**: BREAK needs a weakness hit, BURST
+  or PUNISH_WINDUP, and most weaknesses are elemental spells, so a physical build without
+  PUNISH or IMBUE gear can only break a HEAVY by spending a full ember bar.
 
-Tuning in M4 (descent only; the story table is byte-identical): `DESCENT_GROWTH` 1.08 →
-1.20 (balanced cleared d2/d3/d4/d5 50/34/23/17 %, tank 89/87/86/84 %); THORNED 20 % →
-15 % capped at 12 % of hero max HP; THE HOLLOW ATK share 0.5 → 0.7 and HP 8 → 30 plain
-hits; HEX's curse narrowed to elites and bosses.
+**Tuning history** (each change was measured with the same harness; superseded numbers are
+not repeated here):
+
+- *Review round 5* (2026-11-24): **MUMMY atkBase 5.3 → 4.9** (its act-3 hex took 25–30 of
+  a ~100-HP hero and it was the top killer in two blind playtests and for naive). Balanced
+  38 → 39 %, naive 15 → 16 %, glass 17 → 18 %, tank 35 %; MUMMY deaths: naive 309 → 260
+  (no longer its top killer), glass 417 → 371, balanced 280 → 247.
+- *Review round 4*: YETI atkBase 6.8 → 5.8 (naive died to the YETI in 405 of 2000 runs, its
+  act-2 boss clear 75 % vs balanced 97 %; 6.2 moved it only to 79 %). Every event got a
+  free option.
+- *Review round 2*: `ACT_MULT` [1.3, 1.75, 2.8, 3.8] → [1.3, 1.8, 3.05, 4.3]; SAND GOLEM
+  hpBase 195 → 115, atkBase 7.6 → 9.0, DEF 40 → 25; THE SERAPH hpBase 205 → 120, atkBase
+  5.7 → 6.2, DEF 15 → 8; MUMMY atkBase 5.6 → 5.3; `DESCENT_GROWTH` 1.16 → 1.15; boss MEND
+  6 %; THE HOLLOW strikes the weaker resist with `HOLLOW_HIT_FLOOR` 0.12. The round-2 rules
+  alone had stretched the tank's Golem fight to a median 16 turns.
+- *Review round 1*: `ACT_MULT` [1.15, 1.95, 2.78, 3.41] → [1.3, 1.75, 2.8, 3.8];
+  `HEAVY_MULT` 2.2 → 2.0; harder act-1 normals; DARK LORD, YETI, SAND GOLEM, SERAPH
+  reshaped; a potion back on each act; at most half a stage ELITE; THE HOLLOW sized off
+  the best loadout with its STRIKE capped (`HOLLOW_ATK_SHARE` 0.65, `HOLLOW_HP_HITS` 22,
+  `HOLLOW_HIT_CAP` 0.15).
+- *M4 (the descent)*: THORNED 20 % uncapped → 15 % capped at 12 % of max HP (it caused
+  36–42 % of all descent deaths).
+- *M3*: 25 new items with real stat lines (with them offered but never taken balanced fell
+  37 → 28 %); SHADOW EDGE, BLOOD CUP, GOLEM FIST, RUNE STAFF, RUNE TORC, JADE AMULET, WAR
+  CLEAVER, PLATE ARMOR, GLASS SABER and NIGHT SCEPTRE retuned toward 8–68 % pick rates.
+- *M2*: `ACT_MULT` [1.0, 1.38, 2.2, 3.1] → [1.15, 1.95, 2.78, 3.41]; FROST WISP trimmed;
+  `GUARD_FACTOR` kept at 0.5 (potions and BURST are the bulk of the new hero power).
+- *2026-09-04* (old map, not re-measured): elites kill 4 % of heroes entering above 70 % HP
+  and ~50 % of those below 50 %; without upgrade cards balanced's win rate halves; taking a
+  boss's scroll beats walking past it.
 
 ### The map generators are unified
 
 There is one generator, `generateMap` in `game/sim/map.ts`; `game/mapgen.ts` only
 adds the screen fields. The simulator used to link more stingily (about 39 % of nodes
 with two onward links against 74 % in the game), which understated the real game's
-win rate by about five points; the table above is measured on the game's map.
+win rate by about five points; the tables above are measured on the game's map.

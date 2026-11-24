@@ -6,7 +6,7 @@ import type { Game } from '../state';
 import { BAND_Y, C_ACCENT, C_DIM, C_EMBER, C_FAINT, C_GOOD, C_SEL_BAR, C_TEXT, C_WARN, H, W } from '../theme';
 import { accentHz } from '../widgets';
 import { MENU_COLS, PAGE_SIZE, TOP_COMMANDS, pageCount } from './battle-menu';
-import { attackWeak, intentHint, previewSpell, previewTop, weakSpells } from './battle-preview';
+import { attackWeak, breakNote, intentHint, previewSpell, previewTop, weakSpells } from './battle-preview';
 import type { PreviewLine, TopCommand } from './battle-preview';
 
 type Ctx = CanvasRenderingContext2D;
@@ -48,6 +48,8 @@ const NOTE_INSET_HINTED = 9;
 const WEAK_NOTE = { note: 'WEAK', noteColor: C_GOOD };
 
 function weakNote(g: Game, cmd: TopCommand): { note: string; noteColor?: string } {
+  const verdict = breakNote(g, cmd);
+  if (verdict) {return verdict;}
   const e = g.battle.enemy;
   if (!e) {return { note: '' };}
   if (cmd === 'ATTACK' && attackWeak(g.hero, e)) {return WEAK_NOTE;}
@@ -56,9 +58,9 @@ function weakNote(g: Game, cmd: TopCommand): { note: string; noteColor?: string 
 
 function topCell(g: Game, cmd: TopCommand, sel: boolean): Cell {
   const hero = g.hero;
-  const inset = sel && hasColumnHint(g.battle.topCursor) ? NOTE_INSET_HINTED : NOTE_INSET;
+  const inset = sel && showsColumnHint(g) ? NOTE_INSET_HINTED : NOTE_INSET;
   if (cmd === 'POTION') {return { label: `POTION X${hero.potions}`, note: '', color: labelColor(sel, canDrinkPotion(hero)), sel };}
-  if (cmd === 'BURST') {return { label: 'BURST', note: '', color: labelColor(sel, canAfford(hero, 'BURST'), true), sel };}
+  if (cmd === 'BURST') {return { label: 'BURST', ...weakNote(g, cmd), color: labelColor(sel, canAfford(hero, 'BURST'), true), sel, inset };}
   if (cmd === 'MAGIC') {return { label: 'MAGIC', ...weakNote(g, cmd), color: labelColor(sel, knownSpells(hero).length > 0), sel, inset };}
   return { label: cmd, ...weakNote(g, cmd), color: labelColor(sel, true), sel, inset };
 }
@@ -68,8 +70,13 @@ function hasColumnHint(cursor: number): boolean {
   return other >= 0 && other < TOP_COMMANDS.length;
 }
 
-function drawColumnHint(ctx: Ctx, cursor: number): void {
-  if (!hasColumnHint(cursor)) {return;}
+function showsColumnHint(g: Game): boolean {
+  const cmd = TOP_COMMANDS[g.battle.topCursor];
+  return hasColumnHint(g.battle.topCursor) && !(cmd && breakNote(g, cmd));
+}
+
+function drawColumnHint(g: Game, ctx: Ctx, cursor: number): void {
+  if (!showsColumnHint(g)) {return;}
   const { x, y } = cellAt(cursor);
   drawText(ctx, cursor % MENU_COLS === 0 ? '>' : '<', { x: x + COL_W - 6, y }, { color: C_DIM });
 }
@@ -77,7 +84,7 @@ function drawColumnHint(ctx: Ctx, cursor: number): void {
 function drawTop(g: Game): void {
   const ctx = g.app.pc.ctx;
   TOP_COMMANDS.forEach((cmd, i) => { drawCell(ctx, i, topCell(g, cmd, i === g.battle.topCursor)); });
-  drawColumnHint(ctx, g.battle.topCursor);
+  drawColumnHint(g, ctx, g.battle.topCursor);
 }
 
 function drawMagic(g: Game): void {

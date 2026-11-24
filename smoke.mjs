@@ -12,6 +12,7 @@ const FRAMES = 40;
 const errors = [];
 const FIGHT_QUERY = '?scene=battle&act=1&seed=7&hold=1';
 const FIGHT_TICKS = 4000;
+const STEP_TICKS = 10;
 
 const executablePath = envOr('CHROMIUM_PATH', existsSync(WRAPPER) ? WRAPPER : undefined);
 const browser = await chromium.launch(executablePath ? { executablePath } : {});
@@ -33,16 +34,20 @@ const waitFrames = (page, count) =>
     count,
   );
 
-const fightToTheKill = () => {
+const fightToTheKill = ({ ticks, step }) => {
   const ember = window.__ember;
   let s = ember.state();
-  for (let i = 0; i < 400 && s.subScene === 'BATTLE'; i++) {
+  let last = { foeHp: s.enemy?.hp ?? 1, hp: s.hero.hp, maxHp: s.derived.maxHp };
+  for (let t = 0; t < ticks && s.subScene === 'BATTLE'; t += step) {
     if (s.battle?.phase === 'MENU') {
       ember.press('A');
     }
-    s = ember.step(10);
+    s = ember.step(step);
+    if (s.subScene === 'BATTLE' && s.enemy) {
+      last = { foeHp: s.enemy.hp, hp: s.hero.hp, maxHp: s.derived.maxHp };
+    }
   }
-  return { subScene: s.subScene, drift: s.drift ?? 0, hp: s.hero.hp };
+  return { scene: s.scene, subScene: s.subScene, drift: s.drift ?? 0, ...last };
 };
 
 const checkWinWhileHurt = async (page) => {
@@ -54,9 +59,14 @@ const checkWinWhileHurt = async (page) => {
     console.log('SMOKE NOTE: no dev hook at this URL, the win-while-hurt fight is skipped');
     return;
   }
-  const end = await page.evaluate(fightToTheKill);
+  const end = await page.evaluate(fightToTheKill, { ticks: FIGHT_TICKS, step: STEP_TICKS });
   if (end.subScene === 'BATTLE') {
     errors.push(`fight: still in BATTLE after ${String(FIGHT_TICKS)} ticks`);
+  } else if (end.scene !== 'PLAYING' || end.foeHp > 0) {
+    errors.push(`fight: not won (scene ${end.scene}, foe hp ${String(end.foeHp)})`);
+  }
+  if (!(end.hp > 0 && end.hp < end.maxHp)) {
+    errors.push(`fight: the hero was not hurt at the kill (hp ${String(end.hp)}/${String(end.maxHp)})`);
   }
   if (end.drift > 0) {
     errors.push(`fight: the replay drifted from the committed turn ${String(end.drift)} time(s)`);

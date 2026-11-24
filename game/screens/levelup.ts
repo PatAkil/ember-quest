@@ -5,17 +5,18 @@ import { derive, spendPoint } from '../sim';
 import { heroAnchor, renderTableau } from '../backdrop';
 import { at } from '../lookup';
 import { drawPops, popSpot, pushPop } from '../pops';
-import { armA, dirEdge, resetCursorEdge, takeA, wrapCursor } from '../state';
+import { dirEdge, resetCursorEdge, takeA, wrapCursor } from '../state';
+import { armDecision } from '../transition';
 import type { Game } from '../state';
 import { BAND_Y, C_ACCENT, C_BORDER, C_DIM, C_PANEL, C_SEL_BAR, C_TEXT, HERO_W, HERO_X, W } from '../theme';
-import { blinkHz, drawCommandBand, pct } from '../widgets';
+import { decisionPromptColor, drawCommandBand, pct } from '../widgets';
 
 export function startLevelUp(g: Game, earned: number, onDone: () => void): void {
   if (g.hero.sp <= 0) { onDone(); return; }
   g.levelUp = { earned, cursor: 0, onDone };
   g.subScene = 'LEVELUP';
   resetCursorEdge(g);
-  armA(g);
+  armDecision(g);
 }
 
 export function updateLevelUp(g: Game): void {
@@ -81,7 +82,7 @@ function drawSpendBand(g: Game): void {
   const line = full ? `${key} IS AT ITS CAP  SPEND ELSEWHERE` : `${key} ${gainText(key)}  ${STAT_HINT[key]}`;
   drawText(ctx, line, { x: SAFE_MARGIN + 4, y: BAND_Y + 22 }, { color: full ? C_DIM : C_TEXT });
   const prompt = `${BUTTON_KEY.A.hint} SPEND A POINT`;
-  drawText(ctx, prompt, { x: SAFE_MARGIN + 4, y: BAND_Y + 31 }, { color: blinkHz(g.clock, 1.2) ? C_ACCENT : C_DIM });
+  drawText(ctx, prompt, { x: SAFE_MARGIN + 4, y: BAND_Y + 31 }, { color: decisionPromptColor(g, C_ACCENT) });
 }
 
 export function renderLevelUp(g: Game): void {

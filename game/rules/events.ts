@@ -101,16 +101,18 @@ const pricedInLasting = (event: EventDef): boolean =>
 
 const isWalkOn = (event: EventDef): boolean => event.options.some((o) => o.effects.length === 0);
 
+const gains = (effect: EventEffect): boolean => 'amount' in effect && effect.amount > 0;
+
 const OPEN_WHEN_FREE: Readonly<Record<EffectKind, (effect: EventEffect) => boolean>> = {
-  hpPct: (e) => e.kind === 'hpPct' && e.amount > 0,
-  maxHp: (e) => e.kind === 'maxHp' && e.amount > 0,
-  sp: () => true,
+  hpPct: gains,
+  maxHp: gains,
+  sp: gains,
   item: () => false,
   upgradeAny: () => false,
   burnNextFight: () => false,
   fullHeal: () => true,
   dropPackItem: () => false,
-  potion: (e) => e.kind === 'potion' && e.amount > 0,
+  potion: gains,
 };
 
 const neverBlockedFree = (option: EventOption): boolean => option.effects.every((e) => OPEN_WHEN_FREE[e.kind](e));
@@ -148,16 +150,16 @@ function checkEvent(bad: string[], event: EventDef): void {
   if (!hasFreeExit(event)) {bad.push(`${where}: no option that costs nothing and is always open (add WALK ON or a free gain)`);}
 }
 
-export function validateEvents(): string[] {
+export function validateEvents(events: readonly EventDef[] = EVENTS): string[] {
   const bad: string[] = [];
   const ids = new Set<string>();
-  for (const event of EVENTS) {
+  for (const event of events) {
     if (ids.has(event.id)) {bad.push(`event ${event.id}: duplicate id`);}
     ids.add(event.id);
     checkEvent(bad, event);
   }
   checkEvent(bad, QUIET_EVENT);
-  if (EVENTS.filter(pricedInLasting).length * 2 < EVENTS.length) {bad.push('events: fewer than half price their boon in max HP or a pack item');}
-  if (EVENTS.filter(isWalkOn).length * 2 > EVENTS.length) {bad.push('events: more than half offer a do-nothing option');}
+  if (events.filter(pricedInLasting).length * 2 < events.length) {bad.push('events: fewer than half price their boon in max HP or a pack item');}
+  if (events.filter(isWalkOn).length * 2 > events.length) {bad.push('events: more than half offer a do-nothing option');}
   return bad;
 }

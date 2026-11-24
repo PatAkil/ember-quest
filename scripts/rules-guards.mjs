@@ -182,10 +182,10 @@ function upgradeText(sim, { who, hero, item, level }) {
 
 const FALL_FOES = ['SLIME', 'GOBLIN', 'WRAITH_LORD', 'FROST_WISP', 'YETI', 'SAND_GOLEM', 'SERAPH', 'HOLLOW'];
 const FALL_CASES = [
-  { move: 'HEAVY', chain: 1, word: 'PARRIED' },
-  { move: 'STRIKE', chain: 1, word: 'BLOCKED' },
-  { move: 'STRIKE', chain: 2, word: 'TIRED GUARD' },
-  { move: 'SCORCH', chain: 1, word: 'BLOCKED' },
+  { move: 'HEAVY', chain: 1, word: 'YOU PARRY' },
+  { move: 'STRIKE', chain: 1, word: 'YOU BLOCK' },
+  { move: 'STRIKE', chain: 2, word: 'YOUR GUARD TIRES' },
+  { move: 'SCORCH', chain: 1, word: 'YOU BLOCK' },
 ];
 
 function fallOf(sim, id, { move, chain, revive, atk }) {
@@ -202,16 +202,34 @@ function guardedFallLines(sim) {
   for (const id of FALL_FOES) {
     for (const c of FALL_CASES) {
       for (const [revive, end] of [[false, 'YOU FALL!'], [true, 'YOU RISE!']]) {
-        for (const atk of [40, 40000]) {
+        for (const atk of [40, 40000, 1e27]) {
           const r = fallOf(sim, id, { ...c, revive, atk });
           assert.ok(r.heroDead !== revive && r.revived === revive, `${id} ${c.move}: no fall`);
-          assert.ok(r.text.startsWith(`${c.word}, BUT `) && r.text.endsWith(end) && r.text.length <= 52, `${id} ${c.move} chain ${c.chain}: ${r.text}`);
+          assert.ok(r.text.startsWith(`${c.word} - `) && r.text.endsWith(end) && r.text.length <= 52, `${id} ${c.move} chain ${c.chain}: ${r.text}`);
           lines += 1;
         }
       }
     }
     const open = fallOf(sim, id, { move: 'HEAVY', chain: 0, revive: false, atk: 40 });
-    assert.ok(open.text.endsWith(' - YOU FALL!') && !open.text.includes('BUT'), `${id} open kill: ${open.text}`);
+    assert.ok(open.text.endsWith(' - YOU FALL!') && !open.text.startsWith('YOU '), `${id} open kill: ${open.text}`);
+  }
+  return lines;
+}
+
+function guardedHitLines(sim) {
+  let lines = 0;
+  for (const id of FALL_FOES) {
+    for (const c of FALL_CASES) {
+      const f = fightOf(sim, id);
+      Object.assign(f.battle, { intent: c.move, guarding: true, guardChain: c.chain });
+      f.enemy.atk = 40;
+      f.hero.hp = 1e9;
+      const r = sim.enemyAct(f.hero, f.battle, () => 0.5);
+      if (r.dodged) {continue;}
+      assert.ok(r.text.startsWith(`${c.word} - TAKE ${String(r.dmg)}`) && r.text.length <= 52, `${id} ${c.move} chain ${c.chain} guarded hit: ${r.text}`);
+      assert.ok(!/PARRIED FOR|GRAZES|HITS FOR/.test(r.text), `${id}: a guarded hit reads as damage dealt: ${r.text}`);
+      lines += 1;
+    }
   }
   return lines;
 }
@@ -225,12 +243,14 @@ export function guardRules(sim) {
   thornsLine(sim);
   const compared = compareSweep(sim);
   const falls = guardedFallLines(sim);
+  const hits = guardedHitLines(sim);
   return [
     `POTION refused at full HP (no potion spent); 360 policy runs offered POTION ${String(offered)} times, never at full HP`,
     'a whole foe never MENDs (STRIKE instead, the once-only flag kept)',
     'the act-1 starter weapon replaces the weakest non-scroll card, never an EPIC or a scroll, not after act 1, not on boss tables',
     'THORNS is its own line; the damage line keeps its numbers',
     `${String(compared)} item/level/hero compares: one row per changed derived stat (max 6), NO STAT CHANGE only when none changed`,
-    `${String(falls)} guarded killing blows keep PARRIED/BLOCKED/TIRED GUARD and end YOU FALL!/YOU RISE! within 52`,
+    `${String(falls)} guarded killing blows (up to 1e27 ATK) keep YOU PARRY/YOU BLOCK/YOUR GUARD TIRES and end YOU FALL!/YOU RISE! within 52`,
+    `${String(hits)} guarded hits read <WORD> - TAKE n within 52`,
   ].join('; ');
 }

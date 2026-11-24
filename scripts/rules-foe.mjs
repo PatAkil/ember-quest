@@ -151,7 +151,7 @@ function guardedHeavyThenTick(sim) {
   const t = sim.resolveTurn(f.hero, f.battle, 'GUARD', 5);
   assert.equal(t.hero.burnTick, 8, 'the hero tick follows his GUARD');
   assert.ok(t.enemy?.parried && t.outcome === null && f.hero.hp > 0, `a guarded HEAVY at 36 HP and an 8 tick killed: ${JSON.stringify(t.enemy)}`);
-  assert.ok(t.enemy.text.startsWith('PARRIED! THE BLOW ONLY GRAZES YOU FOR') && t.enemy.text.length <= 52, `parry line: ${t.enemy.text}`);
+  assert.ok(t.enemy.text.startsWith('YOU PARRY - TAKE ') && t.enemy.text.length <= 52, `parry line: ${t.enemy.text}`);
   return 'a guarded HEAVY (33 raw) at 36 HP with an 8 tick is survived';
 }
 

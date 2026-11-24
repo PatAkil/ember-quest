@@ -208,8 +208,28 @@ function freeExitRules(sim) {
   return `${FREE_TRIALS} random heroes (full HP, warded, frail, empty): every event offers an enabled option that costs nothing`;
 }
 
+const NO_FREE_EXIT = 'no option that costs nothing';
+
+function synthetic(options) {
+  return { id: 'SYNTH', title: 'A TEST', lines: ['A TEST LINE.'], options };
+}
+
+function signAwareFreeExit(sim) {
+  const paid = synthetic([
+    { label: 'SELL A MEMORY', effects: [{ kind: 'sp', amount: -2 }] },
+    { label: 'PRY IT OPEN', effects: [{ kind: 'maxHp', amount: -5 }, { kind: 'item', rarity: 'RARE' }] },
+  ]);
+  const paidBad = sim.validateEvents([paid]);
+  assert.ok(paidBad.some((b) => b.includes(NO_FREE_EXIT)), `an SP-cost option counted as free: ${paidBad.join('; ')}`);
+  assert.ok(paidBad.some((b) => b.includes('sp must be a gain')), 'an SP cost passed the amount check');
+  const gift = synthetic([paid.options[1], { label: 'TAKE THE LESSON', effects: [{ kind: 'sp', amount: 1 }] }]);
+  const giftBad = sim.validateEvents([gift]);
+  assert.ok(!giftBad.some((b) => b.includes(NO_FREE_EXIT)), `an SP gain did not count as free: ${giftBad.join('; ')}`);
+  return 'validateEvents is sign-aware: an SP-cost option is no free exit, an SP gain is';
+}
+
 export function eventRules(sim) {
   const bad = sim.validateEvents();
   assert.deepEqual(bad, [], `validateEvents: ${bad.join('; ')}`);
-  return [effectRules(sim), burnRules(sim), playableRules(sim), fullHpRules(sim), freeExitRules(sim), epicIdol(sim), eventMaps(sim), choiceRules(sim), eventRuns(sim)].join(' | ');
+  return [signAwareFreeExit(sim), effectRules(sim), burnRules(sim), playableRules(sim), fullHpRules(sim), freeExitRules(sim), epicIdol(sim), eventMaps(sim), choiceRules(sim), eventRuns(sim)].join(' | ');
 }

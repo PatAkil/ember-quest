@@ -140,31 +140,30 @@ function hitText(t: Turn, dmg: number): string {
 
 const withTail = (line: string, tail: string): string => (line.length + tail.length <= LOG_MAX ? line + tail : line);
 
+function guardHead(t: Turn): string {
+  if (t.move === 'HEAVY') {return 'YOU PARRY';}
+  return chainedGuard(t) ? 'YOUR GUARD TIRES' : 'YOU BLOCK';
+}
+
+const PARRY_TAIL = ' - YOUR NEXT STRIKE HITS HARDER';
+
 function landedText(t: Turn, dmg: number, burned: boolean): string {
-  const name = t.battle.enemy.def.name;
-  const n = String(dmg);
-  const line = !t.battle.guarding ? `${hitText(t, dmg)}!`
-    : t.move === 'HEAVY' ? `PARRIED! THE BLOW ONLY GRAZES YOU FOR ${n}`
-      : chainedGuard(t) ? `A TIRED GUARD - ${name} STILL HITS FOR ${n}`
-        : `YOU BLOCK HALF - ${name} STILL HITS FOR ${n}`;
-  return burned ? withTail(line, ' - YOU BURN!') : line;
+  if (!t.battle.guarding) {return burned ? withTail(`${hitText(t, dmg)}!`, ' - YOU BURN!') : `${hitText(t, dmg)}!`;}
+  const line = `${guardHead(t)} - TAKE ${String(dmg)}`;
+  if (burned) {return withTail(line, ' - YOU BURN!');}
+  return t.move === 'HEAVY' ? withTail(line, PARRY_TAIL) : line;
 }
 
 function dodgedText(t: Turn, parried: boolean): string {
   return parried ? 'DODGED AND PARRIED! YOUR NEXT STRIKE HITS HARDER' : `YOU DODGE ${t.battle.enemy.def.name}'S BLOW!`;
 }
 
-function guardWord(t: Turn): string {
-  if (t.move === 'HEAVY') {return 'PARRIED';}
-  return chainedGuard(t) ? 'TIRED GUARD' : 'BLOCKED';
-}
-
 const fitted = (full: string, short: string): string => (full.length <= LOG_MAX ? full : short);
 
 function guardedFall(t: Turn, dmg: number, revived: boolean): string {
-  const word = guardWord(t);
-  const tail = revived ? 'FELLS YOU - YOU RISE!' : `HITS FOR ${String(dmg)} - YOU FALL!`;
-  return fitted(`${word}, BUT ${t.battle.enemy.def.name} ${tail}`, `${word}, BUT IT ${tail}`);
+  const head = guardHead(t);
+  if (!revived) {return fitted(`${head} - TAKE ${String(dmg)} - YOU FALL!`, `${head} - YOU FALL!`);}
+  return fitted(`${head} - ${t.battle.enemy.def.name} FELLS YOU - YOU RISE!`, `${head} - IT FELLS YOU - YOU RISE!`);
 }
 
 function fellText(t: Turn, dmg: number, revived: boolean): string {
@@ -264,6 +263,13 @@ export interface FoeBlowEstimate { unguarded: number; guarded: number }
 
 const strikesHero = (move: MoveId): boolean => HIT_MULT[move] !== undefined;
 
+function poised(battle: BattleState): BattleState {
+  const shadow: BattleState = { ...battle, enemy: { ...battle.enemy } };
+  checkPhase(shadow.enemy);
+  enrages(shadow);
+  return shadow;
+}
+
 function blowIf(hero: Hero, battle: BattleState, guarding: boolean): number {
   const shadow: BattleState = { ...battle, guarding, guardChain: guarding ? battle.guardChain + 1 : 0 };
   return blowDamage({ hero, battle: shadow, d: derive(hero), move: battle.intent, rng: () => 0.5 }, 1);
@@ -271,5 +277,6 @@ function blowIf(hero: Hero, battle: BattleState, guarding: boolean): number {
 
 export function expectedFoeDamage(hero: Hero, battle: BattleState): FoeBlowEstimate {
   if (battle.enemy.staggered || !strikesHero(battle.intent)) {return { unguarded: 0, guarded: 0 };}
-  return { unguarded: blowIf(hero, battle, false), guarded: blowIf(hero, battle, true) };
+  const next = poised(battle);
+  return { unguarded: blowIf(hero, next, false), guarded: blowIf(hero, next, true) };
 }

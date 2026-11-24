@@ -1,7 +1,7 @@
 import { ENEMIES, HOLLOW_ID } from '../data';
 import { EMBER_MAX } from '../types';
 import { canAfford, knownSpells } from '../sim';
-import type { DeathRecord, Game } from '../state';
+import type { DeathRecord, Game, UsedVerb } from '../state';
 import { C_ACCENT } from '../theme';
 import { at } from '../lookup';
 import { hasWeakAnswer, weakSpells } from './battle-preview';
@@ -9,7 +9,7 @@ import { hasWeakAnswer, weakSpells } from './battle-preview';
 export interface RecapLine { text: string; color: string; pack?: readonly string[]; wrap?: boolean }
 
 type TipKey =
-  | 'HEAVY' | 'STRIKE' | 'HEX' | 'SCORCH' | 'BURN' | 'THORNS' | 'BLOOD' | 'HOLLOW' | 'ELITE' | 'ABANDONED'
+  | 'HEAVY' | 'STRIKE' | 'HEX' | 'SCORCH' | 'BURN' | 'THORNS' | 'HOLLOW' | 'ELITE' | 'ABANDONED'
   | 'GUARD_FAILED' | 'NO_ANSWER' | 'DRY' | 'NO_MP' | 'IDLE_MAGIC' | 'IDLE_BURST' | 'NO_GUARD';
 
 const TIPS: Record<TipKey, readonly string[]> = {
@@ -19,7 +19,6 @@ const TIPS: Record<TipKey, readonly string[]> = {
   SCORCH: ['BURN TICKS FOR 3 TURNS - A POTION BUYS TIME', 'ASH MANTLE OR FROST BEAD WARD OFF BURNS', 'A SCORCHER BURNS YOU - END IT BEFORE IT ADDS UP'],
   BURN: ['BURN TICKS FOR 3 TURNS - A POTION BUYS TIME', 'ASH MANTLE OR FROST BEAD WARD OFF BURNS', 'BURN TICKS AFTER YOU ACT - A POTION LANDS FIRST'],
   THORNS: ['THORNED FOES PUNISH MANY SMALL HITS', 'ONE BIG HIT BEATS MANY SMALL ONES ON THORNS', 'THORNS NEVER FIRE ON THE KILLING BLOW'],
-  BLOOD: ['THE BLOOD PRICE BITES EACH TURN - BE QUICK', 'A PACT IS A DEBT - PICK ONE YOUR BUILD PAYS'],
   HOLLOW: ['THE HOLLOW WEARS YOUR GEAR - SWAP BEFORE IT', 'YOUR SHADOW COPIES YOUR GEAR AFFIXES TOO', 'PACK A COUNTER-BUILD FOR YOUR OWN SHADOW'],
   ELITE: ['ELITES PAY WELL BUT CAN WAIT UNTIL YOU HEAL', 'SKIP AN ELITE WHEN HP IS LOW - REST FIRST', 'ELITES HIT HARDER - FIGHT THEM AT FULL HP'],
   ABANDONED: ['A NEW RUN DRAWS A NEW MAP - THE EMBER WAITS', 'EVERY ROUTE TEACHES SOMETHING - TRY ANOTHER'],
@@ -33,9 +32,11 @@ const TIPS: Record<TipKey, readonly string[]> = {
 };
 
 const MOVE_TIP: Partial<Record<string, TipKey>> = { 'HEAVY BLOW': 'HEAVY', SCORCH: 'SCORCH', HEX: 'HEX' };
-const CAUSE_TIP: Partial<Record<DeathRecord['cause'], TipKey>> = { BURN: 'BURN', THORNS: 'THORNS', BLOOD: 'BLOOD' };
+const CAUSE_TIP: Partial<Record<DeathRecord['cause'], TipKey>> = { BURN: 'BURN', THORNS: 'THORNS' };
 
 const killedByBlow = (d: DeathRecord): boolean => d.cause === 'BLOW';
+
+const neverUsed = (g: Game, verb: UsedVerb): boolean => !g.death.resumed && !g.death.used.includes(verb);
 
 function unansweredBoss(g: Game): boolean {
   const e = g.battle.enemy;
@@ -45,7 +46,7 @@ function unansweredBoss(g: Game): boolean {
 
 function idleMagic(g: Game): boolean {
   const e = g.battle.enemy;
-  return Boolean(e && !g.death.used.includes('MAGIC') && weakSpells(g.hero, e).some((id) => canAfford(g.hero, id)));
+  return Boolean(e && neverUsed(g, 'MAGIC') && weakSpells(g.hero, e).some((id) => canAfford(g.hero, id)));
 }
 
 const outOfMp = (g: Game): boolean => {
@@ -56,9 +57,9 @@ const outOfMp = (g: Game): boolean => {
 const SITUATIONS: readonly [TipKey, (g: Game) => boolean][] = [
   ['GUARD_FAILED', (g) => killedByBlow(g.death) && g.death.guarded],
   ['NO_ANSWER', unansweredBoss],
-  ['IDLE_BURST', (g) => g.hero.ember >= EMBER_MAX && !g.death.used.includes('BURST')],
+  ['IDLE_BURST', (g) => g.hero.ember >= EMBER_MAX && neverUsed(g, 'BURST')],
   ['IDLE_MAGIC', idleMagic],
-  ['NO_GUARD', (g) => g.death.move === 'HEAVY BLOW' && !g.death.used.includes('GUARD')],
+  ['NO_GUARD', (g) => g.death.move === 'HEAVY BLOW' && neverUsed(g, 'GUARD')],
   ['DRY', (g) => g.hero.potions === 0 && killedByBlow(g.death)],
   ['NO_MP', outOfMp],
 ];
@@ -77,7 +78,10 @@ function tipKey(g: Game): TipKey {
   return hit ? hit[0] : causeKey(g.death);
 }
 
-const runHash = (g: Game): number => g.score * 7 + g.clears * 13 + g.n * 31 + g.death.damage * 17 + g.hero.sp;
+function runHash(g: Game): number {
+  const sum = g.score * 7 + g.clears * 13 + g.n * 31 + g.death.damage * 17 + g.hero.sp;
+  return Number.isFinite(sum) ? Math.abs(Math.floor(sum)) : 0;
+}
 
 function tipFor(g: Game, key: TipKey): RecapLine {
   const tips = TIPS[key];

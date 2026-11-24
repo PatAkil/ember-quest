@@ -5,6 +5,7 @@ import { armA, dirEdge, dirEdgeX, resetCursorEdge, takeA, wrapCursor } from '../
 import type { Game } from '../state';
 import { rarityColor } from '../theme';
 import { persist } from '../persist';
+import { armDecision } from '../transition';
 
 const REFUSAL_SHOWN = 1.2;
 
@@ -12,7 +13,7 @@ export function openGear(g: Game): void {
   g.gear = { cursor: 0, refusedAt: -1 };
   g.subScene = 'GEAR';
   resetCursorEdge(g);
-  armA(g);
+  armDecision(g);
 }
 
 const gearRowCount = (g: Game): number => SLOTS.length + g.hero.pack.length;

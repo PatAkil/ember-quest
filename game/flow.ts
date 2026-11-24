@@ -83,7 +83,8 @@ function nextAct(g: Game): void {
 }
 
 function showActCard(g: Game): void {
-  showCard(g, [`${biome(g).name} AWAITS...`, 'THE DESCENT CONTINUES'], () => { backToMap(g); });
+  const onward = depthOf(g.n) > 1 ? 'THE DESCENT CONTINUES' : 'THE ROAD GOES ON';
+  showCard(g, [`${biome(g).name} AWAITS...`, onward], () => { backToMap(g); });
 }
 
 function depthCardLines(g: Game): string[] {

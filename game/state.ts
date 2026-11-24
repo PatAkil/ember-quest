@@ -57,19 +57,21 @@ export interface BattleScreen {
 export interface CardScreen { lines: string[]; onDone: () => void; art?: { icon: Sprite; color: string } }
 export interface LevelUpScreen { cursor: number; earned: number; onDone: () => void }
 export interface LootScreen { offers: LootOffer[]; cursor: number; source: LootSource; stow: boolean; gift?: boolean; ash?: boolean; onDone: () => void; settle: () => void }
-export type DeathCause = 'BLOW' | 'BURN' | 'THORNS' | 'BLOOD' | '';
+export type DeathCause = 'BLOW' | 'BURN' | 'THORNS' | '';
 export type UsedVerb = 'MAGIC' | 'GUARD' | 'BURST' | 'POTION' | 'ATTACK';
-export interface DeathRecord { killerId: string; killerName: string; elite: boolean; move: string; damage: number; lastLines: string[]; cause: DeathCause; guarded: boolean; used: UsedVerb[] }
-export const emptyDeath = (): DeathRecord => ({ killerId: '', killerName: '', elite: false, move: '', damage: 0, lastLines: [], cause: '', guarded: false, used: [] });
+export interface DeathRecord { killerId: string; killerName: string; elite: boolean; move: string; damage: number; lastLines: string[]; cause: DeathCause; guarded: boolean; used: UsedVerb[]; resumed: boolean }
+export const emptyDeath = (): DeathRecord => ({ killerId: '', killerName: '', elite: false, move: '', damage: 0, lastLines: [], cause: '', guarded: false, used: [], resumed: false });
 export interface GearScreen { cursor: number; refusedAt: number }
 export interface PickRow { icon?: Sprite; name: string; color: string; note: string; detail: string[]; aside?: string }
 export interface EventScreen { def: EventDef; cursor: number; refusedAt: number; onDone: () => void }
 export type ThresholdChoice = 'ASCEND' | 'DESCEND';
 export interface ThresholdScreen { cursor: number; openedAt: number; refusedAt: number; choose: (choice: ThresholdChoice) => void }
-export interface PactScreen { offers: PactId[]; cursor: number; openedAt: number; onDone: () => void }
+export interface PactScreen { offers: PactId[]; cursor: number; openedAt: number; refusedAt: number; onDone: () => void }
 export interface MenuScreen { cursor: number; confirm: boolean; yes: boolean }
 export interface Notice { text: string; at: number }
 export interface PickScreen { title: string; rows: PickRow[]; cursor: number; locked?: boolean; onPick: (i: number) => void; onCancel: () => void }
+
+interface AGate { openedAt: number; released: boolean; hold: number }
 
 export interface Game {
   app: App;
@@ -97,7 +99,7 @@ export interface Game {
   subScene: SubScene;
   prevDirY: number;
   prevDirX: number;
-  aGate: { openedAt: number; released: boolean };
+  aGate: AGate;
   endedAt: number;
   roomSeed: number;
   best: BestRecord;
@@ -152,7 +154,7 @@ export function createGame(app: App): Game {
     subScene: 'MAP',
     prevDirY: 0,
     prevDirX: 0,
-    aGate: { openedAt: 0, released: true },
+    aGate: { openedAt: 0, released: true, hold: 0 },
     endedAt: 0,
     roomSeed: 0,
     best: loadBest(),
@@ -176,7 +178,7 @@ export function createGame(app: App): Game {
     pick: { title: '', rows: [], cursor: 0, onPick: noop, onCancel: noop },
     event: { def: at(EVENTS, 0), cursor: 0, refusedAt: -1, onDone: noop },
     threshold: { cursor: 0, openedAt: 0, refusedAt: -1, choose: noop },
-    pact: { offers: [], cursor: 0, openedAt: 0, onDone: noop },
+    pact: { offers: [], cursor: 0, openedAt: 0, refusedAt: -1, onDone: noop },
     title: { cursor: 0, confirm: false, yes: false },
     pause: { cursor: 0, confirm: false, yes: false },
   };
@@ -211,15 +213,23 @@ export function dirEdgeX(g: Game): number {
   return edge;
 }
 
-export function armA(g: Game): void {
-  g.aGate = { openedAt: g.clock, released: !g.app.input.held('A') };
+export const DECIDE_BEAT = 0.15;
+
+export function armA(g: Game, hold = 0): void {
+  g.aGate = { openedAt: g.clock, released: !g.app.input.held('A'), hold };
+}
+
+export function decisionReady(g: Game): boolean {
+  const gate = g.aGate;
+  if (gate.hold <= 0) {return true;}
+  return g.reveal.t >= g.reveal.dur && g.clock - gate.openedAt >= gate.hold;
 }
 
 export function takeA(g: Game): boolean {
   const { input } = g.app;
   const gate = g.aGate;
   if (!gate.released && (!input.held('A') || input.released('A'))) {gate.released = true;}
-  return gate.released && g.clock > gate.openedAt && input.pressed('A');
+  return gate.released && g.clock > gate.openedAt && decisionReady(g) && input.pressed('A');
 }
 
 export interface Arming { openedAt: number; delay: number }

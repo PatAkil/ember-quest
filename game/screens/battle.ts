@@ -11,10 +11,10 @@ import { MOTES_FLIGHT, deathFx, lastHitDelay, defeatFx, entranceFx, heroImpact, 
 import { enemyImpact, enemyWindup, reviveFx } from './battle-fx-enemy';
 import type { PopSpec } from './battle-fx';
 import { fxBreak, fxBurnTick, fxBurst, fxGuard, fxPhase, fxPotion, fxResist, fxRiposte, fxWeak } from './battle-fx-verbs';
-import { clampMenuCursor, menuChoice } from './battle-menu';
+import { clampMenuCursor, menuChoice, reopenMenu } from './battle-menu';
 import { fxSlipsAway, fxThorns } from './battle-fx-affix';
 import { clearPops, pushPop, scoreSpot } from '../pops';
-import { noteLog, noteVerb, recordBlow, recordBurn, recordThorns, resetDeath } from './battle-death';
+import { markResumed, noteLog, noteVerb, recordBlow, recordBurn, recordThorns, resetDeath } from './battle-death';
 
 function openBattle(g: Game, state: BattleState, win: BattleWin): void {
   const { magicCursor } = g.battle;
@@ -41,6 +41,7 @@ export function startBattle(g: Game, id: string, win: BattleWin, affixes: readon
 
 export function resumeBattle(g: Game, state: BattleState, win: BattleWin): void {
   openBattle(g, state, win);
+  markResumed(g);
   say(g, `THE FIGHT WITH ${state.enemy.def.name} GOES ON`, C_DIM);
 }
 
@@ -74,8 +75,7 @@ export function onQueueDone(g: Game): void {
     return;
   }
   b.phase = 'MENU';
-  armA(g);
-  clampMenuCursor(g);
+  reopenMenu(g);
 }
 
 const DEFEAT_HOLD = 1.0;
@@ -120,8 +120,7 @@ function withHead(head: string, text: string): string {
 
 function enemyLine(r: EnemyActResult): string {
   if (r.heroDead || r.revived) {return r.text;}
-  if (r.parried) {return r.dodged ? `DODGED AND PARRIED! ${PARRY_TAIL}` : `PARRIED FOR ${String(r.dmg)}! ${PARRY_TAIL}`;}
-  if (r.guarded && !r.dodged && r.dmg > 0) {return `YOU BRACE. THE BLOW GLANCES OFF FOR ${String(r.dmg)}!`;}
+  if (r.parried && r.dodged) {return `DODGED AND PARRIED! ${PARRY_TAIL}`;}
   return r.text;
 }
 

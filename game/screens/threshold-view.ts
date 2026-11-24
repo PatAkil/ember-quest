@@ -65,9 +65,13 @@ function drawBigChoices(ctx: Ctx, cursor: number, ready: boolean): void {
 
 const NUDGE_SHOWN = 1.2;
 
+export function choosePrompt(g: Game, refusedAt: number): Ink {
+  const nudged = refusedAt >= 0 && g.clock - refusedAt < NUDGE_SHOWN;
+  return nudged ? { text: 'CHOOSE: UP / DOWN', color: blinkHz(g.clock, 4) ? C_WARN : C_TEXT } : { text: 'UP/DOWN TO CHOOSE', color: C_ACCENT };
+}
+
 function unchosen(g: Game): Ink[] {
-  const nudged = g.threshold.refusedAt >= 0 && g.clock - g.threshold.refusedAt < NUDGE_SHOWN;
-  const prompt = nudged ? { text: 'CHOOSE: UP / DOWN', color: blinkHz(g.clock, 4) ? C_WARN : C_TEXT } : { text: 'UP/DOWN TO CHOOSE', color: C_ACCENT };
+  const prompt = choosePrompt(g, g.threshold.refusedAt);
   return [
     { text: 'TWO PATHS - NO TURNING BACK', color: C_TEXT },
     { text: 'UP: ASCEND ENDS THE RUN', color: C_DIM },

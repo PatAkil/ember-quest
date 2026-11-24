@@ -11,16 +11,18 @@ export const PACT_ARM = 0.5;
 interface ChoiceStep { cursor: number; chosen: boolean; refused: boolean }
 export const END_ARM = 1.0;
 
-const NO_CHOICE = -1;
+export const NO_CHOICE = -1;
 
-function nextChoice(cursor: number, dy: number, count: number): number {
-  if (cursor === NO_CHOICE) {return dy < 0 ? 0 : count - 1;}
+interface ChoiceArming extends Arming { entersAtTop?: boolean }
+
+function nextChoice(cursor: number, dy: number, count: number, entersAtTop: boolean): number {
+  if (cursor === NO_CHOICE) {return dy < 0 || entersAtTop ? 0 : count - 1;}
   return Math.min(count - 1, Math.max(0, cursor + dy));
 }
 
-export function stepChoice(g: Game, cursor: number, count: number, arming: Arming): ChoiceStep {
+export function stepChoice(g: Game, cursor: number, count: number, arming: ChoiceArming): ChoiceStep {
   const dy = dirEdge(g);
-  const next = dy ? nextChoice(cursor, dy, count) : cursor;
+  const next = dy ? nextChoice(cursor, dy, count, arming.entersAtTop === true) : cursor;
   if (next !== cursor) {g.app.audio.play('blip');}
   const taken = takeA(g);
   const chosen = taken && armed(g, arming) && next !== NO_CHOICE;

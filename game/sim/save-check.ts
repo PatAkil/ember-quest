@@ -18,7 +18,9 @@ export function list(value: unknown, what: string, max: number): unknown[] {
 
 export interface Bounds { lo: number; hi: number }
 
-export const SCALED: Bounds = { lo: 0, hi: Number.MAX_VALUE };
+const SCALE_CEILING = 1e60;
+
+export const SCALED: Bounds = { lo: 0, hi: SCALE_CEILING };
 
 export function num(value: unknown, what: string, bounds: Bounds): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < bounds.lo || value > bounds.hi) {fail(`${what}: bad number`);}

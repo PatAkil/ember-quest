@@ -2,12 +2,11 @@ import { SAFE_MARGIN, dimScene, drawText } from '../../engine';
 import type { AffixId } from '../types';
 import { AFFIX_IDS, PACTS, affixCountFor, depthOf, pactMods } from '../sim';
 import { renderTableau } from '../backdrop';
-import { at } from '../lookup';
 import { armed } from '../state';
 import type { Game } from '../state';
 import { BAND_Y, C_ACCENT, C_DIM, C_FAINT, C_GOOD, C_LOG_HURT, C_SEL_BAR, C_TEXT, C_WARN, W } from '../theme';
 import { drawCommandBand, wrap2 } from '../widgets';
-import { drawDetail, drawSkyCard, promptInk } from './threshold-view';
+import { choosePrompt, drawDetail, drawSkyCard, promptInk } from './threshold-view';
 import type { Ink } from './threshold-view';
 import { PACT_ARM } from './threshold';
 
@@ -66,19 +65,33 @@ function drawPactRows(g: Game, ctx: CanvasRenderingContext2D, ready: boolean): v
 export function renderPact(g: Game): void {
   const { pc } = g.app;
   const { ctx } = pc;
-  const { offers, cursor, openedAt } = g.pact;
+  const { openedAt } = g.pact;
   const ready = armed(g, { openedAt, delay: PACT_ARM });
-  const chosen = PACTS[at(offers, cursor)];
   renderTableau(g, false);
   dimScene(pc, 0.6);
   drawSkyCard(ctx, 'CHOOSE A PACT', depthLines(g));
   drawAffixLegend(g, ctx);
   drawCommandBand(ctx);
   drawPactRows(g, ctx, ready);
-  drawDetail(ctx, [
+  drawDetail(ctx, pactDetail(g, ready), DETAIL_X);
+}
+
+function pactDetail(g: Game, ready: boolean): Ink[] {
+  const { offers, cursor, refusedAt } = g.pact;
+  const id = offers[cursor];
+  if (id === undefined) {
+    return [
+      { text: 'A PACT BINDS YOU FOR GOOD', color: C_TEXT },
+      { text: 'EACH HAS A CURSE AND A BOON', color: C_DIM },
+      { text: '', color: C_TEXT },
+      choosePrompt(g, refusedAt),
+    ];
+  }
+  const chosen = PACTS[id];
+  return [
     { text: `CURSE: ${chosen.curse}`, color: C_LOG_HURT },
     { text: `BOON: ${chosen.boon}`, color: C_GOOD },
     { text: '', color: C_TEXT },
     promptInk(g, ready, 'SEAL THE PACT'),
-  ], DETAIL_X);
+  ];
 }

@@ -110,6 +110,7 @@ export function createInput(actions: ActionDecl[], opts: InputOptions = {}): Inp
     },
   };
 }
-export function controlHints(input: Input): string[] {
-  return input.actions.map((a) => `${BUTTON_KEY[a.button].hint} ${a.label.toUpperCase()}`);
+export function controlHints(input: Input, only?: readonly ButtonName[]): string[] {
+  const shown = only ? input.actions.filter((a) => only.includes(a.button)) : input.actions;
+  return shown.map((a) => `${BUTTON_KEY[a.button].hint} ${a.label.toUpperCase()}`);
 }

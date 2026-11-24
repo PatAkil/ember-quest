@@ -6,7 +6,7 @@ import { derive, effectIsGain, effectWords, eventOptionBlocker } from '../sim';
 import { renderTableau } from '../backdrop';
 import type { Game } from '../state';
 import { BAND_Y, C_ACCENT, C_BORDER, C_DIM, C_FAINT, C_GOOD, C_LOG_HURT, C_PANEL, C_SEL_BAR, C_TEXT, C_WARN, HERO_W, HERO_X, W } from '../theme';
-import { blinkHz, drawCommandBand, fitText } from '../widgets';
+import { blinkHz, decisionPromptColor, drawCommandBand, fitText } from '../widgets';
 
 const X0 = HERO_X + HERO_W / 2 + 12;
 const PW = W - SAFE_MARGIN - X0;
@@ -80,7 +80,7 @@ function promptInk(g: Game): Ink {
   const option = g.event.def.options[g.event.cursor];
   const why = option ? eventOptionBlocker(g.hero, option) : null;
   if (refused) {return { text: why ?? 'YOU CANNOT PAY THAT PRICE', color: blinkHz(g.clock, 4) ? C_WARN : C_TEXT };}
-  return { text: `${BUTTON_KEY.A.hint} CHOOSE`, color: blinkHz(g.clock, 1.2) ? C_TEXT : C_DIM };
+  return { text: `${BUTTON_KEY.A.hint} CHOOSE`, color: decisionPromptColor(g, C_TEXT) };
 }
 
 export function renderEvent(g: Game): void {

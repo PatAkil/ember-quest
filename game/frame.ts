@@ -104,8 +104,8 @@ export function update(g: Game, dt: number): void {
 const renderPlaying = (g: Game): void => { RENDER_SUB[g.subScene](g); drawReveal(g); };
 
 const renderPaused = (g: Game): void => { renderPlaying(g); renderPausedOverlay(g); };
-const renderGameOver = (g: Game): void => { renderPlaying(g); renderGameOverOverlay(g); };
-const renderWin = (g: Game): void => { renderPlaying(g); renderWinOverlay(g); };
+const renderGameOver = (g: Game): void => { renderGameOverOverlay(g); };
+const renderWin = (g: Game): void => { renderWinOverlay(g); };
 
 const RENDER_SCENE: Record<Scene, (g: Game) => void> = {
   TITLE: renderTitle,

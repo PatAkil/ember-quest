@@ -1,4 +1,5 @@
 import { BUTTON_KEY, PICO8, SAFE_MARGIN, controlHints, drawLogo, drawText, drawTextCentered, textWidth } from '../../engine';
+import type { ButtonName } from '../../engine';
 import { describeSave } from '../sim';
 import type { SavedRun } from '../sim';
 import { startFresh } from '../flow';
@@ -58,11 +59,18 @@ export function renderTitle(g: Game): void {
   const hintOpts = { color: C_DIM, shadow: true };
   if (g.resume) {drawResumeChoice(g, g.resume);} else {
     drawTextCentered(ctx, `PRESS ${BUTTON_KEY.A.hint} TO DESCEND`, { width: W, y: BAND_Y + 6 }, { color: blinkHz(g.clock, 1.2) ? C_ACCENT : C_TEXT, shadow: true });
-    drawTextCentered(ctx, 'ARROWS  UP DOWN LEFT RIGHT IN EVERY MENU', { width: W, y: BAND_Y + 18 }, hintOpts);
   }
-  drawTextCentered(ctx, controlHints(input).join('   '), { width: W, y: BAND_Y + 27 }, hintOpts);
+  const hints = titleHints(g, controlHints(input, TITLE_BUTTONS));
+  if (hints) {drawTextCentered(ctx, hints, { width: W, y: BAND_Y + 27 }, hintOpts);}
   drawBest(g);
   drawNotice(g);
+}
+
+const TITLE_BUTTONS: readonly ButtonName[] = ['A'];
+
+function titleHints(g: Game, declared: readonly string[]): string {
+  if (g.title.confirm) {return '';}
+  return (g.resume ? [...declared, 'UP DOWN CHOOSE'] : declared).join('   ');
 }
 
 const NOTICE_SHOWN = 2.5;

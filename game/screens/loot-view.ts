@@ -7,7 +7,7 @@ import { ICON_SCROLL, ROOM_ART } from '../sprites';
 import { renderTableau } from '../backdrop';
 import type { Game } from '../state';
 import { C_ACCENT, C_BORDER, C_DIM, C_HP, C_PANEL, C_SCROLL, C_SEL_BAR, C_TEXT, C_WARN, HERO_W, HERO_X, W, rarityColor } from '../theme';
-import { awakenWords, blinkHz, drawCommandBand, fitText, itemIcon } from '../widgets';
+import { awakenWords, decisionPromptColor, drawCommandBand, fitText, itemIcon } from '../widgets';
 import { drawCompare, drawItemCard } from './compare-view';
 import type { CardLine, CardText } from './compare-view';
 import { choosesStow } from './loot';
@@ -33,13 +33,24 @@ function lootTitle(g: Game): string {
   return g.loot.gift ? GIFT_TITLE : TITLE[g.loot.source];
 }
 
-interface OfferFace { icon: Sprite; name: string; color: string; hint: string; tag: string; tagColor: string }
+interface OfferFace { icon: Sprite; name: string; color: string; hint: string | readonly string[]; tag: string; tagColor: string }
+
+function wornHints(g: Game, offer: Extract<LootOffer, { kind: 'ITEM' }>): string | readonly string[] {
+  const owned = g.hero.equipment[offer.item.slot];
+  if (!owned) {return 'EMPTY SLOT';}
+  const worn = displayName(owned, itemLevel(g.hero, offer.item.slot));
+  const stowing = g.loot.stow && g.loot.offers[g.loot.cursor] === offer;
+  return stowing ? [`STILL WORN: ${worn}`, `WORN: ${worn}`] : [`REPLACES ${worn}`, `WORN: ${worn}`, `FOR ${worn}`];
+}
 
 function itemFace(g: Game, offer: Extract<LootOffer, { kind: 'ITEM' }>): OfferFace {
   const item = offer.item;
-  const owned = g.hero.equipment[item.slot];
-  const hint = owned ? displayName(owned, itemLevel(g.hero, item.slot)) : 'EMPTY SLOT';
-  return { icon: itemIcon(item), name: item.name, color: rarityColor(item), hint, tag: item.rarity, tagColor: rarityColor(item) };
+  return { icon: itemIcon(item), name: item.name, color: rarityColor(item), hint: wornHints(g, offer), tag: item.rarity, tagColor: rarityColor(item) };
+}
+
+function firstFitting(hint: string | readonly string[], maxW: number): string {
+  if (typeof hint === 'string') {return hint;}
+  return hint.find((text) => textWidth(text, 1) <= maxW) ?? hint[hint.length - 1] ?? '';
 }
 
 function offerFace(g: Game, offer: LootOffer): OfferFace {
@@ -66,7 +77,8 @@ function drawOfferRow(row: Row, face: OfferFace): void {
   drawSprite(row.ctx, face.icon, { x: ICON_X, y: row.y + 1 }, 1);
   fitText(row.ctx, face.name, { x: NAME_X, y: row.y + 1, maxW: TAG_RIGHT - NAME_X }, { color: face.color, shadow: row.sel });
   const tagX = drawRight(row, face.tag, face.tagColor);
-  fitText(row.ctx, face.hint, { x: NAME_X, y: row.y + 8, maxW: tagX - 4 - NAME_X }, { color: C_DIM });
+  const maxW = tagX - 4 - NAME_X;
+  fitText(row.ctx, firstFitting(face.hint, maxW), { x: NAME_X, y: row.y + 8, maxW }, { color: C_DIM });
 }
 
 function drawKeepRow(row: Row, ash: boolean): void {
@@ -148,7 +160,7 @@ function drawPrompt(g: Game, y: number): void {
   const toggle = choosesStow(g, g.loot.offers[g.loot.cursor]);
   const full = toggle ? textWidth(text, 1) + TOGGLE_GAP + textWidth(TOGGLE_HINT, 1) : textWidth(text, 1);
   const x = Math.round(X0 + (PW - full) / 2);
-  drawText(ctx, text, { x, y }, { color: blinkHz(g.clock, 1.2) ? C_TEXT : C_DIM });
+  drawText(ctx, text, { x, y }, { color: decisionPromptColor(g, C_TEXT) });
   if (toggle) {drawText(ctx, TOGGLE_HINT, { x: x + full - textWidth(TOGGLE_HINT, 1), y }, { color: C_ACCENT });}
 }
 

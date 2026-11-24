@@ -1,11 +1,12 @@
-import { armA, dirEdge, resetCursorEdge, takeA, wrapCursor } from '../state';
+import { dirEdge, resetCursorEdge, takeA, wrapCursor } from '../state';
+import { armDecision } from '../transition';
 import type { Game, PickScreen } from '../state';
 
 export function openPick(g: Game, screen: PickScreen): void {
   g.pick = screen;
   g.subScene = 'PICK';
   resetCursorEdge(g);
-  armA(g);
+  armDecision(g);
 }
 
 export function updatePick(g: Game): void {

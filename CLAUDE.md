@@ -122,7 +122,7 @@ ember-quest/
 │   ├── look.mjs              # npm run look — state JSON + errors + one screenshot
 │   ├── verify.mjs            # npm run verify — every gate, one line each
 │   ├── rules.mjs             # npm run rules — node:assert invariants against the rules bundle
-│   ├── rules-*.mjs           #   its suites: affixes, depth, descent, events, foe, items, pacts, save, turn, verbs
+│   ├── rules-*.mjs           #   its suites: affixes, descent, events, foe, guards, items, pacts, replay, save, verbs
 │   ├── oracle.mjs            # behaviour-preservation proof for refactors
 │   ├── oracle-comment.mjs    # CI: turns the PR-vs-base oracle into one sticky PR comment
 │   ├── agent-feedback.mjs    # the hook entry: per-edit check, end-of-turn gate, pre-commit gate (npm run gate)
@@ -133,7 +133,7 @@ ember-quest/
 ├── eslint.config.mjs, knip.config.js, .jscpd.json, .dependency-cruiser.cjs   # the lint suite
 ├── sim/run.mjs               # balance simulator runner (npm run sim)
 ├── sim/bundle.mjs            # esbuild bundling of game/sim.ts, shared by sim/run.mjs and scripts/rules.mjs
-├── sim/*-report.mjs          # the simulator's report sections: boss, descent, events, items
+├── sim/*-report.mjs          # the simulator's report sections: descent, items
 ├── smoke.mjs                 # headless boot gate (npm run smoke): boot, then a seeded fight won while hurt (no drift, no page error)
 ├── index.html                # arcade shell; game mounts into #screen
 ├── .github/workflows/pages.yml   # PR = full gates + pixel report (a PR comment with before/after shots; images live on the `oracle-screens` branch); push to main = gates, then deploy
@@ -222,7 +222,7 @@ marked by `g.rngFromHook`, always wins); `?scene=<name>&act=<1..4>&depth=<1..10>
 deterministic fixture (seed defaults to 1) at stage `n = 4(depth − 1) + act − 1`; below depth 1
 the fixture holds the depth plan, `won`, the banked score and one pact per depth entered;
 `threshold` stops on the THRESHOLD after the depth's last boss, `win` ascends from it, and `pact`
-descends into `depth` (from the depth above it); `battle-hollow` fights THE HOLLOW as the act's
+descends into `depth` (from the depth above it; pact fixtures exist for depths 2–9 — at depth 10 every pact is already sworn, so it stops on the depth card, which `look` then expects); `battle-hollow` fights THE HOLLOW as the act's
 boss, `map-long` regenerates the act's map with 8 stages, `battle-affix` gives the foe THORNED,
 VAMPIRIC and SWIFT, `title-continue` shows the title with an in-memory save of that stage (never localStorage), `paused-abandon` stops on `REALLY ABANDON?`; the hook never loads, writes or deletes the player's saved run; `&hold=1` also seeds `Math.random` (ambient,
 shake) and stops the rAF loop from ticking or drawing, so frames advance only through
@@ -345,7 +345,7 @@ a zero or negative size draws nothing.
 | Module | Key exports | Purpose |
 |---|---|---|
 | loop.ts | `createLoop({update, render}, {step?, maxFrame?})` → `.start()/.stop()/.running` | Fixed-timestep accumulator (`step` 1/60 s); frame-delta clamp `maxFrame` 0.25 s; throws `RangeError` when either is not a positive finite number. Pauses on blur / hidden tab (keeps calling `render(0)`), resets the clock on focus |
-| input.ts | `createInput(actions, {onFirstKey, target})`, `controlHints(input)`, `BUTTON_KEY`; types `Input`, `InputOptions`, `ButtonName`, `ActionDecl` | Arrows/WASD → `input.dir`; `pressedDir()` → `{x, y}` of direction keys pressed since the last `endFrame()` (latched like `pressed`, so a tap released before the tick still counts; key repeat ignored); buttons A = Space/Z, B = X/C, PAUSE = P/Esc (dedicated, aliased — down while ≥1 alias down); `pressed/held/released`, `endFrame()` per tick, `actions`, `dispose()`; labels declared in code |
+| input.ts | `createInput(actions, {onFirstKey, target})`, `controlHints(input, only?)`, `BUTTON_KEY`; types `Input`, `InputOptions`, `ButtonName`, `ActionDecl` | Arrows/WASD → `input.dir`; `pressedDir()` → `{x, y}` of direction keys pressed since the last `endFrame()` (latched like `pressed`, so a tap released before the tick still counts; key repeat ignored); buttons A = Space/Z, B = X/C, PAUSE = P/Esc (dedicated, aliased — down while ≥1 alias down); `pressed/held/released`, `endFrame()` per tick, `actions`, `dispose()`; labels declared in code; `controlHints` lists every declared action, or only the buttons in `only` (a screen shows just what works there) |
 | scenes.ts | `createScenes(initial = 'TITLE', {onIllegal})` → `.current/.is/.to/.onEnter`; type `SceneMachine` | Enforced machine `TITLE → PLAYING ⇄ PAUSED → (GAME_OVER \| WIN) → restart`; `PLAYING → PLAYING`, `PAUSED → TITLE` and `PAUSED → GAME_OVER` (abandoning from the pause menu) allowed. `to()` returns `false` on an illegal move and calls `onIllegal(from, to)` if given — it never writes to the console |
 | canvas.ts | `createPixelCanvas({width, height, scale = 3, parent})` → `{canvas, ctx, width, height, scale, resize(scale), clear(color)}`; `fitDisplay(logical, area, maxBacking = 6)` → `{backing, display}`; `autoFit(pc, available, maxBacking = 6)` → detach; types `PixelCanvas`, `FitArea`, `DisplayFit` | Pixel-scaled canvas, smoothing off, scale baked into the transform; throws when `parent` is `null`, and a `RangeError` when a scale is not a positive integer (no silent flooring). `width/height` stay logical; `resize` re-creates the backing store at `width*scale × height*scale` and re-applies transform + smoothing — call it outside a frame. `fitDisplay` picks the displayed size in CSS px per logical px for `area` (no devicePixelRatio): the largest whole number down to 1, the backing equal to it up to `maxBacking`; above the cap a whole-number CSS enlargement of a backing in `[ceil(cap/2), cap]` (largest product, then largest backing: 13 → 6×2, 8 → 4×2, 7 → 6×1); below 1 (area under the logical size) backing 1 and a fractional CSS shrink so nothing clips. `autoFit` applies it now and on every window `resize` (backing via `resize`, display via the canvas's CSS width/height); detach removes the listener and the CSS size |
 | sprite.ts | `makeSprite(rows, map, {outline, flipX})`, `flipSprite`, `rotateSprite(sprite, radians)`, `drawSprite(ctx, sprite, {x, y}, px \| {px, tint, tintKeep, dissolve, fringe, fall, seed} = 1)`; types `Sprite`, `SpriteMap`, `SpriteDrawOptions` | ASCII-art sprites; `.`/space/unmapped chars are transparent. `outline` bakes a 1-cell keyline (sprite grows 1 cell per side — use the inner size for hitboxes). `rotateSprite` returns a new nearest-neighbour rotated sprite on a grown canvas. `drawSprite` takes a number (cell size) or `SpriteDrawOptions`: `px` cell size (1), `tint` one colour for every cell (hit flash), `tintKeep` a colour whose cells keep their own ink while tinted (the black keyline), `dissolve` 0..1 eats cells in a seeded order, top rows first, the last quarter of each cell's life drawn in `fringe` and dropped up to `fall` cells (eased), `seed` the dissolve pattern |

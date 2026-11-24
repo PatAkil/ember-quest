@@ -174,7 +174,7 @@ export function appliedWords(applied: AppliedEffect): string {
 const GAIN: EventTable<boolean> = {
   hpPct: (e) => e.amount > 0,
   maxHp: (e) => e.amount > 0,
-  sp: () => true,
+  sp: (e) => e.amount > 0,
   item: () => true,
   upgradeAny: () => true,
   burnNextFight: () => false,

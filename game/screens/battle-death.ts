@@ -11,6 +11,8 @@ const MOVE_WORD: Record<MoveId, string> = {
 
 export function resetDeath(g: Game): void { g.death = emptyDeath(); }
 
+export function markResumed(g: Game): void { g.death.resumed = true; }
+
 export function noteLog(g: Game, text: string): void {
   const lines = g.death.lastLines;
   if (!text || lines.at(-1) === text) {return;}
@@ -41,6 +43,7 @@ function record(g: Game, e: EnemyInstance, fall: Fall): void {
     ...fall,
     guarded: fall.guarded ?? false,
     used: g.death.used,
+    resumed: g.death.resumed,
     killerId: e.def.id,
     killerName: killerName(e),
     elite: e.def.kind === 'ELITE',

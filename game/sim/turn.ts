@@ -51,3 +51,12 @@ export function resolveTurn(hero: Hero, battle: BattleState, action: HeroAction,
   const cause = foeCause(enemy);
   return { turn, action, start, hero: heroResult, enemy, outcome: outcomeOf(cause), cause };
 }
+
+const EVEN: Rng = () => 0.5;
+
+export function expectedPreBlowLoss(hero: Hero, battle: BattleState, action: HeroAction = 'GUARD'): number {
+  const shadow: Hero = { ...hero, burn: hero.burn ? { ...hero.burn } : null };
+  startTurn(shadow, action);
+  heroAct(shadow, { ...battle, enemy: { ...battle.enemy } }, action, EVEN);
+  return hero.hp - shadow.hp;
+}

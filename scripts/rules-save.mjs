@@ -207,7 +207,7 @@ function fuzz(sim) {
   return `${SAMPLE_MUTATIONS} random field mutations: loadRun never throws; ${accepted} accepted ones restore and pass the sanity checks`;
 }
 
-function deepSave(sim) {
+function deepSnapshot(sim) {
   const depth = sim.depthOf(sim.SIM_MAX_N - 3);
   const { snapshot, plan } = liveRun(sim, depth);
   const n = sim.SIM_MAX_N - 3;
@@ -219,10 +219,34 @@ function deepSave(sim) {
   battle.foe = { ...fields, id: def.id, burn: { perTurn: foe.maxHp / 10, turns: 2 } };
   battle.state.foeMark = foe.hp;
   snapshot.hero.burn = { perTurn: Math.round(foe.atk * 0.4), turns: 2 };
-  const loaded = sim.loadRun(sim.saveRun(snapshot));
+  return { snapshot, foe, n };
+}
+
+const SCALED_FIELDS = {
+  'foe maxHp': (d) => { d.step.battle.foe.maxHp = 1e308; },
+  'foe hp': (d) => { d.step.battle.foe.hp = 1e308; },
+  'foe atk': (d) => { d.step.battle.foe.atk = 1e308; },
+  'foe burn': (d) => { d.step.battle.foe.burn.perTurn = 1e308; },
+  foeMark: (d) => { d.step.battle.state.foeMark = 1e308; },
+  'hero burn': (d) => { d.hero.burn.perTurn = 1e308; },
+};
+
+function scaledCeiling(sim, text) {
+  for (const [what, edit] of Object.entries(SCALED_FIELDS)) {
+    assert.equal(sim.loadRun(corrupt(text, edit)), null, `${what} = 1e308 was accepted`);
+  }
+  return Object.keys(SCALED_FIELDS).length;
+}
+
+function deepSave(sim) {
+  const { snapshot, foe, n } = deepSnapshot(sim);
+  const battle = snapshot.step.battle;
+  const text = sim.saveRun(snapshot);
+  const loaded = sim.loadRun(text);
   assert.ok(loaded, `a mid-battle save at n = ${n} (foe HP ${foe.maxHp.toExponential(1)}) was rejected`);
   assert.deepEqual(sim.fromSaved(loaded).step.battle.foe, battle.foe, 'the deep foe did not round-trip');
-  return `a mid-battle save at n = ${n} against a ${def.id} of HP ${foe.maxHp.toExponential(1)} round-trips`;
+  const capped = scaledCeiling(sim, text);
+  return `a mid-battle save at n = ${n} against a ${foe.def.id} of HP ${foe.maxHp.toExponential(1)} round-trips; 1e308 in each of its ${String(capped)} scaled fields (foe HP/max HP/ATK/burn, foeMark, hero burn) is rejected (cap 1e60)`;
 }
 
 export function saveRules(sim) {

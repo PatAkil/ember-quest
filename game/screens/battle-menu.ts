@@ -1,7 +1,7 @@
 import type { HeroAction, HeroCommand, SpellId } from '../types';
 import { canAfford, knownSpells } from '../sim';
 import { showNote } from '../fx';
-import { dirEdge, dirEdgeX } from '../state';
+import { DECIDE_BEAT, armA, dirEdge, dirEdgeX } from '../state';
 import type { Game } from '../state';
 import type { TopCommand } from './battle-preview';
 
@@ -123,4 +123,14 @@ export function clampMenuCursor(g: Game): void {
   b.topCursor = Math.min(Math.max(0, b.topCursor), TOP_COMMANDS.length - 1);
   b.magicCursor = Math.min(Math.max(0, b.magicCursor), Math.max(0, knownSpells(g.hero).length - 1));
   syncCursor(g);
+}
+
+const ONE_SHOT: ReadonlySet<TopCommand> = new Set<TopCommand>(['POTION', 'BURST']);
+
+export function reopenMenu(g: Game): void {
+  const b = g.battle;
+  b.menu = 'TOP';
+  if (ONE_SHOT.has(TOP_COMMANDS[b.topCursor] ?? 'ATTACK')) {b.topCursor = 0;}
+  clampMenuCursor(g);
+  armA(g, TOP_COMMANDS[b.topCursor] === 'MAGIC' ? DECIDE_BEAT : 0);
 }

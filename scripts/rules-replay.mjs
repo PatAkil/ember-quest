@@ -127,20 +127,27 @@ function randomFoe(sim, rng) {
 function randomFight(sim, rng) {
   const hero = randomHero(sim, rng);
   const battle = sim.createBattle(randomFoe(sim, rng));
-  Object.assign(battle, { riposte: rng() < 0.3, actionsTaken: intBelow(3, rng), rampStacks: intBelow(4, rng), guardChain: intBelow(3, rng) });
+  Object.assign(battle, { riposte: rng() < 0.3, actionsTaken: intBelow(3, rng), rampStacks: intBelow(4, rng), guardChain: intBelow(3, rng), calm: sim.ENRAGE_AFTER - 1 + intBelow(3, rng) });
+  if (rng() < 0.3) {hero.burn = { perTurn: 1 + intBelow(30, rng), turns: 1 + intBelow(3, rng) };}
   return { hero, battle };
 }
 
 const total = (r) => r.hits.reduce((s, h) => s + h.dmg, 0);
 const copy = (f) => structuredClone(f);
 
+function startedCopy(sim, fight, action) {
+  const f = copy(fight);
+  sim.startTurn(f.hero, action);
+  return f;
+}
+
 function heroCheck(sim, fight, action, rng) {
   const est = sim.expectedHeroDamage(fight.hero, fight.battle, action);
   assert.ok(Number.isFinite(est) && est >= 0, `${action}: estimate ${est}`);
-  const exact = copy(fight);
+  const exact = startedCopy(sim, fight, action);
   const plain = sim.heroAct(exact.hero, exact.battle, action, HALF);
   if (!plain.crit && !plain.missed) {assert.equal(total(plain), est, `${action} vs ${fight.battle.enemy.def.id}: no variance, estimate ${est} but dealt ${total(plain)}`);}
-  const rolled = copy(fight);
+  const rolled = startedCopy(sim, fight, action);
   const d = sim.derive(rolled.hero);
   const r = sim.heroAct(rolled.hero, rolled.battle, action, rng);
   if (r.missed) {return 0;}
@@ -181,6 +188,30 @@ function heavyParry(sim) {
   assert.deepEqual(sim.expectedFoeDamage(hero, battle), { unguarded: 0, guarded: 0 }, 'a staggered foe shows no damage');
 }
 
+const GUARD_TURNS = 6000;
+
+function guardTurn(sim, rng, tally) {
+  const { hero, battle } = randomFight(sim, rng);
+  const hp = hero.hp;
+  const guarded = sim.expectedFoeDamage(hero, battle).guarded;
+  const pre = sim.expectedPreBlowLoss(hero, battle);
+  const r = sim.resolveTurn(hero, battle, 'GUARD', intBelow(2 ** 31, rng));
+  const atBlow = hp - (r.start.bloodLoss - r.start.hpRegen) - r.hero.burnTick;
+  if (!r.hero.revived) {assert.equal(pre, hp - Math.max(0, atBlow), `${battle.enemy.def.id}: pre-blow loss ${pre} but the hero stood at ${atBlow} of ${hp}`);}
+  if (r.cause !== 'BLOW') {return;}
+  tally.deaths += 1;
+  if (guarded + pre >= hp) {tally.warned += 1;}
+  assert.ok(Math.ceil(guarded * 1.1) + 1 + pre >= hp, `${battle.enemy.def.id}: an unwarned guarded death (hp ${hp}, guarded ${guarded}, pre-blow ${pre}, took ${r.enemy.dmg})`);
+}
+
+function guardDeaths(sim) {
+  const rng = sim.createSeededRng(977).next;
+  const tally = { deaths: 0, warned: 0 };
+  for (let i = 0; i < GUARD_TURNS; i++) {guardTurn(sim, rng, tally);}
+  assert.ok(tally.deaths > 50, `only ${String(tally.deaths)} guarded deaths sampled`);
+  return tally;
+}
+
 export function estimateRules(sim) {
   const rng = sim.createSeededRng(41).next;
   let rolls = 0;
@@ -192,5 +223,6 @@ export function estimateRules(sim) {
     foeCheck(sim, fight, rng);
   }
   heavyParry(sim);
-  return `${FIGHTS} random fights: expectedHeroDamage equals the hit without variance and brackets ${rolls} real rolls; expectedFoeDamage open/guarded likewise, a parried HEAVY halved`;
+  const t = guardDeaths(sim);
+  return `${FIGHTS} random fights (enrage edge, burning heroes): expectedHeroDamage equals the hit after turn-start regen/BLOOD and brackets ${rolls} real rolls; expectedFoeDamage open/guarded likewise (enrage included), a parried HEAVY halved; ${GUARD_TURNS} GUARD turns: expectedPreBlowLoss exact, ${String(t.deaths)} guarded deaths all within jitter of guarded + pre-blow loss (${String(t.warned)} exactly warned)`;
 }

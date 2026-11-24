@@ -41,12 +41,19 @@ const LANDS_ON = {
   title: { scene: 'TITLE' }, 'title-continue': { scene: 'TITLE' }, map: PLAYING('MAP'), 'map-long': PLAYING('MAP'),
   battle: FIGHT, 'battle-heavy': FIGHT, 'battle-magic': FIGHT, 'battle-ward': FIGHT, 'battle-phase': FIGHT, 'battle-hollow': FIGHT, 'battle-affix': FIGHT,
   levelup: PLAYING('LEVELUP'), loot: PLAYING('LOOT'), card: PLAYING('CARD'), gear: PLAYING('GEAR'), pick: PLAYING('PICK'), drop: PLAYING('PICK'),
-  event: PLAYING('EVENT'), threshold: PLAYING('THRESHOLD'), pact: PLAYING('PACT'),
+  event: PLAYING('EVENT'), threshold: PLAYING('THRESHOLD'),
   paused: { scene: 'PAUSED' }, 'paused-abandon': { scene: 'PAUSED' }, gameover: { scene: 'GAME_OVER' }, win: { scene: 'WIN' },
 };
 
+const LAST_PACT_DEPTH = 9;
+const pactLanding = () => (Number(opts.depth ?? 1) > LAST_PACT_DEPTH ? PLAYING('CARD') : PLAYING('PACT'));
+
+function landingFor(scene) {
+  return scene === 'pact' ? pactLanding() : LANDS_ON[scene];
+}
+
 function missedLanding(state) {
-  const want = opts.scene && !keys.length ? LANDS_ON[opts.scene] : undefined;
+  const want = opts.scene && !keys.length ? landingFor(opts.scene) : undefined;
   if (!want || !state) {return null;}
   const got = { scene: state.scene, subScene: state.subScene };
   const same = got.scene === want.scene && (want.subScene === undefined || got.subScene === want.subScene);

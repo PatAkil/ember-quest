@@ -1,7 +1,7 @@
 import { BREAK_AT, BURST_MULT, EMBER_MAX, GUARD_MP_GAIN, POTION_HEAL } from '../types';
 import type { BattleState, DamageKind, Derived, EnemyInstance, Hero, MoveId, SpellId } from '../types';
 import { SPELLS } from '../data';
-import { burstPower, canAfford, derive, elementMult, expectedFoeDamage, expectedHeroDamage, heroElement, knownSpells, pendingTick, punishes, resistOf, riposteMult, spellCost } from '../sim';
+import { burstPower, canAfford, derive, elementMult, expectedFoeDamage, expectedHeroDamage, expectedPreBlowLoss, heroElement, knownSpells, pendingTick, punishes, resistOf, riposteMult, spellCost } from '../sim';
 import type { Game } from '../state';
 import { C_ACCENT, C_DIM, C_EMBER, C_GOOD, C_HEX, C_LOG_HURT, C_TEXT, C_WARD, C_WARN } from '../theme';
 import { hasHex, magicWeapon } from './battle-fx';
@@ -104,11 +104,17 @@ function strikeHead(st: Strike): string {
   return `${st.stat} X${st.mult.toFixed(1)}${hits}`;
 }
 
+const canBreak = (c: Ctx, st: Strike): boolean => st.elem > 1 || punishes(c.hero);
+
+function strikeBreaks(c: Ctx, a: 'ATTACK' | SpellId): boolean {
+  return canBreak(c, strikeOf(c.hero, c.d, a, c.e)) && expectedHeroDamage(c.hero, c.state, a) >= breakNeed(c.e);
+}
+
 function strikePreview(c: Ctx, a: 'ATTACK' | SpellId): PreviewLine[] {
   const st = strikeOf(c.hero, c.d, a, c.e);
   const total = expectedHeroDamage(c.hero, c.state, a);
   const riposteText = `RIPOSTE X${riposteMult(c.hero).toFixed(1)}`;
-  const third = breakLine(c, total, st.elem > 1 || punishes(c.hero)) ?? (c.state.riposte ? [{ text: riposteText, color: C_ACCENT }] : []);
+  const third = breakLine(c, total, canBreak(c, st)) ?? (c.state.riposte ? [{ text: riposteText, color: C_ACCENT }] : []);
   return [[dmgSeg(total), { text: strikeHead(st), color: C_DIM }], resistSegs(c, st), third];
 }
 
@@ -139,13 +145,14 @@ function spellPreview(c: Ctx, id: SpellId): PreviewLine[] {
 
 const line = (text: string, color: string): PreviewLine => [{ text, color }];
 
+const hpWhenStruck = (c: Ctx): number => c.hero.hp - expectedPreBlowLoss(c.hero, c.state, 'GUARD');
+
+const guardLethal = (c: Ctx): boolean => expectedFoeDamage(c.hero, c.state).guarded >= hpWhenStruck(c);
+
 function takeLine(c: Ctx): PreviewLine {
   const blow = expectedFoeDamage(c.hero, c.state);
-  const lethal = blow.guarded >= c.hero.hp;
-  return line(`TAKE ~${String(blow.guarded)} OF ${String(blow.unguarded)}`, lethal ? C_LOG_HURT : C_TEXT);
+  return line(`TAKE ~${String(blow.guarded)} OF ${String(blow.unguarded)}`, guardLethal(c) ? C_LOG_HURT : C_TEXT);
 }
-
-const guardLethal = (c: Ctx): boolean => expectedFoeDamage(c.hero, c.state).guarded >= c.hero.hp;
 
 function guardLines(c: Ctx): PreviewLine[] {
   if (c.heavy) {return [line('PARRY THE HEAVY BLOW', C_ACCENT), takeLine(c), line(`NEXT HIT X${riposteMult(c.hero).toFixed(1)}`, C_ACCENT)];}
@@ -238,4 +245,34 @@ export function previewSpell(g: Game, id: SpellId): PreviewLine[] {
   const heal = SPELLS[id].heal;
   const lines = spellPreview(c, id);
   return heal === undefined ? lethalOnly(c, lines) : withBurn(lines, burnAfter(c, healOf(c, heal)));
+}
+
+interface BreakNote { note: string; noteColor: string }
+
+const BREAKS_NOTE: BreakNote = { note: 'BREAKS', noteColor: C_ACCENT };
+const NO_BREAK_NOTE: BreakNote = { note: 'NO BRK', noteColor: C_WARN };
+
+function spellsBreak(c: Ctx): boolean | null {
+  if (knownSpells(c.hero).length === 0) {return null;}
+  return knownSpells(c.hero).some((id) => strikesWithSpell(id) && canAfford(c.hero, id) && strikeBreaks(c, id));
+}
+
+function burstBreaks(c: Ctx): boolean | null {
+  if (c.hero.ember < EMBER_MAX) {return null;}
+  return expectedHeroDamage(c.hero, c.state, 'BURST') >= breakNeed(c.e);
+}
+
+const BREAK_CHECK: Partial<Record<TopCommand, (c: Ctx) => boolean | null>> = {
+  ATTACK: (c) => strikeBreaks(c, 'ATTACK'),
+  MAGIC: spellsBreak,
+  BURST: burstBreaks,
+};
+
+export function breakNote(g: Game, cmd: TopCommand): BreakNote | null {
+  const c = context(g);
+  const check = BREAK_CHECK[cmd];
+  if (!c?.heavy || !check) {return null;}
+  const verdict = check(c);
+  if (verdict === null) {return null;}
+  return verdict ? BREAKS_NOTE : NO_BREAK_NOTE;
 }

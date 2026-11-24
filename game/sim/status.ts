@@ -128,4 +128,10 @@ export function heroBurnTick(hero: Hero): HeroTick {
 
 export const foeBurnTick = (enemy: EnemyInstance): number => tickBurn(enemy);
 
+export function atTurnStart(hero: Hero, action: HeroAction): Hero {
+  const ready: Hero = { ...hero };
+  startTurn(ready, action);
+  return ready;
+}
+
 export const pendingTick = (hero: Hero): number => hero.burn?.perTurn ?? 0;

@@ -57,7 +57,7 @@ jobs:
             sim=$(grep -E '^INFO +sim:full ' "$log" | sed -E 's/^INFO +sim:full +[0-9.]+s +//')
             echo "Simulator win rates (full run, informational): ${sim:-not reported}"
             echo
-            echo "Screenshots of all nine screens: the \`look-screens\` artifact of this run."
+            echo "Screenshots of every scene: the \`look-screens\` artifact of this run."
             if grep -q '^FAIL  ' "$log"; then
               echo
               echo '<details open><summary>verify output</summary>'

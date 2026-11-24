@@ -6,7 +6,8 @@ import {
 } from '../sim';
 import type { AppliedEffect } from '../sim';
 import { heroPos, rarityColor } from '../theme';
-import { armA, dirEdge, resetCursorEdge, takeA, wrapCursor } from '../state';
+import { dirEdge, resetCursorEdge, takeA, wrapCursor } from '../state';
+import { armDecision } from '../transition';
 import { persistEvent, persistReward, settleRoom } from '../persist';
 import type { Game, PickRow } from '../state';
 import { noop } from '../lookup';
@@ -33,7 +34,7 @@ export function startEvent(g: Game, onDone: () => void, given?: EventDef): void 
 function backToEvent(g: Game): void {
   g.subScene = 'EVENT';
   resetCursorEdge(g);
-  armA(g);
+  armDecision(g);
 }
 
 interface Burst { color: string; sfx: 'hit' | 'pickup' | 'whoosh'; flash: boolean }
@@ -122,7 +123,7 @@ export function offerGift(g: Game, rarity: Rarity, done: () => void): void {
   g.loot = { offers: [{ kind: 'ITEM', item }], source: 'LOOT', cursor: 0, stow: false, gift: true, onDone: done, settle: () => { settleRoom(g); } };
   g.subScene = 'LOOT';
   resetCursorEdge(g);
-  armA(g);
+  armDecision(g);
 }
 
 function choose(g: Game, option: EventOption): void {

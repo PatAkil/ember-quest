@@ -1,7 +1,8 @@
 import { BUTTON_KEY, SAFE_MARGIN, drawPanel, drawSprite, drawText, textWidth } from '../../engine';
 import { renderTableau } from '../backdrop';
+import { decisionReady } from '../state';
 import type { Game, PickRow } from '../state';
-import { C_ACCENT, C_BORDER, C_DIM, C_PANEL, C_SEL_BAR, C_TEXT, HERO_W, HERO_X, W } from '../theme';
+import { C_ACCENT, C_BORDER, C_DIM, C_FAINT, C_PANEL, C_SEL_BAR, C_TEXT, HERO_W, HERO_X, W } from '../theme';
 import { drawCommandBand, fitText } from '../widgets';
 import { ICON_EMPTY } from '../sprites';
 import { drawItemCard } from './compare-view';
@@ -63,6 +64,6 @@ export function renderPick(g: Game): void {
   });
   drawScrollHints(ctx, { first, shown: shown.length, total: pick.rows.length, promptY });
   const prompt = pick.locked ? `${BUTTON_KEY.A.hint} PICK  YOU MUST CHOOSE` : `${BUTTON_KEY.A.hint} PICK  ${BUTTON_KEY.B.hint} BACK`;
-  drawText(ctx, prompt, { x: Math.round(X0 + (PW - textWidth(prompt, 1)) / 2), y: promptY }, { color: C_DIM });
+  drawText(ctx, prompt, { x: Math.round(X0 + (PW - textWidth(prompt, 1)) / 2), y: promptY }, { color: decisionReady(g) ? C_DIM : C_FAINT });
   drawBand(ctx, pick.rows[pick.cursor]);
 }
