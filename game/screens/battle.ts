@@ -13,6 +13,7 @@ import { fxBreak, fxBurnTick, fxBurst, fxGuard, fxPhase, fxPotion, fxResist, fxR
 import { clampMenuCursor, menuChoice } from './battle-menu';
 import { fxSlipsAway, fxThorns } from './battle-fx-affix';
 import { clearPops, pushPop, scoreSpot } from '../pops';
+import { noteLog, recordBlow, recordThorns, recordTurnDeath, resetDeath } from './battle-death';
 
 export function startBattle(g: Game, id: string, onWin: () => void, affixes: readonly AffixId[] = []): void {
   const enemy = spawnFoe(id, { ...foeScale(g), hero: g.hero, affixes });
@@ -23,6 +24,7 @@ export function startBattle(g: Game, id: string, onWin: () => void, affixes: rea
     queue: [], timer: 0, text: '', color: C_TEXT, bufferedA: false,
   };
   g.subScene = 'BATTLE';
+  resetDeath(g);
   clearPops(g);
   resetFx(g);
   clampMenuCursor(g);
@@ -126,7 +128,8 @@ export function applyEnemyAction(g: Game): void {
   say(g, enemyLine(r), enemyLineColor(r));
   enemyImpact(g, r);
   g.fx.guardSpent = true;
-  if (r.heroDead) { heroDies(g, r.text); return; }
+  if (r.heroDead) { recordBlow(g, enemy, r); heroDies(g, r.text); return; }
+  noteLog(g, enemyLine(r));
   if (r.enemyDefeated) { enemyDefeated(g, enemy); return; }
   if (r.phaseChanged) {cue(g, PHASE_DELAY, () => { fxPhase(g, enemy); });}
 }
@@ -152,6 +155,7 @@ function heroHold(action: HeroAction, r: HeroActResult): number {
 }
 
 function sayHeroResult(g: Game, r: HeroActResult, riposte: boolean): void {
+  if (!r.heroDead) {noteLog(g, riposte ? withHead('RIPOSTE! ', r.text) : r.text);}
   if (riposte) { say(g, withHead('RIPOSTE! ', r.text), C_ACCENT); return; }
   say(g, r.text, r.crit ? C_ACCENT : C_TEXT);
 }
@@ -168,7 +172,7 @@ function landHeroAction(g: Game, action: HeroAction, slot: number): void {
   heroImpact(g, { action, result: r, slot, preHp, riposte });
   verbFx(g, action, r);
   if (riposte) {fxRiposte(g);}
-  if (affixFx(g, r, slot)) {return;}
+  if (affixFx(g, r, slot)) { recordThorns(g, e, r.thorns); return; }
   if (r.enemyDefeated) { enemyDefeated(g, e, lastHitDelay(r.hits.length)); return; }
   if (r.broke) {cue(g, BREAK_SAY_DELAY, () => { say(g, `BREAK! ${e.def.name} LOSES ITS TURN`, C_ACCENT); });}
   g.battle.timer = heroHold(action, r);
@@ -231,7 +235,8 @@ function heroStep(g: Game, action: HeroAction): void {
   if (turnPops.length) {regenAura(g);}
   if (turn.heroBurn > 0 || turn.enemyBurn > 0) {fxBurnTick(g, turn, turnPops.length);}
   if (turn.revived) {reviveFx(g);}
-  if (turn.heroDead) { heroDies(g, 'THE FLAMES TAKE YOU!'); return; }
+  if (turn.heroDead) { recordTurnDeath(g, e, turn); heroDies(g, 'THE FLAMES TAKE YOU!'); return; }
+  noteLog(g, burnLine(turn, e));
   if (turn.enemyDefeated) { enemyDefeated(g, e); return; }
   const slot = turnPops.length + (turn.heroBurn > 0 ? 1 : 0);
   cue(g, heroWindup(g, action), () => { landHeroAction(g, action, slot); }, true);

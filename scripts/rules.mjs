@@ -8,6 +8,7 @@ import { descentRules } from './rules-descent.mjs';
 import { depthRules } from './rules-depth.mjs';
 import { affixRules } from './rules-affixes.mjs';
 import { pactEffectRules } from './rules-pacts.mjs';
+import { saveRules } from './rules-save.mjs';
 
 const MAP_SEEDS = 5000;
 const RNG_DRAWS = 1000;
@@ -283,6 +284,7 @@ const GROUPS = [
   ['depth', depthRules],
   ['affixes', affixRules],
   ['pacts', pactEffectRules],
+  ['save', saveRules],
 ];
 
 await withSim((sim) => {

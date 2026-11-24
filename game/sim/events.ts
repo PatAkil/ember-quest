@@ -4,6 +4,7 @@ import type { EventDef, EventEffect, EventOption } from '../data';
 import { clampVitals, derive, fullHeal } from './hero';
 import { ownedIds, upgradableTargets } from './pack';
 import { actMult } from './descent';
+import { burnWarded } from './power';
 import { at, clamp, pickOneIndex } from './util';
 
 type EffectOf<K extends EventEffect['kind']> = Extract<EventEffect, { kind: K }>;
@@ -118,6 +119,7 @@ export function takePendingBurn(hero: Hero, n: number): Burn | null {
   if (hero.pendingBurn <= 0) {return null;}
   const turns = hero.pendingBurn;
   hero.pendingBurn = 0;
+  if (burnWarded(hero)) {return null;}
   const mult = actMult(n);
   return { perTurn: Math.max(1, Math.round(PENDING_BURN_BASE * mult)), turns };
 }

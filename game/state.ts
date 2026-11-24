@@ -2,7 +2,7 @@ import type { AffixId, BattleState, EnemyInstance, FoeScale, Hero, LootOffer, Lo
 import { BIOMES, EVENTS } from './data';
 import type { EventDef } from './data';
 import { createHero, createSeededRng, planOf, storyPlan } from './sim';
-import type { ActPlan, ActRef, RoomType, SeededRng } from './sim';
+import type { ActPlan, ActRef, RoomType, SavedRun, SeededRng } from './sim';
 import type { Sprite } from '../engine';
 import type { App } from './app';
 import { BIOME_LOOK, C_TEXT } from './theme';
@@ -51,13 +51,17 @@ export interface BattleScreen {
 
 export interface CardScreen { lines: string[]; onDone: () => void; art?: { icon: Sprite; color: string } }
 export interface LevelUpScreen { cursor: number; earned: number; onDone: () => void }
-export interface LootScreen { offers: LootOffer[]; cursor: number; source: LootSource; stow: boolean; onDone: () => void }
+export interface LootScreen { offers: LootOffer[]; cursor: number; source: LootSource; stow: boolean; gift?: boolean; onDone: () => void }
+export type DeathCause = 'BLOW' | 'BURN' | 'THORNS' | 'BLOOD' | '';
+export interface DeathRecord { killerId: string; killerName: string; elite: boolean; move: string; damage: number; lastLines: string[]; cause: DeathCause }
+export const emptyDeath = (): DeathRecord => ({ killerId: '', killerName: '', elite: false, move: '', damage: 0, lastLines: [], cause: '' });
 export interface GearScreen { cursor: number; refusedAt: number }
 export interface PickRow { icon?: Sprite; name: string; color: string; note: string; detail: string[] }
 export interface EventScreen { def: EventDef; cursor: number; refusedAt: number; onDone: () => void }
 export type ThresholdChoice = 'ASCEND' | 'DESCEND';
 export interface ThresholdScreen { cursor: number; openedAt: number; choose: (choice: ThresholdChoice) => void }
 export interface PactScreen { offers: PactId[]; cursor: number; openedAt: number; onDone: () => void }
+export interface MenuScreen { cursor: number; confirm: boolean }
 export interface PickScreen { title: string; rows: PickRow[]; cursor: number; locked?: boolean; onPick: (i: number) => void; onCancel: () => void }
 
 export interface Game {
@@ -76,12 +80,15 @@ export interface Game {
   won: boolean;
   banked: number;
   descentClears: number | null;
+  resume: SavedRun | null;
+  abandoned: boolean;
   subScene: SubScene;
   prevDirY: number;
   prevDirX: number;
   best: BestRecord;
   beatBest: boolean;
   deathBiome: string;
+  death: DeathRecord;
   dying: boolean;
   heroDown: boolean;
   pops: Pop[];
@@ -97,6 +104,8 @@ export interface Game {
   event: EventScreen;
   threshold: ThresholdScreen;
   pact: PactScreen;
+  title: MenuScreen;
+  pause: MenuScreen;
 }
 
 export function createGame(app: App): Game {
@@ -118,12 +127,15 @@ export function createGame(app: App): Game {
     won: false,
     banked: 0,
     descentClears: null,
+    resume: null,
+    abandoned: false,
     subScene: 'MAP',
     prevDirY: 0,
     prevDirX: 0,
     best: loadBest(),
     beatBest: false,
     deathBiome: '',
+    death: emptyDeath(),
     dying: false,
     heroDown: false,
     pops: [],
@@ -142,6 +154,8 @@ export function createGame(app: App): Game {
     event: { def: at(EVENTS, 0), cursor: 0, refusedAt: -1, onDone: noop },
     threshold: { cursor: 0, openedAt: 0, choose: noop },
     pact: { offers: [], cursor: 0, openedAt: 0, onDone: noop },
+    title: { cursor: 0, confirm: false },
+    pause: { cursor: 0, confirm: false },
   };
 }
 

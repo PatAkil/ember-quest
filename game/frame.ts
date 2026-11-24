@@ -22,7 +22,8 @@ import { renderPact } from './screens/pact-view';
 import { updatePact } from './screens/pact';
 import { renderThreshold } from './screens/threshold-view';
 import { updateThreshold } from './screens/threshold';
-import { renderPausedOverlay, renderTitle } from './screens/title';
+import { renderTitle, updateTitle } from './screens/title';
+import { renderPausedOverlay, updatePaused } from './screens/pause';
 import { renderGameOverOverlay, renderWinOverlay } from './screens/ending';
 
 type Scene = SceneMachine['current'];
@@ -63,12 +64,8 @@ function updatePlaying(g: Game, dt: number): void {
   UPDATE_SUB[g.subScene](g, dt);
 }
 
-function updatePaused(g: Game): void {
-  if (g.app.input.pressed('PAUSE')) { g.app.audio.play('blip'); g.app.scenes.to('PLAYING'); }
-}
-
 const UPDATE_SCENE: Record<Scene, (g: Game, dt: number) => void> = {
-  TITLE: restartOnA,
+  TITLE: updateTitle,
   PLAYING: updatePlaying,
   PAUSED: updatePaused,
   GAME_OVER: restartOnA,

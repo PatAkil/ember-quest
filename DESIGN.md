@@ -292,7 +292,9 @@ enemy's move, intent, cycle and phase), `status` (turn start, BURN, WARD, `heroF
   action before `startTurn(hero, battle, action)`, exactly like the screen, so a GUARD
   turn has no regen. Telemetry per run (`RunResult.verbs`): guards, parries, bursts,
   potions, break attempts/successes per tier, phase-2 switches, burn deaths; STALL deaths
-  stay a `deathKind`.
+  stay a `deathKind`. A break **attempt** is any damaging action (not GUARD or POTION)
+  into a shown HEAVY that the real rule could let break: BURST, anything while
+  PUNISH_WINDUP is worn, or a hit in the foe's weak element (IMBUE counts for ATTACK).
 
 ## v3 — EVENT rooms (M3)
 
@@ -315,7 +317,8 @@ Content lives in `game/rules/events.ts` (`EVENTS`, `validateEvents()`, wired int
 - **Permanent max HP** is `Hero.bonusMaxHp`, added to max HP in `derive` (a gain also
   adds the HP; a loss clamps HP). **The burn** is `Hero.pendingBurn` (turns, 0 = none):
   `takePendingBurn(hero, act)` turns it into BURN `round(3 × ACT_MULT[act])` per turn for
-  3 turns when the next fight (boss included) begins, once.
+  3 turns when the next fight (boss included) begins, once. A BURN-warded hero
+  (`burnWarded`) shrugs it off: the pending burn is consumed and nothing is applied.
 - **Enablement** (`eventOptionBlocker`): `upgradeAny` needs an upgradable target
   (`NOTHING TO UPGRADE`), `dropPackItem` a non-empty pack (`NO SPARE GEAR`), a potion cost
   enough potions (`NO POTIONS`), an HP cost more than 1 HP (`TOO WEAK TO BLEED`), a max-HP
@@ -360,7 +363,7 @@ reflect, burn ward), `burst` (ember rate, burst power). Items in `game/rules/ite
 | `IMBUE {element}` | – | weapon ATTACKs (every hit, TWIN included) carry the element: weakness ×1.5, resist ×0.5, `WEAK!` and BREAK-by-weakness apply |
 | `ELEMENT_BOOST {element, mult}` | 1.4 / 1.75 (+0.1) | ×mult on hits of that element (spell or imbued ATTACK); not a weakness, so it never breaks by itself |
 | `BURN_ON_HIT {chance}` | 0.35 / 0.55 (+0.1, cap 0.8) | after a damaging ATTACK or spell that leaves the foe alive, one roll on the injected rng: the foe burns per the BURN rules (40 % of the volley total, 3 turns); `HeroActResult.burned`, pop `IGNITE` |
-| `BURN_WARD {}` | – | the hero never gains BURN from SCORCH; its item always carries MDEF (`validateData`) |
+| `BURN_WARD {}` | – | the hero never gains BURN from SCORCH or from an event's pending burn; its item always carries MDEF (`validateData`) |
 | `LOW_HP_POWER {threshold, mult}` | below 40 % ×1.5 (locket), below 50 % ×1.8 (legendary) (+0.15) | ×mult on strikes while HP / max HP < threshold; tag `DESPERATE` |
 
 A strike's power = RAMP × opener × riposte (× `PARRY_POWER`) × PUNISH × LOW HP × ELEMENT
@@ -536,6 +539,33 @@ the descent (see *Balance state → The descent*).
   descent table (`sim/descent-report.mjs`); `--story` prints the story alone (its `--json`
   is the pre-M4 format and stayed byte-identical through the M4 rules), `--descent-only`
   the descent alone.
+
+## v3 — run summary (M5)
+
+- **How the run ended** is `g.death` (`DeathRecord` in `game/state.ts`, presentation
+  only): `killerId`, `killerName` (the first affix word + the foe's name, no affix on a
+  `THE …` name), `elite`, `move` (`STRIKE`, `HEX` for a magic STRIKE, `WIND-UP`,
+  `HEAVY BLOW`, `SCORCH`, `THORNS`, `BURN`, `BLOOD PRICE`), `damage`, `lastLines` (the
+  two battle-log result lines before the fatal one) and `cause`
+  (`BLOW | BURN | THORNS | BLOOD | ''`). `game/screens/battle-death.ts` resets it when a
+  battle starts and fills it at the moment the hero falls (enemy blow, the turn-start
+  burn tick, thorns backlash). An abandoned run is `g.abandoned` (the save milestone).
+- **The summary** (`game/screens/ending.ts`, content in `ending-recap.ts`) shows on
+  GAME OVER, ABANDONED and WIN: `DEPTH n  ACT n  BIOME`; for a death `SLAIN BY <killer>`
+  (or `BURNED DOWN FIGHTING` / `BLED OUT FIGHTING`) and `ITS <MOVE> DEALT n`, the two
+  log lines; the worn gear with levels packed onto at most two lines; `PACTS …`; and
+  `NEXT TIME: <tip>`. A WIN swaps the killer for `GLORY +n   BOSSES FELLED n` and ends
+  with an invitation (`THE DESCENT WAITS FOR YOUR NEXT RUN` after a depth-1 ascent,
+  `DEPTH n+1 WAITS …` deeper). Nine rows at most; log lines go first when it overflows.
+- **NEXT TIME** comes from a table keyed, in priority order, by THE HOLLOW, the cause
+  (BURN, THORNS, BLOOD), the move (HEAVY BLOW, SCORCH, HEX), an elite killer, else
+  STRIKE (`ABANDONED` has its own). Each key holds two to four concrete tips of at most
+  44 characters; the one shown is picked by a hash of the run (score, clears, act,
+  damage, SP), so it is stable on screen and varies between deaths.
+- The event's one-card item screen titles itself `A GIFT  TAKE IT OR LEAVE IT`
+  (`LootScreen.gift`), not the chest's line.
+- `node sim/run.mjs --events` prints, per policy, each event's plays per run and its
+  option split (also in `--json` as `events`); `--help` lists every flag.
 
 ## Combat
 

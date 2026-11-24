@@ -1,9 +1,10 @@
 import type { BattleState, EnemyActResult, EnemyInstance, Hero, HeroAction, HeroActResult, Rng } from '../types';
 import { createBattle, heroAct } from './combat';
-import { actionElement, elementMult } from './element';
+import { elementMult } from './element';
 import { enemyAct } from './enemy-turn';
 import { battleActions, canAfford, derive } from './hero';
 import type { Policy } from './model';
+import { heroElement, punishes } from './power';
 import type { BattleOutcome, VerbTally } from './run-tally';
 import { startTurn } from './status';
 
@@ -28,8 +29,13 @@ function chooseAction({ hero, battle, policy }: Fight): HeroAction {
   return actions.includes(wanted) ? wanted : 'ATTACK';
 }
 
-const breakAttempt = (battle: BattleState, action: HeroAction): boolean =>
-  battle.intent === 'HEAVY' && (action === 'BURST' || elementMult(battle.enemy.def, actionElement(action)) > 1);
+const NO_HIT: readonly HeroAction[] = ['GUARD', 'POTION'];
+
+const breakable = (hero: Hero, battle: BattleState, action: HeroAction): boolean =>
+  action === 'BURST' || punishes(hero) || elementMult(battle.enemy.def, heroElement(hero, action)) > 1;
+
+const breakAttempt = (hero: Hero, battle: BattleState, action: HeroAction): boolean =>
+  battle.intent === 'HEAVY' && !NO_HIT.includes(action) && breakable(hero, battle, action);
 
 const COUNTED: Partial<Record<HeroAction, 'guards' | 'bursts' | 'potions'>> = { GUARD: 'guards', BURST: 'bursts', POTION: 'potions' };
 
@@ -58,7 +64,7 @@ function round(f: Fight): Verdict {
     return 'LOST';
   }
   if (start.enemyDefeated) {return 'WON';}
-  const attempt = breakAttempt(f.battle, action);
+  const attempt = breakAttempt(f.hero, f.battle, action);
   const result = heroAct(f.hero, f.battle, action, f.rng);
   tallyHero(f, action, result, attempt);
   if (result.heroDead) {

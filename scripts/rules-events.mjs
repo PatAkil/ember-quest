@@ -27,6 +27,17 @@ function effectRules(sim) {
   return 'hpPct floors at 1 HP; maxHp persists through derive; potions clamp 0..max';
 }
 
+function wardedBurnRule(sim) {
+  const hero = sim.createHero();
+  const ward = sim.ITEMS.find((i) => i.effect.kind === 'BURN_WARD');
+  assert.ok(ward, 'no BURN_WARD item to test with');
+  sim.equip(hero, ward, 0);
+  assert.ok(sim.burnWarded(hero), 'equipping a BURN_WARD item did not ward');
+  sim.applyEventCosts(hero, option({ kind: 'burnNextFight' }));
+  assert.equal(sim.takePendingBurn(hero, 0), null, 'a BURN-warded hero still took the pending burn');
+  assert.equal(hero.pendingBurn, 0, 'a warded pending burn was not consumed');
+}
+
 function burnRules(sim) {
   const hero = sim.createHero();
   assert.equal(sim.takePendingBurn(hero, 0), null, 'burn without a pending burn');
@@ -37,7 +48,8 @@ function burnRules(sim) {
   sim.applyEventCosts(hero, option({ kind: 'burnNextFight' }));
   const late = sim.takePendingBurn(hero, 3);
   assert.ok(late && late.perTurn > first.perTurn && late.turns === 3, `act 4 burn ${JSON.stringify(late)}`);
-  return `pendingBurn consumed once; ${String(first.perTurn)}/turn in act 1, ${String(late.perTurn)}/turn in act 4, 3 turns`;
+  wardedBurnRule(sim);
+  return `BURN_WARD shrugs off a pending burn; pendingBurn consumed once; ${String(first.perTurn)}/turn in act 1, ${String(late.perTurn)}/turn in act 4, 3 turns`;
 }
 
 function restFed(stages, s) {

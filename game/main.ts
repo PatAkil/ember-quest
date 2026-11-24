@@ -1,8 +1,8 @@
 import { createLoop } from '../engine';
-import { actInDepth, depthOf, derive, heroActions, validateData } from './sim';
+import { actInDepth, depthOf, derive, describeSave, heroActions, validateData } from './sim';
 import { HOLD, installDevHook } from './devhook';
 import { createApp } from './app';
-import { enterAct, selectNode, startRun, wireScenes } from './flow';
+import { enterAct, loadResume, offerResume, selectNode, startRun, wireScenes } from './flow';
 import { render, update } from './frame';
 import { at } from './lookup';
 import { createGame, installRng, resetCursorEdge, stageAt } from './state';
@@ -18,6 +18,13 @@ if (violations.length > 0) {reportError(new Error(`[ember-quest data] ${violatio
 const g = createGame(app);
 wireScenes(g);
 
+function menuView(game: Game) {
+  const scene = game.app.scenes.current;
+  if (scene === 'PAUSED') {return { ...game.pause };}
+  if (scene !== 'TITLE' || !game.resume) {return null;}
+  return { ...game.title, resume: describeSave(game.resume) };
+}
+
 function view(game: Game) {
   const { map, battle } = game;
   return {
@@ -31,6 +38,7 @@ function view(game: Game) {
     event: { id: game.event.def.id, title: game.event.def.title, options: game.event.def.options.map((o) => o.label) },
     descent: { won: game.won, banked: game.banked, bosses: game.bosses, descentClears: game.descentClears, plan: game.plan },
     pacts: game.pact.offers,
+    menu: menuView(game),
   };
 }
 
@@ -51,5 +59,7 @@ const dev = import.meta.env.DEV ? installDevHook({
   pickUpgrade: () => { chooseUpgrade(g); },
   battle: () => g.battle,
   view: () => view(g),
+  offerResume: () => { offerResume(g); },
 }) : null;
+loadResume(g);
 createLoop(dev ?? { update: tick, render: draw }).start();

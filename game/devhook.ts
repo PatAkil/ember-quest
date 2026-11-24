@@ -12,7 +12,8 @@ import { at, must, noop } from './lookup';
 type Action = 'A' | 'B' | 'PAUSE' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
 type Fixture =
   | 'title' | 'map' | 'battle' | 'levelup' | 'loot' | 'card' | 'paused' | 'gameover' | 'win' | 'gear' | 'pick' | 'drop'
-  | 'battle-heavy' | 'battle-magic' | 'battle-ward' | 'battle-phase' | 'event' | 'threshold' | 'pact' | 'battle-hollow' | 'map-long' | 'battle-affix';
+  | 'battle-heavy' | 'battle-magic' | 'battle-ward' | 'battle-phase' | 'event' | 'threshold' | 'pact' | 'battle-hollow' | 'map-long' | 'battle-affix'
+  | 'title-continue' | 'paused-abandon';
 type DevNode = MapNode;
 
 interface DevView {
@@ -24,6 +25,7 @@ interface DevView {
   event: { id: string; title: string; options: string[] };
   descent: { won: boolean; banked: number; bosses: number; descentClears: number | null; plan: ActPlan };
   pacts: PactId[];
+  menu: { cursor: number; confirm: boolean; resume?: string } | null;
 }
 
 interface DevHost {
@@ -45,11 +47,12 @@ interface DevHost {
   pickUpgrade(): void;
   battle(): BattleScreen;
   view(): DevView;
+  offerResume(): void;
 }
 
 const FIXTURES: readonly Fixture[] = [
   'title', 'map', 'battle', 'levelup', 'loot', 'card', 'paused', 'gameover', 'win', 'gear', 'pick', 'drop', 'battle-heavy', 'battle-magic',
-  'battle-ward', 'battle-phase', 'event', 'threshold', 'pact', 'battle-hollow', 'map-long', 'battle-affix',
+  'battle-ward', 'battle-phase', 'event', 'threshold', 'pact', 'battle-hollow', 'map-long', 'battle-affix', 'title-continue', 'paused-abandon',
 ];
 const KEY: Record<Action, string> = {
   A: 'Space', B: 'KeyX', PAUSE: 'KeyP', UP: 'ArrowUp', DOWN: 'ArrowDown', LEFT: 'ArrowLeft', RIGHT: 'ArrowRight',
@@ -172,6 +175,8 @@ function parseParams(): Params {
   return { seed: parseSeed(q, fixture), fixture, n, depth };
 }
 
+const menuOf = (v: DevView): { menu?: DevView['menu'] } => (v.menu ? { menu: v.menu } : {});
+
 function snapshot(v: DevView, seed: number | null): unknown {
   const sub = v.subScene;
   return JSON.parse(JSON.stringify({
@@ -186,6 +191,7 @@ function snapshot(v: DevView, seed: number | null): unknown {
     event: sub === 'EVENT' ? v.event : null,
     threshold: sub === 'THRESHOLD' ? { choices: ['ASCEND', 'DESCEND'] } : null,
     pact: sub === 'PACT' ? { offers: v.pacts } : null,
+    ...menuOf(v),
     map: sub === 'MAP' ? { stage: v.curStage, reachable: v.reachable, stages: v.map.map((st) => st.map((n) => (n.cleared ? `${n.type}*` : n.type))) } : null,
   }));
 }
@@ -229,7 +235,9 @@ function settle(driver: Driver, ticks: number): void {
   for (let i = 0; i < ticks; i++) {driver.runTick(DT);}
 }
 
-interface FixtureContext { host: DevHost; driver: Driver; rng: Rng; n: number; depth: number }
+interface FixtureContext { host: DevHost; driver: Driver; rng: Rng; n: number; depth: number; seed: number }
+
+const FALLS: readonly ((e: EnemyInstance, hero: Hero) => void)[] = [noop, (_e, h) => { h.hp = 1; h.burn = { perTurn: 4, turns: 2 }; }, (e, h) => { h.hp = 1; e.affixes = ['THORNED']; }];
 
 type VerbFixture = 'battle-heavy' | 'battle-magic' | 'battle-ward' | 'battle-phase' | 'battle-affix';
 interface Starts { fresh: () => Hero; begin: (hero?: Hero) => void; battle: (hero?: Hero) => void }
@@ -290,7 +298,11 @@ function fixtureBuilders(fx: FixtureContext): Record<Fixture, () => void> {
   };
   const chest = (hero: Hero): void => { begin(hero); enter('LOOT'); toItemOffer(); };
   const loseBattle = (): void => {
-    battle();
+    const way = fx.seed % 4;
+    if (way === 3) { begin(); host.plan().boss = HOLLOW_ID; host.selectNode(host.bossNode()); } else {battle();}
+    FALLS[way]?.(must(host.battle().enemy ?? undefined, 'enemy'), host.view().hero);
+    host.syncReveal();
+    if (way === 1 || way === 2) {ticksUntil(driver, () => host.view().dying, 400, true);}
     for (let i = 0; i < 500 && !host.view().dying && host.view().enemy; i++) {host.enemyTurn();}
     ticksUntil(driver, () => host.scenes.is('GAME_OVER'), 240);
   };
@@ -323,6 +335,12 @@ function fixtureBuilders(fx: FixtureContext): Record<Fixture, () => void> {
     loot: () => { chest(dressed()); },
     card: () => { begin(); enter('REST'); },
     paused: () => { battle(); host.scenes.to('PAUSED'); },
+    'paused-abandon': () => {
+      battle(); host.scenes.to('PAUSED');
+      driver.press('DOWN'); driver.runTick(DT);
+      driver.press('A'); driver.runTick(DT);
+    },
+    'title-continue': () => { host.startRun(fresh(), n, n * ACT_CLEARS.length); host.offerResume(); },
     gameover: loseBattle,
     win: winRun,
     gear: () => { begin(kitted()); host.openGear(); },
@@ -361,7 +379,7 @@ export function installDevHook(host: DevHost): { update(dt: number): void; rende
   let manual = HOLD;
   const driver = createDriver(host);
   if (fixture !== null && rng !== null) {
-    const build = fixtureBuilders({ host, driver, rng, n, depth })[fixture];
+    const build = fixtureBuilders({ host, driver, rng, n, depth, seed: seed ?? 0 })[fixture];
     preservingStorage(build);
     host.syncReveal();
   }

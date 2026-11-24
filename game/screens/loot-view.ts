@@ -26,6 +26,8 @@ const TITLE: Record<LootSource, string> = {
   BOSS: 'THE BOSS HOARD  CHOOSE ONE',
   ELITE: 'ELITE SPOILS  CHOOSE ONE',
 };
+const GIFT_TITLE = 'A GIFT  TAKE IT OR LEAVE IT';
+const lootTitle = (g: Game): string => (g.loot.gift ? GIFT_TITLE : TITLE[g.loot.source]);
 
 interface OfferFace { icon: Sprite; name: string; color: string; hint: string; tag: string; tagColor: string }
 
@@ -136,7 +138,8 @@ export function renderLoot(g: Game): void {
   const panelY = SAFE_MARGIN;
   const promptY = panelY + ROW_TOP + rows * ROW_PITCH + 2;
   drawPanel(pc, { x: X0, y: panelY, w: PW, h: promptY + 9 - panelY }, { color: C_PANEL, border: C_BORDER });
-  drawText(ctx, TITLE[g.loot.source], { x: panelCentre(TITLE[g.loot.source]), y: panelY + 5 }, { color: C_ACCENT, shadow: true });
+  const title = lootTitle(g);
+  drawText(ctx, title, { x: panelCentre(title), y: panelY + 5 }, { color: C_ACCENT, shadow: true });
   for (let i = 0; i < rows; i++) {
     const row: Row = { ctx, y: panelY + ROW_TOP + i * ROW_PITCH, sel: i === g.loot.cursor };
     if (row.sel) { ctx.fillStyle = C_SEL_BAR; ctx.fillRect(X0 + 3, row.y - 1, PW - 6, ROW_PITCH - 1); }

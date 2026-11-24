@@ -68,6 +68,7 @@ export { affixResists, searingStrike, swiftEvades, thornsDamage, vampiricHeal } 
 export { foeAffixes, hollowAffixes, hollowOf, spawnFoe, type SpawnContext } from './sim/hollow';
 export { descentRow, lootWeights } from './sim/descent-loot';
 export { restHero, type RestOutcome } from './sim/rest';
+export { describeSave, fromSaved, loadRun, saveRun, SAVE_VERSION, toSaved, type RunSnapshot, type SavedRun, type SavedStep } from './sim/save';
 export { neutralMods, offerPacts, pactDamage, pactMods, takePact, type PactTotals } from './sim/pacts';
 export { gloryBonus, scoreAfterDeath, scoreOf } from './sim/score';
 export { ACT_MULT, BIOMES, ITEMS, LOOT_WEIGHTS, PACTS, validateData, validatePacts } from './data';

@@ -2,23 +2,46 @@ import { ENEMIES, BOSS_ENTRY_HEAL, PACTS } from './data';
 import { ACTS_PER_DEPTH } from './types';
 import type { EnemyKind, Hero, LootSource } from './types';
 import {
-  actInDepth, createHero, createSeededRng, depthOf, fullHeal, gloryBonus, grantClear, healFraction, isLastActOfDepth, offerPacts, planDepth, planOf,
-  refillPotions, scoreAfterDeath, scoreOf, takePendingBurn,
+  actInDepth, createHero, createSeededRng, depthOf, fromSaved, gloryBonus, grantClear, healFraction, isLastActOfDepth, offerPacts, pactMods, planDepth, planOf,
+  loadRun, restHero, saveRun, scoreAfterDeath, scoreOf, storyPlan, takePendingBurn, toSaved,
 } from './sim';
+import type { PactId } from './types';
+import type { RestOutcome, RunSnapshot, SavedRun, SavedStep } from './sim';
 import { at, must } from './lookup';
 import { resetFx } from './fx';
 import { clearPops } from './pops';
 import { generateMap } from './mapgen';
 import { biome, biomeLook, installRng, pickOne, resetCursorEdge, stageAt } from './state';
 import type { Game, MapNode, RoomType, ThresholdChoice } from './state';
-import { storeBest } from './storage';
+import { clearRun, loadStoredRun, storeBest, storeRun } from './storage';
 import { startBattle } from './screens/battle';
 import { showCard } from './screens/card';
 import { startLevelUp } from './screens/levelup';
-import { startLoot } from './screens/loot';
+import { chooseUpgrade, startLoot } from './screens/loot';
 import { startEvent } from './screens/event';
 import { startPact } from './screens/pact';
 import { startThreshold } from './screens/threshold';
+
+function snapshotOf(g: Game, step: SavedStep): RunSnapshot {
+  const { stages, curStage, reachable, cursor } = g.map;
+  const run = { n: g.n, clears: g.clears, bosses: g.bosses, descentClears: g.descentClears, score: g.score, banked: g.banked, won: g.won };
+  return { hero: g.hero, run, depthPlan: g.depthPlan, map: { stages, curStage, reachable, cursor }, step, rng: g.rngSource.getState() };
+}
+
+function persist(g: Game, step: SavedStep): void {
+  if (g.rngFromHook) {return;}
+  storeRun(saveRun(snapshotOf(g, step)));
+}
+
+function forgetRun(g: Game): void {
+  g.resume = null;
+  if (!g.rngFromHook) {clearRun();}
+}
+
+function backToMap(g: Game): void {
+  g.subScene = 'MAP';
+  resetCursorEdge(g);
+}
 
 function advanceStage(g: Game): void {
   const node = g.map.pendingNode;
@@ -27,8 +50,8 @@ function advanceStage(g: Game): void {
   g.map.curStage = node.stage;
   g.map.reachable = node.links.length ? node.links : stageAt(g, node.stage + 1).map((_, i) => i);
   g.map.cursor = at(g.map.reachable, 0);
-  g.subScene = 'MAP';
-  resetCursorEdge(g);
+  backToMap(g);
+  persist(g, { at: 'MAP' });
 }
 
 function onClear(g: Game, kind: EnemyKind): number {
@@ -48,6 +71,7 @@ export function enterAct(g: Game): void {
   g.subScene = 'MAP';
   g.app.particles.setAmbient(biomeLook(g).ambient, biomeLook(g).ambientColor);
   resetCursorEdge(g);
+  persist(g, { at: 'MAP' });
 }
 
 const freshStage = (g: Game, next: () => void) => (): void => { clearPops(g); next(); };
@@ -55,7 +79,8 @@ const freshStage = (g: Game, next: () => void) => (): void => { clearPops(g); ne
 function advanceAct(g: Game): void {
   g.n++;
   g.plan = planOf(g.depthPlan, g.n);
-  showCard(g, [`${biome(g).name} AWAITS...`, 'THE DESCENT CONTINUES'], () => { enterAct(g); });
+  enterAct(g);
+  showCard(g, [`${biome(g).name} AWAITS...`, 'THE DESCENT CONTINUES'], () => { backToMap(g); });
 }
 
 function depthCardLines(g: Game): string[] {
@@ -69,9 +94,18 @@ function enterDepth(g: Game): void {
   g.depthPlan = planDepth(depthOf(g.n), g.rng);
   g.plan = planOf(g.depthPlan, g.n);
   const offers = offerPacts(g.hero, g.rng);
-  const card = (): void => { showCard(g, depthCardLines(g), () => { enterAct(g); }); };
-  if (offers.length === 0) { card(); return; }
-  startPact(g, offers, freshStage(g, card));
+  if (offers.length === 0) { openDepth(g); return; }
+  openPact(g, offers);
+}
+
+function openDepth(g: Game): void {
+  enterAct(g);
+  showCard(g, depthCardLines(g), () => { backToMap(g); });
+}
+
+function openPact(g: Game, offers: PactId[]): void {
+  persist(g, { at: 'PACT', offers });
+  startPact(g, offers, freshStage(g, () => { openDepth(g); }));
 }
 
 function ascend(g: Game): void {
@@ -90,8 +124,13 @@ function descend(g: Game): void {
 
 const THRESHOLD_PATH: Record<ThresholdChoice, (g: Game) => void> = { ASCEND: ascend, DESCEND: descend };
 
+function openThreshold(g: Game): void {
+  persist(g, { at: 'THRESHOLD' });
+  startThreshold(g, (choice) => { THRESHOLD_PATH[choice](g); });
+}
+
 function onActCleared(g: Game): void {
-  if (isLastActOfDepth(g.n)) { startThreshold(g, (choice) => { THRESHOLD_PATH[choice](g); }); return; }
+  if (isLastActOfDepth(g.n)) { openThreshold(g); return; }
   advanceAct(g);
 }
 
@@ -127,11 +166,28 @@ function bossRoom(g: Game, node: MapNode): void {
   ignitePendingBurn(g);
 }
 
+function ashNote(rest: RestOutcome): string {
+  if (rest.upgrade) {return 'THE ASHES OFFER AN UPGRADE';}
+  return rest.mended > 0 ? `NOTHING TO UPGRADE  MENDED ${String(rest.mended)} HP` : 'NOTHING TO UPGRADE';
+}
+
+function restLines(g: Game, rest: RestOutcome): string[] {
+  const mods = pactMods(g.hero);
+  if (mods.restHealMult >= 1 && mods.restUpgrade <= 0) {return ['FULLY RESTED', 'HP, MP AND POTIONS FULL'];}
+  const title = mods.restHealMult >= 1 ? 'FULLY RESTED' : `REST HEALS ${String(Math.round(mods.restHealMult * 100))}%`;
+  const healed = `+${String(rest.hp - rest.mended)} HP  +${String(rest.mp)} MP  POTIONS FULL`;
+  return mods.restUpgrade > 0 ? [title, healed, ashNote(rest)] : [title, healed];
+}
+
+function offerAshUpgrade(g: Game): void {
+  g.loot = { offers: [{ kind: 'UPGRADE_ANY' }], source: 'LOOT', cursor: 0, stow: false, onDone: freshStage(g, () => { advanceStage(g); }) };
+  chooseUpgrade(g);
+}
+
 function restRoom(g: Game): void {
-  fullHeal(g.hero);
-  refillPotions(g.hero);
+  const rest = restHero(g.hero);
   g.app.audio.play('pickup');
-  showCard(g, ['FULLY RESTED', 'HP, MP AND POTIONS FULL'], () => { advanceStage(g); });
+  showCard(g, restLines(g, rest), () => { if (rest.upgrade) {offerAshUpgrade(g);} else {advanceStage(g);} });
 }
 
 const normalRoom = (g: Game, node: MapNode): void => { fightRoom(g, node, 'NORMAL'); };
@@ -150,6 +206,7 @@ const ROOMS: Record<RoomType, (g: Game, node: MapNode) => void> = {
 
 export function selectNode(g: Game, node: MapNode): void {
   g.map.pendingNode = node;
+  persist(g, { at: 'ROOM', stage: node.stage, slot: node.slot });
   ROOMS[node.type](g, node);
 }
 
@@ -170,20 +227,78 @@ function placeRun(g: Game, n: number, clears: number): void {
   g.descentClears = g.won ? clears : null;
 }
 
+function resetRunScreens(g: Game): void {
+  g.dying = false; g.heroDown = false; g.abandoned = false;
+  g.battle.enemy = null; g.battle.state = null;
+  clearPops(g);
+  resetFx(g);
+}
+
 export function startRun(g: Game, hero: Hero = createHero(), n = 0, clears = 0): void {
   seedRun(g);
   g.hero = hero;
   placeRun(g, n, clears);
-  g.dying = false; g.heroDown = false;
-  g.battle.enemy = null; g.battle.state = null;
-  clearPops(g);
-  resetFx(g);
+  resetRunScreens(g);
   enterAct(g);
 }
 
 export function startPlaying(g: Game): void {
   startRun(g);
   g.app.scenes.to('PLAYING');
+}
+
+export function startFresh(g: Game): void {
+  forgetRun(g);
+  startPlaying(g);
+}
+
+function restore(g: Game, live: RunSnapshot): void {
+  seedRun(g);
+  g.rngSource.setState(live.rng);
+  g.hero = live.hero;
+  Object.assign(g, live.run);
+  g.depthPlan = live.depthPlan;
+  g.plan = planOf(g.depthPlan, g.n);
+  g.map = { ...live.map, pendingNode: null };
+}
+
+const RESUME_STEP: Record<SavedStep['at'], (g: Game, step: SavedStep) => void> = {
+  MAP: () => undefined,
+  ROOM: (g, step) => { if (step.at === 'ROOM') {selectNode(g, at(stageAt(g, step.stage), step.slot));} },
+  THRESHOLD: openThreshold,
+  PACT: (g, step) => { if (step.at === 'PACT') {openPact(g, step.offers);} },
+};
+
+export function continueRun(g: Game, saved: SavedRun): void {
+  const live = fromSaved(saved);
+  g.resume = null;
+  restore(g, live);
+  resetRunScreens(g);
+  g.app.particles.setAmbient(biomeLook(g).ambient, biomeLook(g).ambientColor);
+  backToMap(g);
+  g.app.scenes.to('PLAYING');
+  g.app.runtime.scoreChanged(g.score);
+  RESUME_STEP[live.step.at](g, live.step);
+}
+
+export function loadResume(g: Game): void {
+  if (g.rngFromHook) {return;}
+  const text = loadStoredRun();
+  g.resume = text === null ? null : loadRun(text);
+  if (text !== null && g.resume === null) {clearRun();}
+}
+
+export function offerResume(g: Game): void {
+  g.resume = toSaved(snapshotOf(g, { at: 'MAP' }));
+  g.depthPlan = storyPlan();
+  g.plan = planOf(g.depthPlan, 0);
+  g.app.particles.setAmbient(biomeLook(g).ambient, biomeLook(g).ambientColor);
+}
+
+export function abandonRun(g: Game): void {
+  g.abandoned = true;
+  g.app.scenes.to('PLAYING');
+  g.app.scenes.to('GAME_OVER');
 }
 
 function settleDeath(g: Game): void {
@@ -199,7 +314,10 @@ export function wireScenes(g: Game): void {
   const { scenes, runtime } = g.app;
   scenes.onEnter('TITLE', () => { runtime.stateChanged('TITLE'); });
   scenes.onEnter('PLAYING', () => { runtime.stateChanged('PLAYING'); });
-  scenes.onEnter('PAUSED', () => { runtime.stateChanged('PAUSED'); });
-  scenes.onEnter('GAME_OVER', () => { settleDeath(g); saveBest(g); runtime.stateChanged('GAME_OVER'); runtime.gameOver({ score: g.score, won: g.won }); });
-  scenes.onEnter('WIN', () => { saveBest(g); runtime.stateChanged('WIN'); runtime.gameOver({ score: g.score, won: true }); });
+  scenes.onEnter('PAUSED', () => { g.pause = { cursor: 0, confirm: false }; runtime.stateChanged('PAUSED'); });
+  scenes.onEnter('GAME_OVER', () => {
+    forgetRun(g); settleDeath(g); saveBest(g);
+    runtime.stateChanged('GAME_OVER'); runtime.gameOver({ score: g.score, won: g.won });
+  });
+  scenes.onEnter('WIN', () => { forgetRun(g); saveBest(g); runtime.stateChanged('WIN'); runtime.gameOver({ score: g.score, won: true }); });
 }

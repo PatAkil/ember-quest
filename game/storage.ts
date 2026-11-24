@@ -37,3 +37,30 @@ export function storeBest(best: BestRecord): boolean {
     return false;
   }
 }
+
+const RUN_KEY = 'retrovibe.ember-quest.run.v1';
+
+export function storeRun(text: string): boolean {
+  try {
+    localStorage.setItem(RUN_KEY, text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function loadStoredRun(): string | null {
+  try {
+    return localStorage.getItem(RUN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function clearRun(): void {
+  try {
+    localStorage.removeItem(RUN_KEY);
+  } catch {
+    return;
+  }
+}

@@ -1,8 +1,26 @@
 import { withSim } from './bundle.mjs';
 import { endRun, isPicker, mergeTallies, newItemTally, printItems, watchPicks } from './items-report.mjs';
+import { addEvents, eventShares, newEventTally, printEvents } from './events-report.mjs';
 import { newDescent, pooledPacts, printDescent, printPooled, summarizeDescent, tallyDescent } from './descent-report.mjs';
 
 const args = process.argv.slice(2);
+const HELP = [
+  'usage: node sim/run.mjs [flags]',
+  '  --runs N          runs per policy (default 2000)',
+  '  --seed N          rng seed (default 1)',
+  '  --policy a,b      comma-separated policies (default all)',
+  '  --json            print one JSON report instead of tables',
+  '  --story           story (depth 1) table only, no descent',
+  '  --descent-only    descent table only, no story table',
+  '  --items           per-item offered/picked/held table (balanced + glass + tank)',
+  '  --events          per-event option split for each policy (story runs)',
+  '  --no-potions      add a noPotions variant of balanced',
+  '  --help            this list',
+];
+if (args.includes('--help') || args.includes('-h')) {
+  console.log(HELP.join('\n'));
+  process.exit(0);
+}
 const opt = (name, def) => {
   const i = args.indexOf(`--${name}`);
   return i >= 0 && args[i + 1] !== undefined ? args[i + 1] : def;
@@ -13,6 +31,7 @@ const ONLY = opt('policy', 'all');
 const JSON_OUT = args.includes('--json');
 const NO_POTIONS = args.includes('--no-potions');
 const ITEMS = args.includes('--items');
+const EVENTS = args.includes('--events');
 const STORY = !args.includes('--descent-only');
 const DESCENT = !args.includes('--story');
 const TIERS = ['NORMAL', 'ELITE', 'BOSS'];
@@ -120,13 +139,15 @@ function playPolicy(sim, plain) {
   const rng = sim.createSeededRng(SEED).next;
   const s = newStats();
   const items = newItemTally();
+  const events = newEventTally();
   const { policy, run } = watchPicks(plain, items);
   for (let i = 0; i < RUNS; i++) {
     const result = sim.simulateRun(policy, rng);
     tallyRun(s, result);
+    addEvents(events, result.events);
     endRun(sim, items, run, result.won);
   }
-  return { s, items };
+  return { s, items, events };
 }
 
 function playDescent(sim, policy) {
@@ -158,9 +179,11 @@ function storyTable(sim) {
   const report = {};
   const pickers = newItemTally();
   for (const [name, plain] of policiesOf(sim)) {
-    const { s, items } = playPolicy(sim, plain);
+    const { s, items, events } = playPolicy(sim, plain);
     report[name] = summarize(s);
+    if (EVENTS) {report[name].events = eventShares(events);}
     if (!JSON_OUT) {printText(name, s, report[name]);}
+    if (EVENTS && !JSON_OUT) {printEvents(sim, name, events, RUNS);}
     if (ITEMS && isPicker(name)) {mergeTallies(pickers, items);}
   }
   if (!JSON_OUT) {printFooter(sim, report, pickers);}
