@@ -288,7 +288,7 @@ export interface TurnResult {
 export type Rng = () => number;
 
 export const ACTS_PER_DEPTH = 4;
-export const RUN_MAX_N = 40;
+export const RUN_MAX_N = 400;
 export const DESCENT_GROWTH = 1.15;
 export const SCORE_PER_CLEAR = 100;
 export const SCORE_PER_BOSS = 500;

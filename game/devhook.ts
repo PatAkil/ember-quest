@@ -65,7 +65,11 @@ const ACT_CLEARS: EnemyKind[] = ['NORMAL', 'NORMAL', 'NORMAL', 'ELITE', 'NORMAL'
 
 function spendAll(hero: Hero, start: number): number {
   let i = start;
-  while (hero.sp > 0 && spendPoint(hero, at(PLAN, i % PLAN.length))) {i++;}
+  let misses = 0;
+  while (hero.sp > 0 && misses < PLAN.length) {
+    misses = spendPoint(hero, at(PLAN, i % PLAN.length)) ? 0 : misses + 1;
+    i++;
+  }
   return i;
 }
 

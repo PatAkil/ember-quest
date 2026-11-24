@@ -4,7 +4,7 @@ import { BIOMES, ENEMIES, ITEMS, SPELL_ORDER } from '../data';
 import type { ActPlan } from './descent';
 import type { RoomType } from './model';
 import { maxLevelFor } from './gear';
-import { fail, flag, idList, int, knownKey, list, num, oneOf, record } from './save-check';
+import { fail, flag, idList, int, knownKey, list, num, oneOf, record, SCALED } from './save-check';
 import type { Bounds, Fields } from './save-check';
 import type { RewardStep, RoomExtras } from './save-battle';
 
@@ -73,7 +73,7 @@ function readAlloc(value: unknown): Record<StatKey, number> {
 function readBurn(value: unknown): Burn | null {
   if (value === null) {return null;}
   const f = record(value, 'burn');
-  return { perTurn: num(f.perTurn, 'burn', COUNT), turns: int(f.turns, 'burn turns', SMALL) };
+  return { perTurn: num(f.perTurn, 'burn', SCALED), turns: int(f.turns, 'burn turns', SMALL) };
 }
 
 function readPacts(value: unknown): PactId[] {

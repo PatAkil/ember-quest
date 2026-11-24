@@ -14,7 +14,7 @@ import { fxBreak, fxBurnTick, fxBurst, fxGuard, fxPhase, fxPotion, fxResist, fxR
 import { clampMenuCursor, menuChoice } from './battle-menu';
 import { fxSlipsAway, fxThorns } from './battle-fx-affix';
 import { clearPops, pushPop, scoreSpot } from '../pops';
-import { noteLog, recordBlow, recordBurn, recordThorns, resetDeath } from './battle-death';
+import { noteLog, noteVerb, recordBlow, recordBurn, recordThorns, resetDeath } from './battle-death';
 
 function openBattle(g: Game, state: BattleState, win: BattleWin): void {
   const { magicCursor } = g.battle;
@@ -287,6 +287,7 @@ function useAction(g: Game, action: HeroAction): void {
     beginQueue(g);
     return;
   }
+  noteVerb(g, action);
   g.battle.committed = commitTurn(g, action);
   push(g, 0.9, () => { heroStep(g, action); });
   beginQueue(g);

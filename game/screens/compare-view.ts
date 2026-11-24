@@ -4,7 +4,7 @@ import type { Hero, OwnedItem } from '../types';
 import { compareFull, displayName, effectiveEffect, itemLevel } from '../sim';
 import type { CompareRow, FullCompare } from '../sim';
 import { BAND_Y, C_DIM, C_FAINT, C_HP, C_LOG_HURT, C_WARN, W, rarityColor } from '../theme';
-import { fitText } from '../widgets';
+import { awakenWords, fitText } from '../widgets';
 import { drawIconIn, drawMedallion } from './plate';
 
 const CARD_BOX = 34;
@@ -107,7 +107,7 @@ function kindChangeSpot(endX: number, cmp: FullCompare): KindChangeSpot {
 const AWAKEN_SWAP = 2;
 
 function tailLines(cmp: FullCompare, gain: CardLine, at: { clock: number; spot: KindChangeSpot }): { lines: CardLine[]; row: number } {
-  const awaken = cmp.awaken ? { text: cmp.awaken, color: C_DIM } : null;
+  const awaken = cmp.awaken ? { text: awakenWords(cmp.awaken), color: C_DIM } : null;
   const roomy = cmp.rows.length <= COLUMNS && !at.spot.line3;
   if (!awaken) {return { lines: [gain], row: 4 };}
   if (roomy) {return { lines: [gain, awaken], row: 3 };}

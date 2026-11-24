@@ -119,6 +119,8 @@ export function drawTags(g: Game, plates: TagPlates): void {
   const { enemy, state } = g.battle;
   if (!g.heroDown) {drawStrip(ctx, heroTags(g, state, guardShown(g)).map((t) => [t]), { plate: plates.hero, pad: plates.pad, y: HERO_TAG_Y });}
   if (!enemy || enemy.hp <= 0) {return;}
-  drawStrip(ctx, enemyTags(g, enemy, state), { plate: plates.enemy, pad: plates.pad, y: ENEMY_TAG_Y });
-  if (enemy.affixes.length > 1) {drawStrip(ctx, [affixChoices(enemy.affixes, g.clock)], { plate: plates.enemy, pad: plates.pad, y: ENEMY_TAG_Y + AFFIX_ROW });}
+  const tags = enemyTags(g, enemy, state);
+  drawStrip(ctx, tags, { plate: plates.enemy, pad: plates.pad, y: ENEMY_TAG_Y });
+  const affixY = tags.some((c) => c.length > 0) ? ENEMY_TAG_Y + AFFIX_ROW : ENEMY_TAG_Y;
+  if (enemy.affixes.length > 1) {drawStrip(ctx, [affixChoices(enemy.affixes, g.clock)], { plate: plates.enemy, pad: plates.pad, y: affixY });}
 }

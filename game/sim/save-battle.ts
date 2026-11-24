@@ -2,7 +2,7 @@ import { AFFIX_IDS, RARITIES } from '../types';
 import type { BattleState, Burn, EnemyInstance, MoveId, Rarity } from '../types';
 import { ENEMIES } from '../data';
 import { eventById } from './events';
-import { fail, flag, idList, int, knownKey, num, oneOf, record } from './save-check';
+import { fail, flag, idList, int, knownKey, num, oneOf, record, SCALED as STAT } from './save-check';
 import type { Bounds, Fields } from './save-check';
 
 export type SavedFoe = Omit<EnemyInstance, 'def'> & { id: string };
@@ -15,7 +15,6 @@ export interface RewardStep { at: 'REWARD'; stage: number; slot: number; roomSee
 const MOVES: readonly MoveId[] = ['STRIKE', 'WINDUP', 'HEAVY', 'WARD', 'SCORCH', 'MEND'];
 const SCOPES = ['ATTACK', 'SPELL'] as const;
 const SOURCES: readonly RewardSource[] = ['FIGHT', 'ELITE', 'BOSS', 'EVENT'];
-const STAT: Bounds = { lo: 0, hi: 1e9 };
 const RESIST: Bounds = { lo: -1e3, hi: 1e3 };
 const SMALL: Bounds = { lo: 0, hi: 99 };
 const SEED: Bounds = { lo: 0, hi: 0xffffffff };

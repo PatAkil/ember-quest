@@ -207,6 +207,24 @@ function fuzz(sim) {
   return `${SAMPLE_MUTATIONS} random field mutations: loadRun never throws; ${accepted} accepted ones restore and pass the sanity checks`;
 }
 
+function deepSave(sim) {
+  const depth = sim.depthOf(sim.SIM_MAX_N - 3);
+  const { snapshot, plan } = liveRun(sim, depth);
+  const n = sim.SIM_MAX_N - 3;
+  snapshot.run = { n, clears: 500, bosses: depth - 1, descentClears: 300, won: true, banked: 0, score: 0 };
+  snapshot.run.score = sim.scoreOf(snapshot.run);
+  const foe = sim.spawnFoe(plan.boss, { n, clears: 500, descentClears: 300, hero: snapshot.hero, affixes: [] });
+  const { def, ...fields } = foe;
+  const battle = snapshot.step.battle;
+  battle.foe = { ...fields, id: def.id, burn: { perTurn: foe.maxHp / 10, turns: 2 } };
+  battle.state.foeMark = foe.hp;
+  snapshot.hero.burn = { perTurn: Math.round(foe.atk * 0.4), turns: 2 };
+  const loaded = sim.loadRun(sim.saveRun(snapshot));
+  assert.ok(loaded, `a mid-battle save at n = ${n} (foe HP ${foe.maxHp.toExponential(1)}) was rejected`);
+  assert.deepEqual(sim.fromSaved(loaded).step.battle.foe, battle.foe, 'the deep foe did not round-trip');
+  return `a mid-battle save at n = ${n} against a ${def.id} of HP ${foe.maxHp.toExponential(1)} round-trips`;
+}
+
 export function saveRules(sim) {
-  return [roundTrip(sim), stepRules(sim), rejections(sim), fuzz(sim)].join('; ');
+  return [roundTrip(sim), stepRules(sim), rejections(sim), fuzz(sim), deepSave(sim)].join('; ');
 }

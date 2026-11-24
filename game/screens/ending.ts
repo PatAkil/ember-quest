@@ -7,7 +7,7 @@ import { C_ACCENT, C_DIM, C_FAINT, C_TEXT, C_WARN, H, W } from '../theme';
 import { blinkHz, drawCommandBand, wrap2 } from '../widgets';
 import { drawCardFrame } from './card';
 import { abandonRecap, deathRecap, winRecap } from './ending-recap';
-import type { RecapLine } from './ending-recap';
+import type { RecapLine } from './ending-tips';
 
 const NAME_SEP = ' / ';
 

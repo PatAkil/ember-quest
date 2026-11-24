@@ -154,9 +154,29 @@ function dodgedText(t: Turn, parried: boolean): string {
   return parried ? 'DODGED AND PARRIED! YOUR NEXT STRIKE HITS HARDER' : `YOU DODGE ${t.battle.enemy.def.name}'S BLOW!`;
 }
 
+function guardWord(t: Turn): string {
+  if (t.move === 'HEAVY') {return 'PARRIED';}
+  return chainedGuard(t) ? 'TIRED GUARD' : 'BLOCKED';
+}
+
+const fitted = (full: string, short: string): string => (full.length <= LOG_MAX ? full : short);
+
+function guardedFall(t: Turn, dmg: number, revived: boolean): string {
+  const word = guardWord(t);
+  const tail = revived ? 'FELLS YOU - YOU RISE!' : `HITS FOR ${String(dmg)} - YOU FALL!`;
+  return fitted(`${word}, BUT ${t.battle.enemy.def.name} ${tail}`, `${word}, BUT IT ${tail}`);
+}
+
 function fellText(t: Turn, dmg: number, revived: boolean): string {
+  if (t.battle.guarding) {return guardedFall(t, dmg, revived);}
   if (revived) {return `${t.battle.enemy.def.name} FELLS YOU! YOUR GEAR BURNS - YOU RISE!`;}
   return `${hitText(t, dmg)} - YOU FALL!`;
+}
+
+function blowDamage(t: Turn, roll: number): number {
+  const enemy = t.battle.enemy;
+  const resist = enemy.def.atkType === 'PHYSICAL' ? t.d.def : t.d.mdef;
+  return Math.max(1, Math.round(enemy.atk * roll * (HIT_MULT[t.move] ?? 1) * (1 - resist / 100) * guardFactor(t)));
 }
 
 function landHit(t: Turn): EnemyActResult {
@@ -167,8 +187,7 @@ function landHit(t: Turn): EnemyActResult {
     return quiet(move, dodgedText(t, parried), { dodged: true, guarded: battle.guarding, parried });
   }
   const physical = enemy.def.atkType === 'PHYSICAL';
-  const resist = physical ? d.def : d.mdef;
-  const dmg = Math.max(1, Math.round(enemy.atk * jitter(rng) * (HIT_MULT[move] ?? 1) * (1 - resist / 100) * guardFactor(t)));
+  const dmg = blowDamage(t, jitter(rng));
   hero.hp -= dmg;
   guardedGain(t);
   const parried = parry(t);
@@ -239,4 +258,18 @@ export function enemyAct(hero: Hero, battle: BattleState, rng: Rng): EnemyActRes
   const result = burnAfter(enemy, acted);
   markFoe(battle, hpBefore);
   return { ...result, phaseChanged, enraged, aside: enraged ? ENRAGE_LINE : '' };
+}
+
+export interface FoeBlowEstimate { unguarded: number; guarded: number }
+
+const strikesHero = (move: MoveId): boolean => HIT_MULT[move] !== undefined;
+
+function blowIf(hero: Hero, battle: BattleState, guarding: boolean): number {
+  const shadow: BattleState = { ...battle, guarding, guardChain: guarding ? battle.guardChain + 1 : 0 };
+  return blowDamage({ hero, battle: shadow, d: derive(hero), move: battle.intent, rng: () => 0.5 }, 1);
+}
+
+export function expectedFoeDamage(hero: Hero, battle: BattleState): FoeBlowEstimate {
+  if (battle.enemy.staggered || !strikesHero(battle.intent)) {return { unguarded: 0, guarded: 0 };}
+  return { unguarded: blowIf(hero, battle, false), guarded: blowIf(hero, battle, true) };
 }

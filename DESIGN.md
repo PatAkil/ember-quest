@@ -284,7 +284,11 @@ enemy's move, intent, cycle and phase), `status` (turn start, BURN, WARD, `heroF
   a GUARD reads `YOU BLOCK HALF - <FOE> STILL HITS FOR n`, a chained guard `A TIRED GUARD
   - <FOE> STILL HITS FOR n`, a parry `PARRIED! THE BLOW ONLY GRAZES YOU FOR n` (never
   `PARRIED FOR n`, which read as damage dealt), a dodged parry `DODGED AND PARRIED! YOUR
-  NEXT STRIKE HITS HARDER`, a burning hit ends `- YOU BURN!` when it fits; WARD `<FOE>
+  NEXT STRIKE HITS HARDER`, a burning hit ends `- YOU BURN!` when it fits. A guarded blow
+  that kills keeps its guard word (review round 4): `PARRIED, BUT <FOE> HITS FOR n - YOU
+  FALL!` (HEAVY), `BLOCKED, BUT …` (a guard or AEGIS), `TIRED GUARD, BUT …` (a chained
+  guard), and with a REVIVE `<WORD>, BUT <FOE> FELLS YOU - YOU RISE!`; when the foe's name
+  would push the line past 52 it reads `<WORD>, BUT IT …`. WARD `<FOE>
   RAISES A WARD - YOUR HITS SOFTEN`; a broken foe `<FOE> IS STAGGERED AND LOSES ITS TURN`;
   burn ticks `YOU BURN FOR n` / `THE FLAMES TAKE YOU! (n)` / `<FOE> BURNS FOR n [AND
   FALLS!]`.
@@ -307,12 +311,19 @@ enemy's move, intent, cycle and phase), `status` (turn start, BURN, WARD, `heroF
   reason in the hint line (`NOT ENOUGH MP`, `NO POTIONS LEFT`, `YOUR HP IS FULL`, `THE EMBER IS NOT FULL
   YET`); POTION is dim at full HP as well. A preview column right of the grid (3 lines) shows what the highlighted command
   does against this foe: `ATK X1.0` / `MAG X0.8 2 HITS`, `WEAK X1.5` / `RESIST X0.5`,
-  `-25% WARD` / `-30% RES`, `BREAKS IT` (accent) / `TOO WEAK TO BREAK` / `NOT WEAK: NO BREAK`
-  (orange, for a damaging command that is not eligible) against a shown HEAVY — the hint
-  above names the real floor, `ceil(BREAK_AT[kind] × maxHp)`,
-  `RIPOSTE X1.5`; GUARD `HALVES THE NEXT HIT` / `PARRY THE HEAVY BLOW`; POTION `HEAL 40%
-  HP`; BURST `IGNORES ARMOR+WARDS`. The break preview is a presentation estimate (no
-  jitter, crit, RAMP or TWIN), so it can only under-promise. Cursor memory: the TOP
+  `-25% WARD` / `-30% RES`, `BREAKS IT` (accent) / `NEEDS n+ WEAK DMG` (`NEEDS n+ DMG` with
+  PUNISH_WINDUP worn; n the real floor `ceil(BREAK_AT[kind] × maxHp)`) / `NOT WEAK: NO BREAK`
+  (orange, for a damaging command that is not eligible) against a shown HEAVY,
+  `RIPOSTE X1.5`. Every damaging command's first line opens with `~n DMG`
+  (`expectedHeroDamage`: no jitter, no crit). GUARD shows the expected blow `TAKE ~g OF u`
+  (`expectedFoeDamage`, guarded / unguarded), under `PARRY THE HEAVY BLOW` on a HEAVY, and
+  `GUARD WON'T SAVE YOU` in pink with the take line pink when the guarded blow is at least
+  the hero's HP; POTION `HEAL 40% HP`; BURST `IGNORES ARMOR+WARDS`. The hint line reads
+  `HEAVY BLOW NEXT (~u): GUARD, OR BREAK IT` on a HEAVY, `WINDING UP: HIT NOW, GUARD NEXT
+  TURN` on a WINDUP, and otherwise `ATTACKS GLANCE OFF: TRY MAGIC` when ATTACK is resisted
+  (an element below 1 or 20 %+ resist, ward included) and an affordable damaging spell is
+  expected to out-hit it. All of these are presentation estimates (no jitter, crit, RAMP
+  or TWIN). Cursor memory: the TOP
   cursor holds between turns (ATTACK at each fight's start); MAGIC keeps the last spell
   across fights; choosing an action returns to TOP.
 - **POTION.** `hero.potions` starts at 2 (`POTIONS_MAX`), REST refills, entering a new act
@@ -397,7 +408,14 @@ Content lives in `game/rules/events.ts` (`EVENTS`, `validateEvents()`, wired int
   `burnNextFight`, `fullHeal`, `dropPackItem` (opens `GIVE UP WHICH?`), `potion` ±n
   (clamped 0..2). An option has at most one screen-opening effect and it is last;
   at least half the events price their boon in something lasting (max HP or a pack
-  item); at most half offer a do-nothing option.
+  item); at most half offer a do-nothing option. **Every event has a free way out**
+  (review round 4): at least one option costs nothing and can never be dim — it is empty
+  (WALK ON) or only gains HP, max HP, potions, SP or a full heal (no item roll or upgrade,
+  which can run dry). `validateEvents` checks it for `EVENTS` and `QUIET_EVENT`, and a
+  rules sweep of 5000 random heroes (full HP, warded, frail, potionless, packless) finds an
+  enabled zero-cost option in every event. Before 2026-11-24 A WEARY PILGRIM at full HP
+  offered only SHARE A POTION, and THE BLOOD TITHE and THE EMBER SHRINE had no free option
+  at all.
 - **Permanent max HP** is `Hero.bonusMaxHp`, added to max HP in `derive` (a gain also
   adds the HP; a loss clamps HP). **The burn** is `Hero.pendingBurn` (turns, 0 = none):
   `takePendingBurn(hero, n)` turns it into BURN `round(3 × actMult(n))` per turn for
@@ -412,8 +430,9 @@ Content lives in `game/rules/events.ts` (`EVENTS`, `validateEvents()`, wired int
   (`NOTHING TO UPGRADE`), `dropPackItem` a non-empty pack (`NO SPARE GEAR`), a potion cost
   enough potions (`NO POTIONS`), an HP cost more than 1 HP (`TOO WEAK TO BLEED`), a max-HP
   cost a max above it (`TOO FRAIL`), a burn price a BURN-warded hero (`YOUR WARD REFUSES
-  FIRE`), and an option whose only gains are heals (`hpPct` > 0, `fullHeal`) a hero at full
-  HP (`ALREADY AT FULL HP`). The rule is the source of truth for the screen. A dim option
+  FIRE`), and an option that has a price and whose only gains are heals (`hpPct` > 0,
+  `fullHeal`) a hero at full HP (`ALREADY AT FULL HP` — paying for nothing). A free heal
+  stays open at full HP and simply heals nothing. The rule is the source of truth for the screen. A dim option
   cannot be chosen.
 - **The cancel rule: nothing is paid until the choice is final.** An option whose last
   effect opens a picker (`upgradeAny`, `dropPackItem`) opens it first; B returns to the
@@ -441,11 +460,11 @@ Content lives in `game/rules/events.ts` (`EVENTS`, `validateEvents()`, wired int
 | A WANDERING SMITH | LEND HIM YOUR STRENGTH: −8 max HP, upgrade any | TRADE A STORY: +1 potion (always open, so a fresh hero is never stuck) |
 | A CURSED IDOL | PRY IT OPEN: −10 max HP, an EPIC item | WALK ON |
 | A STILL POOL | BATHE: full heal, burn next fight | FILL A FLASK: +1 potion |
-| A WEARY PILGRIM | SHARE A POTION: −1 potion, +6 max HP | ASK FOR A BLESSING: +25 % HP |
-| THE EMBER SHRINE | BURN SPARE GEAR: full heal, +2 potions, give up a pack item | GRASP THE COAL: burn next fight, a RARE item |
+| A WEARY PILGRIM | SHARE A POTION: −1 potion, +6 max HP | ASK FOR A BLESSING: +25 % HP (open at full HP, heals nothing then) |
+| THE EMBER SHRINE | BURN SPARE GEAR: full heal, +2 potions, give up a pack item | WARM YOUR HANDS: +15 % HP (was GRASP THE COAL: burn, a RARE item — no free option) |
 | A FALLEN KNIGHT | GIVE HIM SPARE GEAR: +8 max HP, +1 potion, give up a pack item | WALK ON |
-| THE BLOOD TITHE | PAY IN VIGOUR: −12 max HP, +2 SP | PAY IN BLOOD: −35 % HP, +1 SP |
-| A WEEPING STATUE | DRINK THE TEARS: +2 potions, burn next fight | WALK ON |
+| THE BLOOD TITHE | PAY IN VIGOUR: −12 max HP, +2 SP | REFUSE THE TITHE (was PAY IN BLOOD: −35 % HP, +1 SP — no free option) |
+| A WEEPING STATUE | DRINK THE TEARS: +2 potions, burn next fight | CATCH A SINGLE TEAR: +10 % HP (keeps WALK ONs at 4 of 9) |
 
 ## v3 — item pool and new effects (M3)
 
@@ -662,7 +681,7 @@ the descent (see *Balance state → The descent*).
   depth card after the pact reads `DEPTH n` / `<BIOME> AWAITS...` / `SWORN TO <PACT>`.
 - **Simulator**: `simulateRun(policy, rng, { descend })`; `descend` is off by default, so
   `npm run sim` still ends at the Seraph (its `--json` was byte-identical across the
-  foundation step). With it on, runs descend until death or n = `SIM_MAX_N` (40), taking a
+  foundation step). With it on, runs descend until death or n = `SIM_MAX_N` (= `RUN_MAX_N`, 400), taking a
   pact on entering each depth by `policy.pactChoice(hero, offers)` (a fixed preference list
   per archetype; `random` picks randomly). `sim/run.mjs` prints the story table, then the
   descent table (`sim/descent-report.mjs`); `--story` prints the story alone (its `--json`
@@ -681,14 +700,17 @@ the descent (see *Balance state → The descent*).
   burn tick, thorns backlash). An abandoned run is `g.abandoned` (the save milestone).
 - **The summary** (`game/screens/ending.ts`, content in `ending-recap.ts`) shows on
   GAME OVER, ABANDONED and WIN: `DEPTH n  ACT n  BIOME`; for a death `SLAIN BY <killer>`
-  (or `BURNED DOWN FIGHTING` / `BLED OUT FIGHTING`) and `ITS <MOVE> DEALT n`, the two
-  log lines; the worn gear with levels packed onto at most two lines; `PACTS …`; and
+  (or `BURNED DOWN FIGHTING` / `BLED OUT FIGHTING`) then the two log lines in the order they happened and
+  `ITS <MOVE> DEALT n` (`… THROUGH YOUR GUARD` when the killing blow was guarded); the worn gear with levels packed onto at most two lines; `PACTS …`; and
   `NEXT TIME: <tip>`. A WIN swaps the killer for `GLORY +n   BOSSES FELLED n` and ends
   with an invitation (`THE DESCENT WAITS FOR YOUR NEXT RUN` after a depth-1 ascent,
   `DEPTH n+1 WAITS …` deeper). Nine rows at most; log lines go first when it overflows.
-- **NEXT TIME** comes from a table keyed, in priority order, by THE HOLLOW, the cause
-  (BURN, THORNS, BLOOD), the move (HEAVY BLOW, SCORCH, HEX), an elite killer, else
-  STRIKE (`ABANDONED` has its own). Each key holds two to four concrete tips of at most
+- **NEXT TIME** comes from a table keyed, in priority order, by THE HOLLOW; then the
+  situation of the fatal fight (`game/screens/ending-tips.ts`): a guarded blow still
+  killed, a boss whose weakness the hero had no answer for, a full ember never burst, an
+  affordable weak spell never cast, a HEAVY BLOW death with GUARD never used, no potions
+  left, no MP for any spell; then the cause (BURN, THORNS, BLOOD), the move (HEAVY BLOW,
+  SCORCH, HEX), an elite killer, else STRIKE (`ABANDONED` has its own). Each key holds two to four concrete tips of at most
   44 characters; the one shown is picked by a hash of the run (score, clears, act,
   damage, SP), so it is stable on screen and varies between deaths.
 - The event's one-card item screen titles itself `A GIFT  TAKE IT OR LEAVE IT`
@@ -800,7 +822,14 @@ the run rng; the moment the foe dies the rng is re-seeded to
   point outside it, or a depth plan without four acts is rejected by `loadRun` (which
   never throws) and dropped silently: the title shows no CONTINUE. A change to the saved
   shape bumps the version; old saves are dropped, never migrated. After reading,
-  `saneSave` (`game/sim/save-sanity.ts`) also rejects: `n` past `SIM_MAX_N` (40); more
+  `saneSave` (`game/sim/save-sanity.ts`) also rejects: `n` past `RUN_MAX_N` (400, depth 101 —
+  raised from 40 on 2026-11-24, which would have dropped CONTINUE for an endless run past
+  depth 11; foes grow ×1.15 per act, so n = 400 means foes ×5e24, unreachable in practice:
+  the deepest simulated run reaches n ≈ 15. A rules test spawns every planned foe and THE
+  HOLLOW at n = 397 and 400 and round-trips a mid-battle save there; the battle readers
+  bound damage-scaled numbers — foe HP/ATK/burn, `foeMark`, the hero's burn — only by
+  "finite", not 1e9. Past the cap the game plays on but a save is refused, so CONTINUE
+  would be lost; the threshold does not stop the descent); more
   bosses than acts or clears; `won` / `descentClears` disagreeing with `n` (descended ⇔
   n ≥ 4); `banked` above the score; a dead hero (HP ≤ 0); the same item id owned twice; a
   pack over `PACK_SIZE`; an empty normal or elite pool; a map cursor not among the
@@ -839,13 +868,16 @@ the run rng; the moment the foe dies the rng is re-seeded to
 
 - **A is armed per screen.** LEVEL UP, the loot screen (and the event gift), PICK, the
   event screen, every card, **the MAP, GEAR, THRESHOLD, PACT and the title menu** ignore A
-  until it has been released once after the screen opened and 0.25 s have passed (`armA`
-  / `takeA` in `game/state.ts`), so an A held or mashed through a battle's last beat or a
-  card cannot spend SP, take an offer, skip a card or walk into the next room. The title's
+  until it is a fresh press: A must be up at some point after the screen opened (`armA`
+  records whether it is already up) and the press must land on a later tick (`armA` /
+  `takeA` in `game/state.ts`), so an A held through a battle's last beat or a card cannot
+  spend SP, take an offer, skip a card or walk into the next room — while every new press
+  made once the screen is drawn acts at once (one press = one action; no dwell, and the
+  0.16–0.2 s screen reveal does not swallow input). The title's
   confirm re-arms when it opens. **The battle menu** is armed the same way when a battle
-  opens, when the entrance banner is skipped and after every turn's queue, so an A mashed
-  to skip a turn's animation (or buffered during a hit-stop) never chooses the next
-  command. A during the ELITE / BOSS banner skips the banner (as A skips to the next impact
+  opens, when the entrance banner is skipped and after every turn's queue, so the A that
+  skipped a turn's animation (or was buffered during a hit-stop) never chooses the next
+  command; the next fresh press does, from the first frame the menu is drawn. A during the ELITE / BOSS banner skips the banner (as A skips to the next impact
   in a turn); directions are not read until it is gone. THRESHOLD (1.0 s) and PACT (0.5 s) additionally wait that
   long, and GAME OVER and WIN (1.0 s, prompt faint until then) are armed by time
   (`armed`). PAUSED reads plain presses (the clock is frozen there).
@@ -908,7 +940,7 @@ not from stat inflation alone.
 
 Logical screen 240×160, font 4 px per char at scale 1. Battle log line
 <= 52 chars, or it wraps to two lines. Battle verbs: the plate's intent text <= 10 chars
-(`HEAVY BLOW`, `STAGGERED` 9), the band's intent hint <= 52 chars (the HEAVY hints `HEAVY NEXT: GUARD, OR BREAK: WEAK HIT/BURST n+` and `… ANY HIT n+` are at most 48 and 41 with a 4-digit n), a phase banner
+(`HEAVY BLOW`, `STAGGERED` 9), the band's intent hint <= 52 chars (`HEAVY BLOW NEXT (~n): GUARD, OR BREAK IT` is 42 with a 4-digit n), a phase banner
 <= 20 chars (scale 2 beside its tag), a menu preview line <= 82 px (21 chars), a spell
 cell `NAME` + `nMP` inside 68 px, a tag strip inside its plate's 96 px (tags that do not
 fit are dropped, lowest priority last: enemy WEAK, WARD, BURN, RES, affixes; hero BURN,
@@ -935,6 +967,37 @@ The ending summary `DEPTH n  n CLEARED  SCORE n  BEST n` <= 180 px. Pause lists 
 pacts joined with ` / ` on lines <= 172 px.
 
 ## Balance state (measured with the headless simulator, 2026-11-24)
+
+### Review round 4 (2026-11-24)
+
+The act-2 wall. Blind playtest bots died to the YETI in 11 of 21 runs; in the simulator the
+naive policy (no verbs — the newcomer proxy) was killed by the YETI in 405 of 2000 runs, its
+top killer, with an act-2 boss clear of 75 % against balanced's 97 %. Smoothing: **YETI
+atkBase 6.8 → 5.8** (×1.17 still above the DARK LORD's 5.3 ×1.0; HP, MEND and the double
+wind-up phase 2 untouched). 6.2 was tried first and moved naive's act-2 boss clear only to
+79 %. No act-3/4 compensation was needed: every win rate stayed in its band. The same run
+also carries the round-4 events change (every event has a free option: THE EMBER SHRINE's
+GRASP THE COAL → WARM YOUR HANDS, THE BLOOD TITHE's PAY IN BLOOD → REFUSE THE TITHE, A
+WEEPING STATUE's WALK ON → CATCH A SINGLE TEAR, the blessing open at full HP).
+
+`node sim/run.mjs` (2000 runs, seed 1):
+
+| policy | win | reach act 2 | act 3 | act 4 | boss clears a1/a2/a3/a4 |
+|---|---|---|---|---|---|
+| balanced | 38 % | 99 % | 93 % | 66 % | 99/98/86/76 |
+| naive (no verbs) | 15 % | 92 % | 68 % | 37 % | 92/82/72/63 |
+| glass (all offence) | 17 % | 99 % | 83 % | 43 % | 99/96/76/66 |
+| tank (HP/DEF, physical) | 35 % | 99 % | 87 % | 53 % | 99/94/78/83 |
+| elite-hungry routing | 37 % | 99 % | 92 % | 66 % | 99/98/87/74 |
+| chest-hungry routing | 30 % | 96 % | 88 % | 63 % | 98/96/86/63 |
+| random picks + points | 0 % | 20 % | 0 % | 0 % | 31/8/–/– |
+
+naive/balanced = **0.40**. Naive's YETI deaths 405 → 295 (now second to the MUMMY 309);
+before the change, naive reached act 3 in 61 % of runs. Descent (same run): balanced beats
+the Seraph 762/2000, clears depth 2 in 37 % / depth 3 in 7 % of those, mean final n 7.4;
+tank 63 % / 26 % / d4 2 %, n 9.4; naive 30 % / 5 %, n 6.5; glass 28 % / 5 %; elite-hungry
+32 % / 6 %; chest-hungry 46 % / 10 %. THE HOLLOW is the top descent killer for every
+policy; 0 stalls.
 
 ### Review round 2 (2026-11-24)
 

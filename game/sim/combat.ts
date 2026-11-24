@@ -17,7 +17,7 @@ import { ENEMIES, SPELLS } from '../data';
 import { affixResists, swiftEvades, thornsDamage } from './affixes';
 import { commandAct, heroResult, isCommand, settleBreak } from './commands';
 import { elementMult } from './element';
-import { gainEmber } from './burst';
+import { burstBlow, gainEmber } from './burst';
 import { actMult } from './descent';
 import { nextIntent } from './enemy-turn';
 import { findEffect } from './gear';
@@ -143,24 +143,28 @@ function castHeal(hero: Hero, d: Derived, spell: SpellDef, heal: number): HeroAc
 
 interface Strike { d: Derived; swing: Swing; power: number; elementMul: number }
 interface Volley { hits: Hit[]; total: number; anyCrit: boolean; mpRestored: number }
+interface Roll { mult: number; jitter: number; crit: boolean }
 
-function rollVolley(hero: Hero, enemy: EnemyInstance, strike: Strike, rng: Rng): Volley {
+function hitDamage(hero: Hero, enemy: EnemyInstance, strike: Strike, roll: Roll): number {
   const { d, swing, power, elementMul } = strike;
   const execute = findEffect(hero, 'EXECUTE');
+  let raw = swing.base * roll.mult * roll.jitter * power;
+  if (roll.crit) {raw *= d.critMult;}
+  if (execute && enemy.maxHp > 0 && enemy.hp / enemy.maxHp <= execute.threshold) {
+    raw *= 1 + execute.bonus;
+  }
+  return afterResist(raw, swing.kind, enemy, elementMul);
+}
+
+function rollVolley(hero: Hero, enemy: EnemyInstance, strike: Strike, rng: Rng): Volley {
   const mpOnHit = findEffect(hero, 'MP_ON_HIT');
   const volley: Volley = { hits: [], total: 0, anyCrit: false, mpRestored: 0 };
-  for (const mult of swing.mults) {
-    let raw = swing.base * mult * jitter(rng) * power;
-    const crit = rng() * 100 < d.crit;
-    if (crit) {
-      raw *= d.critMult;
-      volley.anyCrit = true;
-    }
-    if (execute && enemy.maxHp > 0 && enemy.hp / enemy.maxHp <= execute.threshold) {
-      raw *= 1 + execute.bonus;
-    }
-    const dmg = afterResist(raw, swing.kind, enemy, elementMul);
-    volley.hits.push({ dmg, crit, kind: swing.kind });
+  for (const mult of strike.swing.mults) {
+    const roll: Roll = { mult, jitter: jitter(rng), crit: false };
+    roll.crit = rng() * 100 < strike.d.crit;
+    if (roll.crit) {volley.anyCrit = true;}
+    const dmg = hitDamage(hero, enemy, strike, roll);
+    volley.hits.push({ dmg, crit: roll.crit, kind: strike.swing.kind });
     volley.total += dmg;
     if (mpOnHit) {volley.mpRestored += mpOnHit.amount;}
   }
@@ -208,6 +212,16 @@ function slipsAway(battle: BattleState, ramp: Ramp, scope: Scope): HeroActResult
   return heroResult('IT SLIPS AWAY!', { missed: true });
 }
 
+function strikeOf(hero: Hero, battle: BattleState, action: StrikeAction, power: Power): Strike {
+  const d = derive(hero);
+  return {
+    d,
+    swing: swingFor(hero, d, action),
+    elementMul: elementMult(battle.enemy.def, heroElement(hero, action)),
+    power: power.ramp.mult * power.opener * strikePower(hero, battle, d, action),
+  };
+}
+
 function strikeAct(hero: Hero, battle: BattleState, action: StrikeAction, rng: Rng): HeroActResult {
   const d = derive(hero);
   const enemy = battle.enemy;
@@ -220,10 +234,9 @@ function strikeAct(hero: Hero, battle: BattleState, action: StrikeAction, rng: R
     return result;
   }
   if (swiftEvades(enemy, rng)) {return slipsAway(battle, ramp, scope);}
-  const swing = swingFor(hero, d, action);
-  const elementMul = elementMult(enemy.def, heroElement(hero, action));
-  const power = ramp.mult * opener * strikePower(hero, battle, d, action);
-  const volley = rollVolley(hero, enemy, { d, swing, power, elementMul }, rng);
+  const strike = strikeOf(hero, battle, action, { ramp, opener });
+  const { swing, elementMul } = strike;
+  const volley = rollVolley(hero, enemy, strike, rng);
   enemy.hp = Math.max(0, enemy.hp - volley.total);
   const { healed, mpRestored } = sustain(hero, d, volley, spell);
   const burned = igniteFoe(hero, enemy, volley, rng);
@@ -275,8 +288,10 @@ function backlash(hero: Hero, battle: BattleState, result: HeroActResult): HeroA
   return { ...result, thorns, thornsText, heroDead: fall === 'DEAD', revived: fall === 'REVIVED' };
 }
 
-const dealsDamage = (action: HeroAction): boolean =>
-  action === 'ATTACK' || action === 'BURST' || (isSpell(action) && SPELLS[action].heal === undefined && SPELLS[action].guard === undefined);
+const strikesFoe = (action: HeroAction): action is StrikeAction =>
+  action === 'ATTACK' || (isSpell(action) && SPELLS[action].heal === undefined && SPELLS[action].guard === undefined);
+
+const dealsDamage = (action: HeroAction): boolean => action === 'BURST' || strikesFoe(action);
 
 function chainAfter(battle: BattleState, action: HeroAction): number {
   if (isGuardAction(action)) {return battle.guardChain + 1;}
@@ -299,4 +314,12 @@ export function heroAct(hero: Hero, battle: BattleState, action: HeroAction, rng
   const result = act(hero, battle, action, rng);
   tickWard(battle.enemy);
   return burnAfter(hero, backlash(hero, battle, settleBreak(hero, battle, action, result)));
+}
+
+
+export function expectedHeroDamage(hero: Hero, battle: BattleState, action: HeroAction): number {
+  if (action === 'BURST') {return burstBlow(hero, derive(hero)).dmg;}
+  if (!strikesFoe(action)) {return 0;}
+  const strike = strikeOf(hero, battle, action, openerOf(hero, battle, action === 'ATTACK' ? 'ATTACK' : 'SPELL'));
+  return strike.swing.mults.reduce((sum, mult) => sum + hitDamage(hero, battle.enemy, strike, { mult, jitter: 1, crit: false }), 0);
 }

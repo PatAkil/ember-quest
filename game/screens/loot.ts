@@ -14,7 +14,7 @@ type CardArt = NonNullable<CardScreen['art']>;
 import { ICON_SCROLL } from '../sprites';
 import { C_ACCENT, C_SCROLL, heroPos, rarityColor } from '../theme';
 import { noop } from '../lookup';
-import { itemIcon } from '../widgets';
+import { awakenWords, itemIcon } from '../widgets';
 import { showCard } from './card';
 import { openPick } from './pick';
 
@@ -91,7 +91,7 @@ function dropRow(owned: OwnedItem, note: string): PickRow {
     color: rarityColor(owned.item),
     note,
     detail: ownedDetail(owned),
-    aside: awakenPreview(owned.item, owned.level),
+    aside: awakenWords(awakenPreview(owned.item, owned.level)),
   };
 }
 
@@ -140,11 +140,13 @@ function takeOffer(g: Game, offer: TakenOffer): void {
   if (offer.kind === 'SCROLL') {learnedScroll(g, offer.spell);} else {upgraded(g, offer, r, delta);}
 }
 
+const youLine = (line: string): string => (line.includes(' -> ') ? `YOUR ${line}` : line);
+
 function upgradeDetail(g: Game, offer: UpgradeOffer): string[] {
   const said = describeOffer(g.hero, offer);
   const blurb = said.slice(-1);
-  const stat = said.length > 1 ? said.slice(0, 1) : [];
-  return [compareOffer(g.hero, offer), ...stat, ...blurb];
+  const stat = said.length > 1 ? said.slice(0, 1).map((line) => `ITEM GIVES ${line}`) : [];
+  return [youLine(compareOffer(g.hero, offer)), ...stat, ...blurb];
 }
 
 function upgradeRow(g: Game, offer: UpgradeOffer): PickRow {
@@ -155,7 +157,7 @@ function upgradeRow(g: Game, offer: UpgradeOffer): PickRow {
     color: rarityColor(item),
     note: target.where,
     detail: upgradeDetail(g, offer).filter((line) => line !== awakenPreview(item, toLevel)),
-    aside: awakenPreview(item, toLevel),
+    aside: awakenWords(awakenPreview(item, toLevel)),
   };
 }
 

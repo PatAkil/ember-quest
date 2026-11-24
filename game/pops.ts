@@ -66,10 +66,12 @@ function drawPopPlate(ctx: CanvasRenderingContext2D, p: Pop, at: Point): void {
   ctx.fillRect(at.x - pad, at.y - pad, textWidth(p.text, p.scale) + 2 * pad, 5 * p.scale + 2 * pad);
 }
 
+const POP_FADE_RATE = 4;
+
 export function drawPops(g: Game): void {
   const ctx = g.app.pc.ctx;
   for (const p of g.pops) {
-    ctx.globalAlpha = Math.min(1, Math.max(0, (p.life / POP_LIFE) * 1.6));
+    ctx.globalAlpha = Math.min(1, Math.max(0, (p.life / POP_LIFE) * POP_FADE_RATE));
     const at = popOrigin(p);
     drawPopPlate(ctx, p, at);
     drawText(ctx, p.text, at, { color: p.color, scale: p.scale, shadow: false });

@@ -35,6 +35,24 @@ if (opts.scene !== undefined && !SCENES.includes(opts.scene)) {
   process.exit(1);
 }
 
+const PLAYING = (subScene) => ({ scene: 'PLAYING', subScene });
+const FIGHT = PLAYING('BATTLE');
+const LANDS_ON = {
+  title: { scene: 'TITLE' }, 'title-continue': { scene: 'TITLE' }, map: PLAYING('MAP'), 'map-long': PLAYING('MAP'),
+  battle: FIGHT, 'battle-heavy': FIGHT, 'battle-magic': FIGHT, 'battle-ward': FIGHT, 'battle-phase': FIGHT, 'battle-hollow': FIGHT, 'battle-affix': FIGHT,
+  levelup: PLAYING('LEVELUP'), loot: PLAYING('LOOT'), card: PLAYING('CARD'), gear: PLAYING('GEAR'), pick: PLAYING('PICK'), drop: PLAYING('PICK'),
+  event: PLAYING('EVENT'), threshold: PLAYING('THRESHOLD'), pact: PLAYING('PACT'),
+  paused: { scene: 'PAUSED' }, 'paused-abandon': { scene: 'PAUSED' }, gameover: { scene: 'GAME_OVER' }, win: { scene: 'WIN' },
+};
+
+function missedLanding(state) {
+  const want = opts.scene && !keys.length ? LANDS_ON[opts.scene] : undefined;
+  if (!want || !state) {return null;}
+  const got = { scene: state.scene, subScene: state.subScene };
+  const same = got.scene === want.scene && (want.subScene === undefined || got.subScene === want.subScene);
+  return same ? null : `--scene ${opts.scene} landed on ${got.scene}/${got.subScene}, not ${want.scene}${want.subScene ? `/${want.subScene}` : ''}`;
+}
+
 const steps = Math.max(0, Number(opts.steps) || 0);
 const keys = opts.keys.split(',').map((k) => k.trim()).filter(Boolean).map((k) => KEY_NAMES[k.toLowerCase()] ?? k);
 
@@ -127,6 +145,8 @@ async function look(page, errors) {
     errors.push('no live <canvas> after module ran');
   }
   else {result.state = await drive(page);}
+  const missed = missedLanding(result.state);
+  if (missed) {errors.push(missed);}
   if (result.state?.drift > 0) {errors.push(`battle replay drifted from the committed turn ${String(result.state.drift)} time(s)`);}
   result.shot = await capture(page, canvas);
   result.ok = Boolean(canvas) && errors.length === 0;

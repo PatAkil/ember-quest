@@ -64,7 +64,7 @@ export const EVENTS: readonly EventDef[] = [
     id: 'SHRINE', title: 'THE EMBER SHRINE', lines: ['IT BURNS WHAT YOU OFFER', 'AND WARMS YOU IN RETURN.'],
     options: [
       { label: 'BURN SPARE GEAR', effects: [{ kind: 'fullHeal' }, { kind: 'potion', amount: 2 }, { kind: 'dropPackItem' }] },
-      { label: 'GRASP THE COAL', effects: [{ kind: 'burnNextFight' }, { kind: 'item', rarity: 'RARE' }] },
+      { label: 'WARM YOUR HANDS', effects: [{ kind: 'hpPct', amount: 0.15 }] },
     ],
   },
   {
@@ -75,12 +75,15 @@ export const EVENTS: readonly EventDef[] = [
     id: 'TITHE', title: 'THE BLOOD TITHE', lines: ['A HOODED FIGURE COUNTS', 'YOUR SCARS. IT WANTS ONE.'],
     options: [
       { label: 'PAY IN VIGOUR', effects: [{ kind: 'maxHp', amount: -12 }, { kind: 'sp', amount: 2 }] },
-      { label: 'PAY IN BLOOD', effects: [{ kind: 'hpPct', amount: -0.35 }, { kind: 'sp', amount: 1 }] },
+      { label: 'REFUSE THE TITHE', effects: [] },
     ],
   },
   {
     id: 'STATUE', title: 'A WEEPING STATUE', lines: ['TEARS OF HOT SALT RUN', 'DOWN ITS STONE CHEEKS.'],
-    options: [{ label: 'DRINK THE TEARS', effects: [{ kind: 'potion', amount: 2 }, { kind: 'burnNextFight' }] }, WALK_ON],
+    options: [
+      { label: 'DRINK THE TEARS', effects: [{ kind: 'potion', amount: 2 }, { kind: 'burnNextFight' }] },
+      { label: 'CATCH A SINGLE TEAR', effects: [{ kind: 'hpPct', amount: 0.1 }] },
+    ],
   },
 ];
 
@@ -97,6 +100,22 @@ const pricedInLasting = (event: EventDef): boolean =>
   event.options.some((o) => o.effects.some((e) => (e.kind === 'maxHp' && e.amount < 0) || e.kind === 'dropPackItem'));
 
 const isWalkOn = (event: EventDef): boolean => event.options.some((o) => o.effects.length === 0);
+
+const OPEN_WHEN_FREE: Readonly<Record<EffectKind, (effect: EventEffect) => boolean>> = {
+  hpPct: (e) => e.kind === 'hpPct' && e.amount > 0,
+  maxHp: (e) => e.kind === 'maxHp' && e.amount > 0,
+  sp: () => true,
+  item: () => false,
+  upgradeAny: () => false,
+  burnNextFight: () => false,
+  fullHeal: () => true,
+  dropPackItem: () => false,
+  potion: (e) => e.kind === 'potion' && e.amount > 0,
+};
+
+const neverBlockedFree = (option: EventOption): boolean => option.effects.every((e) => OPEN_WHEN_FREE[e.kind](e));
+
+const hasFreeExit = (event: EventDef): boolean => event.options.some(neverBlockedFree);
 
 function checkText(bad: string[], where: string, text: string, max: number): void {
   if (text.length === 0 || text.length > max) {bad.push(`${where}: "${text}" must be 1..${String(max)} chars`);}
@@ -126,6 +145,7 @@ function checkEvent(bad: string[], event: EventDef): void {
     if (line !== undefined) {checkText(bad, where, line, EVENT_LINE_MAX);}
   }
   event.options.forEach((o, i) => { checkOption(bad, `${where} option ${String(i)}`, o); });
+  if (!hasFreeExit(event)) {bad.push(`${where}: no option that costs nothing and is always open (add WALK ON or a free gain)`);}
 }
 
 export function validateEvents(): string[] {
@@ -136,6 +156,7 @@ export function validateEvents(): string[] {
     ids.add(event.id);
     checkEvent(bad, event);
   }
+  checkEvent(bad, QUIET_EVENT);
   if (EVENTS.filter(pricedInLasting).length * 2 < EVENTS.length) {bad.push('events: fewer than half price their boon in max HP or a pack item');}
   if (EVENTS.filter(isWalkOn).length * 2 > EVENTS.length) {bad.push('events: more than half offer a do-nothing option');}
   return bad;

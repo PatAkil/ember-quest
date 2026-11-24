@@ -43,6 +43,8 @@ function labelColor(sel: boolean, ready: boolean, warm = false): string {
   return warm ? C_EMBER : C_TEXT;
 }
 
+const NOTE_INSET = 4;
+const NOTE_INSET_HINTED = 9;
 const WEAK_NOTE = { note: 'WEAK', noteColor: C_GOOD };
 
 function weakNote(g: Game, cmd: TopCommand): { note: string; noteColor?: string } {
@@ -54,7 +56,7 @@ function weakNote(g: Game, cmd: TopCommand): { note: string; noteColor?: string 
 
 function topCell(g: Game, cmd: TopCommand, sel: boolean): Cell {
   const hero = g.hero;
-  const inset = sel && hasColumnHint(g.battle.topCursor) ? 5 : 0;
+  const inset = sel && hasColumnHint(g.battle.topCursor) ? NOTE_INSET_HINTED : NOTE_INSET;
   if (cmd === 'POTION') {return { label: `POTION X${hero.potions}`, note: '', color: labelColor(sel, canDrinkPotion(hero)), sel };}
   if (cmd === 'BURST') {return { label: 'BURST', note: '', color: labelColor(sel, canAfford(hero, 'BURST'), true), sel };}
   if (cmd === 'MAGIC') {return { label: 'MAGIC', ...weakNote(g, cmd), color: labelColor(sel, knownSpells(hero).length > 0), sel, inset };}

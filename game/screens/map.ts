@@ -96,8 +96,15 @@ function restWasted(g: Game): boolean {
 const LOST_NOTICE = 'ANOTHER TAB TOOK THIS RUN - THIS ONE NO LONGER SAVES';
 const NOTICE_Y = 97;
 
+const KEYS_HINT = `UP/DOWN CHOOSE A ROOM   ${BUTTON_KEY.A.hint} ENTER IT`;
+
+function drawKeysHint(g: Game): void {
+  if (g.map.reachable.length === 0) {return;}
+  drawTextCentered(g.app.pc.ctx, KEYS_HINT, { width: W, y: NOTICE_Y }, { color: C_DIM, shadow: true });
+}
+
 function drawLostNotice(g: Game): void {
-  if (!g.saveLost) {return;}
+  if (!g.saveLost) { drawKeysHint(g); return; }
   const ctx = g.app.pc.ctx;
   const w = textWidth(LOST_NOTICE, 1);
   ctx.fillStyle = PICO8[0];

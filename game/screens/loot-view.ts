@@ -7,7 +7,7 @@ import { ICON_SCROLL, ROOM_ART } from '../sprites';
 import { renderTableau } from '../backdrop';
 import type { Game } from '../state';
 import { C_ACCENT, C_BORDER, C_DIM, C_HP, C_PANEL, C_SCROLL, C_SEL_BAR, C_TEXT, C_WARN, HERO_W, HERO_X, W, rarityColor } from '../theme';
-import { blinkHz, drawCommandBand, fitText, itemIcon } from '../widgets';
+import { awakenWords, blinkHz, drawCommandBand, fitText, itemIcon } from '../widgets';
 import { drawCompare, drawItemCard } from './compare-view';
 import type { CardLine, CardText } from './compare-view';
 import { choosesStow } from './loot';
@@ -91,7 +91,7 @@ function offerCardText(g: Game, offer: LootOffer, face: OfferFace): CardText {
   const awaken = offer.kind === 'ITEM' || offer.kind === 'UPGRADE' ? awakenPreview(offer.item, offer.kind === 'UPGRADE' ? offer.toLevel : 0) : '';
   const said = describeOffer(g.hero, offer);
   const last = said.filter((text) => text !== awaken).length - 1;
-  const lines = said.map((text, i) => ({ text, color: awaken && text === awaken ? C_DIM : i === last ? blurbColor(offer) : C_TEXT }));
+  const lines = said.map((text, i) => (awaken && text === awaken ? { text: awakenWords(awaken), color: C_DIM } : { text, color: i === last ? blurbColor(offer) : C_TEXT }));
   const tail = g.loot.stow && choosesStow(g, offer) ? packLine(g) : { text: compareOffer(g.hero, offer), color: C_DIM };
   return { name: face.name, color: face.color, lines: [...lines, tail] };
 }

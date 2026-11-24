@@ -48,7 +48,7 @@ function drawWipe(ctx: Ctx, u: number): void {
 
 const DRAW: Record<RevealShape, (ctx: Ctx, u: number) => void> = { BLINDS: drawBlinds, WIPE: drawWipe };
 
-export const revealActive = (g: Game): boolean => g.reveal.t < g.reveal.dur;
+const revealActive = (g: Game): boolean => g.reveal.t < g.reveal.dur;
 
 export function syncReveal(g: Game): void {
   g.reveal.last = g.subScene;

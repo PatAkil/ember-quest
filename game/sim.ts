@@ -40,8 +40,8 @@ export {
 } from './sim/describe';
 export { applyOffer, ensureStarterWeapon, noteDeclinedScrolls, resolveOverflow, resolveUpgrade, rollLoot, type AppliedOffer, type OfferChoice } from './sim/loot';
 export { discard, ownedIds, packSize, stow, swapIn, unequip, upgradableTargets } from './sim/pack';
-export { clearsTerm, createBattle, heroAct, spawnEnemy } from './sim/combat';
-export { ENRAGE_LINE, enemyAct } from './sim/enemy-turn';
+export { clearsTerm, createBattle, expectedHeroDamage, heroAct, spawnEnemy } from './sim/combat';
+export { ENRAGE_LINE, enemyAct, expectedFoeDamage, type FoeBlowEstimate } from './sim/enemy-turn';
 export { resolveTurn, turnRng, turnSeed, type TurnStream } from './sim/turn';
 export { pendingTick, resistOf, startTurn } from './sim/status';
 export { elementMult } from './sim/element';

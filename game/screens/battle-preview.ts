@@ -1,7 +1,7 @@
 import { BREAK_AT, BURST_MULT, EMBER_MAX, GUARD_MP_GAIN, POTION_HEAL } from '../types';
 import type { BattleState, DamageKind, Derived, EnemyInstance, Hero, MoveId, SpellId } from '../types';
 import { SPELLS } from '../data';
-import { burstPower, canAfford, derive, elementMult, gearPower, heroElement, knownSpells, pendingTick, punishes, resistOf, riposteMult, spellCost } from '../sim';
+import { burstPower, canAfford, derive, elementMult, expectedFoeDamage, expectedHeroDamage, heroElement, knownSpells, pendingTick, punishes, resistOf, riposteMult, spellCost } from '../sim';
 import type { Game } from '../state';
 import { C_ACCENT, C_DIM, C_EMBER, C_GOOD, C_HEX, C_LOG_HURT, C_TEXT, C_WARD, C_WARN } from '../theme';
 import { hasHex, magicWeapon } from './battle-fx';
@@ -15,8 +15,8 @@ const look = (short: string, hint: string, color: string, hot = false): IntentLo
 
 const INTENT: Record<MoveId, IntentLook> = {
   STRIKE: look('STRIKES', 'IT READIES A BLOW', C_TEXT),
-  WINDUP: look('WINDS UP', 'IT WINDS UP (LIGHT HIT) - A HEAVY BLOW FOLLOWS', C_WARN),
-  HEAVY: look('HEAVY BLOW', 'HEAVY NEXT: GUARD, OR BREAK WITH A WEAK HIT OR BURST', C_WARN, true),
+  WINDUP: look('WINDS UP', 'WINDING UP: HIT NOW, GUARD NEXT TURN', C_WARN),
+  HEAVY: look('HEAVY BLOW', 'HEAVY BLOW NEXT: GUARD, OR BREAK IT', C_WARN, true),
   WARD: look('WARDS', 'IT RAISES A WARD - RESISTS RISE FOR 2 TURNS', C_WARD),
   SCORCH: look('SCORCHES', 'IT GATHERS FLAME - THE HIT WILL BURN', C_EMBER),
   MEND: look('MENDS', 'IT WILL MEND ITS WOUNDS', C_GOOD),
@@ -26,14 +26,28 @@ const STAGGER_INTENT = look('STAGGERED', 'IT IS STAGGERED - IT LOSES ITS TURN', 
 
 const breakNeed = (e: EnemyInstance): number => Math.ceil(BREAK_AT[e.def.kind] * e.maxHp);
 
-function heavyHint(e: EnemyInstance, hero: Hero): IntentLook {
-  const how = punishes(hero) ? 'ANY HIT' : 'WEAK HIT/BURST';
-  return look('HEAVY BLOW', `HEAVY NEXT: GUARD, OR BREAK: ${how} ${String(breakNeed(e))}+`, C_WARN, true);
+function heavyHint(state: BattleState, hero: Hero): IntentLook {
+  const blow = expectedFoeDamage(hero, state).unguarded;
+  return look('HEAVY BLOW', `HEAVY BLOW NEXT (~${String(blow)}): GUARD, OR BREAK IT`, C_WARN, true);
+}
+
+const GLANCE_HINT = look('', 'ATTACKS GLANCE OFF: TRY MAGIC', C_WARN);
+const GLANCE_RES = 20;
+
+const strikesWithSpell = (id: SpellId): boolean => SPELLS[id].heal === undefined && SPELLS[id].guard === undefined;
+
+function attackGlances(hero: Hero, state: BattleState): boolean {
+  const st = attackStrike(hero, derive(hero), state.enemy);
+  if (st.elem >= 1 && resistOf(state.enemy, st.kind) < GLANCE_RES) {return false;}
+  const attack = expectedHeroDamage(hero, state, 'ATTACK');
+  return knownSpells(hero).some((id) => strikesWithSpell(id) && canAfford(hero, id) && expectedHeroDamage(hero, state, id) > attack);
 }
 
 export function intentHint(e: EnemyInstance, state: BattleState, hero: Hero): IntentLook {
   const shown = intentLook(e, state);
-  return shown === INTENT.HEAVY ? heavyHint(e, hero) : shown;
+  if (shown === INTENT.HEAVY) {return heavyHint(state, hero);}
+  if (shown === INTENT.WINDUP) {return shown;}
+  return attackGlances(hero, state) ? GLANCE_HINT : shown;
 }
 
 export function intentLook(e: EnemyInstance, state: BattleState): IntentLook {
@@ -63,22 +77,16 @@ const strikeOf = (hero: Hero, d: Derived, a: 'ATTACK' | SpellId, e: EnemyInstanc
 
 interface Ctx { g: Game; hero: Hero; d: Derived; e: EnemyInstance; state: BattleState; heavy: boolean }
 
-function strikeTotal(c: Ctx, st: Strike, a: 'ATTACK' | SpellId): number {
-  const res = resistOf(c.e, st.kind);
-  const riposte = c.state.riposte ? riposteMult(c.hero) : 1;
-  const power = gearPower({ hero: c.hero, battle: c.state, d: c.d, element: heroElement(c.hero, a) });
-  return st.base * st.mult * st.hits * (1 - res / 100) * st.elem * riposte * power;
-}
-
 const burstStat = (d: Derived): Stat => (d.mag > d.atk ? 'MAG' : 'ATK');
 const burstMult = (hero: Hero): number => BURST_MULT * burstPower(hero);
-const burstTotal = (c: Ctx): number => Math.max(c.d.atk, c.d.mag) * burstMult(c.hero);
+const dmgSeg = (dmg: number): Seg => ({ text: `~${String(dmg)} DMG`, color: C_TEXT });
 
 function breakLine(c: Ctx, total: number, eligible: boolean): PreviewLine | null {
   if (!c.heavy) {return null;}
   if (!eligible) {return [{ text: 'NOT WEAK: NO BREAK', color: C_WARN }];}
-  const enough = total >= breakNeed(c.e);
-  return enough ? [{ text: 'BREAKS IT', color: C_ACCENT }] : [{ text: 'TOO WEAK TO BREAK', color: C_WARN }];
+  const need = breakNeed(c.e);
+  if (total >= need) {return [{ text: 'BREAKS IT', color: C_ACCENT }];}
+  return [{ text: `NEEDS ${String(need)}+`, color: C_WARN }, { text: punishes(c.hero) ? 'DMG' : 'WEAK DMG', color: C_WARN }];
 }
 
 function resistSegs(c: Ctx, st: Strike): Seg[] {
@@ -98,10 +106,10 @@ function strikeHead(st: Strike): string {
 
 function strikePreview(c: Ctx, a: 'ATTACK' | SpellId): PreviewLine[] {
   const st = strikeOf(c.hero, c.d, a, c.e);
-  const total = strikeTotal(c, st, a);
+  const total = expectedHeroDamage(c.hero, c.state, a);
   const riposteText = `RIPOSTE X${riposteMult(c.hero).toFixed(1)}`;
   const third = breakLine(c, total, st.elem > 1 || punishes(c.hero)) ?? (c.state.riposte ? [{ text: riposteText, color: C_ACCENT }] : []);
-  return [[{ text: strikeHead(st), color: C_TEXT }], resistSegs(c, st), third];
+  return [[dmgSeg(total), { text: strikeHead(st), color: C_DIM }], resistSegs(c, st), third];
 }
 
 const roomHp = (c: Ctx): number => Math.max(0, c.d.maxHp - c.hero.hp);
@@ -131,12 +139,27 @@ function spellPreview(c: Ctx, id: SpellId): PreviewLine[] {
 
 const line = (text: string, color: string): PreviewLine => [{ text, color }];
 
-function guardPreview(c: Ctx): PreviewLine[] {
-  if (c.heavy) {return [line('PARRY THE HEAVY BLOW', C_ACCENT), line('TAKE HALF DAMAGE', C_TEXT), line(`NEXT HIT X${riposteMult(c.hero).toFixed(1)}`, C_ACCENT)];}
-  if (c.e.staggered || c.state.intent === 'WARD' || c.state.intent === 'MEND') {return [line('NO BLOW IS COMING', C_WARN), line('A WASTED TURN', C_DIM)];}
-  if (c.state.guardChain >= 1) {return [line('CUTS THE HIT BY 25%', C_TEXT), line('YOU GUARDED LAST', C_DIM), line('NO MP OR EMBER', C_DIM)];}
-  return [line('HALVES THE NEXT HIT', C_TEXT), line(`+${GUARD_MP_GAIN} MP IF STRUCK`, C_DIM)];
+function takeLine(c: Ctx): PreviewLine {
+  const blow = expectedFoeDamage(c.hero, c.state);
+  const lethal = blow.guarded >= c.hero.hp;
+  return line(`TAKE ~${String(blow.guarded)} OF ${String(blow.unguarded)}`, lethal ? C_LOG_HURT : C_TEXT);
 }
+
+const guardLethal = (c: Ctx): boolean => expectedFoeDamage(c.hero, c.state).guarded >= c.hero.hp;
+
+function guardLines(c: Ctx): PreviewLine[] {
+  if (c.heavy) {return [line('PARRY THE HEAVY BLOW', C_ACCENT), takeLine(c), line(`NEXT HIT X${riposteMult(c.hero).toFixed(1)}`, C_ACCENT)];}
+  if (c.state.guardChain >= 1) {return [takeLine(c), line('YOU GUARDED LAST', C_DIM), line('NO MP OR EMBER', C_DIM)];}
+  return [takeLine(c), line(`+${String(GUARD_MP_GAIN)} MP IF STRUCK`, C_DIM)];
+}
+
+function guardPreview(c: Ctx): PreviewLine[] {
+  if (c.e.staggered || c.state.intent === 'WARD' || c.state.intent === 'MEND') {return [line('NO BLOW IS COMING', C_WARN), line('A WASTED TURN', C_DIM)];}
+  const lines = guardLines(c);
+  return guardLethal(c) ? [line(GUARD_FAILS, C_LOG_HURT), takeLine(c), lines[2] ?? []] : lines;
+}
+
+const GUARD_FAILS = 'GUARD WON\'T SAVE YOU';
 
 function burnAfter(c: Ctx, healed: number): PreviewLine | null {
   const tick = pendingTick(c.hero);
@@ -166,8 +189,9 @@ function emberPct(hero: Hero): string {
 
 function burstPreview(c: Ctx): PreviewLine[] {
   if (c.hero.ember < EMBER_MAX) {return [line(emberPct(c.hero), C_EMBER), line(`X${burstMult(c.hero).toFixed(1)} IGNORES ARMOR`, C_DIM), line('FILLS AS YOU FIGHT', C_DIM)];}
-  const third = breakLine(c, burstTotal(c), true) ?? line('EMPTIES THE EMBER', C_DIM);
-  return [line(`${burstStat(c.d)} X${burstMult(c.hero).toFixed(1)}`, C_TEXT), line('IGNORES ARMOR+WARDS', C_TEXT), third];
+  const total = expectedHeroDamage(c.hero, c.state, 'BURST');
+  const third = breakLine(c, total, true) ?? line('EMPTIES THE EMBER', C_DIM);
+  return [[dmgSeg(total), { text: `${burstStat(c.d)} X${burstMult(c.hero).toFixed(1)}`, color: C_DIM }], line('IGNORES ARMOR+WARDS', C_TEXT), third];
 }
 
 function magicPreview(c: Ctx): PreviewLine[] {

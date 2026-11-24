@@ -4,8 +4,8 @@ import { realRun } from './persist';
 import { loadResume } from './resume';
 import { loadStoredRun } from './storage';
 import { updatePops } from './pops';
-import { drawReveal, revealActive, trackReveal } from './transition';
-import { armed, resetCursorEdge } from './state';
+import { drawReveal, trackReveal } from './transition';
+import { armed } from './state';
 import { END_ARM } from './screens/threshold';
 import type { Game, SubScene } from './state';
 import { C_BG, H, W } from './theme';
@@ -74,7 +74,6 @@ function restartOnA(g: Game): void {
 
 function updatePlaying(g: Game, dt: number): void {
   if (g.app.input.pressed('PAUSE') && !g.dying) { g.app.audio.play('blip'); g.app.scenes.to('PAUSED'); return; }
-  if (revealActive(g)) { resetCursorEdge(g); return; }
   UPDATE_SUB[g.subScene](g, dt);
 }
 

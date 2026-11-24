@@ -153,10 +153,12 @@ function playableRules(sim) {
 
 function fullHpRules(sim) {
   const hero = sim.createHero();
+  const bathe = sim.EVENTS.find((e) => e.id === 'POOL').options[0];
+  assert.equal(sim.eventOptionBlocker(hero, bathe), 'ALREADY AT FULL HP', 'a paid heal-only option was open at full HP');
   const bless = sim.EVENTS.find((e) => e.id === 'PILGRIM').options[1];
-  assert.equal(sim.eventOptionBlocker(hero, bless), 'ALREADY AT FULL HP', 'a heal-only option was open at full HP');
+  assert.equal(sim.eventOptionBlocker(hero, bless), null, 'a free heal (the blessing) was dim at full HP');
   hero.hp -= 5;
-  assert.equal(sim.eventOptionBlocker(hero, bless), null, 'a heal-only option was dim below full HP');
+  assert.equal(sim.eventOptionBlocker(hero, bathe), null, 'a paid heal-only option was dim below full HP');
   const shrine = sim.EVENTS.find((e) => e.id === 'SHRINE').options[0];
   hero.hp += 5;
   hero.pack.push({ item: sim.ITEMS[0], level: 0 });
@@ -167,7 +169,7 @@ function fullHpRules(sim) {
   sim.enterActRecovery(tired);
   sim.enterActRecovery(tired);
   assert.equal(tired.potions, 2, 'enterActRecovery: one potion per act, max 2');
-  return 'a heal-only option is dim at full HP (ALREADY AT FULL HP); entering an act gives a potion back (max 2)';
+  return 'a paid heal-only option is dim at full HP (ALREADY AT FULL HP), a free one stays open; entering an act gives a potion back (max 2)';
 }
 
 function epicIdol(sim) {
@@ -179,8 +181,35 @@ function epicIdol(sim) {
   return '200 act-1 EPIC event items are EPIC (minAct ignored at the named rarity)';
 }
 
+const FREE_TRIALS = 5000;
+
+const costsNothing = (sim, option) => option.effects.every((e) => sim.effectIsGain(e));
+
+function richerHero(sim, rng) {
+  const hero = randomHero(sim, rng);
+  if (rng() < 0.3) {hero.hp = sim.derive(hero).maxHp;}
+  if (rng() < 0.2) {sim.equip(hero, sim.ITEMS.find((i) => i.effect.kind === 'BURN_WARD'), 0);}
+  if (rng() < 0.2) {hero.bonusMaxHp = -Math.floor(rng() * 60);}
+  for (const item of sim.ITEMS) {if (rng() < 0.02) {sim.equip(hero, item, Math.floor(rng() * 3));}}
+  sim.derive(hero);
+  hero.hp = Math.min(hero.hp, sim.derive(hero).maxHp);
+  return hero;
+}
+
+function freeExitRules(sim) {
+  const rng = sim.createSeededRng(23).next;
+  for (let t = 0; t < FREE_TRIALS; t++) {
+    const hero = richerHero(sim, rng);
+    for (const event of [...sim.EVENTS, sim.QUIET_EVENT]) {
+      const free = event.options.filter((o) => costsNothing(sim, o) && sim.eventOptionEnabled(hero, o));
+      assert.ok(free.length > 0, `${event.id}: no enabled zero-cost option for hero hp ${hero.hp}/${sim.derive(hero).maxHp}, potions ${hero.potions}, pack ${hero.pack.length}`);
+    }
+  }
+  return `${FREE_TRIALS} random heroes (full HP, warded, frail, empty): every event offers an enabled option that costs nothing`;
+}
+
 export function eventRules(sim) {
   const bad = sim.validateEvents();
   assert.deepEqual(bad, [], `validateEvents: ${bad.join('; ')}`);
-  return [effectRules(sim), burnRules(sim), playableRules(sim), fullHpRules(sim), epicIdol(sim), eventMaps(sim), choiceRules(sim), eventRuns(sim)].join(' | ');
+  return [effectRules(sim), burnRules(sim), playableRules(sim), fullHpRules(sim), freeExitRules(sim), epicIdol(sim), eventMaps(sim), choiceRules(sim), eventRuns(sim)].join(' | ');
 }

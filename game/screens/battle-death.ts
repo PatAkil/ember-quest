@@ -1,6 +1,7 @@
-import type { EnemyActResult, EnemyInstance, MoveId } from '../types';
+import type { EnemyActResult, EnemyInstance, HeroAction, MoveId } from '../types';
+import { isSpell } from '../sim';
 import { emptyDeath } from '../state';
-import type { DeathCause, Game } from '../state';
+import type { DeathCause, Game, UsedVerb } from '../state';
 
 const LOG_KEPT = 2;
 
@@ -26,11 +27,20 @@ function moveWord(e: EnemyInstance, move: MoveId): string {
   return move === 'STRIKE' && e.def.atkType !== 'PHYSICAL' ? 'HEX' : MOVE_WORD[move];
 }
 
-interface Fall { cause: DeathCause; move: string; damage: number }
+interface Fall { cause: DeathCause; move: string; damage: number; guarded?: boolean }
+
+const verbOf = (action: HeroAction): UsedVerb => (isSpell(action) ? 'MAGIC' : action);
+
+export function noteVerb(g: Game, action: HeroAction): void {
+  const verb = verbOf(action);
+  if (!g.death.used.includes(verb)) {g.death.used.push(verb);}
+}
 
 function record(g: Game, e: EnemyInstance, fall: Fall): void {
   g.death = {
     ...fall,
+    guarded: fall.guarded ?? false,
+    used: g.death.used,
     killerId: e.def.id,
     killerName: killerName(e),
     elite: e.def.kind === 'ELITE',
@@ -39,7 +49,7 @@ function record(g: Game, e: EnemyInstance, fall: Fall): void {
 }
 
 export function recordBlow(g: Game, e: EnemyInstance, r: EnemyActResult): void {
-  record(g, e, { cause: 'BLOW', move: moveWord(e, r.move), damage: r.dmg });
+  record(g, e, { cause: 'BLOW', move: moveWord(e, r.move), damage: r.dmg, guarded: r.guarded });
 }
 
 export function recordThorns(g: Game, e: EnemyInstance, thorns: number): void {

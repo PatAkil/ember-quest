@@ -247,6 +247,27 @@ function bossTables(sim) {
   return `300 descent boss tables: three EPIC+ items, ${signatures} signature re-rolls, only missed scrolls`;
 }
 
+const sane = (v) => Number.isFinite(v) && v >= 1;
+
+function capScales(sim) {
+  const rng = sim.createSeededRng(400).next;
+  const hero = armed(sim);
+  for (const n of [sim.SIM_MAX_N - 3, sim.SIM_MAX_N]) {
+    assert.ok(sane(sim.actMult(n)), `actMult(${n}) = ${sim.actMult(n)}`);
+    const plans = sim.planDepth(sim.depthOf(n), rng);
+    assert.equal(plans.length, 4, `planDepth(${sim.depthOf(n)}) act count`);
+    const plan = sim.planOf(plans, n);
+    assert.ok(plan.stageSizes.length <= sim.DESCENT_STAGE_MAX && plan.normals.length > 0 && plan.elites.length > 0, `n ${n}: plan shape`);
+    for (const id of [...plan.normals, ...plan.elites, plan.boss]) {
+      const foe = sim.spawnFoe(id, { n, clears: 500, descentClears: 300, hero, affixes: plan.affixOrder ?? [] });
+      assert.ok(sane(foe.maxHp) && sane(foe.atk) && foe.hp === foe.maxHp, `n ${n} ${id}: hp ${foe.maxHp} atk ${foe.atk}`);
+    }
+    const hollow = sim.hollowOf(hero, n);
+    assert.ok(sane(hollow.maxHp) && sane(hollow.atk), `n ${n}: hollow hp ${hollow.maxHp} atk ${hollow.atk}`);
+  }
+  return `n = ${sim.SIM_MAX_N} (depth ${sim.depthOf(sim.SIM_MAX_N)}): actMult ${sim.actMult(sim.SIM_MAX_N).toExponential(1)}, plans, spawnFoe and hollowOf finite and >= 1`;
+}
+
 export function depthRules(sim) {
-  return [planShape, descentMaps, weightRows, bossTables].map((rule) => rule(sim)).join(' | ');
+  return [planShape, descentMaps, weightRows, bossTables, capScales].map((rule) => rule(sim)).join(' | ');
 }

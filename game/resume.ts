@@ -1,5 +1,4 @@
-import { EVENTS } from './data';
-import { fromSaved, loadRun, planOf, spawnFoe, storyPlan, toSaved } from './sim';
+import { eventById, fromSaved, loadRun, planOf, spawnFoe, storyPlan, toSaved } from './sim';
 import type { RunSnapshot, SavedBattle, SavedRun, SavedStep } from './sim';
 import { at } from './lookup';
 import { biomeLook, foeScale, stageAt } from './state';
@@ -38,7 +37,7 @@ function resumeFight(g: Game, node: MapNode, saved: SavedBattle): void {
 }
 
 function resumeEvent(g: Game, eventId: string): void {
-  const def = EVENTS.find((e) => e.id === eventId);
+  const def = eventById(eventId);
   startEvent(g, leaveRoom(g), def);
 }
 

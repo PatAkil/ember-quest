@@ -39,25 +39,6 @@ function saveOutcome(g: Game, r: TurnResult): void {
   persistBattle(g);
 }
 
-export function commitTurn(g: Game, action: HeroAction): CommittedTurn | null {
-  const { enemy, state } = g.battle;
-  if (!enemy || !state) {return null;}
-  const live = ledgerOf(g, enemy, state);
-  const foe = cloneFoe(enemy);
-  install(g, { ...live, hero: cloneHero(g.hero), enemy: foe, state: { ...state, enemy: foe } });
-  const shadow = must(g.battle.state ?? undefined, 'battle state');
-  const result = resolveTurn(g.hero, shadow, action, g.roomSeed);
-  saveOutcome(g, result);
-  const after = ledgerOf(g, foe, shadow);
-  install(g, live);
-  return { result, after };
-}
-
-export function mirrorRng(g: Game, stream: TurnStream): Rng {
-  const turn = g.battle.committed?.result.turn;
-  return turn === undefined ? g.rng : turnRng(g.roomSeed, turn, stream);
-}
-
 const burnOf = (b: Burn | null): string => (b ? `${String(b.turns)}/${String(b.perTurn)}` : '-');
 
 function heroPrint(h: Hero): string {
@@ -68,8 +49,27 @@ function foePrint(e: EnemyInstance | null): string {
   return e ? [e.hp, e.staggered, burnOf(e.burn)].join(':') : '-';
 }
 
-const drifted = (g: Game, after: Ledger): boolean =>
-  heroPrint(g.hero) !== heroPrint(after.hero) || foePrint(g.battle.enemy) !== foePrint(after.enemy);
+const turnPrint = (h: Hero, e: EnemyInstance | null): string => `${heroPrint(h)}|${foePrint(e)}`;
+
+export function commitTurn(g: Game, action: HeroAction): CommittedTurn | null {
+  const { enemy, state } = g.battle;
+  if (!enemy || !state) {return null;}
+  const live = ledgerOf(g, enemy, state);
+  const foe = cloneFoe(enemy);
+  install(g, { ...live, hero: cloneHero(g.hero), enemy: foe, state: { ...state, enemy: foe } });
+  const shadow = must(g.battle.state ?? undefined, 'battle state');
+  const result = resolveTurn(g.hero, shadow, action, g.roomSeed);
+  const print = turnPrint(g.hero, foe);
+  saveOutcome(g, result);
+  const after = ledgerOf(g, foe, shadow);
+  install(g, live);
+  return { result, after, print };
+}
+
+export function mirrorRng(g: Game, stream: TurnStream): Rng {
+  const turn = g.battle.committed?.result.turn;
+  return turn === undefined ? g.rng : turnRng(g.roomSeed, turn, stream);
+}
 
 let drift = 0;
 
@@ -79,7 +79,7 @@ export function adoptTurn(g: Game): void {
   const c = g.battle.committed;
   if (!c) {return;}
   g.battle.committed = null;
-  if (drifted(g, c.after)) {
+  if (turnPrint(g.hero, g.battle.enemy) !== c.print) {
     drift++;
     reportError(new Error(`[battle] turn ${String(c.result.turn)} replay drifted from the committed result`));
   }

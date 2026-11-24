@@ -80,6 +80,8 @@ export function wrap2(text: string, maxW: number, scale = 1): [string] | [string
   return [words.slice(0, split).join(' '), words.slice(split).join(' ')];
 }
 
+export const awakenWords = (raw: string): string => (raw ? `AWAKENS ${raw}` : '');
+
 export const pct = (n: number): string => `${Math.round(n)}%`;
 
 export const blinkHz = (clock: number, hz: number): boolean => blink(clock, 1 / hz, 0.5) === 1;

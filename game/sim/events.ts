@@ -57,9 +57,10 @@ function blockerOf(hero: Hero, effect: EventEffect): string | null {
 
 const HEALS: ReadonlySet<EventEffect['kind']> = new Set<EventEffect['kind']>(['hpPct', 'fullHeal']);
 
-function healOnly(option: EventOption): boolean {
+function paidHealOnly(option: EventOption): boolean {
   const gains = option.effects.filter((e) => effectIsGain(e));
-  return gains.length > 0 && gains.every((e) => HEALS.has(e.kind));
+  const paid = gains.length < option.effects.length;
+  return paid && gains.length > 0 && gains.every((e) => HEALS.has(e.kind));
 }
 
 export function eventOptionBlocker(hero: Hero, option: EventOption): string | null {
@@ -67,7 +68,7 @@ export function eventOptionBlocker(hero: Hero, option: EventOption): string | nu
     const why = blockerOf(hero, effect);
     if (why) {return why;}
   }
-  return healOnly(option) && hero.hp >= derive(hero).maxHp ? 'ALREADY AT FULL HP' : null;
+  return paidHealOnly(option) && hero.hp >= derive(hero).maxHp ? 'ALREADY AT FULL HP' : null;
 }
 
 export const eventOptionEnabled = (hero: Hero, option: EventOption): boolean => eventOptionBlocker(hero, option) === null;

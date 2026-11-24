@@ -5,7 +5,7 @@ import { renderBiomeBackdrop } from '../backdrop';
 import { ICON_EMPTY } from '../sprites';
 import type { Game } from '../state';
 import { C_ACCENT, C_BORDER, C_DIM, C_FAINT, C_PANEL, C_SEL_BAR, C_TEXT, C_WARN, W, rarityColor } from '../theme';
-import { blinkHz, drawCommandBand, fitText, itemIcon } from '../widgets';
+import { awakenWords, blinkHz, drawCommandBand, fitText, itemIcon } from '../widgets';
 import { drawCompare, drawItemCard } from './compare-view';
 import type { CardLine, CardText } from './compare-view';
 import { fittingRows, packedAt, refusalShowing, wornAt } from './gear';
@@ -77,7 +77,7 @@ function drawColumns(g: Game, ctx: CanvasRenderingContext2D): void {
 }
 
 function awakenLine(item: Item, level: number): CardLine[] {
-  const text = awakenPreview(item, level);
+  const text = awakenWords(awakenPreview(item, level));
   return text ? [{ text, color: C_DIM }] : [];
 }
 

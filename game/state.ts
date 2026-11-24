@@ -32,7 +32,7 @@ export type BattleMenu = 'TOP' | 'MAGIC';
 type Outcome = 'NONE' | 'WON' | 'LOST';
 interface QueueStep { hold: number; run: () => void }
 export interface TurnLedger { hero: Hero; enemy: EnemyInstance; state: BattleState; clears: number; bosses: number; score: number; rng: number }
-export interface CommittedTurn { result: TurnResult; after: TurnLedger }
+export interface CommittedTurn { result: TurnResult; after: TurnLedger; print: string }
 export interface BattleWin { kill: () => void; done: () => void }
 export interface BattleScreen {
   enemy: EnemyInstance | null;
@@ -58,8 +58,9 @@ export interface CardScreen { lines: string[]; onDone: () => void; art?: { icon:
 export interface LevelUpScreen { cursor: number; earned: number; onDone: () => void }
 export interface LootScreen { offers: LootOffer[]; cursor: number; source: LootSource; stow: boolean; gift?: boolean; ash?: boolean; onDone: () => void; settle: () => void }
 export type DeathCause = 'BLOW' | 'BURN' | 'THORNS' | 'BLOOD' | '';
-export interface DeathRecord { killerId: string; killerName: string; elite: boolean; move: string; damage: number; lastLines: string[]; cause: DeathCause }
-export const emptyDeath = (): DeathRecord => ({ killerId: '', killerName: '', elite: false, move: '', damage: 0, lastLines: [], cause: '' });
+export type UsedVerb = 'MAGIC' | 'GUARD' | 'BURST' | 'POTION' | 'ATTACK';
+export interface DeathRecord { killerId: string; killerName: string; elite: boolean; move: string; damage: number; lastLines: string[]; cause: DeathCause; guarded: boolean; used: UsedVerb[] }
+export const emptyDeath = (): DeathRecord => ({ killerId: '', killerName: '', elite: false, move: '', damage: 0, lastLines: [], cause: '', guarded: false, used: [] });
 export interface GearScreen { cursor: number; refusedAt: number }
 export interface PickRow { icon?: Sprite; name: string; color: string; note: string; detail: string[]; aside?: string }
 export interface EventScreen { def: EventDef; cursor: number; refusedAt: number; onDone: () => void }
@@ -210,17 +211,15 @@ export function dirEdgeX(g: Game): number {
   return edge;
 }
 
-const A_DWELL = 0.25;
-
 export function armA(g: Game): void {
-  g.aGate = { openedAt: g.clock, released: false };
+  g.aGate = { openedAt: g.clock, released: !g.app.input.held('A') };
 }
 
 export function takeA(g: Game): boolean {
   const { input } = g.app;
   const gate = g.aGate;
   if (!gate.released && (!input.held('A') || input.released('A'))) {gate.released = true;}
-  return gate.released && g.clock - gate.openedAt >= A_DWELL && input.pressed('A');
+  return gate.released && g.clock > gate.openedAt && input.pressed('A');
 }
 
 export interface Arming { openedAt: number; delay: number }
