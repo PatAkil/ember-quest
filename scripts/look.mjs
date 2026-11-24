@@ -28,7 +28,7 @@ const { values: opts } = parseArgs({
   },
 });
 
-const SCENES = ['title', 'map', 'battle', 'levelup', 'loot', 'card', 'paused', 'gameover', 'win', 'gear', 'pick', 'drop', 'battle-heavy', 'battle-magic'];
+const SCENES = ['title', 'map', 'battle', 'levelup', 'loot', 'card', 'paused', 'gameover', 'win', 'gear', 'pick', 'drop', 'battle-heavy', 'battle-magic', 'battle-ward', 'battle-phase'];
 if (opts.scene !== undefined && !SCENES.includes(opts.scene)) {
   console.log(JSON.stringify({ ok: false, state: null, errors: [`unknown --scene "${opts.scene}" (known: ${SCENES.join(', ')})`], shot: null }));
   process.exit(1);

@@ -1,4 +1,4 @@
-import type { Biome, EnemyDef, Item, ItemEffect, LootSource, SpellId } from '../types';
+import type { Biome, EnemyDef, EnemyKind, Item, ItemEffect, LootSource, MoveId, SpellId } from '../types';
 import { ITEMS } from './items';
 import { ENEMIES } from './enemies';
 import { ACT_MULT, BIOMES, LOOT_COUNT, LOOT_WEIGHTS, SPELL_ORDER, SPELLS } from './world';
@@ -103,16 +103,44 @@ const SPELL_RULES: Rule<SpellId>[] = [
   [(id) => SPELLS[id].name.length > 9, (id) => `${id}: spell name too long`],
 ];
 
+const EXTRA_MOVES: Record<EnemyKind, number> = { NORMAL: 2, ELITE: 3, BOSS: Infinity };
+const BANNER_MAX = 20;
+
+const windupBroken = (moves: MoveId[]): boolean =>
+  moves.some((m, i) => (m === 'WINDUP' && moves[i + 1] !== 'HEAVY') || (m === 'HEAVY' && moves[i - 1] !== 'WINDUP'));
+
+const extraMoves = (moves: MoveId[]): number => new Set(moves.filter((m) => m !== 'STRIKE')).size;
+
+const phase2Of = (e: EnemyDef) => e.phase2 ?? { at: 0.5, moves: ['STRIKE'], banner: '', atkMult: 1 };
+
 const ENEMY_RULES: Rule<EnemyDef>[] = [
   [(e) => e.name.length > 12, (e) => `${e.id}: enemy name ${e.name.length} chars`],
   [(e) => !!e.trait && e.trait.length > 14, (e) => `${e.id}: trait too long`],
   [(e) => e.def < 0 || e.def > 40 || e.mdef < 0 || e.mdef > 40, (e) => `${e.id}: resist out of 0..40`],
   [(e) => e.moves.length === 0, (e) => `${e.id}: empty move cycle`],
+  [(e) => windupBroken(e.moves), (e) => `${e.id}: every WINDUP must be followed by HEAVY and every HEAVY preceded by WINDUP`],
+  [(e) => extraMoves(e.moves) > EXTRA_MOVES[e.kind], (e) => `${e.id}: too many distinct moves for a ${e.kind}`],
+  [(e) => e.kind === 'BOSS' && !e.phase2, (e) => `${e.id}: a BOSS needs a phase2`],
+  [(e) => e.kind !== 'BOSS' && !!e.phase2, (e) => `${e.id}: only a BOSS has a phase2`],
+];
+
+const PHASE2_RULES: Rule<EnemyDef>[] = [
+  [(e) => phase2Of(e).moves.length === 0, (e) => `${e.id}: empty phase2 cycle`],
+  [(e) => phase2Of(e).moves[0] === 'HEAVY', (e) => `${e.id}: phase2 must not open with HEAVY`],
+  [(e) => windupBroken(phase2Of(e).moves), (e) => `${e.id}: phase2 WINDUP/HEAVY out of order`],
+  [(e) => phase2Of(e).banner.length > BANNER_MAX, (e) => `${e.id}: phase2 banner over ${String(BANNER_MAX)} chars`],
+  [(e) => phase2Of(e).banner !== phase2Of(e).banner.toUpperCase(), (e) => `${e.id}: phase2 banner not uppercase`],
+  [(e) => phase2Of(e).at <= 0 || phase2Of(e).at >= 1, (e) => `${e.id}: phase2 at outside 0..1`],
+  [(e) => phase2Of(e).atkMult <= 0, (e) => `${e.id}: phase2 atkMult must be positive`],
+  [(e) => !!e.weak && e.weak === e.resists, (e) => `${e.id}: weak and resists the same element`],
 ];
 
 function validateSpellsAndEnemies(bad: string[]): void {
   for (const id of Object.keys(SPELLS) as SpellId[]) {applyRules(SPELL_RULES, id, bad);}
-  for (const e of Object.values(ENEMIES)) {applyRules(ENEMY_RULES, e, bad);}
+  for (const e of Object.values(ENEMIES)) {
+    applyRules(ENEMY_RULES, e, bad);
+    applyRules(PHASE2_RULES, e, bad);
+  }
 }
 
 interface BiomeCheck { b: Biome; act: number; signatureOf: Map<string, string> }

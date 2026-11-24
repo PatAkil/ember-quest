@@ -167,15 +167,48 @@ enemy's move, intent, cycle and phase), `status` (turn start, BURN, WARD, `heroF
   | `SCORCH` | ×0.7 hit; the hero gains BURN | `SCORCHES` |
   | `MEND` | heals 10 % max HP once per phase; afterwards that entry acts as `STRIKE` | `MENDS` |
 
+  WARD never lowers a resist already above the cap (`max(instance, min(60, instance + 25))`).
+
   Data rules (`validateData`): every `WINDUP` is immediately followed by `HEAVY` and no
-  `HEAVY` stands without one; normals use at most 2 distinct moves besides STRIKE,
-  elites 3, bosses any; `phase2.moves[0]` is never `HEAVY`; no cycle is empty.
+  `HEAVY` stands without one (no wrap-around: a cycle never opens on `HEAVY`); normals use
+  at most 2 distinct moves besides STRIKE (WINDUP and HEAVY count as two), elites 3,
+  bosses any; every BOSS has a `phase2` and nothing else does; `phase2.moves[0]` is never
+  `HEAVY`, its banner is uppercase and ≤ 20 chars, `0 < at < 1`, `atkMult > 0`; no cycle
+  is empty; `weak` ≠ `resists`.
+
+  The roster (`game/rules/enemies.ts`; every boss: `phase2.at` 0.5, `atkMult` 1.15):
+
+  | Act | Enemy | Tier | Cycle | Weak / resists |
+  |---|---|---|---|---|
+  | 1 | SLIME | N | STRIKE STRIKE STRIKE MEND | FIRE / – |
+  | 1 | GOBLIN | N | WINDUP HEAVY STRIKE STRIKE | FIRE / – |
+  | 1 | SKELETON | N | STRIKE WARD STRIKE STRIKE | EARTH / – |
+  | 1 | OGRE KING | E | STRIKE WINDUP HEAVY STRIKE MEND | FIRE / – |
+  | 1 | WRAITH LORD | E | SCORCH STRIKE WINDUP HEAVY STRIKE | FIRE / THUNDER |
+  | 1 | DARK LORD | B | STRIKE WARD WINDUP HEAVY STRIKE SCORCH → `THE DARK LORD RISES`: SCORCH WINDUP HEAVY STRIKE WINDUP HEAVY | FIRE / – |
+  | 2 | ICE WOLF | N | STRIKE STRIKE WINDUP HEAVY | FIRE / WATER |
+  | 2 | ICE BEAR | N | STRIKE MEND STRIKE WARD | EARTH / WATER |
+  | 2 | FROST WISP | E | SCORCH STRIKE WINDUP HEAVY STRIKE | WATER / – |
+  | 2 | YETI | B | STRIKE WINDUP HEAVY STRIKE MEND STRIKE → `THE YETI RAGES`: STRIKE WINDUP HEAVY WINDUP HEAVY STRIKE | FIRE / WATER |
+  | 3 | SANDWORM | N | STRIKE WINDUP HEAVY STRIKE | WATER / EARTH |
+  | 3 | SCORPION | N | STRIKE SCORCH STRIKE STRIKE | WATER / – |
+  | 3 | MUMMY | E | STRIKE MEND STRIKE WINDUP HEAVY | FIRE / EARTH |
+  | 3 | SAND GOLEM | B | WARD STRIKE WINDUP HEAVY STRIKE → `THE GOLEM CRACKS`: STRIKE WINDUP HEAVY MEND WINDUP HEAVY | WATER / EARTH |
+  | 4 | GUARDIAN | N | STRIKE STRIKE WINDUP HEAVY | THUNDER / – |
+  | 4 | ORACLE | N | STRIKE SCORCH STRIKE WARD | EARTH / THUNDER |
+  | 4 | PALADIN | E | STRIKE WARD WINDUP HEAVY STRIKE | THUNDER / FIRE |
+  | 4 | THE SERAPH | B | SCORCH STRIKE WARD WINDUP HEAVY MEND → `THE SERAPH ASCENDS`: SCORCH WINDUP HEAVY SCORCH WINDUP HEAVY | THUNDER / FIRE |
+
+  Theme breakers per biome: SKELETON (EARTH), ICE BEAR (EARTH), MUMMY (FIRE), ORACLE
+  (EARTH).
 - **Phase switch** (`phase2: { at, moves, banner, atkMult }`). Checked as the enemy's
   turn begins (nothing acts between the hero's action and it, so this is the check
   "after each hero action"): HP ≤ `at` × max and alive → phase 2, ATK × `atkMult`, MEND
   re-armed, the banner strip announces it (`EnemyActResult.phaseChanged`). The move shown
   when the hero chose still resolves (unless it was broken); only then does the cycle
-  become `phase2.moves` at index 0, which is the next intent shown.
+  become `phase2.moves` at index 0, which is the next intent shown. A WINDUP shown at the
+  switch keeps its HEAVY: the cycle index is parked at −1 (`nextIntent` reads it as
+  `HEAVY`), and the step after it lands on `phase2.moves[0]`.
 - **GUARD** (always available). Until the hero's next action damage taken ×0.5
   (`GUARD_FACTOR`, after DEF/MDEF; REFLECT uses the reduced number; BURN/BLOOD ticks are
   not reduced). A hit landing on a guard gives +2 MP (`GUARD_MP_GAIN`). Guarding a
@@ -231,15 +264,23 @@ enemy's move, intent, cycle and phase), `status` (turn start, BURN, WARD, `heroF
   96 px. Every verb has its beat (`screens/battle-fx-verbs`: `fxGuard`, `fxParry`,
   `fxBreak`, `fxBurst`, `fxPotion`, `fxBurnTick`, `fxPhase`, `fxWeak`); the phase banner
   reuses the boss-entrance strip (`showBanner`); BURST is a full-screen moment.
-- **Policies** (`policy-battle.ts`). Against a shown HEAVY: kill if possible; else BREAK
-  if an affordable action reaches the threshold (BURST only against elites and bosses);
-  else GUARD when the unguarded hit ≥ 20 % of current HP. BURST otherwise on elites/bosses
-  when the foe is WARDED, its resist ≥ 25, or the hit kills. POTION below 35 % HP when the
-  fight is not won this turn. Expected damage goes through weakness. Control policy
-  **`naive`** = balanced without GUARD, BREAK, BURST timing or weakness awareness (it
-  drinks potions like balanced); M2a also reports balanced with potions disabled. Target:
-  naive ≤ 75 % of balanced's win rate, measured at the end of M2a before any tuning — if
-  the gap is thinner, `GUARD_FACTOR` drops (0.5 → 0.35, HEAVY stays 2.2).
+- **Policies** (`policy-battle.ts`, `battleAct({ mendBelow, verbs })`), in order: (1) kill
+  if a "sure" estimate (no crit, ×0.9) of an affordable action reaches the foe's HP —
+  cheapest first, BURST only against elites and bosses; (2) against a shown HEAVY: BREAK
+  with an affordable weakness spell (or, against elites/bosses, BURST) whose sure damage
+  reaches `BREAK_AT`, else GUARD when the unguarded HEAVY ≥ 20 % of current HP; (3)
+  POTION below 35 % HP, then the MEND spell below `mendBelow`; (4) BURST on elites/bosses
+  when the foe is WARDED, the resist its best hit faces is ≥ 25, or the burst kills; (5)
+  the hardest affordable hit. Expected damage goes through weakness, WARD (`resistOf`)
+  and riposte. Control policy **`naive`** = balanced without GUARD, BREAK, BURST timing or
+  weakness awareness: it bursts the moment the gauge is full (any foe) and drinks potions
+  like balanced. `random` picks among every affordable action, verbs included.
+  `node sim/run.mjs --no-potions` adds a `noPotions` line (balanced with POTION filtered
+  out) and every text run prints the naive/balanced win ratio. The simulator chooses the
+  action before `startTurn(hero, battle, action)`, exactly like the screen, so a GUARD
+  turn has no regen. Telemetry per run (`RunResult.verbs`): guards, parries, bursts,
+  potions, break attempts/successes per tier, phase-2 switches, burn deaths; STALL deaths
+  stay a `deathKind`.
 
 ## Combat
 
@@ -253,12 +294,12 @@ BURST and BREAK; the lines below are the base turn they build on.
   attacks into magic damage, so a physical build can beat a plated foe.
 - Enemy turn: phase check → the shown move; for a hit: dodge check → damage × move mult
   × (1 − DEF/MDEF) × guard → REFLECT → `heroFalls` (REVIVE).
-- Enemies scale `(base + perClear × clears) × ACT_MULT[act] × def.mult`.
+- Enemies scale `(base + perClear × clears) × ACT_MULT[act] × def.mult`; `ACT_MULT` [1.15, 1.95, 2.78, 3.41].
 
 ## Difficulty targets (balance sim, sane policy)
 
-act 1 clear ≥ 70 %, act 2 ≈ 50 %, act 3 ≈ 35 %, full run ≈ 15–25 %.
-A random-allocation, random-pick policy must win < 5 % of runs. Late-game
+Story run, `balanced`: act 1 clear ≥ 80 %, act 2 ≈ 65 %, act 3 ≈ 50 %, full run 30–40 %.
+`random` < 8 %. `naive` ≤ 75 % of balanced's win rate. No STALL deaths. Late-game
 power comes from routing (elites for loot), focused points, and item synergy —
 not from stat inflation alone.
 
@@ -280,36 +321,44 @@ of name; PICK rows `NAME +n>+n+1` <= 84 px beside a <= 4-char note (`WORN`, `PAC
 Harness: `npm run sim` (`sim/run.mjs`) bundles `game/sim.ts` with esbuild into a
 temporary directory (`sim/bundle.mjs`), then calls `simulateRun` with each of
 `POLICIES` and a seeded PRNG (`createSeededRng`; `--runs`, default 2000; `--seed`,
-default 1; `--policy`; `--json`). Same seed and same code give byte-identical `--json`
-output. The simulator replicates the drop rates, upgrade cards and boss tables, and
-plays **the same map generator as the game** (`game/sim/map.ts`). Numbers below:
-2000 runs, seed 1, after M1 (pack, chosen upgrades, scouted foes, headless starter
-weapon); no tuning was changed.
+default 1; `--policy`; `--json`; `--no-potions`). Same seed and same code give
+byte-identical `--json` output. The simulator replicates the drop rates, upgrade cards and
+boss tables, and plays **the same map generator as the game** (`game/sim/map.ts`).
+Numbers below: 2000 runs, seed 1, after M2 (battle verbs: move cycles, phase 2, GUARD and
+PARRY, POTION, elements, BURN, EMBER BURST, BREAK).
 
 | policy | win | reach act 2 | act 3 | act 4 | boss clears a1/a2/a3/a4 |
 |---|---|---|---|---|---|
-| balanced | 32 % | 86 % | 68 % | 50 % | 93/88/83/72 |
-| glass (all offence) | 20 % | 92 % | 64 % | 38 % | 98/87/72/63 |
-| tank (HP/DEF, physical) | 27 % | 90 % | 55 % | 34 % | 94/75/68/87 |
-| elite-hungry routing | 33 % | 87 % | 67 % | 50 % | 94/88/83/73 |
-| chest-hungry routing | 22 % | 82 % | 52 % | 36 % | 86/67/72/63 |
-| random picks + points | 0 % | 45 % | 2 % | 0 % | 49/13/22/0 |
+| balanced | 38 % | 99 % | 68 % | 48 % | 99/85/85/81 |
+| naive (no verbs) | 10 % | 88 % | 25 % | 13 % | 90/40/68/76 |
+| balanced, no potions | 21 % | 93 % | 44 % | 28 % | 98/75/82/76 |
+| glass (all offence) | 22 % | 100 % | 57 % | 31 % | 100/79/75/77 |
+| tank (HP/DEF, physical) | 19 % | 97 % | 42 % | 24 % | 97/63/67/84 |
+| elite-hungry routing | 37 % | 99 % | 68 % | 48 % | 99/85/86/81 |
+| chest-hungry routing | 32 % | 98 % | 64 % | 47 % | 99/75/83/73 |
+| random picks + points | 0 % | 24 % | 0 % | 0 % | 34/0/–/– |
 
-Every win rate rose (balanced 24.9 → 32 %, glass 13 → 20 %, tank 23 → 27 %) because
-the pack and chosen upgrades are hero power: an UPGRADE card now lands on the best worn
-item instead of a random one (balanced takes 3.0 upgrades a run, up from 2.4), nothing
-taken is lost, and the starter weapon is guaranteed in the simulator too. The pack itself
-is mostly a reserve: balanced ends with ~2 packed items, stows 0.09, drops 0.14 and
-`prepare` swaps only 0.01 times a run — the scored policies rarely carry a better
-counter-item than what they wear. M1's pass line (balanced ≥ 24.9 %) holds and it stays
-under the 45 % ceiling, so nothing was retuned.
+Verb use per run (balanced): GUARD 5.6 (every one answers a HEAVY, so PARRY 5.6), BURST
+4.5, POTION 2.0, BREAK succeeded/attempted 0.32/0.52 normals, 0.59/0.93 elites,
+1.57/1.95 bosses; phase 2 reached 2.8 times. naive/balanced = **0.25** (target ≤ 0.75).
+0 STALL deaths in any policy; BURN ticks end 4.8 % of balanced runs (96 / 2000).
 
-M0 (2026-11-23), for reference: balanced 24.9 %, glass 13.0 %, tank 23.3 %,
-elite-hungry 24.5 %, chest-hungry 18.3 %, random 0 %.
+Tuning in M2: `ACT_MULT` [1.0, 1.38, 2.2, 3.1] → [1.15, 1.95, 2.78, 3.41]; FROST WISP
+hpBase 76 → 70, atkBase 5.2 → 4.8. Before tuning (new cycles and verbs, old numbers)
+balanced won 74 % and naive 42 % (ratio 0.57): potions and BURST are the bulk of the new
+hero power (balanced without potions: 56 %), so `GUARD_FACTOR` stays 0.5. The naive gap
+is wide because an unguarded HEAVY is 2.2× and naive casts resisted or unweighted
+elements; the YETI's double wind-up phase 2 alone ends 37 % of naive runs.
 
-Act-4 boss vs the balanced hero: ~9.7 turns to kill, each hit ≈ 21 % of max HP.
-Balanced fights ~4.0 elites and opens ~3.5 chests per run. Hero base: 46 HP, +6 HP per skill point;
-DEF/MDEF cap 42 %; `ACT_MULT` [1.0, 1.38, 2.2, 3.1].
+Elites now kill as many balanced runs as bosses (27 % vs 30 %; M1 26 % vs 39 %): FROST
+WISP (330 deaths) and MUMMY (199) are the walls of acts 2 and 3.
+
+M1 (2026-11-24, pre-verbs), for reference: balanced 32 %, glass 20 %, tank 27 %,
+elite-hungry 33 %, chest-hungry 22 %, random 0 %. M0 (2026-11-23): balanced 24.9 %.
+
+Act-4 boss vs the balanced hero: ~8.4 turns to kill, each hit ≈ 20 % of max HP.
+Balanced fights ~4.1 elites and opens ~3.6 chests per run. Hero base: 46 HP, +6 HP per skill point;
+DEF/MDEF cap 42 %; `ACT_MULT` [1.15, 1.95, 2.78, 3.41].
 
 Findings from the 2026-09-04 tuning pass (on the simulator's old map, not re-measured
 since): elites kill 4 % of heroes entering above 70 % HP and ~50 % of those entering

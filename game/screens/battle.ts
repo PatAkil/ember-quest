@@ -14,14 +14,16 @@ import { clearPops, pushPop, scoreSpot } from '../pops';
 
 export function startBattle(g: Game, id: string, onWin: () => void): void {
   const enemy = spawnEnemy(id, g.clears, g.actIndex);
+  const { magicCursor } = g.battle;
   g.battle = {
     enemy, state: createBattle(enemy), onWon: onWin,
-    phase: 'MENU', menuCursor: 0, menu: 'TOP', topCursor: 0, magicCursor: 0, magicPage: 0, outcome: 'NONE',
+    phase: 'MENU', menuCursor: 0, menu: 'TOP', topCursor: 0, magicCursor, magicPage: 0, outcome: 'NONE',
     queue: [], timer: 0, text: '', color: C_TEXT, bufferedA: false,
   };
   g.subScene = 'BATTLE';
   clearPops(g);
   resetFx(g);
+  clampMenuCursor(g);
   entranceFx(g, enemy);
   if (enemy.def.kind !== 'NORMAL') {say(g, `${enemy.def.name} BARS THE WAY!`, C_ACCENT);}
   resetCursorEdge(g);

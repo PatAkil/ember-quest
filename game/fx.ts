@@ -1,5 +1,5 @@
 import { createFx } from './fx-state';
-import type { Actor, Banner, Fade, FxState, Meter, MeterId, MoveKind, Shot } from './fx-state';
+import type { Actor, Banner, Fade, FxState, Lean, Meter, MeterId, MoveKind, Shot } from './fx-state';
 import type { Game } from './state';
 
 type Ease = 'OUT' | 'IN' | 'INOUT' | 'LIN';
@@ -24,6 +24,7 @@ const CURVES: Record<MoveKind, readonly Key[]> = {
   DODGE: [[0, 0, 0, 'LIN'], [0.08, -1, -0.3, 'OUT'], [0.24, -1, 0, 'LIN'], [0.4, 0, 0, 'INOUT']],
   ENTER: [[0, -1, -0.3, 'LIN'], [0.26, 0, 0.03, 'OUT'], [0.32, 0, 0, 'OUT']],
   BRACE: [[0, 0, 0, 'LIN'], [0.1, -1, 0.25, 'OUT'], [0.24, -1.15, 0.25, 'LIN'], [0.3, 0, 0, 'IN']],
+  ROAR: [[0, 0, 0, 'LIN'], [0.1, -0.4, -0.6, 'OUT'], [0.5, -0.4, -0.6, 'LIN'], [0.7, 0, 0, 'INOUT']],
 };
 
 const lastKey = (keys: readonly Key[]): Key => keys[keys.length - 1] ?? [0, 0, 0, 'LIN'];
@@ -55,10 +56,19 @@ function liveTint(fx: FxState, actor: Actor): string | null {
   return hit ? hit.color : null;
 }
 
+const STAGGER_HZ = 28;
+const STAGGER_SWAY = 2;
+
+function wobble(g: Game, actor: Actor): number {
+  if (actor !== 'ENEMY' || !g.battle.enemy?.staggered) {return 0;}
+  return Math.sin(g.fx.t * STAGGER_HZ) * STAGGER_SWAY;
+}
+
 export function actorPose(g: Game, actor: Actor): Pose {
   const fx = g.fx;
   if (!g.app.scenes.is('PLAYING') && !g.app.scenes.is('PAUSED')) {return REST;}
-  let dx = 0; let dy = 0;
+  const lean = fx.lean[actor];
+  let dx = lean.x + wobble(g, actor); let dy = lean.y;
   for (const m of fx.moves) {
     if (m.actor !== actor || fx.t < m.t0) {continue;}
     const o = curveAt(CURVES[m.kind], fx.t - m.t0);
@@ -110,7 +120,7 @@ const GHOST_HOLD = 0.22;
 const GHOST_RATE = 7;
 
 function meterTarget(g: Game, id: MeterId): number {
-  const real: Record<MeterId, number> = { heroHp: g.hero.hp, heroMp: g.hero.mp, enemyHp: g.battle.enemy?.hp ?? 0 };
+  const real: Record<MeterId, number> = { heroHp: g.hero.hp, heroMp: g.hero.mp, enemyHp: g.battle.enemy?.hp ?? 0, heroEmber: g.hero.ember };
   return Math.max(0, real[id] + g.fx.pending[id]);
 }
 
@@ -124,7 +134,7 @@ function stepMeter(m: Meter, target: number, dt: number): void {
   if (m.ghost < m.shown || Math.abs(m.ghost - m.shown) < 0.3) {m.ghost = m.shown;}
 }
 
-const METERS: readonly MeterId[] = ['heroHp', 'heroMp', 'enemyHp'];
+const METERS: readonly MeterId[] = ['heroHp', 'heroMp', 'enemyHp', 'heroEmber'];
 
 function snapMeters(g: Game): void {
   for (const id of METERS) {
@@ -137,12 +147,47 @@ export const meter = (g: Game, id: MeterId): Meter => g.fx.meters[id];
 
 export function holdMeter(g: Game, id: MeterId, amount: number): void { g.fx.pending[id] += amount; }
 
+export function heavyShown(g: Game): boolean {
+  const e = g.battle.enemy;
+  return g.battle.state?.intent === 'HEAVY' && e !== null && !e.staggered && e.hp > 0 && g.fx.dissolve === null;
+}
+
+const STANCE_RATE = 10;
+const STILL_LEAN: Lean = { x: 0, y: 0 };
+const GUARD_LEAN: Lean = { x: -2, y: 2 };
+const WINDUP_LEAN: Lean = { x: -5, y: 1 };
+
+function leanTarget(g: Game, actor: Actor): Lean {
+  if (actor === 'ENEMY') {return heavyShown(g) ? WINDUP_LEAN : STILL_LEAN;}
+  return g.battle.state?.guarding && !g.heroDown ? GUARD_LEAN : STILL_LEAN;
+}
+
+function stepStance(g: Game, dt: number): void {
+  const k = 1 - Math.exp(-STANCE_RATE * dt);
+  for (const actor of ['HERO', 'ENEMY'] as const) {
+    const lean = g.fx.lean[actor];
+    const target = leanTarget(g, actor);
+    lean.x += (target.x - lean.x) * k; lean.y += (target.y - lean.y) * k;
+  }
+  g.fx.charge += ((heavyShown(g) ? 1 : 0) - g.fx.charge) * k * 0.5;
+}
+
 export function updateFx(g: Game, dt: number): void {
   const fx = g.fx;
   fx.t += dt;
   fireDue(fx);
   prune(fx);
   for (const id of METERS) {stepMeter(fx.meters[id], meterTarget(g, id), dt);}
+  stepStance(g, dt);
+}
+
+const NOTE_DUR = 1.4;
+
+export function showNote(g: Game, text: string): void { g.fx.note = { text, t0: g.fx.t }; }
+
+export function noteText(g: Game): string | null {
+  const n = g.fx.note;
+  return n && g.fx.t - n.t0 < NOTE_DUR ? n.text : null;
 }
 
 export function skipToImpact(g: Game): number | null {

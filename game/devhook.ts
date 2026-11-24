@@ -1,6 +1,6 @@
 import type { SceneMachine } from '../engine';
 import { EMBER_MAX } from './types';
-import type { Hero, Derived, EnemyInstance, EnemyKind, HeroAction, LootOffer, LootSource, MoveId, Rng, SpellId, StatKey } from './types';
+import type { BattleState, Hero, Derived, EnemyInstance, EnemyKind, HeroAction, LootOffer, LootSource, MoveId, Rng, SpellId, StatKey } from './types';
 import { createHero, createSeededRng, grantClear, spendPoint, rollLoot, applyOffer, noteDeclinedScrolls, fullHeal, equip, stow, learnSpell } from './sim';
 import { BIOMES, ITEMS } from './data';
 import type { SeededRng } from './sim';
@@ -10,7 +10,7 @@ import { at, must, noop } from './lookup';
 type Action = 'A' | 'B' | 'PAUSE' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
 type Fixture =
   | 'title' | 'map' | 'battle' | 'levelup' | 'loot' | 'card' | 'paused' | 'gameover' | 'win' | 'gear' | 'pick' | 'drop'
-  | 'battle-heavy' | 'battle-magic';
+  | 'battle-heavy' | 'battle-magic' | 'battle-ward' | 'battle-phase';
 type DevNode = MapNode;
 
 interface DevView {
@@ -42,6 +42,7 @@ interface DevHost {
 
 const FIXTURES: readonly Fixture[] = [
   'title', 'map', 'battle', 'levelup', 'loot', 'card', 'paused', 'gameover', 'win', 'gear', 'pick', 'drop', 'battle-heavy', 'battle-magic',
+  'battle-ward', 'battle-phase',
 ];
 const KEY: Record<Action, string> = {
   A: 'Space', B: 'KeyX', PAUSE: 'KeyP', UP: 'ArrowUp', DOWN: 'ArrowDown', LEFT: 'ArrowLeft', RIGHT: 'ArrowRight',
@@ -195,6 +196,42 @@ function ticksUntil(driver: Driver, done: () => boolean, max: number, withA = fa
 
 interface FixtureContext { host: DevHost; driver: Driver; rng: Rng; act: number }
 
+type VerbFixture = 'battle-heavy' | 'battle-magic' | 'battle-ward' | 'battle-phase';
+interface Starts { fresh: () => Hero; begin: (hero?: Hero) => void; battle: (hero?: Hero) => void }
+
+function verbFixtures(fx: FixtureContext, starts: Starts): Record<VerbFixture, () => void> {
+  const { host, driver } = fx;
+  const { fresh, begin, battle } = starts;
+  const foe = (): { e: EnemyInstance; state: BattleState } => {
+    const b = host.battle();
+    return { e: must(b.enemy ?? undefined, 'enemy'), state: must(b.state ?? undefined, 'battle state') };
+  };
+  const ward = (): void => {
+    battle();
+    const { e, state } = foe();
+    e.def = { ...e.def, weak: 'FIRE' };
+    e.wardTurns = 2;
+    e.burn = { perTurn: 3, turns: 3 };
+    Object.assign(state, { intent: 'SCORCH', riposte: true, guarding: true });
+  };
+  const phase = (): void => {
+    begin();
+    host.selectNode(host.bossNode());
+    const { e } = foe();
+    e.def = { ...e.def, phase2: e.def.phase2 ?? { at: 0.5, moves: ['WINDUP', 'HEAVY', 'STRIKE'], banner: `${e.def.name} RAGES`, atkMult: 1.15 } };
+    e.hp = Math.floor(e.maxHp * 0.45);
+    host.enemyTurn();
+    host.syncReveal();
+    for (let i = 0; i < 24; i++) {driver.runTick(DT);}
+  };
+  return {
+    'battle-heavy': () => { battle(braced(fresh())); foe().state.intent = 'HEAVY'; },
+    'battle-magic': () => { battle(scholar(fresh())); host.battle().menu = 'MAGIC'; },
+    'battle-ward': ward,
+    'battle-phase': phase,
+  };
+}
+
 function fixtureBuilders(fx: FixtureContext): Record<Fixture, () => void> {
   const { host, driver, rng, act } = fx;
   const fresh = (): Hero => (act > 1 ? veteran(act - 1, rng) : createHero());
@@ -210,15 +247,6 @@ function fixtureBuilders(fx: FixtureContext): Record<Fixture, () => void> {
     host.selectNode(node);
   };
   const battle = (hero?: Hero): void => { begin(hero); enter('FIGHT'); };
-  const heavy = (): void => {
-    battle(braced(fresh()));
-    const state = must(host.battle().state ?? undefined, 'battle state');
-    state.intent = 'HEAVY';
-  };
-  const magic = (): void => {
-    battle(scholar(fresh()));
-    host.battle().menu = 'MAGIC';
-  };
   const toItemOffer = (): void => {
     const i = host.view().offers.findIndex((o) => o.kind === 'ITEM');
     host.syncReveal();
@@ -241,8 +269,7 @@ function fixtureBuilders(fx: FixtureContext): Record<Fixture, () => void> {
     title: noop,
     map: () => { begin(); },
     battle,
-    'battle-heavy': heavy,
-    'battle-magic': magic,
+    ...verbFixtures(fx, { fresh, begin, battle }),
     levelup: () => { battle(); host.winBattle(); },
     loot: () => { chest(dressed()); },
     card: () => { begin(); enter('REST'); },

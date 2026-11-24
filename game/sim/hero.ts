@@ -119,6 +119,8 @@ export function heroActions(hero: Hero): HeroAction[] {
   return ['ATTACK', ...knownSpells(hero)];
 }
 
+export const battleActions = (hero: Hero): HeroAction[] => [...heroActions(hero), 'GUARD', 'BURST', 'POTION'];
+
 export function spellCost(hero: Hero, spell: SpellId): number {
   const base = SPELLS[spell].cost;
   let discount = 0;

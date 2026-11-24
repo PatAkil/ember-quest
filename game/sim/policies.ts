@@ -11,7 +11,7 @@ import {
 import { canAfford, derive } from './hero';
 import type { Policy, RoomType } from './model';
 import { swapIn } from './pack';
-import { damageAct } from './policy-battle';
+import { battleAct } from './policy-battle';
 import { choicesFor, type PolicyChoices } from './policy-choices';
 import { bestPick, P_BALANCED, P_DEFENCE, P_OFFENCE, type ItemBonus } from './scoring';
 import { pickOr } from './util';
@@ -115,7 +115,7 @@ const randomPolicy: Policy = {
 };
 
 export type PolicyName =
-  | 'random' | 'balanced' | 'glass' | 'tank' | 'eliteHungry' | 'chestHungry';
+  | 'random' | 'balanced' | 'naive' | 'glass' | 'tank' | 'eliteHungry' | 'chestHungry';
 
 export const POLICIES: Record<PolicyName, Policy> = {
   random: randomPolicy,
@@ -123,28 +123,35 @@ export const POLICIES: Record<PolicyName, Policy> = {
     ...BALANCED_CHOICES,
     allocate: BALANCED_ALLOCATE,
     pick: (hero, offered) => bestPick(hero, offered, P_BALANCED),
-    act: damageAct(0.35),
+    act: battleAct({ mendBelow: 0.35, verbs: true }),
+    route: (types) => routeWithRest(types, 0.5, ['ELITE', 'LOOT', 'FIGHT', 'REST']),
+  },
+  naive: {
+    ...BALANCED_CHOICES,
+    allocate: BALANCED_ALLOCATE,
+    pick: (hero, offered) => bestPick(hero, offered, P_BALANCED),
+    act: battleAct({ mendBelow: 0.35, verbs: false }),
     route: (types) => routeWithRest(types, 0.5, ['ELITE', 'LOOT', 'FIGHT', 'REST']),
   },
   glass: {
     ...choicesFor(P_OFFENCE, GLASS_BONUS),
     allocate: (hero, d) => cycleAllocate(hero, d, [primaryStat(d), 'CRIT', primaryStat(d), 'HP'], primaryStat(d)),
     pick: (hero, offered) => bestPick(hero, offered, P_OFFENCE, GLASS_BONUS),
-    act: damageAct(0.35),
+    act: battleAct({ mendBelow: 0.35, verbs: true }),
     route: (types) => routeWithRest(types, 0.45, ['ELITE', 'LOOT', 'FIGHT', 'REST']),
   },
   tank: {
     ...choicesFor(P_DEFENCE, TANK_BONUS),
     allocate: (hero, d) => cycleAllocate(hero, d, ['HP', 'DEF', 'ATK', 'MDEF'], 'HP'),
     pick: (hero, offered) => bestPick(hero, offered, P_DEFENCE, TANK_BONUS),
-    act: damageAct(0.5),
+    act: battleAct({ mendBelow: 0.5, verbs: true }),
     route: (types) => routeWithRest(types, 0.55, ['ELITE', 'LOOT', 'FIGHT', 'REST']),
   },
   eliteHungry: {
     ...BALANCED_CHOICES,
     allocate: BALANCED_ALLOCATE,
     pick: (hero, offered) => bestPick(hero, offered, P_BALANCED),
-    act: damageAct(0.35),
+    act: battleAct({ mendBelow: 0.35, verbs: true }),
     route: (types) => {
       const elite = types.indexOf('ELITE');
       if (elite >= 0) {return elite;}
@@ -155,7 +162,7 @@ export const POLICIES: Record<PolicyName, Policy> = {
     ...BALANCED_CHOICES,
     allocate: BALANCED_ALLOCATE,
     pick: (hero, offered) => bestPick(hero, offered, P_BALANCED),
-    act: damageAct(0.35),
+    act: battleAct({ mendBelow: 0.35, verbs: true }),
     route: chestHungryRoute,
   },
 };

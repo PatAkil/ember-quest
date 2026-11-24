@@ -1,16 +1,18 @@
 import { PICO8, SAFE_MARGIN, drawPanel, drawText, drawTextCentered, textWidth } from '../../engine';
-import type { Derived, EnemyInstance } from '../types';
-import { derive } from '../sim';
+import { EMBER_MAX } from '../types';
+import type { BattleState, Derived, EnemyInstance } from '../types';
+import { derive, resistOf } from '../sim';
 import { renderTableau } from '../backdrop';
 import { drawPops } from '../pops';
 import type { Game } from '../state';
-import { BAND_Y, C_ACCENT, C_BORDER, C_DIM, C_HP, C_HP_LOW, C_MP, C_PANEL, C_TEXT, C_WARN, H, HUD_BOTTOM, W } from '../theme';
-import { drawCommandBand, drawGauge, pct, wrap2 } from '../widgets';
+import { BAND_Y, C_ACCENT, C_BORDER, C_DIM, C_EMBER, C_HP, C_HP_LOW, C_MP, C_PANEL, C_TEXT, C_WARD, H, HUD_BOTTOM, W } from '../theme';
+import { accentHz, drawCommandBand, drawGauge, pct, wrap2 } from '../widgets';
 import { bannerBlocks, meter } from '../fx';
 import type { MeterId } from '../fx-state';
 import { KIND_TAG } from './battle-fx';
 import { drawBanner, drawBattleFx } from './battle-fx-view';
-import { renderActionMenu } from './battle-menu';
+import { renderActionMenu } from './battle-menu-view';
+import { intentLook } from './battle-preview';
 import { drawTags } from './battle-tags';
 import type { PlateBox } from './battle-tags';
 
@@ -69,6 +71,23 @@ function drawStatLine(ctx: Ctx, plate: Box, d: Derived): void {
   }
 }
 
+const EMBER_Y = HUD_BOTTOM + 1;
+
+function drawEmberBar(g: Game, plate: Box): void {
+  const ctx = g.app.pc.ctx;
+  const m = meter(g, 'heroEmber');
+  const x = innerLeft(plate);
+  const w = innerRight(plate) - x;
+  const y = EMBER_Y;
+  const full = g.hero.ember >= EMBER_MAX;
+  ctx.fillStyle = PICO8[0]; ctx.fillRect(x - 1, y - 1, w + 2, 4);
+  ctx.fillStyle = PICO8[5]; ctx.fillRect(x, y, w, 2);
+  const ghost = Math.round(w * Math.min(1, m.ghost / EMBER_MAX));
+  ctx.fillStyle = PICO8[7]; ctx.fillRect(x, y, ghost, 2);
+  ctx.fillStyle = full && accentHz(g.clock, 2, 0.5) ? PICO8[7] : full ? C_ACCENT : C_EMBER;
+  ctx.fillRect(x, y, Math.round(w * Math.min(1, m.shown / EMBER_MAX)), 2);
+}
+
 function renderHeroHud(g: Game, d: Derived): void {
   const { pc } = g.app;
   const ctx = pc.ctx;
@@ -76,11 +95,29 @@ function renderHeroHud(g: Game, d: Derived): void {
   drawStatLine(ctx, HERO_PLATE, d);
   drawBarRow(g, HERO_PLATE, ROW_B, { label: 'HP', id: 'heroHp', max: d.maxHp });
   drawBarRow(g, HERO_PLATE, ROW_C, { label: 'MP', id: 'heroMp', max: d.maxMp, color: C_MP });
+  drawEmberBar(g, HERO_PLATE);
 }
 
-function resistText(e: EnemyInstance): string {
-  if (e.resPhys < e.resMagic) {return `RES MAG ${e.resMagic}%`;}
-  return e.resPhys > 0 ? `RES PHYS ${e.resPhys}%` : '';
+function resistTexts(e: EnemyInstance): string[] {
+  const phys = resistOf(e, 'PHYSICAL');
+  const mag = resistOf(e, 'MAGIC');
+  if (phys === 0 && mag === 0) {return [];}
+  if (phys === mag) {return [`RES ALL ${phys}%`, `ALL ${phys}%`];}
+  return phys > mag ? [`RES PHYS ${phys}%`, `PHYS ${phys}%`] : [`RES MAG ${mag}%`, `MAG ${mag}%`];
+}
+
+const INTENT_GAP = 6;
+
+function drawIntentRow(g: Game, e: EnemyInstance, state: BattleState): void {
+  const ctx = g.app.pc.ctx;
+  const plate = ENEMY_PLATE;
+  const y = plate.y + ROW_C;
+  const look = intentLook(e, state);
+  const color = look.hot && accentHz(g.clock, 2, 0.5) ? C_TEXT : look.color;
+  drawText(ctx, look.short, { x: innerLeft(plate), y }, { color });
+  const room = innerRight(plate) - innerLeft(plate) - textWidth(look.short, 1) - INTENT_GAP;
+  const res = resistTexts(e).find((t) => textWidth(t, 1) <= room);
+  if (res) {drawText(ctx, res, { x: innerRight(plate) - textWidth(res, 1), y }, { color: e.wardTurns > 0 ? C_WARD : C_DIM });}
 }
 
 function renderEnemyHud(g: Game): void {
@@ -94,10 +131,8 @@ function renderEnemyHud(g: Game): void {
   const tag = KIND_TAG[e.def.kind];
   if (tag) {drawText(ctx, tag, { x: innerRight(plate) - textWidth(tag, 1), y: plate.y + ROW_A }, { color: C_ACCENT });}
   drawBarRow(g, plate, ROW_B, { label: 'HP', id: 'enemyHp', max: e.maxHp });
-  const physical = e.def.atkType === 'PHYSICAL';
-  drawText(ctx, physical ? 'STRIKES' : 'HEXES', { x: innerLeft(plate), y: plate.y + ROW_C }, { color: physical ? C_WARN : PICO8[14] });
-  const res = resistText(e);
-  if (res) {drawText(ctx, res, { x: innerRight(plate) - textWidth(res, 1), y: plate.y + ROW_C }, { color: C_DIM });}
+  const state = g.battle.state;
+  if (state) {drawIntentRow(g, e, state);}
 }
 
 function renderScore(g: Game): void {

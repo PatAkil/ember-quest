@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { withSim } from '../sim/bundle.mjs';
+import { foeRules } from './rules-foe.mjs';
+import { verbRules } from './rules-verbs.mjs';
 
 const MAP_SEEDS = 5000;
 const RNG_DRAWS = 1000;
@@ -257,101 +259,6 @@ function scoutRules(sim) {
   return `${MAP_SEEDS} maps: every FIGHT/ELITE scouted from its pool, shape identical to the unscouted map`;
 }
 
-const STRIKE_STREAMS = {
-  SKELETON: '4,7,5,7,12,7,5,7,5,8,11,7,5,7,4,7,5,8,8,7',
-  WRAITH_LORD: '6,8,6,8,11,7,6,8,6,9,10,7,6,8,6,8,6,9,10,8',
-  YETI: '5,17,6,15,11,15,6,16,5,18,10,15,5,17,5,16,6,17,9,16',
-};
-
-function strikeStream(sim, id) {
-  const rng = sim.createSeededRng(7).next;
-  const hero = sim.createHero();
-  hero.hp = 100000;
-  const enemy = sim.spawnEnemy(id, 4, 1);
-  enemy.hp = 100000; enemy.maxHp = 100000;
-  const battle = sim.createBattle(enemy);
-  const seq = [];
-  for (let i = 0; i < 10; i++) {
-    const h = sim.heroAct(hero, battle, i % 3 === 2 && hero.mp >= 5 ? 'FIREBALL' : 'ATTACK', rng);
-    const r = sim.enemyAct(hero, battle, rng);
-    assert.equal(r.move, 'STRIKE', `${id}: a STRIKE cycle played ${r.move}`);
-    seq.push(h.hits.map((x) => x.dmg).join('+'), r.dodged ? 'D' : r.dmg);
-  }
-  return seq.join(',');
-}
-
-function fightOf(sim, id) {
-  const hero = sim.createHero();
-  const enemy = sim.spawnEnemy(id, 0, 0);
-  return { hero, enemy, battle: sim.createBattle(enemy) };
-}
-
-function guardHalves(sim) {
-  const hitWith = (guard) => {
-    const f = fightOf(sim, 'SKELETON');
-    f.enemy.atk = 100;
-    f.hero.hp = 1000;
-    f.hero.mp = 0;
-    if (guard) {sim.heroAct(f.hero, f.battle, 'GUARD', sim.createSeededRng(1).next);}
-    return { r: sim.enemyAct(f.hero, f.battle, sim.createSeededRng(7).next), hero: f.hero, battle: f.battle };
-  };
-  const open = hitWith(false);
-  const guarded = hitWith(true);
-  assert.ok(guarded.r.guarded && !open.r.guarded, 'GUARD not reported on the hit');
-  assert.ok(Math.abs(guarded.r.dmg - open.r.dmg / 2) <= 1, `GUARD took ${guarded.r.dmg} against ${open.r.dmg} open`);
-  assert.equal(guarded.hero.mp, 2, 'a guarded hit grants GUARD_MP_GAIN (2) MP');
-  assert.equal(open.hero.mp, 0, 'an open hit grants no MP');
-}
-
-function potionRules(sim) {
-  const f = fightOf(sim, 'SLIME');
-  const rng = sim.createSeededRng(3).next;
-  const maxHp = sim.derive(f.hero).maxHp;
-  f.hero.hp = 10;
-  const r = sim.heroAct(f.hero, f.battle, 'POTION', rng);
-  assert.equal(r.healed, Math.round(maxHp * 0.4), 'POTION heals 40 % of max HP');
-  assert.equal(f.hero.potions, 1, 'POTION spends one');
-  sim.heroAct(f.hero, f.battle, 'POTION', rng);
-  const hp = f.hero.hp;
-  assert.equal(sim.canAfford(f.hero, 'POTION'), false, 'no potion left, still drinkable');
-  sim.heroAct(f.hero, f.battle, 'POTION', rng);
-  assert.equal(f.hero.potions, 0, 'potions went below 0');
-  assert.equal(f.hero.hp, hp, 'an empty POTION healed');
-}
-
-function burstRules(sim) {
-  const f = fightOf(sim, 'SLIME');
-  const rng = sim.createSeededRng(3).next;
-  const before = f.enemy.hp;
-  f.hero.ember = 50;
-  assert.equal(sim.canAfford(f.hero, 'BURST'), false, 'BURST lit below a full gauge');
-  sim.heroAct(f.hero, f.battle, 'BURST', rng);
-  assert.equal(f.enemy.hp, before, 'BURST hit below a full gauge');
-  f.hero.ember = 100;
-  const r = sim.heroAct(f.hero, f.battle, 'BURST', rng);
-  assert.equal(r.hits.length, 1, 'BURST is one hit');
-  assert.equal(f.hero.ember, 0, 'BURST empties the gauge');
-}
-
-function resistsReadInstance(sim) {
-  const hitAt = (resPhys) => {
-    const f = fightOf(sim, 'SKELETON');
-    f.enemy.resPhys = resPhys;
-    return sim.heroAct(f.hero, f.battle, 'ATTACK', sim.createSeededRng(11).next).hits[0].dmg;
-  };
-  assert.equal(fightOf(sim, 'SKELETON').enemy.resPhys, 30, 'resPhys not copied from the definition');
-  assert.ok(hitAt(0) > hitAt(30), 'ATTACK ignored the instance resist');
-}
-
-function battleRules(sim) {
-  for (const [id, want] of Object.entries(STRIKE_STREAMS)) {assert.equal(strikeStream(sim, id), want, `${id}: STRIKE damage stream changed`);}
-  guardHalves(sim);
-  potionRules(sim);
-  burstRules(sim);
-  resistsReadInstance(sim);
-  return 'STRIKE streams unchanged (seed 7); GUARD halves and gives 2 MP; POTION 40 % and never below 0; BURST needs a full gauge and empties it; resists read the instance';
-}
-
 const GROUPS = [
   ['map', mapInvariants],
   ['rng', rngDeterminism],
@@ -362,7 +269,8 @@ const GROUPS = [
   ['loot', lootRules],
   ['starter', starterRules],
   ['scout', scoutRules],
-  ['battle', battleRules],
+  ['foes', foeRules],
+  ['verbs', verbRules],
 ];
 
 await withSim((sim) => {

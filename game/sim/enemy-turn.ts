@@ -25,15 +25,22 @@ function movesOf(enemy: EnemyInstance): MoveId[] {
   return enemy.phase === 2 && phase2 ? phase2.moves : enemy.def.moves;
 }
 
+const CARRIED_HEAVY = -1;
+
 export function nextIntent(enemy: EnemyInstance): MoveId {
+  if (enemy.cycleIndex === CARRIED_HEAVY) {return 'HEAVY';}
   const move = movesOf(enemy)[enemy.cycleIndex] ?? 'STRIKE';
   return move === 'MEND' && enemy.mended ? 'STRIKE' : move;
 }
 
-function advanceCycle(battle: BattleState, phaseChanged: boolean): void {
+function nextIndex(enemy: EnemyInstance, shown: MoveId, phaseChanged: boolean): number {
+  if (!phaseChanged) {return (enemy.cycleIndex + 1) % Math.max(1, movesOf(enemy).length);}
+  return shown === 'WINDUP' && !enemy.staggered ? CARRIED_HEAVY : 0;
+}
+
+function advanceCycle(battle: BattleState, shown: MoveId, phaseChanged: boolean): void {
   const enemy = battle.enemy;
-  const length = Math.max(1, movesOf(enemy).length);
-  enemy.cycleIndex = phaseChanged ? 0 : (enemy.cycleIndex + 1) % length;
+  enemy.cycleIndex = nextIndex(enemy, shown, phaseChanged);
   battle.intent = nextIntent(enemy);
 }
 
@@ -47,6 +54,8 @@ function checkPhase(enemy: EnemyInstance): boolean {
 }
 
 const HIT_MULT: Partial<Record<MoveId, number>> = { STRIKE: 1, WINDUP: WINDUP_MULT, HEAVY: HEAVY_MULT, SCORCH: SCORCH_MULT };
+
+export const moveMult = (move: MoveId): number => HIT_MULT[move] ?? 0;
 
 const HIT_VERB: Partial<Record<MoveId, string>> = { WINDUP: 'WINDS UP AT', HEAVY: 'SMASHES', SCORCH: 'SCORCHES' };
 
@@ -146,7 +155,7 @@ export function enemyAct(hero: Hero, battle: BattleState, rng: Rng): EnemyActRes
   const result = enemy.staggered
     ? quiet(move, `${enemy.def.name} IS STAGGERED!`, { staggered: true })
     : MOVE_ACT[move](turn);
+  advanceCycle(battle, move, phaseChanged);
   enemy.staggered = false;
-  advanceCycle(battle, phaseChanged);
   return { ...result, phaseChanged };
 }

@@ -3,7 +3,6 @@ import {
   STAT_KEYS,
   type Biome,
   type EnemyDef,
-  type EnemyInstance,
   type Hero,
   type LootOffer,
   type LootSource,
@@ -11,54 +10,22 @@ import {
   type StatKey,
 } from '../types';
 import { BOSS_ENTRY_HEAL } from '../data';
-import { createBattle, heroAct, spawnEnemy } from './combat';
-import { enemyAct } from './enemy-turn';
-import { canAfford, derive, fullHeal, grantClear, healFraction, heroActions, refillPotions, skipMend, spendPoint } from './hero';
+import { spawnEnemy } from './combat';
+import { derive, fullHeal, grantClear, healFraction, refillPotions, skipMend, spendPoint } from './hero';
 import { applyOffer, noteDeclinedScrolls, resolveOverflow, resolveUpgrade, rollLoot } from './loot';
 import type { MapNode } from './map';
 import type { Policy } from './model';
 import { upgradableTargets } from './pack';
-import { startTurn } from './status';
+import { runBattle } from './run-battle';
 import {
   bossPickKind,
   countPick,
   countUpgradeTarget,
   probeOf,
-  type BattleOutcome,
   type Ending,
   type RunState,
 } from './run-tally';
 import { clamp, isNonEmpty, pick } from './util';
-
-const TURN_CAP = 80;
-
-function runBattle(hero: Hero, enemy: EnemyInstance, policy: Policy, rng: Rng): BattleOutcome {
-  const battle = createBattle(enemy);
-  const startHp = enemy.hp;
-  let dmgTaken = 0;
-  let landed = 0;
-  const outcome = (won: boolean, turns: number): BattleOutcome =>
-    ({ won, stalled: false, turns, dmgTaken, landed, dmgDealt: startHp - enemy.hp });
-  for (let turn = 0; turn < TURN_CAP; turn += 1) {
-    const start = startTurn(hero, battle);
-    if (start.heroDead) {return outcome(false, turn);}
-    if (start.enemyDefeated) {return outcome(true, turn);}
-    const d = derive(hero);
-    const actions = heroActions(hero).filter((a) => canAfford(hero, a));
-    const wanted = policy.act(hero, d, battle, actions);
-    const action = actions.includes(wanted) ? wanted : 'ATTACK';
-    const result = heroAct(hero, battle, action, rng);
-    if (result.enemyDefeated) {return outcome(true, turn + 1);}
-    const reply = enemyAct(hero, battle, rng);
-    if (!reply.dodged) {
-      dmgTaken += reply.dmg;
-      landed += 1;
-    }
-    if (reply.enemyDefeated) {return outcome(true, turn + 1);}
-    if (reply.heroDead) {return outcome(false, turn + 1);}
-  }
-  return { ...outcome(false, TURN_CAP), stalled: true };
-}
 
 function spendAll(hero: Hero, policy: Policy): void {
   let guard = 0;
@@ -135,7 +102,7 @@ function fightRoom(run: RunState, { act, biome, node }: Room): Ending | null {
   const enemyId = foeFor(node, biome, rng);
   const enemy = spawnEnemy(enemyId, run.clears, act);
   prepareFor(run, enemy.def);
-  const outcome = runBattle(hero, enemy, run.policy, rng);
+  const outcome = runBattle({ hero, enemy, policy: run.policy, rng, verbs: tally.verbs });
   if (!outcome.won) {
     const deathKind = outcome.stalled ? 'STALL' : elite ? 'ELITE' : 'NORMAL';
     return { won: false, actReached: act, deathBy: outcome.stalled ? 'STALL' : enemyId, deathKind };
@@ -169,7 +136,7 @@ export function bossRoom(run: RunState, act: number, biome: Biome): Ending | nul
   const boss = spawnEnemy(biome.boss, run.clears, act);
   prepareFor(run, boss.def);
   const entry = derive(hero);
-  const outcome = runBattle(hero, boss, run.policy, run.rng);
+  const outcome = runBattle({ hero, enemy: boss, policy: run.policy, rng: run.rng, verbs: run.tally.verbs });
   run.probes.push(probeOf(act, run.clears, entry, { boss, outcome }));
   if (!outcome.won) {
     return { won: false, actReached: act, deathBy: outcome.stalled ? 'STALL' : biome.boss, deathKind: outcome.stalled ? 'STALL' : 'BOSS' };

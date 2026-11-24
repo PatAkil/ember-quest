@@ -40,7 +40,7 @@ export const cleanseBurn = (target: Burnable): void => { target.burn = null; };
 
 export function resistOf(enemy: EnemyInstance, kind: DamageKind): number {
   const base = kind === 'PHYSICAL' ? enemy.resPhys : enemy.resMagic;
-  return enemy.wardTurns > 0 ? Math.min(WARD_CAP, base + WARD_BONUS) : base;
+  return enemy.wardTurns > 0 ? Math.max(base, Math.min(WARD_CAP, base + WARD_BONUS)) : base;
 }
 
 export const applyWard = (enemy: EnemyInstance): void => { enemy.wardTurns = WARD_TURNS; };

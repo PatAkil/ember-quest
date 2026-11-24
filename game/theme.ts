@@ -1,6 +1,6 @@
 import { PICO8 } from '../engine';
 import type { AmbientPreset } from '../engine';
-import type { Item } from './types';
+import type { Element, Item } from './types';
 import { RARITY_COLOR_INDEX } from './data';
 import { at } from './lookup';
 import { heroFrames } from './sprites';
@@ -23,6 +23,12 @@ export const C_DMG_TAKEN = PICO8[8];
 export const C_LOG_HURT = PICO8[14];
 export const C_SEL_BAR = PICO8[2];
 export const C_SCROLL = PICO8[12];
+export const C_GOOD = PICO8[11];
+export const C_EMBER = PICO8[9];
+export const C_WARD = PICO8[12];
+export const C_HEX = PICO8[14];
+
+export const ELEMENT_COLOR: Record<Element, string> = { FIRE: PICO8[8], WATER: PICO8[12], THUNDER: PICO8[10], EARTH: PICO8[15] };
 
 export const rarityColor = (item: Item): string => at(PICO8, RARITY_COLOR_INDEX[item.rarity]);
 

@@ -1,4 +1,4 @@
-import { type Derived, type EnemyInstance, type Hero, type LootOffer, type Rng } from '../types';
+import { type Derived, type EnemyInstance, type EnemyKind, type Hero, type LootOffer, type Rng } from '../types';
 import { BIOMES } from '../data';
 import { equippedItems } from './gear';
 import { derive } from './hero';
@@ -30,6 +30,18 @@ export interface RunResult {
   prepareSwaps?: number;
   upgradesWorn?: number;
   upgradesPacked?: number;
+  verbs?: VerbTally;
+}
+
+export interface VerbTally {
+  guards: number;
+  parries: number;
+  bursts: number;
+  potions: number;
+  breakTry: Record<EnemyKind, number>;
+  breakHit: Record<EnemyKind, number>;
+  phase2: number;
+  burnDeaths: number;
 }
 
 export type BossPick = 'SCROLL' | 'MISSED_SCROLL' | 'SIGNATURE' | 'ROLLED' | 'UPGRADE' | 'NONE';
@@ -70,6 +82,7 @@ export interface Tally {
   prepareSwaps: number;
   upgradesWorn: number;
   upgradesPacked: number;
+  verbs: VerbTally;
 }
 
 export interface RunState {
@@ -93,6 +106,10 @@ export function newTally(): Tally {
     upgradesTaken: 0, itemsTaken: 0, elitesFought: 0, chestsOpened: 0, hpAtElite: [], rooms: [],
     scrollsTaken: 0, scrollsDeclined: 0, bossPicks: [],
     itemsStowed: 0, drops: 0, prepareSwaps: 0, upgradesWorn: 0, upgradesPacked: 0,
+    verbs: {
+      guards: 0, parries: 0, bursts: 0, potions: 0, phase2: 0, burnDeaths: 0,
+      breakTry: { NORMAL: 0, ELITE: 0, BOSS: 0 }, breakHit: { NORMAL: 0, ELITE: 0, BOSS: 0 },
+    },
   };
 }
 
