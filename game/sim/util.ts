@@ -10,7 +10,10 @@ export const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > h
 
 export const r2 = (v: number) => Math.round(v * 100) / 100;
 
-export const jitter = (rng: Rng) => 0.9 + rng() * 0.2;
+export const JITTER_MIN = 0.9;
+export const JITTER_MAX = 1.1;
+
+export const jitter = (rng: Rng) => JITTER_MIN + rng() * (JITTER_MAX - JITTER_MIN);
 
 export function isNonEmpty<T>(arr: T[]): arr is NonEmpty<T> {
   return arr.length > 0;

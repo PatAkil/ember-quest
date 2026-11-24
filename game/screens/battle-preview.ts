@@ -1,7 +1,7 @@
 import { BREAK_AT, BURST_MULT, EMBER_MAX, GUARD_MP_GAIN, POTION_HEAL } from '../types';
-import type { BattleState, DamageKind, Derived, EnemyInstance, Hero, MoveId, SpellId } from '../types';
+import type { BattleState, DamageKind, Derived, EnemyInstance, Hero, HeroAction, MoveId, SpellId } from '../types';
 import { SPELLS } from '../data';
-import { burstPower, canAfford, derive, elementMult, expectedFoeDamage, expectedHeroDamage, expectedPreBlowLoss, heroElement, knownSpells, pendingTick, punishes, resistOf, riposteMult, spellCost } from '../sim';
+import { burnWillKill, burstPower, canAfford, derive, elementMult, expectedFoeDamage, expectedHeroDamage, expectedPreBlowLoss, heroElement, knownSpells, pendingTick, punishes, resistOf, riposteMult, spellCost } from '../sim';
 import type { Game } from '../state';
 import { C_ACCENT, C_DIM, C_EMBER, C_GOOD, C_HEX, C_LOG_HURT, C_TEXT, C_WARD, C_WARN } from '../theme';
 import { hasHex, magicWeapon } from './battle-fx';
@@ -180,10 +180,12 @@ function withBurn(lines: PreviewLine[], burn: PreviewLine | null): PreviewLine[]
 
 const healOf = (c: Ctx, fraction: number): number => Math.min(roomHp(c), Math.round(c.d.maxHp * fraction));
 
-function lethalOnly(c: Ctx, lines: PreviewLine[]): PreviewLine[] {
-  const burn = burnAfter(c, 0);
-  return burn && c.hero.hp - pendingTick(c.hero) <= 0 ? withBurn(lines, burn) : lines;
+function lethalOnly(c: Ctx, lines: PreviewLine[], actions: HeroAction[]): PreviewLine[] {
+  const fatal = c.hero.hp - pendingTick(c.hero) <= 0 && actions.every((a) => burnWillKill(c.hero, c.state, a));
+  return fatal ? withBurn(lines, line(`BURN ${pendingTick(c.hero)} KILLS YOU`, C_LOG_HURT)) : lines;
 }
+
+const castable = (c: Ctx): SpellId[] => knownSpells(c.hero).filter((id) => canAfford(c.hero, id));
 
 function potionPreview(c: Ctx): PreviewLine[] {
   const left = c.hero.potions > 0 ? line(`${c.hero.potions} LEFT`, C_DIM) : line('NONE LEFT', C_WARN);
@@ -212,10 +214,10 @@ function magicPreview(c: Ctx): PreviewLine[] {
 export type TopCommand = 'ATTACK' | 'MAGIC' | 'GUARD' | 'BURST' | 'POTION';
 
 const TOP_PREVIEW: Record<TopCommand, (c: Ctx) => PreviewLine[]> = {
-  ATTACK: (c) => lethalOnly(c, strikePreview(c, 'ATTACK')),
-  MAGIC: (c) => lethalOnly(c, magicPreview(c)),
+  ATTACK: (c) => lethalOnly(c, strikePreview(c, 'ATTACK'), ['ATTACK']),
+  MAGIC: (c) => lethalOnly(c, magicPreview(c), castable(c)),
   GUARD: (c) => withBurn(guardPreview(c), burnAfter(c, 0)),
-  BURST: (c) => (c.hero.ember >= EMBER_MAX ? burstPreview(c) : lethalOnly(c, burstPreview(c))),
+  BURST: (c) => lethalOnly(c, burstPreview(c), [c.hero.ember >= EMBER_MAX ? 'BURST' : 'ATTACK']),
   POTION: potionPreview,
 };
 
@@ -244,7 +246,7 @@ export function previewSpell(g: Game, id: SpellId): PreviewLine[] {
   if (!c) {return [];}
   const heal = SPELLS[id].heal;
   const lines = spellPreview(c, id);
-  return heal === undefined ? lethalOnly(c, lines) : withBurn(lines, burnAfter(c, healOf(c, heal)));
+  return heal === undefined ? lethalOnly(c, lines, [id]) : withBurn(lines, burnAfter(c, healOf(c, heal)));
 }
 
 interface BreakNote { note: string; noteColor: string }

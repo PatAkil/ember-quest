@@ -229,6 +229,53 @@ function burstCleanses(sim) {
   assert.notEqual(result.outcome, 'LOST');
 }
 
+function burningHero(sim) {
+  const hero = sim.createHero();
+  hero.hp = 5;
+  hero.burn = { perTurn: 8, turns: 3 };
+  return hero;
+}
+
+function burnWarnings(sim) {
+  const weak = sim.spawnEnemy('SKELETON', { n: 0, clears: 0, descentClears: null }, []);
+  weak.hp = 1;
+  const stout = sim.spawnEnemy('SKELETON', { n: 0, clears: 0, descentClears: null }, []);
+  const swift = sim.spawnEnemy('SKELETON', { n: 0, clears: 0, descentClears: null }, ['SWIFT']);
+  swift.hp = 1;
+  assert.equal(sim.burnWillKill(burningHero(sim), sim.createBattle(weak), 'ATTACK'), false, 'a sure kill ends the fight before the burn ticks');
+  assert.equal(sim.burnWillKill(burningHero(sim), sim.createBattle(stout), 'ATTACK'), true, 'the burn kills when the foe survives');
+  assert.equal(sim.burnWillKill(burningHero(sim), sim.createBattle(swift), 'ATTACK'), true, 'a SWIFT foe may slip the killing hit');
+  assert.equal(sim.burnWillKill(burningHero(sim), sim.createBattle(stout), 'GUARD'), true);
+  for (let seed = 0; seed < 1000; seed++) {
+    const hero = burningHero(sim);
+    const foe = { ...weak };
+    const result = sim.resolveTurn(hero, sim.createBattle(foe), 'ATTACK', seed);
+    assert.equal(result.outcome, 'WON', `seed ${String(seed)}`);
+    assert.equal(hero.hp, 5);
+  }
+}
+
+function warningsNeverLie(sim) {
+  const rng = sim.createSeededRng(613).next;
+  let safe = 0;
+  for (let i = 0; i < 4000; i++) {
+    const fight = randomFight(sim, rng);
+    fight.hero.burn = { perTurn: 1 + intBelow(30, rng), turns: 2 };
+    for (const action of ['ATTACK', ...sim.heroActions(fight.hero).filter((a) => a !== 'ATTACK')]) {
+      if (sim.burnWillKill(fight.hero, fight.battle, action)) {continue;}
+      if (fight.hero.hp - sim.pendingTick(fight.hero) > 0) {continue;}
+      safe++;
+      const hero = { ...fight.hero, burn: { ...fight.hero.burn } };
+      const battle = { ...fight.battle, enemy: { ...fight.battle.enemy } };
+      const lives = [hero.revived, hero.revivedTwice].join();
+      sim.startTurn(hero, action);
+      sim.heroAct(hero, battle, action, sim.createSeededRng(i).next);
+      assert.ok(hero.hp > 0 && [hero.revived, hero.revivedTwice].join() === lives, `case ${String(i)} ${action}: declared safe, but the burn took the hero`);
+    }
+  }
+  assert.ok(safe > 20, `only ${String(safe)} safe-under-lethal-burn cases sampled`);
+}
+
 export function estimateRules(sim) {
   const rng = sim.createSeededRng(41).next;
   let rolls = 0;
@@ -241,6 +288,8 @@ export function estimateRules(sim) {
   }
   heavyParry(sim);
   burstCleanses(sim);
+  burnWarnings(sim);
+  warningsNeverLie(sim);
   const t = guardDeaths(sim);
   return `${FIGHTS} random fights (enrage edge, burning heroes): expectedHeroDamage equals the hit after turn-start regen/BLOOD and brackets ${rolls} real rolls; expectedFoeDamage open/guarded likewise (enrage included), a parried HEAVY halved; ${GUARD_TURNS} GUARD turns: expectedPreBlowLoss exact, ${String(t.deaths)} guarded deaths all within jitter of guarded + pre-blow loss (${String(t.warned)} exactly warned)`;
 }
