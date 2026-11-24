@@ -1,10 +1,10 @@
-import { BUTTON_KEY, PICO8, SAFE_MARGIN, drawText, drawTextCentered, textWidth } from '../../engine';
+import { BUTTON_KEY, PICO8, SAFE_MARGIN, drawText, textWidth } from '../../engine';
 import { SPELLS } from '../data';
 import { canAfford, canDrinkPotion, knownSpells, spellCost } from '../sim';
 import { noteText } from '../fx';
 import type { Game } from '../state';
 import { BAND_Y, C_ACCENT, C_DIM, C_EMBER, C_FAINT, C_GOOD, C_SEL_BAR, C_TEXT, C_WARN, H, W } from '../theme';
-import { accentHz } from '../widgets';
+import { accentHz, fitText } from '../widgets';
 import { MENU_COLS, PAGE_SIZE, TOP_COMMANDS, pageCount } from './battle-menu';
 import { attackWeak, breakNote, intentHint, previewSpell, previewTop, weakSpells } from './battle-preview';
 import type { PreviewLine, TopCommand } from './battle-preview';
@@ -120,20 +120,11 @@ function drawInfoLine(ctx: Ctx, segs: PreviewLine, y: number): void {
   }
 }
 
-function magicFooter(g: Game): PreviewLine {
-  const n = knownSpells(g.hero).length;
-  const pages = pageCount(n);
-  const page = pages > 1 ? `  ${g.battle.magicPage + 1}/${pages}` : '';
-  return [{ text: `${BUTTON_KEY.B.hint} BACK${page}`, color: C_DIM }];
-}
-
 function previewLines(g: Game): PreviewLine[] {
   const b = g.battle;
   if (b.menu === 'TOP') {return previewTop(g, TOP_COMMANDS[b.topCursor] ?? 'ATTACK');}
   const spell = knownSpells(g.hero)[b.magicCursor];
-  const lines = spell ? previewSpell(g, spell) : [];
-  const third = lines[2];
-  return third && third.length > 0 ? lines : [...lines.slice(0, 2), magicFooter(g)];
+  return spell ? previewSpell(g, spell) : [];
 }
 
 function drawInfo(g: Game): void {
@@ -141,15 +132,40 @@ function drawInfo(g: Game): void {
   previewLines(g).slice(0, 3).forEach((segs, i) => { drawInfoLine(ctx, segs, ROW_Y + i * ROW_PITCH); });
 }
 
+interface Span { x0: number; x1: number }
+
+const FULL_SPAN: Span = { x0: SAFE_MARGIN, x1: W - SAFE_MARGIN };
+const FOOT_GAP = 6;
+
+function pageLabel(g: Game): string {
+  const pages = pageCount(knownSpells(g.hero).length);
+  return pages > 1 ? `${String(g.battle.magicPage + 1)}/${String(pages)}` : '';
+}
+
+function drawMagicFooter(g: Game, ctx: Ctx): Span {
+  const back = `${BUTTON_KEY.B.hint} BACK`;
+  const page = pageLabel(g);
+  drawText(ctx, back, { x: SAFE_MARGIN, y: HINT_Y }, { color: C_DIM, shadow: true });
+  if (page) {drawText(ctx, page, { x: W - SAFE_MARGIN - textWidth(page, 1), y: HINT_Y }, { color: C_DIM, shadow: true });}
+  return { x0: SAFE_MARGIN + textWidth(back, 1) + FOOT_GAP, x1: W - SAFE_MARGIN - (page ? textWidth(page, 1) + FOOT_GAP : 0) };
+}
+
+function drawHintIn(ctx: Ctx, text: string, span: Span, color: string): void {
+  const maxW = span.x1 - span.x0;
+  const w = textWidth(text, 1);
+  const x = w > maxW ? span.x0 : Math.min(Math.max(Math.round(W / 2 - w / 2), span.x0), span.x1 - w);
+  fitText(ctx, text, { x, y: HINT_Y, maxW }, { color, shadow: true });
+}
+
 function drawHint(g: Game): void {
   const ctx = g.app.pc.ctx;
+  const span = g.battle.menu === 'MAGIC' ? drawMagicFooter(g, ctx) : FULL_SPAN;
   const note = noteText(g);
   const { enemy: e, state } = g.battle;
-  if (note) { drawTextCentered(ctx, note, { width: W, y: HINT_Y }, { color: C_WARN, shadow: true }); return; }
+  if (note) { drawHintIn(ctx, note, span, C_WARN); return; }
   if (!e || !state) {return;}
   const look = intentHint(e, state, g.hero);
-  const color = look.hot && accentHz(g.clock, 2, 0.5) ? C_TEXT : look.color;
-  drawTextCentered(ctx, look.hint, { width: W, y: HINT_Y }, { color, shadow: true });
+  drawHintIn(ctx, look.hint, span, look.hot && accentHz(g.clock, 2, 0.5) ? C_TEXT : look.color);
 }
 
 function drawRules(ctx: Ctx): void {

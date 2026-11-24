@@ -209,6 +209,93 @@ function spentRevive(sim) {
   return 'a spent REVIVE says ALREADY SPENT THIS RUN in compareFull and the offer text; a twice-REVIVE keeps its second life';
 }
 
+const EXEMPT = { REVIVE: 'lives, covered by the spent/twice REVIVE rules', BURN_WARD: 'presence only', BLOOD: 'a price, summed in hero.ts' };
+const ADDS = new Set(['CHEAPER_SPELLS', 'GUARD_MANA', 'PUNISH_WINDUP', 'LOW_HP_POWER', 'BURST_GAIN', 'BURST_POWER']);
+const APART = { RAMP: (a, b) => a.scope !== b.scope, SPELL_TWICE: (a, b) => a.spell !== b.spell, ELEMENT_BOOST: () => true };
+
+const strip = (item) => ({ ...item, mods: {}, awaken: item.awaken && { ...item.awaken, mods: {} } });
+const silence = (item) => ({ ...strip(item), effect: { kind: 'NONE' }, awaken: item.awaken && { ...item.awaken, mods: {}, effect: undefined } });
+
+function carriers(sim) {
+  const byKind = new Map();
+  for (const item of sim.ITEMS) {
+    for (let level = 0; level <= sim.maxLevelFor(item); level++) {
+      const effect = sim.effectiveEffect(item, level);
+      if (effect.kind === 'NONE') {continue;}
+      if (!byKind.has(effect.kind)) {byKind.set(effect.kind, []);}
+      byKind.get(effect.kind).push({ item, level, effect });
+    }
+  }
+  return byKind;
+}
+
+const STRIKE_SPELLS = ['FIREBALL', 'WATER', 'SLASH', 'THUNDER', 'TWINBOLT', 'LEECH', 'QUAKE', 'EMBERS', 'TREMOR'];
+
+function probeFight(sim, gear, action) {
+  const f = fightOf(sim, action === 'GUARD' ? 'SLIME' : 'GOBLIN', action === 'GUARD' ? 0 : 1);
+  for (const { item, level } of gear) {sim.equip(f.hero, item, level);}
+  f.hero.baseSpells.push(...STRIKE_SPELLS.filter((id) => !f.hero.baseSpells.includes(id)));
+  Object.assign(f.enemy, { hp: BIG / 5, maxHp: BIG, resPhys: 50, resMagic: 0 });
+  Object.assign(f.battle, { rampStacks: 3, actionsTaken: 0, riposte: action !== 'GUARD' });
+  f.hero.hp = action === 'GUARD' ? sim.derive(f.hero).maxHp : 1;
+  f.hero.mp = STRIKE_SPELLS.includes(action) ? sim.spellCost(f.hero, action) : 0;
+  f.hero.ember = action === 'BURST' ? 100 : 0;
+  return f;
+}
+
+function probe(sim, gear) {
+  const out = [];
+  for (const action of ['ATTACK', 'BURST', 'GUARD', ...STRIKE_SPELLS]) {
+    const f = probeFight(sim, gear, action);
+    if (STRIKE_SPELLS.includes(action)) {out.push(-sim.spellCost(f.hero, action));}
+    const t = sim.resolveTurn(f.hero, f.battle, action, 7);
+    const dmg = t.hero.hits.reduce((n, h) => n + h.dmg, 0);
+    out.push(dmg, t.hero.healed, t.hero.mpRestored, action === 'GUARD' ? f.hero.mp : f.hero.ember);
+  }
+  return out;
+}
+
+const above = (x, y) => x.some((v, i) => v > y[i]);
+const atLeast = (x, y) => x.every((v, i) => v >= y[i]);
+
+function stacksApart(kind, a, b) {
+  if (ADDS.has(kind)) {return true;}
+  return APART[kind]?.(a.effect, b.effect) ?? false;
+}
+
+function checkPair(sim, kind, a, b) {
+  const name = `${kind}: ${a.item.id}+${String(a.level)} with ${b.item.id}+${String(b.level)}`;
+  const worn = (x, live) => ({ item: live ? strip(x.item) : silence(x.item), level: x.level });
+  const both = probe(sim, [worn(a, true), worn(b, true)]);
+  const onlyA = probe(sim, [worn(a, true), worn(b, false)]);
+  const onlyB = probe(sim, [worn(a, false), worn(b, true)]);
+  const none = probe(sim, [worn(a, false), worn(b, false)]);
+  assert.ok(above(onlyA, none) && above(onlyB, none), `${name}: the probe does not see one of them alone`);
+  assert.ok(atLeast(both, onlyA) && atLeast(both, onlyB), `${name}: worn together weaker than one alone`);
+  const apart = stacksApart(kind, a, b);
+  if (apart) {assert.ok(above(both, onlyA) && above(both, onlyB), `${name}: one of the two is silently ignored`);}
+  else {assert.deepEqual(both, onlyA.map((v, i) => Math.max(v, onlyB[i])), `${name}: the stronger of the two is not fully live`);}
+  return apart;
+}
+
+export function stackRules(sim) {
+  let pairs = 0;
+  let stacked = 0;
+  const kinds = [];
+  for (const [kind, list] of carriers(sim)) {
+    if (new Set(list.map((c) => c.item.slot)).size < 2) {continue;}
+    if (kind in EXEMPT) {continue;}
+    kinds.push(kind);
+    for (const [i, a] of list.entries()) {
+      for (const b of list.slice(i + 1).filter((c) => c.item.slot !== a.item.slot)) {
+        pairs += 1;
+        if (checkPair(sim, kind, a, b)) {stacked += 1;}
+      }
+    }
+  }
+  return `${String(pairs)} cross-slot pairs of ${kinds.length} kinds (${kinds.join(' ')}), every level: each alone is live, together never weaker than either; ${String(stacked)} that stack are stronger than either, the other ${String(pairs - stacked)} play exactly the stronger; exempt ${Object.keys(EXEMPT).join(' ')}`;
+}
+
 export function itemRules(sim) {
   guardKinds(sim);
   parryPower(sim);

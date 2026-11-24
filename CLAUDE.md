@@ -26,7 +26,7 @@ ember-quest/
 │   ├── sim/                  # pure rules + balance policies, one concern per file — headless
 │   │   ├── util.ts           #   clamp, at, rng picks, createSeededRng (mulberry32 + state), the ItemEffect table helper
 │   │   ├── gear.ts           #   item levels, upgrades, effective mods/effects/blurbs
-│   │   ├── hero.ts           #   createHero, derive, skill points, heals, equip, spells
+│   │   ├── hero.ts           #   createHero, derive, skill points, heals, equip, spells, takePact
 │   │   ├── ghost.ts          #   derived stats of a hypothetical equip (compare previews)
 │   │   ├── describe.ts       #   item / offer / compare text for the screens, compareFull, awakenPreview (`AT +2: …`)
 │   │   ├── loot.ts           #   rollLoot, applyOffer, resolveUpgrade, missed scrolls
@@ -35,10 +35,13 @@ ember-quest/
 │   │   ├── commands.ts       #   GUARD, POTION, BURST and the BREAK settle
 │   │   ├── enemy-turn.ts     #   enemyAct: moves, intent, cycle, phase switch, soft enrage (ENRAGE_LINE), the foe's BURN tick
 │   │   ├── turn.ts           #   resolveTurn (turn start → hero → foe, one TurnResult) and the per-turn rng streams (turnRng)
-│   │   ├── status.ts         #   startTurn (regen, BLOOD), BURN, WARD, heroFalls, pendingTick
+│   │   ├── status.ts         #   startTurn (regen, BLOOD), BURN, WARD, heroFalls, pendingTick, canAfford, canDrinkPotion
 │   │   ├── power.ts          #   gear power in battle: heroElement, riposteMult, punishes, desperate, burnWarded
 │   │   ├── element.ts        #   elementMult (weakness / resistance)
+│   │   ├── stack.ts          #   how stacked item effects fold (RAMP, SPELL_TWICE, TWIN_STRIKE, HEX_STRIKE, FIRST_STRIKE, DRAIN, MP_ON_HIT, EXECUTE, REFLECT)
 │   │   ├── burst.ts          #   ember gain, canBurst, the burst blow
+│   │   ├── preview.ts        #   the facts the battle preview shows: strikeFacts, guardFacts, breakFacts, preBlowFate, healPreview
+│   │   ├── rehearse.ts       #   replays a hero action on a copy with scripted rolls (play, planAt, worstRolls) for the previews
 │   │   ├── map.ts            #   the one map generator, generateMap(rng, shape?) — game and simulator
 │   │   ├── model.ts          #   Policy (incl. stowOrEquip, dropWhich, upgradeTarget, prepare), RoomType (with BOSS)
 │   │   ├── scoring.ts        #   how policies value a loot offer
@@ -49,7 +52,7 @@ ember-quest/
 │   │   ├── descent-loot.ts   #   descent loot rows and weights
 │   │   ├── affixes.ts        #   enemy affixes: ARMORED/WARDED resists, VAMPIRIC/THORNED/SWIFT/SEARING values
 │   │   ├── hollow.ts         #   THE HOLLOW (hollowOf) and spawnFoe, the one spawn path for game and simulator
-│   │   ├── pacts.ts          #   pactMods (folded PactMod totals), offerPacts, takePact
+│   │   ├── pacts.ts          #   pactMods (folded PactMod totals), offerPacts, pactDamage, lootCards, swallowedCards
 │   │   ├── events.ts         #   pickEvent, event costs and effects, rollEventItem
 │   │   ├── rest.ts           #   restHero (REST, the ASH upgrade)
 │   │   ├── score.ts          #   scoreOf, gloryBonus, scoreAfterDeath
@@ -204,7 +207,7 @@ ember-quest/
 | Command | What it does |
 |---|---|
 | `npm run setup` | Browser + dev server, idempotent; prints `eyes: ready - … \| chromium /tmp/ember-chromium \| dev <url>`; marker `/tmp/ember-eyes.json` (`url` is the public exposed-port URL when `JBCENTRAL_EXPOSED_PORT_URL_5173` is set, else `http://localhost:5173/`). `--force` redoes everything |
-| `npm run look -- [--scene S] [--act N] [--depth D] [--seed N] [--keys "Down,Space"] [--steps N] [--out file.png] [--no-shot]` | One JSON line `{"ok","state","errors","shot"}`; exit 1 on any console/page error or no canvas. With `--scene` or `--seed` the page runs in hold mode and each key is followed by `--steps` (default 30) fixed ticks. Keys: `Up Down Left Right Space B Esc Enter` (`B`/`X` = button B) or Playwright names (`ArrowDown`, `KeyZ`, `KeyX`, `KeyP`). Without `--keys`, a `--scene` that lands on another screen than its name promises (e.g. `pact` at depth 10, where no pact is left to offer) is an error. Default shot: `$AIR_ARTIFACTS_DIR/look/<scene>-a<act>-s<seed>.png` (`<scene>-d<depth>-a…` when `--depth` > 1), else `/tmp/ember-look/` |
+| `npm run look -- [--scene S] [--act N] [--depth D] [--seed N] [--keys "Down,Space"] [--steps N] [--out file.png] [--no-shot]` | One JSON line `{"ok","state","errors","shot"}`; exit 1 on any console/page error or no canvas. With `--scene` or `--seed` the page runs in hold mode and each key is followed by `--steps` (default 30) fixed ticks. Keys: `Up Down Left Right Space B Esc Enter` (`B`/`X` = button B) or Playwright names (`ArrowDown`, `KeyZ`, `KeyX`, `KeyP`). Without `--keys`, a `--scene` that lands on another screen than the one `look` expects for it is an error; `look` expects the screen the scene is named after, except `pact` at depth 10 (every pact is already sworn), which it expects to land on the depth card. Default shot: `$AIR_ARTIFACTS_DIR/look/<scene>-a<act>-s<seed>.png` (`<scene>-d<depth>-a…` when `--depth` > 1), else `/tmp/ember-look/` |
 | `npm run verify` | eyes, lint, check, build, smoke (boot + one seeded fight to the kill and LEVEL UP, failing on any page error or replay drift), rules (map invariants over 5000 seeds, seeded-rng determinism, `validateData`), `sim:quick` (informational: balanced and random win rates), two at a time; one `PASS/FAIL/INFO` line per gate with its time, then `TOTAL`. About 10 s |
 | `npm run verify -- --full` | adds knip, jscpd, depcruise, `dist:no-hook` (no `__ember` in `dist/`), `look:all` (every scene), and the full sim. About 30 s |
 | `node scripts/oracle.mjs --save <file>` / `--check <file>` | 192 cases: the 24 scenes of its `SCENES` list (the same list `look` accepts: `title map battle levelup loot card paused gameover win gear pick drop battle-heavy battle-magic battle-ward battle-phase event threshold pact battle-hollow map-long battle-affix title-continue paused-abandon`) × acts 1–4 × still / after `Down,Space,Space,Down,Space`, seed 7, depth 1 (the oracle passes no `--depth`): sha256 of the state JSON and of the exact screenshot. `--check` prints `ORACLE OK` or lists each differing case as `(state)` or `(pixels)`. Save before a refactor, check after. Needs the dev server; roughly a second per case. The battle cases change whenever turn choreography or turn rules change |

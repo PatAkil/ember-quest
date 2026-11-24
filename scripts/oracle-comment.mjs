@@ -19,6 +19,12 @@ const shotName = (key) => {
   return `${scene}-${act}-${keys === 'still' ? 'still' : 'keys'}.png`;
 };
 
+function caseShape(snapshot) {
+  const keys = Object.keys(snapshot).map((key) => key.split('/'));
+  const count = (i) => new Set(keys.map((parts) => parts[i])).size;
+  return `${String(count(0))} scenes x ${String(count(1))} acts x ${String(count(2))} input runs`;
+}
+
 function changedCases(base, head) {
   return Object.keys(base)
     .filter((key) => JSON.stringify(base[key]) !== JSON.stringify(head[key]))
@@ -76,7 +82,7 @@ if (picked.length > 0) {
 }
 const title = `## Pixel oracle: this PR vs base \`${flag('base-sha')}\``;
 const body = cases.length === 0
-  ? `All ${String(total)} cases (9 screens x 4 acts x 2 input runs, seed 7) are identical in state and pixels.`
+  ? `All ${String(total)} cases (${caseShape(base)}, seed 7) are identical in state and pixels.`
   : changedBody(cases, picked, flag('url-prefix'), total);
 const footer = `<sub>Informational, never blocks. Updated for ${flag('head-sha')} · [run](${flag('run-url')})</sub>`;
 writeFileSync(flag('out'), `${COMMENT_MARKER}\n${title}\n\n${body}\n\n${footer}\n`);

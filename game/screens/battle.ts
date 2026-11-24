@@ -3,7 +3,7 @@ import type { AffixId, BattleState, EnemyActResult, EnemyInstance, HeroAction, H
 import { SPELLS } from '../data';
 import { canAfford, createBattle, enemyAct, heroAct, isSpell, spawnFoe, startTurn } from '../sim';
 import { adoptTurn, commitTurn, mirrorRng } from './battle-commit';
-import { BRACE_DUR, bannerBlocks, cue, dismissBanner, fadeProgress, flushFx, resetFx, skipToImpact, updateFx } from '../fx';
+import { BRACE_DUR, bannerBlocks, bannerDur, clearNote, cue, dismissBanner, fadeProgress, flushFx, fxBusy, resetFx, skipToImpact, updateFx } from '../fx';
 import { armA, biome, foeScale, resetCursorEdge, takeA } from '../state';
 import type { BattleWin, Game } from '../state';
 import { C_ACCENT, C_DIM, C_DMG_TAKEN, C_HP, C_LOG_HURT, C_MP, C_TEXT, C_WARN, heroPos } from '../theme';
@@ -132,6 +132,8 @@ function enemyLineColor(r: EnemyActResult): string {
 const PHASE_DELAY = 0.4;
 const BURN_DELAY = 0.45;
 const BURN_TAIL = 0.45;
+const ROSE = 'YOU RISE!';
+const rose = (text: string): boolean => text.endsWith(ROSE);
 
 function foeBurns(g: Game, enemy: EnemyInstance, r: EnemyActResult): void {
   cue(g, BURN_DELAY, () => { fxBurnTick(g, 'ENEMY', r.burnTick, 0); say(g, r.burnText, C_TEXT); noteLog(g, r.burnText); });
@@ -139,11 +141,21 @@ function foeBurns(g: Game, enemy: EnemyInstance, r: EnemyActResult): void {
   g.battle.timer = Math.max(g.battle.timer, BURN_DELAY + BURN_TAIL);
 }
 
+function asideAt(r: EnemyActResult): number {
+  const afterBurn = r.burnTick > 0 ? BURN_DELAY + BURN_TAIL : PHASE_DELAY;
+  return r.phaseChanged ? Math.max(afterBurn, PHASE_DELAY + bannerDur()) : afterBurn;
+}
+
 function foeAside(g: Game, r: EnemyActResult): void {
   if (!r.aside) {return;}
-  const at = r.burnTick > 0 ? BURN_DELAY + BURN_TAIL : PHASE_DELAY;
+  const at = asideAt(r);
   cue(g, at, () => { say(g, r.aside, C_WARN); noteLog(g, r.aside); });
   g.battle.timer = Math.max(g.battle.timer, at + BURN_TAIL);
+}
+
+function foeTail(g: Game, enemy: EnemyInstance, r: EnemyActResult): void {
+  if (r.burnTick > 0) {foeBurns(g, enemy, r);} else if (r.enemyDefeated) {enemyDefeated(g, enemy);}
+  if (!r.enemyDefeated) {foeAside(g, r);}
 }
 
 export function applyEnemyAction(g: Game): void {
@@ -156,9 +168,7 @@ export function applyEnemyAction(g: Game): void {
   if (r.heroDead) { recordBlow(g, enemy, r); heroDies(g, r.text); return; }
   noteLog(g, enemyLine(r));
   if (r.phaseChanged) {cue(g, PHASE_DELAY, () => { fxPhase(g, enemy); });}
-  if (r.burnTick > 0) { foeBurns(g, enemy, r); return; }
-  if (r.enemyDefeated) { enemyDefeated(g, enemy); return; }
-  foeAside(g, r);
+  foeTail(g, enemy, r);
 }
 
 function enemyStep(g: Game, e: EnemyInstance): void {
@@ -192,8 +202,9 @@ function heroBurns(g: Game, e: EnemyInstance, r: HeroActResult, at: { delay: num
     fxBurnTick(g, 'HERO', r.burnTick, at.slot);
     noteLog(g, r.burnText);
     if (r.heroDead) { recordBurn(g, e, r.burnTick); heroDies(g, r.burnText); return; }
-    if (r.revived) {reviveFx(g);}
-    say(g, r.burnText, C_LOG_HURT);
+    const rise = rose(r.burnText);
+    if (rise) {reviveFx(g);}
+    say(g, r.burnText, rise ? C_ACCENT : C_LOG_HURT);
   });
 }
 
@@ -230,17 +241,17 @@ function heroTail(g: Game, landed: Landed): void {
 
 function affixFx(g: Game, r: HeroActResult, slot: number): boolean {
   if (r.missed) {fxSlipsAway(g, slot);}
-  const byBurn = r.burnTick > 0;
-  const byThorns = r.heroDead && !byBurn;
+  const byThorns = r.heroDead && r.burnTick === 0;
   if (r.thorns > 0) {fxThorns(g, { amount: r.thorns, hits: r.hits.length, then: () => { thornsLine(g, r, byThorns); } });}
-  if (r.revived && (!byBurn || r.heroDead)) {reviveFx(g);}
   if (byThorns) { noteLog(g, r.thornsText); heroDies(g, r.thornsText || r.text); return true; }
   return false;
 }
 
 function thornsLine(g: Game, r: HeroActResult, fatal: boolean): void {
   if (fatal || !r.thornsText) {return;}
-  say(g, r.thornsText, r.revived && r.burnTick === 0 ? C_ACCENT : C_LOG_HURT);
+  const rise = rose(r.thornsText);
+  if (rise) {reviveFx(g);}
+  say(g, r.thornsText, rise ? C_ACCENT : C_LOG_HURT);
   noteLog(g, r.thornsText);
 }
 
@@ -280,7 +291,7 @@ function heroStep(g: Game, action: HeroAction): void {
 
 function useAction(g: Game, action: HeroAction): void {
   if (!g.battle.enemy) {return;}
-  g.fx.note = null;
+  clearNote(g);
   if (!canAfford(g.hero, action)) {
     push(g, 0.7, () => { say(g, 'NOT ENOUGH MP!', C_DIM); g.app.audio.play('blip'); });
     beginQueue(g);
@@ -327,15 +338,17 @@ function hurryKill(g: Game): void {
   g.battle.timer = Math.min(g.battle.timer, KILL_SHOWN);
 }
 
+const stepOver = (g: Game): boolean => g.battle.timer <= 0 && !fxBusy(g);
+
 function updateQueue(g: Game, dt: number): void {
   g.battle.timer -= dt;
   if (g.battle.outcome === 'WON') {
     if (consumeA(g)) {hurryKill(g);}
-    if (g.battle.timer <= 0) {advanceQueueStep(g);}
+    if (stepOver(g)) {advanceQueueStep(g);}
     return;
   }
   if (!consumeA(g)) {
-    if (g.battle.timer <= 0) {advanceQueueStep(g);}
+    if (stepOver(g)) {advanceQueueStep(g);}
     return;
   }
   const before = g.battle.timer;

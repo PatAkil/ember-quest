@@ -18,7 +18,7 @@ import {
   type Rng,
 } from '../types';
 import { searingStrike, vampiricHeal } from './affixes';
-import { findEffect } from './gear';
+import { reflectFor } from './stack';
 import { gainEmber } from './burst';
 import { derive } from './hero';
 import { counterBlow, guardMana } from './power';
@@ -98,9 +98,8 @@ function parry(t: Turn): boolean {
 }
 
 function thorns(hero: Hero, dmg: number, physical: boolean): number {
-  const reflect = findEffect(hero, 'REFLECT');
-  if (!reflect || reflect.fraction <= 0 || !(physical || reflect.magicToo)) {return 0;}
-  return Math.max(1, Math.round(dmg * reflect.fraction));
+  const fraction = reflectFor(hero, physical);
+  return fraction > 0 ? Math.max(1, Math.round(dmg * fraction)) : 0;
 }
 
 function reflectDamage(t: Turn, dmg: number, physical: boolean): number {

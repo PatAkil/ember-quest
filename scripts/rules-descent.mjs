@@ -244,7 +244,41 @@ function bossTables(sim) {
   hero.missedScrolls.push('THUNDER');
   const offers = sim.rollLoot('BOSS', { n: 5, plan: plans[1] }, hero, rng);
   assert.deepEqual(offers[0], { kind: 'SCROLL', spell: 'THUNDER' }, 'a missed scroll leads the descent boss table');
-  return `300 descent boss tables: three EPIC+ items, ${signatures} signature re-rolls, only missed scrolls`;
+  return `300 descent boss tables: three EPIC+ items, ${signatures} signature re-rolls, only missed scrolls; ${bossCardCounts(sim, plans)}`;
+}
+
+function countedRng(sim, seed) {
+  const source = sim.createSeededRng(seed).next;
+  const counter = { draws: 0 };
+  counter.next = () => {
+    counter.draws += 1;
+    return source();
+  };
+  return counter;
+}
+
+const BOSS_CASES = [
+  { scroll: false, miser: false, cards: 3, items: 3 },
+  { scroll: true, miser: false, cards: 3, items: 2 },
+  { scroll: false, miser: true, cards: 4, items: 4 },
+  { scroll: true, miser: true, cards: 4, items: 3 },
+];
+
+function bossCardCounts(sim, plans) {
+  for (const c of BOSS_CASES) {
+    for (let seed = 0; seed < 50; seed++) {
+      const hero = armed(sim);
+      if (c.scroll) {hero.missedScrolls.push('THUNDER');}
+      if (c.miser) {hero.pacts.push('MISER');}
+      const rng = countedRng(sim, seed);
+      const offers = sim.rollLoot('BOSS', { n: 4 + (seed % 4), plan: plans[seed % 4] }, hero, rng.next);
+      const what = `descent boss, scroll ${String(c.scroll)}, MISER ${String(c.miser)}`;
+      assert.equal(offers.length, c.cards, `${what}: ${offers.length} cards`);
+      assert.equal(offers.filter((o) => o.kind === 'ITEM').length, c.items, `${what}: item cards`);
+      assert.equal(rng.draws, 2 * c.items, `${what}: ${rng.draws} draws for ${c.items} rolled items (nothing rolled and discarded)`);
+    }
+  }
+  return 'card counts exact: 3, a missed scroll takes one of them; MISER 4 with or without one, no item rolled and thrown away';
 }
 
 const sane = (v) => Number.isFinite(v) && v >= 1;

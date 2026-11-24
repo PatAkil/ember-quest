@@ -240,6 +240,7 @@ function ticksUntil(driver: Driver, done: () => boolean, max: number, withA = fa
 }
 
 const ARM_TICKS = 70;
+const PHASE_SHOT_TICKS = 54;
 const A_TICKS = Math.ceil(decisionHold('LOOT') / DT) + 1;
 
 function settle(driver: Driver, ticks: number): void {
@@ -274,9 +275,10 @@ function verbFixtures(fx: FixtureContext, starts: Starts): Record<VerbFixture, (
     const { e } = foe();
     e.def = { ...e.def, phase2: e.def.phase2 ?? { at: 0.5, moves: ['WINDUP', 'HEAVY', 'STRIKE'], banner: `${e.def.name} RAGES`, atkMult: 1.15 } };
     e.hp = Math.floor(e.maxHp * 0.45);
-    host.enemyTurn();
     host.syncReveal();
-    for (let i = 0; i < 24; i++) {driver.runTick(DT);}
+    ticksUntil(driver, () => host.battle().phase === 'QUEUE', 400, true);
+    ticksUntil(driver, () => foe().e.phase === 2, 400);
+    settle(driver, PHASE_SHOT_TICKS);
   };
   return {
     'battle-heavy': () => { battle(braced(fresh())); foe().state.intent = 'HEAVY'; },

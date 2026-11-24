@@ -1,9 +1,9 @@
 # Ember Quest — systems design (v3: The Long Descent)
 
 This file is **the** systems contract for v3, "The Long Descent": every rule and number
-the game plays by is stated here and matches `game/types.ts` and `game/rules/*`.
-`OVERHAUL_PLAN.md` is the historical plan v3 was built from; its numbers were superseded
-by the balance passes recorded below and it is not a contract.
+the game plays by is stated here and matches `game/types.ts` and `game/rules/*`. The
+owner's decisions that v3 was built on are listed in *Owner decisions* at the end; the
+numbers in the plan they came from were superseded by the balance passes recorded below.
 
 A roguelike JRPG: branching node map per act, turn-based one-on-one battles,
 permadeath, **skill points** and a **loot table of named items with unique effects**
@@ -18,7 +18,7 @@ past the fourth act.
 | `game/data.ts` | the content import path: re-exports `game/rules/*` (ITEMS, ENEMIES, SPELLS, BIOMES, LOOT_WEIGHTS, ACT_MULT, the heal constants, `validateData`, EVENTS and their types) | `./rules/*` only |
 | `game/rules/*.ts` | the content itself: `items` (ITEMS), `enemies` (ENEMIES), `world` (SPELLS, SPELL_ORDER, BIOMES, ACT_MULT, LOOT_WEIGHTS, LOOT_COUNT, CLEAR_HEAL, BOSS_ENTRY_HEAL, SKIP_MEND, RARITY_COLOR_INDEX), `validate` (`validateData`; never imports `data.ts`), `events` (EVENTS, the effect vocabulary, `validateEvents`), `pacts` (PACTS, `validatePacts`); `enemies` also holds the descent-only THE HOLLOW | `../types`, each other |
 | `game/sim.ts` | the barrel: the only path presentation and the simulator use to reach the rules (also re-exports `validateData`, `generateMap`, `createSeededRng`, `at`) | `./sim/*`, `./data` |
-| `game/sim/*.ts` | pure rules, one concern per file: `util` (clamp, `at`, rng picks, `createSeededRng` — mulberry32 with readable state — and effect tables), `gear` (item levels, upgrades, effective mods/effects), `hero` (derived stats, skill points, heals, equip, spells), `ghost` (stats of a hypothetical equip), `describe` (item/offer/compare text, `compareFull` — its `awaken` and `describeOffer`'s spare third line carry `awakenPreview(item, level)` = `AT +2: <awaken blurb>`, '' for legendaries and awakened items), `loot` (loot rolls, offers, scrolls, `resolveUpgrade`), `pack` (the pack: `stow`, `discard`, `swapIn`, `unequip`, `ownedIds`, `upgradableTargets`), `combat` (enemy scaling, battle creation, hero actions, damage), `commands` (GUARD, POTION, BURST, BREAK), `enemy-turn` (enemy moves, intent, phase), `status` (turn start, BURN, WARD, `heroFalls`, `livesLeft`, and `canAfford` / `canDrinkPotion`, judged on the hero as the turn start leaves him), `turn` (`resolveTurn`: one whole turn on two per-turn rng streams, played by the game and the simulator), `rehearse` (the hero's half-turn played on a shadow copy under a scripted roll, and the least favourable rolls), `preview` (the battle menu's facts, read off rehearsals: `preBlowFate`, `strikeFacts` / `strikeKind` / `burstKind`, `breakFacts`, `healPreview`, `guardFacts`, `expectedPreBlowLoss`, `expectedPlan` — the screen only words and colours them), `element`, `burst`, `power` (the gear-driven damage multipliers: IMBUE element, PUNISH, LOW HP, ELEMENT BOOST, riposte power, ignite chance, the guard counter), `events` (event effects, enablement, `eventPlayable`, `pickEvent(rng, hero)`, `takePendingBurn`, preview words), `map` (**the one map generator**, `generateMap(rng, shape?)`, played by both the screens and the simulator), `model` (`Policy`, `RoomType` including `BOSS`), `scoring`, `policies`, `policy-battle` (how they fight) and `policy-choices` (how the archetypes decide; `DEFAULT_CHOICES` holds the shared pack/upgrade/prepare defaults), `descent` (`n`, `depthOf`, `actInDepth`, `actMult`, `ActPlan`, `planDepth`), `affixes`, `hollow` (`hollowOf` with its private best-loadout `armouryOf`, `spawnFoe`), `pacts` (`pactMods`, `offerPacts`, `lootCards`, `swallowedCards`), `score`, `run` (`simulateRun`), `save` / `save-read` / `save-map` / `save-battle` (the save format) and `save-sanity` (`saneSave`: the cross-field checks run after a save is read) | `../types`, `../data`, each other |
+| `game/sim/*.ts` | pure rules, one concern per file: `util` (clamp, `at`, rng picks, `createSeededRng` — mulberry32 with readable state — and effect tables), `gear` (item levels, upgrades, effective mods/effects), `hero` (derived stats, skill points, heals, equip, spells), `ghost` (stats of a hypothetical equip), `describe` (item/offer/compare text, `compareFull` — its `awaken` and `describeOffer`'s spare third line carry `awakenPreview(item, level)` = `AT +2: <awaken blurb>`, '' for legendaries and awakened items), `loot` (loot rolls, offers, scrolls, `resolveUpgrade`), `pack` (the pack: `stow`, `discard`, `swapIn`, `unequip`, `ownedIds`, `upgradableTargets`), `combat` (enemy scaling, battle creation, hero actions, damage), `commands` (GUARD, POTION, BURST, BREAK), `enemy-turn` (enemy moves, intent, phase), `status` (turn start, BURN, WARD, `heroFalls`, `livesLeft`, and `canAfford` / `canDrinkPotion`, judged on the hero as the turn start leaves him), `turn` (`resolveTurn`: one whole turn on two per-turn rng streams, played by the game and the simulator), `rehearse` (the hero's half-turn played on a shadow copy under a scripted roll, and the least favourable rolls), `preview` (the battle menu's facts, read off rehearsals: `preBlowFate`, `strikeFacts` / `strikeKind` / `burstKind`, `breakFacts`, `healPreview`, `guardFacts`, `expectedPreBlowLoss`, `expectedPlan` — the screen only words and colours them), `element`, `burst`, `power` (the gear-driven damage multipliers: IMBUE element, PUNISH, LOW HP, ELEMENT BOOST, riposte power, ignite chance, the guard counter), `stack` (how two worn items of one effect kind combine: RAMP per scope, SPELL_TWICE per spell, the stronger TWIN / FIRST_STRIKE / HEX / DRAIN / MP_ON_HIT / EXECUTE, summed REFLECT), `events` (event effects, enablement, `eventPlayable`, `pickEvent(rng, hero)`, `takePendingBurn`, preview words), `map` (**the one map generator**, `generateMap(rng, shape?)`, played by both the screens and the simulator), `model` (`Policy`, `RoomType` including `BOSS`), `scoring`, `policies`, `policy-battle` (how they fight) and `policy-choices` (how the archetypes decide; `DEFAULT_CHOICES` holds the shared pack/upgrade/prepare defaults), `descent` (`n`, `depthOf`, `actInDepth`, `actMult`, `ActPlan`, `planDepth`), `affixes`, `hollow` (`hollowOf` with its private best-loadout `armouryOf`, `spawnFoe`), `pacts` (`pactMods`, `offerPacts`, `lootCards`, `swallowedCards`), `score`, `run` (`simulateRun`), `save` / `save-read` / `save-map` / `save-battle` (the save format) and `save-sanity` (`saneSave`: the cross-field checks run after a save is read) | `../types`, `../data`, each other |
 | `game/sprites.ts` + `game/sprites/*.ts` | hero/enemy/icon sprites: `helpers`, `hero`, `icons`, one file per biome; `sprites.ts` re-exports them and adds `enemyAnim(id)` | `../engine` only |
 | `game/main.ts` + `app`, `state`, `flow`, `persist`, `resume`, `frame`, `mapgen`, `theme`, `backdrop`, `widgets`, `pops`, `fx-state`, `fx`, `transition`, `storage`, `lookup`, `screens/*.ts` | presentation: `main.ts` only wires; `app` creates the engine objects and fits the canvas to the window; `state` holds the one `Game` object `g` with per-screen slices; `flow` runs the run (rooms, stages, clears, acts, scene hooks); `persist` writes and deletes the save (`realRun`, the step builders, `settleRoom`); `resume` reads it back and re-enters its step; `frame` dispatches update/render; `mapgen` adapts the shared headless map to the screens (adds `stage`, `slot`, `cleared`); the **fx / transition layer** presents what the rules decided and never decides anything — `fx-state` + `fx` hold the battle-fx clock (actor poses, timed cues, lagging meters, boss banner), `screens/battle-fx` choreographs a turn on it, `screens/battle-fx-verbs` gives each battle verb its beat, `screens/battle-fx-view` draws its shots and banner, `screens/battle-menu` holds the command menu, `screens/battle-tags` the tag strips under the plates, `screens/battle-reach` measures lunges, `transition` reveals each new sub-scene; `screens/` one update file and one view file per screen (`map-view`, `loot-view`, `battle-view`; `plate` holds the shared medallions) | everything |
 | `game/devhook.ts` | the dev-only seeded hook (`?seed`, `?scene`, `&act`, `&depth`, `&hold`, `window.__ember`), never in the build | `../engine` types, `./sim`, presentation types |
@@ -45,8 +45,9 @@ thousands of runs. ESLint and dependency-cruiser enforce the boundary.
 - Boss node: heal 60 % entering. **One boss per act** (the Crypt gauntlet is
   gone: OGRE KING and WRAITH LORD become Crypt elites, DARK LORD is the boss).
 - Caps: DEF/MDEF 42 %, CRIT 60 %, DODGE 40 % — items + points together.
-- Act-entry spells unchanged: WATER (act 2), SLASH (act 3), THUNDER (act 4).
-  TOME items grant extra spells (TWINBOLT, LEECH, QUAKE, MEND, EMBERS, TREMOR, AEGIS) while equipped.
+- No spell is learned on act entry: FIREBALL is known from the start, and WATER, SLASH and
+  THUNDER are boss scrolls (see *Spells and boss tables*). TOME items grant extra spells
+  (TWINBOLT, LEECH, QUAKE, MEND, EMBERS, TREMOR, AEGIS) while equipped.
 
 ## Items
 
@@ -64,9 +65,12 @@ on mods, `scaleEffect` on effect magnitudes — downsides never grow). **+2 is
 the awakening** (`item.awaken`): an authored change to how the item plays —
 a sticky ramp, a hex that converts every physical hit, reflect that answers
 hexes too, a common blade that learns to execute. Legendaries stop at +1.
-Upgrades arrive as an **UPGRADE card** on the loot screen (v3: the player picks the item, see the v3 section) for one random
-equipped, not-maxed item: always in a chest, ~20–25 % of the time from
-fights and elites, never from bosses (`UPGRADE_CHANCE`).
+Upgrades arrive as an **UPGRADE card** (`UPGRADE_ANY`) on the loot screen; taking it opens
+`UPGRADE WHICH?` and the player **chooses** which worn or packed, not-maxed item rises (see
+*Chosen upgrades* in the pack section; nothing is picked at random). It is offered when
+something is upgradable: in every chest unless the chest's missed-scroll roll put a scroll
+there instead, 20 % of the time from fights and 25 % from elites, never from bosses
+(`UPGRADE_CHANCE`).
 
 ### Drop sources
 
@@ -538,6 +542,32 @@ reflect, burn ward), `burst` (ember rate, burst power). Items in `game/rules/ite
 A strike's power = RAMP × opener × riposte (× `PARRY_POWER`) × PUNISH × LOW HP × ELEMENT
 BOOST; weakness/resist and DEF/WARD after. BURST stays outside all of it (BURST_POWER only).
 
+### When two worn items share an effect kind
+
+Six slots can carry the same kind (an awakening often grants a kind its item did not
+have), so every kind has one stacking rule; nothing reads "the first slot that has it".
+Rules: `game/sim/stack.ts` for the hit-shaping kinds, `power` / `burst` / `hero` /
+`status` / `enemy-turn` for the rest. The `stack` rules group equips every cross-slot pair
+of carriers of each kind, at every level, and checks a resolved turn: each item alone is
+live, the pair is never weaker than either alone, a pair that stacks is stronger than
+either, and a pair under "the stronger" plays exactly the stronger one.
+
+| Kind | Two worn | Why |
+|---|---|---|
+| `SPELL_TWICE` | per spell: each item's spell echoes; the same spell twice echoes once, at the higher `secondHitMult` | a second echo of one spell would be a third hit no item sells |
+| `RAMP` | per scope: an ATTACK ramp and a SPELL ramp both work; the same scope merges to the higher `perStack`, the higher `maxStacks`, sticky if either is | one streak counter (`battle.rampStacks`): an action a worn ramp covers adds a stack (capped by that ramp's `maxStacks`, and its bonus reads at most that many); an action no worn ramp covers resets it unless the other scope's ramp is sticky — so with both scopes worn every strike keeps the streak |
+| `FIRST_STRIKE`, `TWIN_STRIKE`, `PARRY_POWER`, `BURN_ON_HIT`, `EXECUTE` | the stronger (`mult`, `secondHitMult`, `chance`; EXECUTE the higher bonus among those whose threshold is met) | each shapes the one opening blow, the one extra hit, the one riposte, the one ignite roll |
+| `HEX_STRIKE` | worn if any; converts every physical hit if any is awakened | a hit is magic or it is not |
+| `DRAIN`, `MP_ON_HIT` | the stronger | a per-hit sustain rate, like the riposte and the ignite chance, and `scaleEffect` already caps one DRAIN at 40 %; summed they put balanced at 41 % (above the 30–40 % band) |
+| `PUNISH_WINDUP`, `LOW_HP_POWER`, `ELEMENT_BOOST`, `BURST_GAIN`, `BURST_POWER` | multiply (ELEMENT_BOOST per element) | power multipliers multiply, as pacts' do |
+| `GUARD_COUNTER`, `GUARD_MANA`, `CHEAPER_SPELLS`, `BLOOD`, `REFLECT`, `GLASS` | add (REFLECT: the fractions of the items that answer this hit's kind) | flat amounts and prices add, as pacts' counts do |
+| `REVIVE` | lives add (a `twice` item holds two), at most 2 in all, at the higher `hpFraction`; spent lives stay spent (`revived`, `revivedTwice`) | see *the pack* |
+| `GRANT_SPELL` | every granted spell is known; discounts add | each tome is its own spell |
+| `IMBUE`, `BURN_WARD` | IMBUE is weapon-only (`validateData`), so an ATTACK has one element; BURN_WARD is worn or not | – |
+
+Policy scoring (`scoring.ts`) values an item's effect alone and does not model these
+pairs; it is a heuristic, not a rule.
+
 **Spells** (TOME only): `EMBERS` (fire, 2 × 0.8 MAG, 7 MP, CINDER TOME), `TREMOR` (earth,
 1.3 ATK physical, 3 MP, FAULT TOME), `AEGIS` (5 MP, WARDEN TOME): a GUARD for every guard
 rule — ×0.5 (chain ×0.75), parry on a HEAVY, guard MP, ember, no regen that turn
@@ -705,11 +735,12 @@ the descent (see *Balance state → The descent*).
 - **Loot in the descent** (`game/sim/descent-loot.ts`, `lootWeights(source, n)`): the
   act-4 row with +3 LEGENDARY per depth below 1 taken from COMMON, then RARE, never below
   0, LEGENDARY capped at 30 (`descentRow`); `minAct` is always met. Boss tables in the
-  descent: a missed scroll first if any (no plan scroll, no fixed signature), then three
-  rolled items from the BOSS row with COMMON and RARE weight moved onto EPIC — **EPIC 70 /
+  descent: three cards (MISER: four), a missed scroll first if any and taking one of them
+  (no plan scroll, no fixed signature), the rest rolled items from the BOSS row with COMMON and RARE weight moved onto EPIC — **EPIC 70 /
   LEGENDARY 30 at every depth** (the +3-per-depth LEGENDARY step applies to the other
-  sources' rows, never to descent boss loot) — signature items not owned in the pool;
-  MISER adds a card, capped at 4.
+  sources' rows, never to descent boss loot) — signature items not owned in the pool.
+  Nothing is rolled beyond the card count (before the PR-11 review a missed scroll came on
+  top of three rolled items, and under MISER a fifth was rolled and thrown away).
   Tuned from the contract: HEX's curse hit every foe; its win-through sat 7–16 % against
   26–43 % for the other pacts, so it now hits elites and bosses only (the ones whose loot
   its boon improves).
@@ -1046,8 +1077,9 @@ pacts joined with ` / ` on lines <= 172 px.
 ## Balance state (measured with the headless simulator, 2026-11-24)
 
 The one current table: `node sim/run.mjs` (2000 runs per policy, seed 1), on the tree after
-review round 5 (the MUMMY trim below; the round-5 rules changes — preview helpers, guard
-log lines, save caps, sign-aware event checks — do not move the simulator). Harness:
+the owner's PR-11 review (worn effects of one kind now stack by the table in *When two worn
+items share an effect kind*, and a descent boss table's missed scroll takes one of its
+cards). Every balance number in this file comes from this one run. Harness:
 `sim/run.mjs` bundles `game/sim.ts` with esbuild (`sim/bundle.mjs`) and plays `simulateRun`
 with each of `POLICIES` on a seeded PRNG (`--runs`, `--seed`, `--policy`, `--json`,
 `--story`, `--descent-only`, `--items`, `--events`, `--no-potions`); same seed and code give
@@ -1057,53 +1089,54 @@ sections.
 
 | policy | win | reach act 2 / 3 / 4 | boss clears a1/a2/a3/a4 | boss turns med/p90 a3, a4 (> 16) | top killers |
 |---|---|---|---|---|---|
-| balanced | 39 % | 98 / 91 / 68 % | 99/98/88/75 | 6/11 (1 %), 8/12 (3 %) | SERAPH 265, MUMMY 247, PALADIN 237, SAND GOLEM 182 |
-| naive (no verbs) | 16 % | 91 / 66 / 38 % | 92/81/73/65 | 6/10 (1 %), 7/12 (3 %) | YETI 301, SAND GOLEM 273, MUMMY 260, PALADIN 234 |
-| glass (all offence) | 18 % | 99 / 85 / 45 % | 100/96/73/62 | 4/7 (0 %), 5/8 (0 %) | MUMMY 371, SAND GOLEM 324, PALADIN 247, SERAPH 214 |
-| tank (HP/DEF, physical) | 35 % | 98 / 87 / 57 % | 99/95/79/82 | 10/16 (8 %), 10/16 (9 %) | SAND GOLEM 296, MUMMY 271, PALADIN 234, SERAPH 160 |
-| elite-hungry routing | 40 % | 99 / 92 / 69 % | 99/98/88/73 | 6/11 (1 %), 8/12 (2 %) | SERAPH 299, MUMMY 239, PALADIN 224, SAND GOLEM 194 |
-| chest-hungry routing | 31 % | 96 / 89 / 64 % | 98/97/85/63 | 6/12 (1 %), 9/13 (4 %) | SERAPH 362, SAND GOLEM 229, ORACLE 149, MUMMY 125 |
-| random picks + points | 0 % | 20 / 0 / 0 % | 31/8/–/– | – | DARK LORD 884, SKELETON 307 |
+| balanced | 39 % | 98 / 92 / 68 % | 99/98/89/74 | 6/11 (1 %), 8/12 (2 %) | SERAPH 275, MUMMY 255, PALADIN 233, SAND GOLEM 171 |
+| naive (no verbs) | 16 % | 90 / 65 / 39 % | 91/81/76/60 | 6/10 (1 %), 7/12 (2 %) | YETI 297, MUMMY 261, SAND GOLEM 246, PALADIN 229 |
+| glass (all offence) | 18 % | 99 / 85 / 46 % | 100/96/74/61 | 4/7 (0 %), 6/8 (0 %) | MUMMY 343, SAND GOLEM 323, PALADIN 246, SERAPH 230 |
+| tank (HP/DEF, physical) | 38 % | 99 / 89 / 57 % | 99/95/80/83 | 11/16 (7 %), 10/16 (9 %) | MUMMY 299, SAND GOLEM 295, PALADIN 215, SERAPH 152 |
+| elite-hungry routing | 39 % | 99 / 92 / 68 % | 99/98/88/73 | 6/11 (1 %), 7/12 (2 %) | SERAPH 281, MUMMY 254, PALADIN 229, SAND GOLEM 181 |
+| chest-hungry routing | 32 % | 96 / 89 / 63 % | 98/97/84/66 | 7/12 (1 %), 9/13 (4 %) | SERAPH 331, SAND GOLEM 235, ORACLE 134, MUMMY 122 |
+| random picks + points | 0 % | 19 / 1 / 0 % | 29/15/0/– | – | DARK LORD 923, SKELETON 319 |
 
-naive/balanced = **0.41**. 0 STALL deaths. Balanced per run: GUARD 5.3 (PARRY 5.5), BURST
-5.1, POTION 3.0, BREAK succeeded/attempted 0.39/0.66 normals, 0.96/1.39 elites, 1.94/2.58
-bosses, phase 2 reached 3.2 times. Boss HP at spawn 164 / 333 / 667 / 1284; balanced's
-phase-2 HEAVY 30 / 39 / 61 / 63 % of max HP (glass 90 / 80 % at the Golem / Seraph); the p25
-build nets ≥ 7 % of the boss's HP per turn at every boss (tank 47 / 665 at the Golem).
+naive/balanced = **0.40**. 0 STALL deaths. Balanced per run: GUARD 5.3 (PARRY 5.5), BURST
+5.1, POTION 2.9, BREAK succeeded/attempted 0.39/0.68 normals, 0.94/1.42 elites, 1.87/2.46
+bosses, phase 2 reached 3.2 times. Boss HP at spawn 164 / 334 / 668 / 1283; balanced's
+phase-2 HEAVY 30 / 39 / 61 / 64 % of max HP (glass 91 / 82 % at the Golem / Seraph); the p25
+build nets ≥ 7 % of the boss's HP per turn at every boss (tank 48 / 667 at the Golem).
 
 Descent (same run; shares of the runs that beat the Seraph, deaths of the descenders who
 died below depth 1; THORNS = killed by THORNED backlash):
 
 | policy | beat Seraph | clear d2 | d3 | d4 | d5 | final n mean / median | deaths ELITE / BOSS / HOLLOW / THORNS / NORMAL |
 |---|---|---|---|---|---|---|---|
-| balanced | 793 | 36 % | 7 % | 0.3 % | 0 | 7.3 / 7 | 39 / 18 / 36 / 5 / 1 % |
-| naive | 311 | 23 % | 5 % | 0 % | 0 | 6.3 / 5 | 53 / 21 / 21 / 4 / 1 % |
-| glass | 355 | 30 % | 7 % | 0.3 % | 0 | 6.8 / 6 | 45 / 22 / 27 / 3 / 3 % |
-| tank | 744 | 58 % | 23 % | 2 % | 0 | 9.0 / 9 | 33 / 18 / 39 / 10 / 1 % |
-| elite-hungry | 760 | 31 % | 7 % | 0.5 % | 0 | 6.9 / 7 | 48 / 16 / 29 / 6 / 1 % |
-| chest-hungry | 650 | 46 % | 11 % | 0.5 % | 0 | 8.1 / 7 | 23 / 24 / 46 / 4 / 3 % |
+| balanced | 779 | 36 % | 7 % | 0 % | 0 | 7.3 / 7 | 44 / 14 / 33 / 7 / 2 % |
+| naive | 326 | 18 % | 3 % | 0 % | 0 | 6.0 / 5 | 52 / 22 / 22 / 3 / 1 % |
+| glass | 356 | 31 % | 5 % | 0.3 % | 0 | 6.7 / 6 | 50 / 19 / 24 / 4 / 3 % |
+| tank | 716 | 57 % | 23 % | 2 % | 0 | 8.9 / 9 | 28 / 22 / 37 / 12 / 1 % |
+| elite-hungry | 790 | 35 % | 7 % | 0.3 % | 0 | 7.1 / 7 | 48 / 16 / 29 / 5 / 2 % |
+| chest-hungry | 625 | 48 % | 8 % | 0.3 % | 0 | 8.0 / 7 | 21 / 29 / 40 / 4 / 5 % |
 
-Re-measured on 2026-11-24 after the affix pool (each act rolls its affixes from the first
-`max(normal, elite) + 1` entries of its `affixOrder`) and the turn-start potion check: the
-story table above is unchanged; the descent rows are the new ones. THE HOLLOW is the top
-descent killer for every policy (balanced: HOLLOW 311, FROST WISP 125, SERAPH 85, MUMMY 75).
-Affix on the killer (balanced): SWIFT 57 %, THORNED 37 %, VAMPIRIC 26 %, SEARING 14 %,
-WARDED 14 %, ARMORED 8 %. Pact win-through pooled over the non-random policies: ASH 43,
-TITHE 40, BRITTLE 40, MISER 34, IRON 32, HUNTER 28, STORM 27, HEX 22 %.
+THE HOLLOW is the top descent killer for every policy (balanced: HOLLOW 282, FROST WISP 140,
+MUMMY 101, PALADIN 63). Affix on the killer (balanced): SWIFT 53 %, THORNED 37 %, VAMPIRIC
+26 %, SEARING 17 %, WARDED 16 %, ARMORED 8 %. Pact win-through pooled over the non-random
+policies: ASH 43, TITHE 37, MISER 34, BRITTLE 32, IRON 32, HUNTER 31, STORM 25, HEX 23 %.
+
+Against the previous table (review round 5) the stacking rules moved balanced 39 → 39 %
+(41 % with DRAIN and MP_ON_HIT summed instead of taking the stronger, which is why they take
+the stronger), tank 35 → 38 %, naive and glass unchanged at 16 / 18 %.
 
 **Open balance items** (known, not yet addressed):
 
-- **The tank's descent advantage.** It clears depth 2 in 58 % of descents against
+- **The tank's descent advantage.** It clears depth 2 in 57 % of descents against
   balanced's 36 % and depth 3 in 23 % against 7 %. The Hollow does not carry it (with every
   Hollow STRIKE pinned at 15 % of max HP it still clears depth 2 in ~65 %); it outlasts the
   depth's elites and bosses. Its act-3/4 boss fights also sit at the p90 edge (16 turns,
-  8–9 % over 16).
+  7–9 % over 16).
 - **naive and glass on their floors.** 16 % and 18 % against the ≥ 15 % / ≥ 18 % targets;
   any act-3/4 tightening must be paid for elsewhere.
-- **Balanced's depth-3 clear below its aim**: 8 % against ≈ 10 %.
+- **Balanced's depth-3 clear below its aim**: 7 % against ≈ 10 %.
 - **MUMMY and PALADIN elites as top killers**: MUMMY is balanced's second killer, glass's
-  first and naive's third; PALADIN is in every sane policy's top four. Elites end 29 % of
-  balanced story runs (bosses 26 %).
+  first and naive's second; PALADIN is in every sane policy's top four. Elites end 29 % of
+  balanced story runs (bosses 25 %).
 - **Pure physical builds lack a break other than BURST**: BREAK needs a weakness hit, BURST
   or PUNISH_WINDUP, and most weaknesses are elemental spells, so a physical build without
   PUNISH or IMBUE gear can only break a HEAVY by spending a full ember bar.
@@ -1111,6 +1144,10 @@ TITHE 40, BRITTLE 40, MISER 34, IRON 32, HUNTER 28, STORM 27, HEX 22 %.
 **Tuning history** (each change was measured with the same harness; superseded numbers are
 not repeated here):
 
+- *PR-11 review* (2026-11-24): no number moved. Stacking worn effects of one kind (see
+  *When two worn items share an effect kind*) with DRAIN and MP_ON_HIT summed put balanced
+  at 41 % (40–41 % over seeds 1–4); taking the stronger of those two instead holds it at
+  39 % (seed 1) with naive 16 % and glass 18 %.
 - *Review round 5* (2026-11-24): **MUMMY atkBase 5.3 → 4.9** (its act-3 hex took 25–30 of
   a ~100-HP hero and it was the top killer in two blind playtests and for naive). Balanced
   38 → 39 %, naive 15 → 16 %, glass 17 → 18 %, tank 35 %; MUMMY deaths: naive 309 → 260
@@ -1145,3 +1182,24 @@ There is one generator, `generateMap` in `game/sim/map.ts`; `game/mapgen.ts` onl
 adds the screen fields. The simulator used to link more stingily (about 39 % of nodes
 with two onward links against 74 % in the game), which understated the real game's
 win rate by about five points; the tables above are measured on the game's map.
+
+## Owner decisions
+
+v3 was built on these defaults; each changed something the owner did not ask for, and
+each can be reverted in one tuning pass if the owner says so.
+
+| Decision | Why |
+|---|---|
+| Story-run win target 15–25 % → **30–40 %** (per-act targets up, `random` < 5 % → < 8 %) | the descent now carries the difficulty; more players should reach it |
+| **POTION ×2**, refilled at REST (and one back on entering each act) | "heal, guard or race" is the JRPG turn |
+| Score: +500 per boss, a glory bonus on ASCEND, a death in the descent keeps half of what was earned since the last threshold; a new best-score format | depth has to be worth something and worth risking |
+| Save/resume: closing the tab keeps the run; an interrupted fight restarts from its first turn | losing a 25-minute run to a closed tab is the worst UX the game had |
+| Controls: B (X/C) opens GEAR and means "back"; Left/Right work in menus; pause gains ABANDON RUN | needed by the pack and the 2-D battle menu |
+| A death after descending reports `won: true` to the host | the Seraph kill is banked |
+| UPGRADE cards let the player **choose** the target | removes the "upgrade landed on the wrong item" frustration |
+| EVENT rooms change the map mix; seeded layouts differ from v2's | variance |
+| Small visual additions: tag strips under the battle plates, THE HOLLOW's tinted mirror sprite, a per-depth palette tint and banner | the new verbs and the descent must be readable and feel new |
+
+**Cut for a later pass** (deliberately not in v3): origins/classes, a codex, resonance
+sets, a FORGE/currency economy, more ailments, a daily-seed run on the title, a
+battle-speed toggle, per-turn battle saves.

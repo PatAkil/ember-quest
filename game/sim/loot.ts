@@ -233,7 +233,7 @@ function rollBossLoot({ n: act, plan }: ActRef, hero: Hero, rng: Rng): LootOffer
 function rollDescentBossLoot(n: number, hero: Hero, rng: Rng): LootOffer[] {
   const missed = oldestMissedScroll(hero, null);
   const offers: LootOffer[] = missed ? [{ kind: 'SCROLL', spell: missed }] : [];
-  const want = cardsFor('BOSS', pactMods(hero));
+  const want = cardsFor('BOSS', pactMods(hero)) - offers.length;
   for (const item of rollItems({ source: 'BOSS', act: n, want, signatures: true }, hero, rng)) {offers.push({ kind: 'ITEM', item });}
   return offers;
 }

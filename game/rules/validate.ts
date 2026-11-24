@@ -34,6 +34,7 @@ const ITEM_RULES: Rule<Item>[] = [
   [(it) => it.slot === 'TOME' && it.effect.kind !== 'GRANT_SPELL', (it) => `${it.id}: tome must grant a spell`],
   [(it) => it.slot === 'WEAPON' && !it.weaponKind, (it) => `${it.id}: weapon needs a weaponKind`],
   [(it) => it.slot !== 'WEAPON' && !!it.weaponKind, (it) => `${it.id}: non-weapon with a weaponKind`],
+  [(it) => it.slot !== 'WEAPON' && (it.effect.kind === 'IMBUE' || it.awaken?.effect?.kind === 'IMBUE'), (it) => `${it.id}: IMBUE belongs on a weapon`],
   [(it) => mentions(it, 'learn'), (it) => `${it.id}: still uses learn`],
   [(it) => it.rarity === 'LEGENDARY' && !!it.awaken, (it) => `${it.id}: legendary must not awaken`],
   [(it) => it.rarity !== 'LEGENDARY' && !it.awaken, (it) => `${it.id}: missing awaken (+2)`],

@@ -6,7 +6,7 @@ import { derive, effectIsGain, effectWords, eventOptionBlocker } from '../sim';
 import { renderTableau } from '../backdrop';
 import type { Game } from '../state';
 import { BAND_Y, C_ACCENT, C_BORDER, C_DIM, C_FAINT, C_GOOD, C_LOG_HURT, C_PANEL, C_SEL_BAR, C_TEXT, C_WARN, HERO_W, HERO_X, W } from '../theme';
-import { blinkHz, decisionPromptColor, drawCommandBand, fitText } from '../widgets';
+import { blinkHz, decisionPromptColor, drawCommandBand, fitText, wrap2 } from '../widgets';
 
 const X0 = HERO_X + HERO_W / 2 + 12;
 const PW = W - SAFE_MARGIN - X0;
@@ -17,6 +17,8 @@ const ROW_Y = BAND_Y + 8;
 const ROW_PITCH = 11;
 const DIVIDER_X = 146;
 const PREVIEW_X = 150;
+const PREVIEW_W = W - SAFE_MARGIN - PREVIEW_X;
+const PREVIEW_LINES = 4;
 const PREVIEW_PITCH = 8;
 const PROMPT_Y = BAND_Y + 33;
 const REFUSE_SECONDS = 1.4;
@@ -70,8 +72,9 @@ function drawPreview(g: Game, ctx: CanvasRenderingContext2D): void {
   ctx.fillRect(DIVIDER_X, BAND_Y + 4, 1, 36);
   const option = g.event.def.options[g.event.cursor];
   if (!option) {return;}
-  previewInks(g, option).slice(0, 4).forEach((ink, i) => {
-    drawText(ctx, ink.text, { x: PREVIEW_X, y: BAND_Y + 6 + i * PREVIEW_PITCH }, { color: ink.color });
+  const lines = previewInks(g, option).flatMap((ink) => wrap2(ink.text, PREVIEW_W).map((text) => ({ text, color: ink.color })));
+  lines.slice(0, PREVIEW_LINES).forEach((ink, i) => {
+    fitText(ctx, ink.text, { x: PREVIEW_X, y: BAND_Y + 6 + i * PREVIEW_PITCH, maxW: PREVIEW_W }, { color: ink.color });
   });
 }
 

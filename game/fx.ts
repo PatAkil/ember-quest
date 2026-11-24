@@ -187,6 +187,8 @@ const NOTE_DUR = 1.4;
 
 export function showNote(g: Game, text: string): void { g.fx.note = { text, t0: g.fx.t }; }
 
+export function clearNote(g: Game): void { g.fx.note = null; }
+
 export function noteText(g: Game): string | null {
   const n = g.fx.note;
   return n && g.fx.t - n.t0 < NOTE_DUR ? n.text : null;
@@ -226,6 +228,8 @@ export function bannerBlocks(g: Game): boolean {
 }
 
 export const bannerDur = (): number => BANNER_DUR;
+
+export const fxBusy = (g: Game): boolean => g.fx.cues.length > 0 || bannerBlocks(g);
 
 export function showBanner(g: Game, banner: Omit<Banner, 't0'>): void {
   g.fx.banner = { ...banner, t0: g.fx.t };

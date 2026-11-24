@@ -57,7 +57,7 @@ const checkWinWhileHurt = async (page) => {
     .then(() => true, () => false);
   if (!hooked) {
     console.log('SMOKE NOTE: no dev hook at this URL, the win-while-hurt fight is skipped');
-    return;
+    return false;
   }
   const end = await page.evaluate(fightToTheKill, { ticks: FIGHT_TICKS, step: STEP_TICKS });
   if (end.subScene === 'BATTLE') {
@@ -71,6 +71,7 @@ const checkWinWhileHurt = async (page) => {
   if (end.drift > 0) {
     errors.push(`fight: the replay drifted from the committed turn ${String(end.drift)} time(s)`);
   }
+  return true;
 };
 
 try {
@@ -83,12 +84,13 @@ try {
   page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
 
   let canvasFound = false;
+  let fought = false;
   try {
     await page.goto(URL, { waitUntil: 'load', timeout: 15000 });
     await page.waitForSelector('canvas', { state: 'attached', timeout: 8000 });
     canvasFound = true;
     await waitFrames(page, FRAMES);
-    await checkWinWhileHurt(page);
+    fought = await checkWinWhileHurt(page);
   } catch (e) {
     errors.push(`load/canvas: ${e.message}`);
   }
@@ -103,7 +105,8 @@ try {
     }
     process.exitCode = 1;
   } else {
-    console.log('SMOKE OK: canvas live in DOM, a seeded fight won while hurt without drift, zero uncaught errors');
+    const fight = fought ? 'a seeded fight won while hurt without drift' : 'fight skipped: no dev hook at this URL';
+    console.log(`SMOKE OK: canvas live in DOM, ${fight}, zero uncaught errors`);
   }
 } finally {
   await browser.close();

@@ -1,8 +1,8 @@
 # Handover — Ember Quest gameplay overhaul "The Long Descent" (2026-11-24)
 
 For the next cloud task. Read this first, then `CLAUDE.md` and `DESIGN.md`
-(and `STYLE.md` before touching the look). `OVERHAUL_PLAN.md` is the reviewed plan this
-work followed, with the owner-vetoable decisions and the features cut for later.
+(and `STYLE.md` before touching the look). The owner's decisions on the overhaul live in
+`DESIGN.md`; the features cut for later are listed below.
 
 ## Where things stand
 
@@ -20,25 +20,26 @@ work followed, with the owner-vetoable decisions and the features cut for later.
     THE HOLLOW;
   - save and CONTINUE (one run, multi-tab safe), pause RESUME / ABANDON, the run recap
     with a NEXT TIME tip.
-- **Gates**: `npm run verify -- --full` green; rules 22 groups; smoke wins a fight.
-- **Balance** (2000 runs, seed 1, 2026-11-24): balanced 38 %, tank 35 %, eliteHungry
-  37 %, chestHungry 30 %, glass 17 %, naive 15 %, random 0 %. See `DESIGN.md` →
-  *Balance state*.
+- **Gates**: `npm run verify -- --full` green; `npm run rules` passes all its groups;
+  smoke wins a fight.
+- **Balance**: the current win rates per policy, their date and run count are in
+  `DESIGN.md` → *Balance state*; this file does not copy them, so they cannot go stale
+  here.
 
 ## Open follow-ups
 
-- **Balance**: tank descends far better than every other policy (clears depth 2 in 63 %
-  of its descents against balanced 37 %); naive (15 %) and glass (17 %) sit on their
-  floors; balanced clears depth 3 in 7 % (aim ≈ 10 %); elites MUMMY and PALADIN are top
-  killers; a pure physical build has no way to break a HEAVY except BURST.
+- **Balance**: compare the latest simulator run (`DESIGN.md` → *Balance state*) with
+  the targets there; watch whether the tank policy still descends far better than the
+  others, whether naive and glass sit on their floors, how deep balanced gets, and which
+  elites top the killer list. A pure physical build has no way to break a HEAVY except
+  BURST.
 - **Descent variety**: depths 2+ reuse the four act bosses with affixes; only THE HOLLOW
   is new. Pacts cannot be declined.
 - **Clarity**: the map cannot inspect rooms beyond the next column; `pact --depth 10`
   has no pact left to offer, so that fixture lands on the depth card.
 - **Cut from the plan for a later pass**: origins / classes, a codex, resonance sets, a
   forge and currency, more ailments, a daily seed, a battle-speed toggle.
-- From the visual overhaul, still open: the Ice Bear and fallen-knight sprites, the
-  empty stage half on rest and win screens, fractional `devicePixelRatio`, no gate on
+- From the visual overhaul, still open: the empty stage half on rest and win screens, fractional `devicePixelRatio`, no gate on
   `autoFit` across viewports.
 
 ## First things to do in the new task

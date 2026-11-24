@@ -1,6 +1,6 @@
 import type { HeroAction, HeroCommand, SpellId } from '../types';
 import { canAfford, knownSpells } from '../sim';
-import { showNote } from '../fx';
+import { clearNote, showNote } from '../fx';
 import { DECIDE_BEAT, armA, dirEdge, dirEdgeX } from '../state';
 import type { Game } from '../state';
 import type { TopCommand } from './battle-preview';
@@ -70,6 +70,7 @@ interface Edges extends Step { a: boolean; b: boolean }
 
 function openMagic(g: Game): null {
   if (knownSpells(g.hero).length === 0) {return refuse(g, 'NO SPELLS KNOWN');}
+  clearNote(g);
   g.battle.menu = 'MAGIC';
   g.app.audio.play('blip');
   return null;
@@ -86,6 +87,7 @@ function topChoice(g: Game, e: Edges): HeroAction | null {
   const b = g.battle;
   if (e.dx !== 0 || e.dy !== 0) {
     b.topCursor = e.dx !== 0 ? stepAcross(b.topCursor, TOP_COMMANDS.length, e.dx) : stepInPage(b.topCursor, TOP_COMMANDS.length, e.dy);
+    clearNote(g);
     g.app.audio.play('blip');
   }
   const cmd = TOP_COMMANDS[b.topCursor];
@@ -101,10 +103,11 @@ function castChoice(g: Game, spell: SpellId): HeroAction | null {
 
 function magicChoice(g: Game, e: Edges): HeroAction | null {
   const b = g.battle;
-  if (e.b) { b.menu = 'TOP'; g.app.audio.play('blip'); return null; }
+  if (e.b) { b.menu = 'TOP'; clearNote(g); g.app.audio.play('blip'); return null; }
   const spells = knownSpells(g.hero);
   if (e.dx !== 0 || e.dy !== 0) {
     b.magicCursor = moveMagic(b.magicCursor, spells.length, e);
+    clearNote(g);
     g.app.audio.play('blip');
   }
   const spell = spells[b.magicCursor];
@@ -130,6 +133,7 @@ const ONE_SHOT: ReadonlySet<TopCommand> = new Set<TopCommand>(['POTION', 'BURST'
 export function reopenMenu(g: Game): void {
   const b = g.battle;
   b.menu = 'TOP';
+  clearNote(g);
   if (ONE_SHOT.has(TOP_COMMANDS[b.topCursor] ?? 'ATTACK')) {b.topCursor = 0;}
   clampMenuCursor(g);
   armA(g, TOP_COMMANDS[b.topCursor] === 'MAGIC' ? DECIDE_BEAT : 0);

@@ -23,8 +23,14 @@ function resume(g: Game): void {
   resetCursorEdge(g);
 }
 
+function backOut(g: Game): void {
+  g.app.audio.play('blip');
+  if (g.pause.confirm) { g.pause.confirm = false; return; }
+  resume(g);
+}
+
 export function updatePaused(g: Game): void {
-  if (g.app.input.pressed('PAUSE')) { g.app.audio.play('blip'); resume(g); return; }
+  if (g.app.input.pressed('PAUSE')) { backOut(g); return; }
   const chosen = stepMenu(g, g.pause, { rows: PAUSE_ROWS.length, guarded: ABANDON_ROW, readA: pressedA });
   if (chosen === null) {return;}
   if (chosen === ABANDON_ROW) { abandonRun(g); return; }

@@ -20,14 +20,14 @@ import { elementMult } from './element';
 import { burstBlow, gainEmber } from './burst';
 import { actMult } from './descent';
 import { nextIntent } from './enemy-turn';
-import { findEffect } from './gear';
 import { derive, isGuardAction, isSpell, spellCost } from './hero';
 import { pactDamage } from './pacts';
 import { burnChance, gearPower, heroElement, riposteMult } from './power';
 import { applyBurn, atTurnStart, heroBurnTick, heroFalls, resistOf, tickWard, type Fall } from './status';
-import { jitter, type EffectOf } from './util';
+import { drainFor, echoFor, executeBonus, hexFor, manaPerHit, openerFor, rampFor, twinFor, type RampEffect, type RampScope } from './stack';
+import { jitter } from './util';
 
-type Scope = 'ATTACK' | 'SPELL';
+type Scope = RampScope;
 type StrikeAction = 'ATTACK' | SpellId;
 
 export const clearsTerm = (scale: FoeScale): number => scale.descentClears ?? scale.clears;
@@ -83,15 +83,15 @@ function attackSwing(hero: Hero, d: Derived): Swing {
     verb: 'STRIKES',
     mults: [1],
   };
-  if (findEffect(hero, 'HEX_STRIKE')) {hexSwing(swing, d);}
-  const twin = findEffect(hero, 'TWIN_STRIKE');
-  if (twin) {swing.mults.push(twin.secondHitMult);}
+  if (hexFor(hero).worn) {hexSwing(swing, d);}
+  const twin = twinFor(hero);
+  if (twin > 0) {swing.mults.push(twin);}
   return swing;
 }
 
 function spellSwing(hero: Hero, d: Derived, action: SpellId): Swing {
   const spell = SPELLS[action];
-  const hex = findEffect(hero, 'HEX_STRIKE');
+  const hex = hexFor(hero);
   const swing: Swing = {
     base: spell.scale === 'MAG' ? d.mag : d.atk,
     stat: spell.scale,
@@ -99,9 +99,9 @@ function spellSwing(hero: Hero, d: Derived, action: SpellId): Swing {
     verb: spell.verb,
     mults: Array.from({ length: Math.max(1, spell.hits) }, () => spell.mult),
   };
-  if (hex && spell.kind === 'PHYSICAL' && (action === 'SLASH' || hex.allPhysical)) {hexSwing(swing, d);}
-  const twice = findEffect(hero, 'SPELL_TWICE');
-  if (twice?.spell === action) {swing.mults.push(spell.mult * twice.secondHitMult);}
+  if (hex.worn && spell.kind === 'PHYSICAL' && (action === 'SLASH' || hex.allPhysical)) {hexSwing(swing, d);}
+  const echo = echoFor(hero, action);
+  if (echo > 0) {swing.mults.push(spell.mult * echo);}
   return swing;
 }
 
@@ -139,20 +139,22 @@ function battleLine({ verb, enemyName, nums, crit, rampSuffix }: LineParts): str
   return short.slice(0, 52);
 }
 
-interface Ramp { effect: EffectOf<'RAMP'> | undefined; active: boolean; mult: number; suffix: string }
+interface Ramp { covering: RampEffect | undefined; other: RampEffect | undefined; mult: number; suffix: string }
 
-function rampFor(hero: Hero, battle: BattleState, scope: Scope): Ramp {
-  const effect = findEffect(hero, 'RAMP');
-  if (effect?.scope !== scope) {return { effect, active: false, mult: 1, suffix: '' };}
-  const mult = 1 + effect.perStack * battle.rampStacks;
-  return { effect, active: true, mult, suffix: battle.rampStacks > 0 ? ` (X${mult.toFixed(2)})` : '' };
+const OTHER_SCOPE: Record<Scope, Scope> = { ATTACK: 'SPELL', SPELL: 'ATTACK' };
+
+function rampOf(hero: Hero, battle: BattleState, scope: Scope): Ramp {
+  const covering = rampFor(hero, scope);
+  const other = rampFor(hero, OTHER_SCOPE[scope]);
+  if (!covering) {return { covering, other, mult: 1, suffix: '' };}
+  const stacks = Math.min(battle.rampStacks, covering.maxStacks);
+  const mult = 1 + covering.perStack * stacks;
+  return { covering, other, mult, suffix: stacks > 0 ? ` (X${mult.toFixed(2)})` : '' };
 }
 
 function advance(battle: BattleState, ramp: Ramp, scope: Scope): void {
-  if (ramp.effect) {
-    if (ramp.active) {battle.rampStacks = Math.min(ramp.effect.maxStacks, battle.rampStacks + 1);}
-    else if (!ramp.effect.sticky) {battle.rampStacks = 0;}
-  }
+  if (ramp.covering) {battle.rampStacks = Math.min(ramp.covering.maxStacks, battle.rampStacks + 1);}
+  else if (ramp.other && ramp.other.sticky !== true) {battle.rampStacks = 0;}
   battle.lastScope = scope;
   battle.actionsTaken += 1;
 }
@@ -170,17 +172,14 @@ interface Roll { mult: number; jitter: number; crit: boolean }
 
 function hitDamage(hero: Hero, enemy: EnemyInstance, strike: Strike, roll: Roll): number {
   const { d, swing, power, elementMul } = strike;
-  const execute = findEffect(hero, 'EXECUTE');
   let raw = swing.base * roll.mult * roll.jitter * power;
   if (roll.crit) {raw *= d.critMult;}
-  if (execute && enemy.maxHp > 0 && enemy.hp / enemy.maxHp <= execute.threshold) {
-    raw *= 1 + execute.bonus;
-  }
+  if (enemy.maxHp > 0) {raw *= 1 + executeBonus(hero, enemy.hp / enemy.maxHp);}
   return afterResist(raw, swing.kind, enemy, elementMul);
 }
 
 function rollVolley(hero: Hero, enemy: EnemyInstance, strike: Strike, rng: Rng): Volley {
-  const mpOnHit = findEffect(hero, 'MP_ON_HIT');
+  const mpOnHit = manaPerHit(hero);
   const volley: Volley = { hits: [], total: 0, anyCrit: false, mpRestored: 0 };
   for (const mult of strike.swing.mults) {
     const roll: Roll = { mult, jitter: jitter(rng), crit: false };
@@ -189,14 +188,14 @@ function rollVolley(hero: Hero, enemy: EnemyInstance, strike: Strike, rng: Rng):
     const dmg = hitDamage(hero, enemy, strike, roll);
     volley.hits.push({ dmg, crit: roll.crit, kind: strike.swing.kind });
     volley.total += dmg;
-    if (mpOnHit) {volley.mpRestored += mpOnHit.amount;}
+    volley.mpRestored += mpOnHit;
   }
   return volley;
 }
 
 export function volleyHeal(hero: Hero, total: number, spell: SpellDef | undefined): number {
-  const drain = findEffect(hero, 'DRAIN');
-  return (drain ? Math.round(total * drain.fraction) : 0) + (spell?.leech ? Math.round(total * spell.leech) : 0);
+  const drain = drainFor(hero);
+  return (drain > 0 ? Math.round(total * drain) : 0) + (spell?.leech ? Math.round(total * spell.leech) : 0);
 }
 
 function sustain(hero: Hero, d: Derived, volley: Volley, spell: SpellDef | undefined): { healed: number; mpRestored: number } {
@@ -228,8 +227,7 @@ function strikePower(hero: Hero, battle: BattleState, d: Derived, action: Strike
 }
 
 function openerOf(hero: Hero, battle: BattleState, scope: Scope): Power {
-  const firstStrike = findEffect(hero, 'FIRST_STRIKE');
-  return { ramp: rampFor(hero, battle, scope), opener: firstStrike && battle.actionsTaken === 0 ? firstStrike.mult : 1 };
+  return { ramp: rampOf(hero, battle, scope), opener: battle.actionsTaken === 0 ? openerFor(hero) : 1 };
 }
 
 function slipsAway(battle: BattleState, ramp: Ramp, scope: Scope): HeroActResult {
