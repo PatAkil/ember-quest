@@ -2,6 +2,7 @@ import type { Rng } from '../types';
 import { actInDepth, depthOf, isLastActOfDepth, planDepth, planOf } from './descent';
 import { createHero } from './hero';
 import { generateMap, type MapNode } from './map';
+import { offerPacts, takePact } from './pacts';
 import type { Policy, RoomType } from './model';
 import { withPolicyContext } from './policies';
 import { bossRoom, playRoom } from './run-rooms';
@@ -40,11 +41,19 @@ function playMap(run: RunState): Ending | null {
   return null;
 }
 
+function choosePact(run: RunState): void {
+  const offers = offerPacts(run.hero, run.rng);
+  if (offers.length === 0) {return;}
+  const chosen = offers[clamp(Math.floor(run.policy.pactChoice(run.hero, offers)), 0, offers.length - 1)];
+  if (chosen) {takePact(run.hero, chosen);}
+}
+
 function nextAct(run: RunState): void {
   run.n += 1;
   if (actInDepth(run.n) === 0) {
     run.descentClears ??= run.clears;
     run.depthPlan = planDepth(depthOf(run.n), run.rng);
+    choosePact(run);
   }
   run.plan = planOf(run.depthPlan, run.n);
 }

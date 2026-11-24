@@ -4,12 +4,13 @@ import { selectNode } from '../flow';
 import { at } from '../lookup';
 import { biome, dirEdge, stageAt } from '../state';
 import type { Game, MapNode, RoomType } from '../state';
-import { ENEMIES } from '../data';
-import { actInDepth } from '../sim';
+import { ENEMIES, HOLLOW_ID } from '../data';
+import { actInDepth, depthOf } from '../sim';
 import { C_ACCENT, C_DIM, C_LOG_HURT, C_TEXT, C_WARN, H, W } from '../theme';
 import { openGear } from './gear';
 import { drawEdges, drawHeroMarker, drawNodes } from './map-view';
 import { drawStatusPanel, STATUS_PANEL_H } from './status';
+import { C_AFFIX } from './battle-tags';
 
 const MAP_BACKDROP_DIM = 0.45;
 const ROOM_BLURB: Record<RoomType, string> = {
@@ -40,18 +41,44 @@ export function updateMap(g: Game): void {
 
 interface Ink { text: string; color: string }
 
-function foeParts(id: string | undefined): Ink[] {
+const HOLLOW_LINE: Ink = { text: 'YOUR OWN SHADOW', color: C_LOG_HURT };
+const READOUT_MAX_W = W - 2 * SAFE_MARGIN;
+const READOUT_GAP = 8;
+
+function affixParts(affixes: readonly string[] | undefined): Ink[] {
+  const [first, ...rest] = affixes ?? [];
+  if (first === undefined) {return [];}
+  return [{ text: rest.length ? `${first} +${String(rest.length)}` : first, color: C_AFFIX }];
+}
+
+function foeParts(id: string | undefined, affixes: readonly string[] | undefined): Ink[] {
   const foe = id === undefined ? undefined : ENEMIES[id];
   if (!foe) {return [];}
+  const name = { text: foe.name, color: C_TEXT };
+  if (id === HOLLOW_ID) {return [name, HOLLOW_LINE];}
   const physical = foe.atkType === 'PHYSICAL';
-  return [{ text: foe.name, color: C_TEXT }, { text: physical ? 'STRIKES' : 'HEXES', color: physical ? C_WARN : C_LOG_HURT }];
+  return [name, { text: physical ? 'STRIKES' : 'HEXES', color: physical ? C_WARN : C_LOG_HURT }, ...affixParts(affixes)];
+}
+
+const partsWidth = (parts: readonly Ink[]): number => parts.reduce((sum, p) => sum + textWidth(p.text, 1), 0) + READOUT_GAP * (parts.length - 1);
+
+function fitParts(parts: Ink[]): Ink[] {
+  const affix = parts[parts.length - 1];
+  if (partsWidth(parts) <= READOUT_MAX_W || parts.length < 4 || !affix) {return parts;}
+  return [...parts.slice(0, 2), affix];
 }
 
 function readoutParts(g: Game, node: MapNode): Ink[] {
   const head = { text: node.type, color: C_ACCENT };
   const id = node.type === 'BOSS' ? g.plan.boss : node.enemyId;
-  const foe = node.type === 'FIGHT' || node.type === 'ELITE' || node.type === 'BOSS' ? foeParts(id) : [];
-  return foe.length ? [head, ...foe] : [head, { text: ROOM_BLURB[node.type], color: C_DIM }];
+  const foe = node.type === 'FIGHT' || node.type === 'ELITE' || node.type === 'BOSS' ? foeParts(id, node.affixes) : [];
+  return foe.length ? fitParts([head, ...foe]) : [head, { text: ROOM_BLURB[node.type], color: C_DIM }];
+}
+
+function mapHeader(g: Game): string {
+  const act = `ACT ${String(actInDepth(g.n) + 1)}  ${biome(g).name}`;
+  const depth = depthOf(g.n);
+  return depth > 1 ? `DEPTH ${String(depth)}  ${act}` : act;
 }
 
 function drawReadout(g: Game, y: number): void {
@@ -62,12 +89,10 @@ function drawReadout(g: Game, y: number): void {
     return;
   }
   const parts = readoutParts(g, node);
-  const gap = 8;
-  const total = parts.reduce((sum, p) => sum + textWidth(p.text, 1), 0) + gap * (parts.length - 1);
-  let x = Math.round((W - total) / 2);
+  let x = Math.round((W - partsWidth(parts)) / 2);
   for (const part of parts) {
     drawText(ctx, part.text, { x, y }, { color: part.color, shadow: true });
-    x += textWidth(part.text, 1) + gap;
+    x += textWidth(part.text, 1) + READOUT_GAP;
   }
 }
 
@@ -76,7 +101,7 @@ export function renderMap(g: Game): void {
   const ctx = pc.ctx;
   renderBiomeBackdrop(g, MAP_BACKDROP_DIM);
   particles.render(ctx);
-  drawTextCentered(ctx, `ACT ${actInDepth(g.n) + 1}  ${biome(g).name}`, { width: W, y: SAFE_MARGIN }, { color: C_ACCENT, shadow: true });
+  drawTextCentered(ctx, mapHeader(g), { width: W, y: SAFE_MARGIN }, { color: C_ACCENT, shadow: true });
   drawReadout(g, SAFE_MARGIN + 8);
   drawEdges(g);
   drawNodes(g);

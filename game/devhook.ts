@@ -4,7 +4,7 @@ import type { BattleState, Hero, Derived, EnemyInstance, EnemyKind, HeroAction, 
 import {
   createHero, createSeededRng, grantClear, spendPoint, rollLoot, applyOffer, noteDeclinedScrolls, fullHeal, equip, stow, learnSpell, offerPacts, planOf, storyPlan, takePact,
 } from './sim';
-import { ITEMS } from './data';
+import { HOLLOW_ID, ITEMS } from './data';
 import type { ActPlan, SeededRng } from './sim';
 import type { BattleScreen, MapNode, RoomType, SubScene } from './state';
 import { at, must, noop } from './lookup';
@@ -12,7 +12,7 @@ import { at, must, noop } from './lookup';
 type Action = 'A' | 'B' | 'PAUSE' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
 type Fixture =
   | 'title' | 'map' | 'battle' | 'levelup' | 'loot' | 'card' | 'paused' | 'gameover' | 'win' | 'gear' | 'pick' | 'drop'
-  | 'battle-heavy' | 'battle-magic' | 'battle-ward' | 'battle-phase' | 'event' | 'threshold' | 'pact';
+  | 'battle-heavy' | 'battle-magic' | 'battle-ward' | 'battle-phase' | 'event' | 'threshold' | 'pact' | 'battle-hollow' | 'map-long' | 'battle-affix';
 type DevNode = MapNode;
 
 interface DevView {
@@ -35,6 +35,7 @@ interface DevHost {
   syncReveal(): void;
   startRun(hero: Hero, n: number, clears: number): void;
   plan(): ActPlan;
+  remap(stageSizes: number[]): void;
   selectNode(node: DevNode): void;
   nextNodes(): DevNode[];
   bossNode(): DevNode;
@@ -48,7 +49,7 @@ interface DevHost {
 
 const FIXTURES: readonly Fixture[] = [
   'title', 'map', 'battle', 'levelup', 'loot', 'card', 'paused', 'gameover', 'win', 'gear', 'pick', 'drop', 'battle-heavy', 'battle-magic',
-  'battle-ward', 'battle-phase', 'event', 'threshold', 'pact',
+  'battle-ward', 'battle-phase', 'event', 'threshold', 'pact', 'battle-hollow', 'map-long', 'battle-affix',
 ];
 const KEY: Record<Action, string> = {
   A: 'Space', B: 'KeyX', PAUSE: 'KeyP', UP: 'ArrowUp', DOWN: 'ArrowDown', LEFT: 'ArrowLeft', RIGHT: 'ArrowRight',
@@ -128,6 +129,7 @@ function pledged(hero: Hero, depth: number, rng: Rng): Hero {
     const [first] = offerPacts(hero, rng);
     if (first) {takePact(hero, first);}
   }
+  fullHeal(hero);
   return hero;
 }
 
@@ -155,6 +157,7 @@ function parseSeed(q: URLSearchParams, fixture: Fixture | null): number | null {
 }
 
 const MAX_DEPTH = 10;
+const LONG_MAP = [2, 3, 2, 3, 2, 3, 2, 3];
 
 function parseBounded(raw: string | null, max: number): number {
   const v = Number.parseInt(raw ?? '1', 10);
@@ -220,9 +223,15 @@ function ticksUntil(driver: Driver, done: () => boolean, max: number, withA = fa
   }
 }
 
+const ARM_TICKS = 70;
+
+function settle(driver: Driver, ticks: number): void {
+  for (let i = 0; i < ticks; i++) {driver.runTick(DT);}
+}
+
 interface FixtureContext { host: DevHost; driver: Driver; rng: Rng; n: number; depth: number }
 
-type VerbFixture = 'battle-heavy' | 'battle-magic' | 'battle-ward' | 'battle-phase';
+type VerbFixture = 'battle-heavy' | 'battle-magic' | 'battle-ward' | 'battle-phase' | 'battle-affix';
 interface Starts { fresh: () => Hero; begin: (hero?: Hero) => void; battle: (hero?: Hero) => void }
 
 function verbFixtures(fx: FixtureContext, starts: Starts): Record<VerbFixture, () => void> {
@@ -255,6 +264,7 @@ function verbFixtures(fx: FixtureContext, starts: Starts): Record<VerbFixture, (
     'battle-magic': () => { battle(scholar(fresh())); host.battle().menu = 'MAGIC'; },
     'battle-ward': ward,
     'battle-phase': phase,
+    'battle-affix': () => { battle(); foe().e.affixes = ['THORNED', 'VAMPIRIC', 'SWIFT']; },
   };
 }
 
@@ -291,6 +301,7 @@ function fixtureBuilders(fx: FixtureContext): Record<Fixture, () => void> {
     host.selectNode(host.bossNode());
     host.winBattle();
     ticksUntil(driver, () => host.view().subScene === 'THRESHOLD', 400, true);
+    settle(driver, ARM_TICKS);
   };
   const winRun = (): void => {
     killLastBoss();
@@ -301,6 +312,7 @@ function fixtureBuilders(fx: FixtureContext): Record<Fixture, () => void> {
     host.syncReveal();
     driver.press('DOWN'); driver.runTick(DT);
     driver.press('A'); driver.runTick(DT);
+    settle(driver, ARM_TICKS);
   };
   return {
     title: noop,
@@ -319,6 +331,8 @@ function fixtureBuilders(fx: FixtureContext): Record<Fixture, () => void> {
     event: () => { begin(wanderer(fresh())); enter('EVENT'); },
     threshold: () => { killLastBoss(); },
     pact: pactRun,
+    'battle-hollow': () => { begin(); host.plan().boss = HOLLOW_ID; host.selectNode(host.bossNode()); },
+    'map-long': () => { begin(); host.remap(LONG_MAP); },
   };
 }
 

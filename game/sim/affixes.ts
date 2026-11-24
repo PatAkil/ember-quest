@@ -1,4 +1,4 @@
-import { AFFIX_EVADE, AFFIX_LIFESTEAL, AFFIX_RESIST, AFFIX_THORNS, type AffixId, type EnemyDef, type EnemyInstance, type Rng } from '../types';
+import { AFFIX_EVADE, AFFIX_LIFESTEAL, AFFIX_RESIST, AFFIX_THORNS, AFFIX_THORNS_CAP, type AffixId, type EnemyDef, type EnemyInstance, type Rng } from '../types';
 
 interface Resists { resPhys: number; resMagic: number }
 
@@ -13,8 +13,8 @@ const has = (enemy: EnemyInstance, id: AffixId): boolean => enemy.affixes.includ
 export const vampiricHeal = (enemy: EnemyInstance, dealt: number): number =>
   (has(enemy, 'VAMPIRIC') ? Math.round(dealt * AFFIX_LIFESTEAL) : 0);
 
-export const thornsDamage = (enemy: EnemyInstance, taken: number): number =>
-  (has(enemy, 'THORNED') ? Math.round(taken * AFFIX_THORNS) : 0);
+export const thornsDamage = (enemy: EnemyInstance, taken: number, heroMaxHp: number): number =>
+  (has(enemy, 'THORNED') ? Math.round(Math.min(taken * AFFIX_THORNS, heroMaxHp * AFFIX_THORNS_CAP)) : 0);
 
 export const swiftEvades = (enemy: EnemyInstance, rng: Rng): boolean => has(enemy, 'SWIFT') && rng() < AFFIX_EVADE;
 

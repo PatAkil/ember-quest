@@ -14,6 +14,7 @@ import {
   type MoveId,
   type Rng,
 } from '../types';
+import { searingStrike, vampiricHeal } from './affixes';
 import { findEffect } from './gear';
 import { gainEmber } from './burst';
 import { derive } from './hero';
@@ -47,7 +48,7 @@ function advanceCycle(battle: BattleState, shown: MoveId, phaseChanged: boolean)
 
 function checkPhase(enemy: EnemyInstance): boolean {
   const phase2 = enemy.def.phase2;
-  if (enemy.phase !== 1 || !phase2 || enemy.hp <= 0 || enemy.hp > phase2.at * enemy.maxHp) {return false;}
+  if (enemy.phase !== 1 || !phase2 || enemy.hp <= 0 || enemy.hp > (enemy.phaseAt ?? phase2.at) * enemy.maxHp) {return false;}
   enemy.phase = 2;
   enemy.atk = Math.max(1, Math.round(enemy.atk * phase2.atkMult));
   enemy.mended = false;
@@ -95,15 +96,24 @@ function reflectDamage(t: Turn, dmg: number, physical: boolean): number {
   return thorns(t.hero, dmg, physical) + aegis;
 }
 
-interface Aftermath { burned: boolean; reflected: number; countered: number }
+interface Aftermath { burned: boolean; reflected: number; countered: number; healed: number }
+
+const ignites = (t: Turn): boolean => t.move === 'SCORCH' || (t.move === 'STRIKE' && searingStrike(t.battle.enemy));
+
+function drink(enemy: EnemyInstance, dmg: number): number {
+  if (enemy.hp <= 0) {return 0;}
+  const healed = Math.min(vampiricHeal(enemy, dmg), Math.max(0, enemy.maxHp - enemy.hp));
+  enemy.hp += healed;
+  return healed;
+}
 
 function aftermath(t: Turn, dmg: number, physical: boolean): Aftermath {
   const enemy = t.battle.enemy;
-  const burned = t.move === 'SCORCH' && burnHero(t.hero, dmg);
+  const burned = ignites(t) && burnHero(t.hero, dmg);
   const reflected = reflectDamage(t, dmg, physical);
   const countered = t.battle.guarding ? counterBlow(t.hero, t.d, enemy) : 0;
   enemy.hp = Math.max(0, enemy.hp - reflected - countered);
-  return { burned, reflected, countered };
+  return { burned, reflected, countered, healed: drink(enemy, dmg) };
 }
 
 function guardedGain(t: Turn): void {

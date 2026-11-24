@@ -19,6 +19,7 @@ interface Fight {
   verbs: VerbTally;
   dmgTaken: number;
   landed: number;
+  thorns: boolean;
 }
 
 function chooseAction({ hero, battle, policy }: Fight): HeroAction {
@@ -60,6 +61,10 @@ function round(f: Fight): Verdict {
   const attempt = breakAttempt(f.battle, action);
   const result = heroAct(f.hero, f.battle, action, f.rng);
   tallyHero(f, action, result, attempt);
+  if (result.heroDead) {
+    f.thorns = true;
+    return 'LOST';
+  }
   if (result.enemyDefeated) {return 'WON';}
   const reply = enemyAct(f.hero, f.battle, f.rng);
   tallyReply(f, reply);
@@ -71,9 +76,9 @@ interface Contest { hero: Hero; enemy: EnemyInstance; policy: Policy; rng: Rng; 
 
 export function runBattle({ hero, enemy, policy, rng, verbs }: Contest): BattleOutcome {
   const startHp = enemy.hp;
-  const f: Fight = { hero, battle: createBattle(enemy), policy, rng, verbs, dmgTaken: 0, landed: 0 };
+  const f: Fight = { hero, battle: createBattle(enemy), policy, rng, verbs, dmgTaken: 0, landed: 0, thorns: false };
   const outcome = (won: boolean, turns: number, stalled = false): BattleOutcome =>
-    ({ won, stalled, turns, dmgTaken: f.dmgTaken, landed: f.landed, dmgDealt: startHp - enemy.hp });
+    ({ won, stalled, turns, dmgTaken: f.dmgTaken, landed: f.landed, dmgDealt: startHp - enemy.hp, thorns: f.thorns });
   for (let turn = 0; turn < TURN_CAP; turn += 1) {
     const verdict = round(f);
     if (verdict) {return outcome(verdict === 'WON', turn + 1);}

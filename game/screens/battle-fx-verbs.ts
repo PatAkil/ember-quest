@@ -11,12 +11,12 @@ import { actorBody } from './battle-auras';
 
 interface PopAt { actor: Actor; slot?: number; scale?: number }
 
-function popOn(g: Game, at: PopAt, text: string, color: string): void {
+export function popOn(g: Game, at: PopAt, text: string, color: string): void {
   const anchor = at.actor === 'HERO' ? heroAnchor() : enemyAnchor(g);
   pushPop(g.pops, { ...popSpot(anchor, at.slot ?? 0), scale: at.scale ?? 2 }, text, color);
 }
 
-const centreOf = (g: Game, actor: Actor): Point => actorBody(actor, g).centre;
+export const centreOf = (g: Game, actor: Actor): Point => actorBody(actor, g).centre;
 const heroFront = (): Point => ({ x: HERO_X + HERO_W / 2 + 4, y: FLOOR_Y - HERO_H / 2 + 2 });
 
 export function fxGuard(g: Game): void {

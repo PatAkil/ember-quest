@@ -47,3 +47,8 @@ export function offerPacts(hero: Hero, rng: Rng): PactId[] {
 export function takePact(hero: Hero, id: PactId): void {
   if (!hero.pacts.includes(id)) {hero.pacts.push(id);}
 }
+
+export function pactDamage(hero: Hero, attack: boolean): number {
+  const mods = pactMods(hero);
+  return attack ? mods.dmgMult * mods.attackMult : mods.dmgMult;
+}

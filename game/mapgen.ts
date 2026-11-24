@@ -1,9 +1,7 @@
 import type { Rng } from './types';
-import { generateMap as generateRooms, MAP_SHAPE } from './sim';
+import { generateMap as generateRooms } from './sim';
 import type { ActPlan } from './sim';
 import type { MapNode } from './state';
-
-export const STAGE_SIZES = MAP_SHAPE.stageSizes;
 
 function adapt(node: { type: MapNode['type']; links: number[]; enemyId?: string; affixes?: MapNode['affixes'] }, stage: number, slot: number): MapNode {
   const base: MapNode = { type: node.type, stage, slot, links: node.links, cleared: false, enemyId: node.enemyId };

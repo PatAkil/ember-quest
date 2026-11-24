@@ -1,5 +1,5 @@
 import type { EventDef } from '../data';
-import type { BattleState, Derived, EnemyDef, Hero, HeroAction, Item, LootOffer, OwnedItem, StatKey, UpgradeTarget } from '../types';
+import type { BattleState, Derived, EnemyDef, Hero, HeroAction, Item, LootOffer, OwnedItem, PactId, StatKey, UpgradeTarget } from '../types';
 
 export type RoomType = 'FIGHT' | 'ELITE' | 'REST' | 'LOOT' | 'EVENT' | 'BOSS';
 
@@ -13,4 +13,5 @@ export interface Policy {
   upgradeTarget(hero: Hero, targets: UpgradeTarget[]): number;
   prepare(hero: Hero, foe: EnemyDef): void;
   eventChoice(hero: Hero, event: EventDef): 0 | 1;
+  pactChoice(hero: Hero, offers: readonly PactId[]): number;
 }

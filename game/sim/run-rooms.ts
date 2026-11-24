@@ -2,6 +2,7 @@ import {
   SLOTS,
   STAT_KEYS,
   type EnemyDef,
+  type EnemyInstance,
   type Hero,
   type LootOffer,
   type LootSource,
@@ -12,11 +13,12 @@ import { BOSS_ENTRY_HEAL, type EventDef } from '../data';
 import type { ActPlan } from './descent';
 import { spawnFoe } from './hollow';
 import { applyEventCosts, eventOptionEnabled, pickEvent, rollEventItem, screenEffectOf, takePendingBurn, type ScreenEffect } from './events';
-import { derive, fullHeal, grantClear, healFraction, refillPotions, skipMend, spendPoint } from './hero';
+import { derive, grantClear, healFraction, skipMend, spendPoint } from './hero';
 import { applyOffer, noteDeclinedScrolls, resolveOverflow, resolveUpgrade, rollLoot } from './loot';
 import type { MapNode } from './map';
 import type { Policy } from './model';
 import { upgradableTargets } from './pack';
+import { restHero } from './rest';
 import { runBattle } from './run-battle';
 import {
   bossPickKind,
@@ -24,6 +26,7 @@ import {
   countPick,
   countUpgradeTarget,
   probeOf,
+  type BattleOutcome,
   type Ending,
   type RunState,
 } from './run-tally';
@@ -139,7 +142,16 @@ function eventRoom(run: RunState): void {
 }
 
 const foeOf = (run: RunState, id: string, node?: MapNode) =>
-  spawnFoe(id, { n: run.n, clears: run.clears, descentClears: run.descentClears, hero: run.hero, affixes: node?.affixes ?? [] });
+  spawnFoe(id, { n: run.n, clears: run.clears, descentClears: run.descentClears, hero: run.hero, affixes: node?.affixes ?? [], plan: run.plan });
+
+function lost(run: RunState, enemy: EnemyInstance, outcome: BattleOutcome): Ending {
+  const kind = enemy.def.kind;
+  const deathKind = outcome.stalled ? 'STALL' : kind;
+  return {
+    won: false, actReached: run.n, deathBy: outcome.stalled ? 'STALL' : enemy.def.id, deathKind,
+    affixes: [...enemy.affixes], thorns: outcome.thorns,
+  };
+}
 
 function fightRoom(run: RunState, node: MapNode): Ending | null {
   const { hero, rng, tally } = run;
@@ -153,10 +165,7 @@ function fightRoom(run: RunState, node: MapNode): Ending | null {
   prepareFor(run, enemy.def);
   ignitePendingBurn(hero, run.n);
   const outcome = runBattle({ hero, enemy, policy: run.policy, rng, verbs: tally.verbs });
-  if (!outcome.won) {
-    const deathKind = outcome.stalled ? 'STALL' : elite ? 'ELITE' : 'NORMAL';
-    return { won: false, actReached: run.n, deathBy: outcome.stalled ? 'STALL' : enemyId, deathKind };
-  }
+  if (!outcome.won) {return lost(run, enemy, outcome);}
   run.clears += 1;
   grantClear(hero, elite ? 'ELITE' : 'NORMAL');
   spendAll(hero, run.policy);
@@ -164,12 +173,15 @@ function fightRoom(run: RunState, node: MapNode): Ending | null {
   return null;
 }
 
+function restRoom(run: RunState): void {
+  if (restHero(run.hero).upgrade) {takeOffer(run, { kind: 'UPGRADE_ANY' });}
+}
+
 export function playRoom(run: RunState, node: MapNode): Ending | null {
   const { type } = node;
   run.tally.rooms.push(type);
   if (type === 'REST') {
-    fullHeal(run.hero);
-    refillPotions(run.hero);
+    restRoom(run);
     return null;
   }
   if (type === 'LOOT') {
@@ -193,9 +205,7 @@ export function bossRoom(run: RunState): Ending | null {
   const entry = derive(hero);
   const outcome = runBattle({ hero, enemy: boss, policy: run.policy, rng: run.rng, verbs: run.tally.verbs });
   run.probes.push(probeOf(run.n, run.clears, entry, { boss, outcome }));
-  if (!outcome.won) {
-    return { won: false, actReached: run.n, deathBy: outcome.stalled ? 'STALL' : plan.boss, deathKind: outcome.stalled ? 'STALL' : 'BOSS' };
-  }
+  if (!outcome.won) {return lost(run, boss, outcome);}
   run.clears += 1;
   grantClear(hero, 'BOSS');
   spendAll(hero, run.policy);

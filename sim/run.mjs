@@ -1,5 +1,6 @@
 import { withSim } from './bundle.mjs';
 import { endRun, isPicker, mergeTallies, newItemTally, printItems, watchPicks } from './items-report.mjs';
+import { newDescent, pooledPacts, printDescent, printPooled, summarizeDescent, tallyDescent } from './descent-report.mjs';
 
 const args = process.argv.slice(2);
 const opt = (name, def) => {
@@ -12,6 +13,8 @@ const ONLY = opt('policy', 'all');
 const JSON_OUT = args.includes('--json');
 const NO_POTIONS = args.includes('--no-potions');
 const ITEMS = args.includes('--items');
+const STORY = !args.includes('--descent-only');
+const DESCENT = !args.includes('--story');
 const TIERS = ['NORMAL', 'ELITE', 'BOSS'];
 
 const pct = (n, d) => (d === 0 ? '  - ' : `${((100 * n) / d).toFixed(0).padStart(3)}%`);
@@ -126,6 +129,23 @@ function playPolicy(sim, plain) {
   return { s, items };
 }
 
+function playDescent(sim, policy) {
+  const rng = sim.createSeededRng(SEED).next;
+  const d = newDescent();
+  for (let i = 0; i < RUNS; i++) {tallyDescent(d, sim.simulateRun(policy, rng, { descend: true }));}
+  return summarizeDescent(d);
+}
+
+function descentTable(sim) {
+  const table = {};
+  for (const [name, policy] of policiesOf(sim)) {
+    table[name] = playDescent(sim, policy);
+    if (!JSON_OUT) {printDescent(name, table[name]);}
+  }
+  if (!JSON_OUT) {printPooled(pooledPacts(table));}
+  return table;
+}
+
 function printFooter(sim, report, pickers) {
   if (ITEMS) {printItems(sim, 'balanced + glass + tank', pickers);}
   const { naive, balanced } = report;
@@ -134,7 +154,7 @@ function printFooter(sim, report, pickers) {
   }
 }
 
-await withSim((sim) => {
+function storyTable(sim) {
   const report = {};
   const pickers = newItemTally();
   for (const [name, plain] of policiesOf(sim)) {
@@ -143,6 +163,14 @@ await withSim((sim) => {
     if (!JSON_OUT) {printText(name, s, report[name]);}
     if (ITEMS && isPicker(name)) {mergeTallies(pickers, items);}
   }
-  if (JSON_OUT) {console.log(JSON.stringify({ seed: SEED, runs: RUNS, policies: report }, null, 2));}
-  else {printFooter(sim, report, pickers);}
+  if (!JSON_OUT) {printFooter(sim, report, pickers);}
+  return report;
+}
+
+await withSim((sim) => {
+  const report = STORY ? storyTable(sim) : {};
+  const descent = DESCENT ? descentTable(sim) : null;
+  if (!JSON_OUT) {return;}
+  const out = { seed: SEED, runs: RUNS, policies: report };
+  console.log(JSON.stringify(descent ? { ...out, descent } : out, null, 2));
 });

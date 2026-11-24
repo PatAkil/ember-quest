@@ -44,7 +44,7 @@ export { burstPower } from './sim/burst';
 export { burnWarded, desperate, gearPower, heroElement, punishes, riposteMult, woundUp } from './sim/power';
 export type { Policy, RoomType } from './sim/model';
 export { POLICIES, type PolicyName } from './sim/policies';
-export { generateMap, MAP_SHAPE, type FoePools } from './sim/map';
+export { generateMap, MAP_SHAPE, rollAffixes, type FoePools } from './sim/map';
 export { at, createSeededRng, pickOneIndex, type SeededRng } from './sim/util';
 export { SIM_MAX_N, simulateRun, type BossPick, type Probe, type RunResult, type SimOptions } from './sim/run';
 export {
@@ -52,6 +52,9 @@ export {
   actMult,
   affixCountFor,
   depthOf,
+  descentStageSizes,
+  descentWeights,
+  inDescent,
   firstActOf,
   isLastActOfDepth,
   planDepth,
@@ -62,11 +65,30 @@ export {
   type ActRef,
 } from './sim/descent';
 export { affixResists, searingStrike, swiftEvades, thornsDamage, vampiricHeal } from './sim/affixes';
-export { hollowOf, spawnFoe, type SpawnContext } from './sim/hollow';
-export { neutralMods, offerPacts, pactMods, takePact, type PactTotals } from './sim/pacts';
+export { foeAffixes, hollowAffixes, hollowOf, spawnFoe, type SpawnContext } from './sim/hollow';
+export { descentRow, lootWeights } from './sim/descent-loot';
+export { restHero, type RestOutcome } from './sim/rest';
+export { neutralMods, offerPacts, pactDamage, pactMods, takePact, type PactTotals } from './sim/pacts';
 export { gloryBonus, scoreAfterDeath, scoreOf } from './sim/score';
-export { ACT_MULT, BIOMES, ITEMS, PACTS, validateData, validatePacts } from './data';
-export { AFFIX_IDS, AFFIX_MAX } from './types';
+export { ACT_MULT, BIOMES, ITEMS, LOOT_WEIGHTS, PACTS, validateData, validatePacts } from './data';
+export {
+  AFFIX_EVADE,
+  AFFIX_IDS,
+  AFFIX_LIFESTEAL,
+  AFFIX_MAX,
+  AFFIX_THORNS,
+  AFFIX_THORNS_CAP,
+  DESCENT_GROWTH,
+  DESCENT_LEGENDARY_CAP,
+  DESCENT_PHASE_AT,
+  DESCENT_STAGE_MAX,
+  HOLLOW_ATK_SHARE,
+  HOLLOW_HP_FLOOR,
+  HOLLOW_HP_HITS,
+  HOLLOW_RES_CAP,
+  HOLLOW_SWIFT_DODGE,
+  REST_MEND,
+} from './types';
 export { validateEvents } from './data';
 export {
   appliedWords,

@@ -1,41 +1,105 @@
-import { SAFE_MARGIN, dimScene, drawPanel, drawText, drawTextCentered } from '../../engine';
+import { BUTTON_KEY, PICO8, SAFE_MARGIN, dimScene, drawText, drawTextCentered, textWidth } from '../../engine';
 import { depthOf, gloryBonus } from '../sim';
 import { renderTableau } from '../backdrop';
-import type { Game } from '../state';
-import { BAND_Y, C_ACCENT, C_BORDER, C_DIM, C_PANEL, C_SEL_BAR, C_TEXT, W } from '../theme';
-import { drawCommandBand } from '../widgets';
+import type { Game, ThresholdChoice } from '../state';
+import { BAND_Y, C_ACCENT, C_DIM, C_FAINT, C_GOOD, C_SEL_BAR, C_TEXT, C_WARN, H, W } from '../theme';
+import { blinkHz, drawCommandBand } from '../widgets';
+import { drawCardFrame } from './card';
+import { drawAbyssGate, drawGateGlow } from './threshold-gate';
+import { THRESHOLD_ARM, THRESHOLD_CHOICES, armed } from './threshold';
 
-interface ChoiceRow { label: string; note: string; noteColor?: string }
+export interface Ink { text: string; color: string }
 
-const ROW_X = SAFE_MARGIN;
-const ROW_W = W - 2 * SAFE_MARGIN;
-const ROW_PITCH = 11;
-const NOTE_X = 84;
-export const TOP_PANEL = { x: 24, y: SAFE_MARGIN, w: W - 48, h: 46 };
+const SKY_CARD = { x: 24, y: 6, w: W - 48, h: 44 };
+const TITLE_W = SKY_CARD.w - 12;
+const LABEL_X = SAFE_MARGIN + 2;
+const LABEL_W = 82;
+const DETAIL_X = SAFE_MARGIN + LABEL_W + 8;
+const LINE_PITCH = 9;
+const TYPE_RATE = 30;
+const C_RULE = PICO8[9];
 
-export function drawChoiceRows(ctx: CanvasRenderingContext2D, rows: readonly ChoiceRow[], cursor: number): void {
-  drawCommandBand(ctx);
-  rows.forEach((row, i) => {
-    const y = BAND_Y + 7 + i * ROW_PITCH;
-    const sel = i === cursor;
-    if (sel) { ctx.fillStyle = C_SEL_BAR; ctx.fillRect(ROW_X, y - 2, ROW_W, 9); }
-    drawText(ctx, `${sel ? '> ' : '  '}${row.label}`, { x: ROW_X + 2, y }, { color: sel ? C_ACCENT : C_TEXT, shadow: sel });
-    drawText(ctx, row.note, { x: NOTE_X, y }, { color: row.noteColor ?? (sel ? C_TEXT : C_DIM), shadow: sel });
+type Ctx = CanvasRenderingContext2D;
+
+export function drawSkyCard(ctx: Ctx, title: string, lines: readonly Ink[]): void {
+  drawCardFrame(ctx, SKY_CARD);
+  const scale = textWidth(title, 2) <= TITLE_W ? 2 : 1;
+  drawTextCentered(ctx, title, { width: W, y: SKY_CARD.y + (scale === 2 ? 7 : 9) }, { color: C_ACCENT, scale, shadow: true });
+  ctx.fillStyle = C_RULE; ctx.fillRect(W / 2 - 16, SKY_CARD.y + 20, 32, 1);
+  lines.forEach((line, i) => {
+    drawTextCentered(ctx, line.text, { width: W, y: SKY_CARD.y + 25 + i * 8 }, { color: line.color, shadow: true });
   });
+}
+
+export function drawDetail(ctx: Ctx, lines: readonly Ink[], x: number): void {
+  ctx.fillStyle = PICO8[5]; ctx.fillRect(x - 6, BAND_Y + 4, 1, H - BAND_Y - 8);
+  const maxW = W - SAFE_MARGIN - x;
+  lines.forEach((line, i) => {
+    drawText(ctx, fitLine(line.text, maxW), { x, y: BAND_Y + 5 + i * LINE_PITCH }, { color: line.color, shadow: true });
+  });
+}
+
+function fitLine(text: string, maxW: number): string {
+  let t = text;
+  while (t.length > 1 && textWidth(t, 1) > maxW) {t = t.slice(0, -1);}
+  return t;
+}
+
+export const promptInk = (g: Game, ready: boolean, verb: string): Ink => ({
+  text: ready ? `${BUTTON_KEY.A.hint} ${verb}` : '',
+  color: blinkHz(g.clock, 1.2) ? C_TEXT : C_DIM,
+});
+
+const BIG_ROW_Y: readonly number[] = [BAND_Y + 6, BAND_Y + 24];
+
+function drawBigChoices(ctx: Ctx, cursor: number, ready: boolean): void {
+  THRESHOLD_CHOICES.forEach((label, i) => {
+    const y = BIG_ROW_Y[i] ?? BAND_Y;
+    const sel = i === cursor;
+    if (sel) { ctx.fillStyle = C_SEL_BAR; ctx.fillRect(SAFE_MARGIN, y - 3, LABEL_W, 16); }
+    const color = ready ? (sel ? C_ACCENT : C_TEXT) : C_FAINT;
+    drawText(ctx, `${sel ? '> ' : '  '}${label}`, { x: LABEL_X, y }, { color, scale: 2, shadow: true });
+  });
+}
+
+function headline(depth: number): string {
+  return depth <= 1 ? 'THE SERAPH IS NO MORE' : `DEPTH ${String(depth)} CONQUERED`;
+}
+
+function choiceLines(g: Game, choice: ThresholdChoice): Ink[] {
+  const depth = depthOf(g.n);
+  const bonus = gloryBonus(depth);
+  if (choice === 'ASCEND') {
+    return [
+      { text: 'END THE RUN IN GLORY', color: C_TEXT },
+      { text: `GLORY BONUS +${String(bonus)}`, color: C_GOOD },
+      { text: `FINAL SCORE ${String(g.score + bonus)}`, color: C_ACCENT },
+    ];
+  }
+  return [
+    { text: `DEPTH ${String(depth + 1)} AWAITS - DEADLIER FOES`, color: C_TEXT },
+    { text: 'FALL DOWN THERE AND YOU KEEP', color: C_WARN },
+    { text: `${String(g.score)} + HALF OF WHAT YOU EARN`, color: C_WARN },
+  ];
 }
 
 export function renderThreshold(g: Game): void {
   const { pc } = g.app;
   const { ctx } = pc;
-  const depth = depthOf(g.n);
+  const t = g.threshold;
+  const ready = armed(g, { openedAt: t.openedAt, delay: THRESHOLD_ARM });
+  const shown = Math.floor((g.clock - t.openedAt) * TYPE_RATE);
   renderTableau(g, false);
-  dimScene(pc, 0.6);
-  drawPanel(pc, TOP_PANEL, { color: C_PANEL, border: C_BORDER });
-  drawTextCentered(ctx, 'THE THRESHOLD', { width: W, y: TOP_PANEL.y + 6 }, { color: C_ACCENT, scale: 2, shadow: true });
-  drawTextCentered(ctx, `DEPTH ${String(depth)} CLEARED   SCORE ${String(g.score)}`, { width: W, y: TOP_PANEL.y + 24 }, { color: C_TEXT, shadow: true });
-  drawTextCentered(ctx, 'END IT HERE, OR GO DEEPER', { width: W, y: TOP_PANEL.y + 34 }, { color: C_DIM, shadow: true });
-  drawChoiceRows(ctx, [
-    { label: 'ASCEND', note: `WIN  +${String(gloryBonus(depth))} GLORY` },
-    { label: 'DESCEND', note: 'A DEATH KEEPS HALF' },
-  ], g.threshold.cursor);
+  drawAbyssGate(ctx);
+  dimScene(pc, 0.45);
+  drawGateGlow(ctx, g.clock);
+  const full = headline(depthOf(g.n));
+  drawSkyCard(ctx, full.slice(0, Math.max(0, shown)), [
+    { text: `YOUR WIN IS BANKED   SCORE ${String(g.score)}`, color: C_TEXT },
+    { text: 'END IT HERE, OR GO DEEPER', color: C_DIM },
+  ]);
+  drawCommandBand(ctx);
+  drawBigChoices(ctx, t.cursor, ready);
+  const choice = THRESHOLD_CHOICES[t.cursor] ?? 'ASCEND';
+  drawDetail(ctx, [...choiceLines(g, choice), promptInk(g, ready, 'CHOOSE')], DETAIL_X);
 }

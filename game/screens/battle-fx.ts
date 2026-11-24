@@ -2,6 +2,7 @@ import { PICO8, contrast } from '../../engine';
 import type { Sprite } from '../../engine';
 import type { EnemyInstance, EnemyKind, Hero, HeroAction, HeroActResult, HeroCommand, Hit, SpellId } from '../types';
 import { heroElement, isSpell } from '../sim';
+import { HOLLOW_ID } from '../data';
 import { enemyAnim, heroFrames } from '../sprites';
 import { enemyAnchor, enemyPos, heroAnchor } from '../backdrop';
 import { addMove, addShot, addTint, cue, holdMeter, showBanner } from '../fx';
@@ -306,7 +307,7 @@ export const KIND_TAG: Record<EnemyKind, string> = { BOSS: 'BOSS', ELITE: 'ELITE
 
 export function entranceFx(g: Game, e: EnemyInstance): void {
   addMove(g, 'ENEMY', 'ENTER', 48);
-  const tag = KIND_TAG[e.def.kind];
+  const tag = e.def.id === HOLLOW_ID ? 'YOUR SHADOW' : KIND_TAG[e.def.kind];
   if (!tag) {return;}
   showBanner(g, { name: e.def.name, tag, color: e.def.kind === 'BOSS' ? PICO8[8] : C_ACCENT });
 }

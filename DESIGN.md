@@ -400,9 +400,9 @@ when the hero has no source of that element.
 ## v3 — the endless descent (M4)
 
 The Seraph kill is banked as the win; the player may then ASCEND (end the run) or
-DESCEND into ever-steeper depths. Status: the foundation is in (types, state, the
-stage counter, `actMult`, score, THRESHOLD and PACT flow and minimal screens, the
-dev hook); parts marked *placeholder* are filled in by the rules and screens writers.
+DESCEND into ever-steeper depths. Status: rules shipped (2026-11-24): depth plans,
+affixes, THE HOLLOW, pacts and descent loot are in `game/sim/`, and the simulator plays
+the descent (see *Balance state → The descent*).
 
 - **Stage counter.** `n` (`g.n`, the simulator's `run.n`) is the 0-based index of the
   act being played and never resets. `depthOf(n) = floor(n / 4) + 1`, `actInDepth(n) =
@@ -410,32 +410,45 @@ dev hook); parts marked *placeholder* are filled in by the rules and screens wri
   `storyAct(n) = min(n, 3)` (`LOOT_WEIGHTS` rows) or reads what it needs from the
   act's `ActPlan`; `minAct` compares with `n`, so in the descent it is always met.
 - **`actMult(n)`** = `ACT_MULT[n]` for n ≤ 3, else `ACT_MULT[3] × DESCENT_GROWTH^(n − 3)`,
-  `DESCENT_GROWTH` = 1.08 (HP and ATK both scale, ≈ 1.17× threat per act). It scales
+  `DESCENT_GROWTH` = 1.20 (tuned from 1.08; HP and ATK both scale, ≈ 1.44× threat per
+  act — the descent hero keeps gaining SP and EPIC+ loot, so 1.08 let a tank clear depth
+  5 in 84 % of its descents). It scales
   `spawnEnemy` and the event burn (`takePendingBurn`). `spawnEnemy(id, { n, clears,
   descentClears }, affixes)`: the per-clear term uses `descentClears` (the clears count
   held when the descent began) whenever it is set, so it freezes in the descent.
 - **`ActPlan`** `{ biomeIndex, normals, elites, boss, scroll?, affixCount: { normal, elite },
-  stageSizes, weights, phaseAt? }`. `planDepth(depth, rng)` is drawn once on entering a
+  stageSizes, weights, phaseAt?, affixOrder? }`. `planDepth(depth, rng)` is drawn once on entering a
   depth and held as `g.depthPlan`; `g.plan = planOf(g.depthPlan, n)` (= `depthPlan[n % 4]`).
   Depth 1 is exactly the four story acts built from `BIOMES` and draws no rng (a rules
   test). Enemy pools, boss, scroll, biome name, look, backdrop and map shape all read the
   plan (`plan.biomeIndex`, never `n`). `rollLoot(source, { n, plan }, hero, rng)`: boss
   tables take the plan's scroll and its boss's signature item.
-  *Placeholder until the rules writer:* depth ≥ 2 returns the story acts again with only
-  `affixCount` set. Contract: biome order reshuffled per depth; each pool gains one
-  invader from another biome; one extra stage per depth (sizes alternate 2/3, max 8);
-  ELITE weight +5 per depth taken from FIGHT; boss `phaseAt` 0.7 instead of 0.5; the last
-  boss of every descent depth is THE HOLLOW.
+  Depth ≥ 2 (`planDepth`, all draws on the run rng, deterministic per seed): the biome
+  order is a seeded permutation; each act's normals and elites gain one **invader** drawn
+  uniformly from the other biomes' members of the same pool (a normal into normals, an
+  elite into elites); `stageSizes` = 6 + (depth − 1) stages alternating 2/3, at most
+  `DESCENT_STAGE_MAX` 8 before the boss (`descentStageSizes`); weights ELITE +5 per depth
+  taken from FIGHT, FIGHT never below 21 (`descentWeights`); `phaseAt` 0.7; no scroll;
+  `affixCount = affixCountFor(depth)`; `affixOrder` a seeded permutation of `AFFIX_IDS`
+  (the spawn top-up order below); the last act's boss is `HOLLOW`. `phaseAt` reaches the
+  fight through the spawn: `spawnFoe(id, { …, plan })` copies it onto a boss instance
+  (`EnemyInstance.phaseAt`) and `enemy-turn` reads `enemy.phaseAt ?? phase2.at`; the game
+  passes the plan through `foeScale(g)` (`game/state.ts`).
 - **THE HOLLOW** (`ENEMIES.HOLLOW`, a BOSS exempt from biome membership, `phase2` and a
   signature item via `DESCENT_ONLY`). `spawnFoe(id, ctx)` is the one spawn path (game and
-  simulator) and routes `HOLLOW` to `hollowOf(hero, n)`. Contract: attack kind = the
-  hero's weapon kind; ATK = 0.5 × the hero's plain ATTACK base (ATK or MAG; no crit,
-  opener, RAMP, TWIN, riposte or BURST) × `actMult(n) / ACT_MULT[3]`; resists = the hero's
-  DEF/MDEF capped at 40; HP = 8 × the hero's plain ATTACK after those resists, at least
-  2 × hero max HP; at most 3 affixes read off the gear (DRAIN → VAMPIRIC, REFLECT →
-  THORNED, dodge ≥ 15 → SWIFT, BURN_ON_HIT → SEARING); a fixed cycle with one wind-up;
-  drawn as the hero's sprite, mirrored, in one dark tint. *Placeholder:* `hollowOf` scales
-  the definition by `actMult(n)` with HP at least 2 × hero max HP.
+  simulator) and routes `HOLLOW` to `hollowOf(hero, n)`, read off the hero at spawn (so a
+  GEAR swap before the fight changes it): attack kind = the hero's weapon kind (PHYSICAL
+  unarmed); `base` = the hero's plain ATTACK stat (ATK, or MAG for a magic weapon; no
+  crit, opener, RAMP, TWIN, riposte or BURST); ATK = `HOLLOW_ATK_SHARE` 0.7 × base ×
+  `actMult(n) / ACT_MULT[3]`; resists = the hero's DEF/MDEF capped at `HOLLOW_RES_CAP` 40;
+  HP = `HOLLOW_HP_HITS` 30 × base × (1 − its resist of that kind), at least
+  `HOLLOW_HP_FLOOR` 2 × hero max HP; at most 3 affixes read off the gear in order (DRAIN →
+  VAMPIRIC, REFLECT → THORNED, dodge ≥ 15 → SWIFT, BURN_ON_HIT → SEARING; HEX adds none);
+  the definition's fixed cycle `STRIKE STRIKE WINDUP HEAVY`; no weakness or resist; IRON
+  raises its ATK like any foe's. Drawn as the hero's sprite, mirrored, in one dark tint.
+  Tuned from the contract's 0.5 / 8: the descent hero deals about nine plain hits a turn
+  (crits, spells, BURST, gear), so 8 hits of HP died in two turns and the Hollow killed 3 %
+  of descenders; at 0.7 / 30 it ends ~20 % of balanced descents, 0 stalls.
 - **Affixes** (`AffixId`, `EnemyInstance.affixes`, `MapNode.affixes`; depth ≥ 2 only;
   normals `depth − 2`, elites and bosses `depth − 1`, max 3, no repeats on one foe —
   `affixCountFor(depth)`):
@@ -444,34 +457,58 @@ dev hook); parts marked *placeholder* are filled in by the rules and screens wri
   |---|---|---|
   | ARMORED | +20 DEF (`resPhys`) | applied by `spawnEnemy` |
   | WARDED | +20 MDEF (`resMagic`) | applied by `spawnEnemy` |
-  | VAMPIRIC | heals 30 % of damage dealt | value in `vampiricHeal`, not wired yet |
-  | THORNED | returns 20 % of damage taken | value in `thornsDamage`, not wired yet |
-  | SWIFT | 15 % to evade ATTACK and damaging spells (`IT SLIPS AWAY`) | `swiftEvades`, not wired yet |
-  | SEARING | its STRIKEs apply BURN | `searingStrike`, not wired yet |
+  | VAMPIRIC | heals 30 % of the damage its hits deal, capped at max HP (`EnemyActResult.healed`) | `enemy-turn` |
+  | THORNED | returns 15 % of the damage it takes from ATTACK, spells and BURST, at most 12 % of the hero's max HP per action (`AFFIX_THORNS`, `AFFIX_THORNS_CAP`); never on the killing blow; it can kill through `heroFalls` (REVIVE answers): `HeroActResult.thorns / revived / heroDead` | `combat` |
+  | SWIFT | 15 % to evade ATTACK and damaging spells, rolled on the injected rng (`IT SLIPS AWAY!`, `HeroActResult.missed`); the spell's MP is spent, no ember, RAMP still advances; BURST never misses | `combat` |
+  | SEARING | its STRIKEs apply BURN (SCORCH already does) | `enemy-turn` |
 
-  Map nodes do not roll affixes yet (rules writer: `sim/map.ts` scouting by the plan's
-  `affixCount`).
+  Tuned: THORNED was 20 % uncapped; it then caused 36–42 % of all descent deaths (a
+  descent turn deals ~330, so 66 came back). Rolling: `generateMap` scouts FIGHT nodes
+  with `affixCount.normal` and ELITE nodes with `affixCount.elite` affixes drawn without
+  repeats (`rollAffixes`; no draw when the count is 0, so depth 1 maps are unchanged).
+  At spawn `foeAffixes` tops a foe up (never trims) to its tier count — normals
+  `affixCount.normal`, elites and bosses `affixCount.elite` + HEX — taking the plan's
+  `affixOrder` in order, so a boss gets its affixes from the plan, deterministically.
 - **Pacts** (`game/rules/pacts.ts`, `validatePacts()` in `validateData`; `hero.pacts`).
   Entering each depth ≥ 2: pick 1 of min(3, remaining) drawn with the run's rng from the
   8 not yet taken (`offerPacts`, no skip; none left → no PACT screen). `pactMods(hero)`
   folds every taken pact into `Required<PactMod>` (multipliers multiply, counts add; no
-  pacts → neutral: 1 for multipliers, 0 for counts). *Not applied anywhere yet* (rules
-  writer).
+  pacts → neutral: 1 for multipliers, 0 for counts). Where each mod applies (all headless,
+  so the game gets them through the calls it already makes, except REST):
+  `maxHpMult` `derive` (before GLASS); `dmgMult` every strike and BURST (`pactDamage`);
+  `attackMult` ATTACK only; `burstGainMult` `gainEmber`; `clearHealMult`, `spPerClear`,
+  `spPerBoss`, `eliteSp` `grantClear`; `foeAffix` the spawn top-up (elites and bosses);
+  `foeAtkMult` every foe and `eliteHpMult` elites in `spawnFoe`; `rarityShift` ELITE and
+  BOSS item rolls (`rollItems`, capped at LEGENDARY); `fightDrops` 0 → FIGHT never drops
+  and the pity counter is untouched; `extraCard` every loot screen, `eliteExtraCard` ELITE
+  (offers stay capped at 4); `restHealMult` and `restUpgrade` in `restHero(hero)`
+  (`game/sim/rest.ts`: heals `restHealMult` of max HP and MP — full without pacts — and
+  refills potions; with ASH it returns `upgrade: true` when something can be upgraded,
+  the caller then offers one `UPGRADE_ANY` pick, else it mends `REST_MEND` 25 % and
+  returns `mended`). The simulator's REST calls it; **the game's `restRoom` in
+  `game/flow.ts` still calls `fullHeal` + `refillPotions`** until it is switched to
+  `restHero`.
 
   | Pact | Curse | Boon | Mods |
   |---|---|---|---|
   | BRITTLE | −20 % max HP | +25 % damage dealt | maxHpMult 0.8, dmgMult 1.25 |
   | TITHE | clear heal 25 % → 10 % | +1 SP per clear | clearHealMult 0.4, spPerClear 1 |
-  | HEX | foes +1 affix | elite and boss loot one rarity higher | foeAffix 1, rarityShift 1 |
+  | HEX | elites and bosses +1 affix | elite and boss loot one rarity higher | foeAffix 1, rarityShift 1 |
   | IRON | foes +15 % ATK | +15 % max HP, +1 SP per boss | foeAtkMult 1.15, maxHpMult 1.15, spPerBoss 1 |
   | MISER | FIGHT rooms never drop | every loot screen +1 card | fightDrops 0, extraCard 1 |
   | STORM | ATTACK deals −15 % | BURST gauge fills ×1.5 | attackMult 0.85, burstGainMult 1.5 |
   | ASH | REST heals 50 % | every REST also gives an UPGRADE card (a 25 % mend if none) | restHealMult 0.5, restUpgrade 1 |
   | HUNTER | elites +30 % HP | elites +2 SP and a 4th card | eliteHpMult 1.3, eliteSp 2, eliteExtraCard 1 |
 
-- **Loot in the descent** (rules writer): the act-4 weight row with +3 LEGENDARY per depth
-  taken from COMMON, then RARE, never below 0 (LEGENDARY cap 30); boss tables are three
-  rolled EPIC+ (signature items not owned re-enter the roll).
+- **Loot in the descent** (`game/sim/descent-loot.ts`, `lootWeights(source, n)`): the
+  act-4 row with +3 LEGENDARY per depth below 1 taken from COMMON, then RARE, never below
+  0, LEGENDARY capped at 30 (`descentRow`); `minAct` is always met. Boss tables in the
+  descent: a missed scroll first if any (no plan scroll, no fixed signature), then three
+  rolled items from the BOSS row with COMMON and RARE weight moved onto EPIC (EPIC 70 /
+  LEGENDARY 30), signature items not owned in the pool; MISER adds a card, capped at 4.
+  Tuned from the contract: HEX's curse hit every foe; its win-through sat 7–16 % against
+  26–43 % for the other pacts, so it now hits elites and bosses only (the ones whose loot
+  its boon improves).
 - **THRESHOLD** (sub-scene after the last boss's loot of every depth, `isLastActOfDepth(n)`):
   `ASCEND` → WIN with a glory bonus `gloryBonus(depth) = 1000 × depth`. `DESCEND` → `g.won
   = true`, `g.banked = g.score`, `descentClears` set on the first descent, `n += 1`, the
@@ -481,12 +518,24 @@ dev hook); parts marked *placeholder* are filled in by the rules and screens wri
   g.won })`. The scene machine is unchanged.
 - **Score** (`game/sim/score.ts`): `scoreOf({ clears, bosses }) = clears × 100 + 500 ×
   bosses`, plus the glory bonus on ASCEND. (Before M4 it was `clears × 100`; the WIN
-  number changes on purpose.) The best score keeps its old bare-number storage until the
-  screens writer moves it to `{ score, depth, act }`.
+  number changes on purpose.) The best is stored as `{ score, depth, act }` under
+  `retrovibe.ember-quest.best.v2` (`game/storage.ts`); while that key is absent the old
+  bare-number key is read as `score` (depth 1); unreadable or corrupt values read as 0 and
+  never throw. The title shows `BEST 14200` with `DEPTH 3` under it when the best run went
+  below depth 1.
+- **THRESHOLD presentation**: the cursor starts on ASCEND and A is ignored for the first
+  1.0 s (the headline types itself in; both choices are drawn faint until then), so a
+  player mashing through the VICTORY, LEVEL UP and loot screens cannot confirm either way
+  by accident; DESCEND is an explicit Down + A. PACT arms after 0.5 s the same way. The
+  depth card after the pact reads `DEPTH n` / `<BIOME> AWAITS...` / `SWORN TO <PACT>`.
 - **Simulator**: `simulateRun(policy, rng, { descend })`; `descend` is off by default, so
   `npm run sim` still ends at the Seraph (its `--json` was byte-identical across the
-  foundation step). With it on, runs descend until death or n = `SIM_MAX_N` (40).
-  *Placeholder:* no pacts are taken in the sim yet; depth reporting is the rules writer's.
+  foundation step). With it on, runs descend until death or n = `SIM_MAX_N` (40), taking a
+  pact on entering each depth by `policy.pactChoice(hero, offers)` (a fixed preference list
+  per archetype; `random` picks randomly). `sim/run.mjs` prints the story table, then the
+  descent table (`sim/descent-report.mjs`); `--story` prints the story alone (its `--json`
+  is the pre-M4 format and stayed byte-identical through the M4 rules), `--descent-only`
+  the descent alone.
 
 ## Combat
 
@@ -505,7 +554,9 @@ BURST and BREAK; the lines below are the base turn they build on.
 ## Difficulty targets (balance sim, sane policy)
 
 Story run, `balanced`: act 1 clear ≥ 80 %, act 2 ≈ 65 %, act 3 ≈ 50 %, full run 30–40 %.
-`random` < 8 %. `naive` ≤ 75 % of balanced's win rate. No STALL deaths. Late-game
+`random` < 8 %. Descent, `balanced`, of runs that beat the Seraph: ≈ 40 % (± 15) clear
+depth 2, ≈ 10 % depth 3, none clears depth 5 in 2000 runs; no pact's win-through wildly
+off the others. `naive` ≤ 75 % of balanced's win rate. No STALL deaths. Late-game
 power comes from routing (elites for loot), focused points, and item synergy —
 not from stat inflation alone.
 
@@ -525,7 +576,15 @@ six cells of <= 18 chars (74 px columns); `LOSE:` / `GAIN:` lines <= 36 chars (b
 <= 30). A loot offer's hint <= 64 px (the worn item's `displayName`). GEAR rows <= 92 px
 of name; PICK rows `NAME +n>+n+1` <= 84 px beside a <= 4-char note (`WORN`, `PACK`,
 `NEW`, `OLD`); PICK titles <= 30 chars; PICK detail <= 3 lines. The map readout
-`ELITE  NAME  HEXES` stays inside the 160 px between the corner labels.
+`ELITE  NAME  HEXES  AFFIX +n` stays inside 224 px (the verb is dropped first when it does
+not); the map header `DEPTH n  ACT n  BIOME` <= 30 chars. Descent screens: THRESHOLD
+headline <= 22 chars at scale 2, its detail lines <= 134 px (33 chars) beside the 82-px
+label column; PACT names <= 12 chars (58-px column), `CURSE: ` / `BOON: ` + line <= 158 px
+(pact lines <= 30 chars); the PACT sky card's affix line wraps to at most two lines of
+<= 180 px; the enemy tag strip shows one affix word (cycling every 1.6 s) plus `+n`,
+falling back to the bare word when `+n` does not fit beside WEAK; affix ids <= 8 chars.
+The ending summary `DEPTH n  n CLEARED  SCORE n  BEST n` <= 180 px. Pause lists the
+pacts joined with ` / ` on lines <= 172 px.
 
 ## Balance state (measured with the headless simulator, 2026-11-24)
 
@@ -594,6 +653,39 @@ Findings from the 2026-09-04 tuning pass (on the simulator's old map, not re-mea
 since): elites kill 4 % of heroes entering above 70 % HP and ~50 % of those entering
 below 50 %; with upgrade cards disabled the balanced win rate halves; taking a boss's
 scroll beats walking past it (33 % vs 28 % wins for balanced, 59 % vs 17 % for tank).
+
+### The descent (2026-11-24)
+
+`node sim/run.mjs --descent-only` (2000 runs per policy, seed 1, `descend: true`). Shares
+are of the runs that beat the Seraph; deaths are of those descenders who died below
+depth 1 (THORNS = killed by THORNED backlash; affix column = the killer carried it, one
+death can count several).
+
+| policy | beat Seraph | clear d2 | d3 | d4 | d5 | final n mean / median | deaths ELITE / BOSS / HOLLOW / THORNS / NORMAL |
+|---|---|---|---|---|---|---|---|
+| balanced | 675 | 38 % | 11 % | 0 % | 0 | 7.3 / 7 | 47 / 26 / 21 / 4 / 1 % |
+| naive | 211 | 27 % | 6 % | 0 % | 0 | 6.5 / 6 | 40 / 37 / 19 / 2 / 1 % |
+| glass | 278 | 15 % | 1 % | 0 % | 0 | 6.0 / 6 | 32 / 32 / 32 / 2 / 2 % |
+| tank | 401 | 42 % | 5 % | 0.5 % | 0 | 7.7 / 7 | 18 / 27 / 46 / 8 / 1 % |
+| elite-hungry | 707 | 31 % | 6 % | 0.1 % | 0 | 6.8 / 7 | 46 / 26 / 22 / 4 / 2 % |
+| chest-hungry | 603 | 43 % | 12 % | 0.2 % | 0 | 7.5 / 7 | 31 / 38 / 22 / 3 / 5 % |
+
+0 STALL deaths in any policy; nobody clears depth 5. Top killers (balanced): HOLLOW 154,
+FROST WISP 129, SERAPH 107, MUMMY 100. Affix on the killer (balanced): SWIFT 50 % (the
+Hollow takes it off dodge boots), THORNED 37 %, SEARING 26 %, WARDED 22 %, VAMPIRIC 21 %,
+ARMORED 13 %.
+
+Pact win-through (took it, then cleared the depth it was sworn at), within policy:
+balanced IRON 37 %, ASH 36 %, TITHE 34 %, HUNTER 28 %, MISER 28 %, HEX 25 %; tank 26–37 %
+(HEX 33 %); elite-hungry 21–32 % (HEX 21 %, its most taken after HUNTER); chest-hungry
+18–40 % (HEX 18 % on 22 takes); glass 12–17 % for BRITTLE, STORM, TITHE, HEX. Pooled over
+the non-random policies 15–33 %: ASH 33, IRON 33, MISER 32, TITHE 32, HUNTER 29, HEX 21,
+BRITTLE 15, STORM 15 (the last two are glass's picks, and glass descends worst).
+
+Tuning in M4 (descent only; the story table is byte-identical): `DESCENT_GROWTH` 1.08 →
+1.20 (balanced cleared d2/d3/d4/d5 50/34/23/17 %, tank 89/87/86/84 %); THORNED 20 % →
+15 % capped at 12 % of hero max HP; THE HOLLOW ATK share 0.5 → 0.7 and HP 8 → 30 plain
+hits; HEX's curse narrowed to elites and bosses.
 
 ### The map generators are unified
 

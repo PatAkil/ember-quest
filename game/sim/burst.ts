@@ -9,6 +9,7 @@ import {
   type Hero,
 } from '../types';
 import { allEffects } from './gear';
+import { pactDamage, pactMods } from './pacts';
 
 type EmberSource = 'ACTION' | 'HIT_TAKEN' | 'PARRY';
 
@@ -20,7 +21,7 @@ const EMBER_GAIN: Record<EmberSource, number> = {
 
 export function gainEmber(hero: Hero, source: EmberSource): number {
   const before = hero.ember;
-  const rate = allEffects(hero, 'BURST_GAIN').reduce((m, e) => m * e.mult, 1);
+  const rate = allEffects(hero, 'BURST_GAIN').reduce((m, e) => m * e.mult, pactMods(hero).burstGainMult);
   hero.ember = Math.min(EMBER_MAX, hero.ember + Math.round(EMBER_GAIN[source] * rate));
   return hero.ember - before;
 }
@@ -35,7 +36,7 @@ interface BurstBlow { dmg: number; kind: DamageKind }
 
 export function burstBlow(hero: Hero, d: Derived): BurstBlow {
   return {
-    dmg: Math.max(1, Math.round(Math.max(d.atk, d.mag) * BURST_MULT * burstPower(hero))),
+    dmg: Math.max(1, Math.round(Math.max(d.atk, d.mag) * BURST_MULT * burstPower(hero) * pactDamage(hero, false))),
     kind: hero.equipment.WEAPON?.weaponKind ?? 'PHYSICAL',
   };
 }

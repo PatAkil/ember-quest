@@ -30,7 +30,7 @@ export function updateCard(g: Game): void {
   if (g.app.input.pressed('A')) { g.app.audio.play('blip'); g.card.onDone(); }
 }
 
-function drawCardFrame(ctx: CanvasRenderingContext2D, card: Rect): void {
+export function drawCardFrame(ctx: CanvasRenderingContext2D, card: Rect): void {
   ctx.fillStyle = C_BG; ctx.fillRect(card.x, card.y, card.w, card.h);
   drawFrame(ctx, card, { color: C_BORDER, thickness: 1 });
   drawFrame(ctx, { x: card.x + 2, y: card.y + 2, w: card.w - 4, h: card.h - 4 }, { color: C_SEL_BAR, thickness: 1 });

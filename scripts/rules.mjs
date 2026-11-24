@@ -5,6 +5,9 @@ import { itemRules } from './rules-items.mjs';
 import { verbRules } from './rules-verbs.mjs';
 import { eventRules } from './rules-events.mjs';
 import { descentRules } from './rules-descent.mjs';
+import { depthRules } from './rules-depth.mjs';
+import { affixRules } from './rules-affixes.mjs';
+import { pactEffectRules } from './rules-pacts.mjs';
 
 const MAP_SEEDS = 5000;
 const RNG_DRAWS = 1000;
@@ -277,6 +280,9 @@ const GROUPS = [
   ['items', itemRules],
   ['events', eventRules],
   ['descent', descentRules],
+  ['depth', depthRules],
+  ['affixes', affixRules],
+  ['pacts', pactEffectRules],
 ];
 
 await withSim((sim) => {

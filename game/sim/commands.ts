@@ -20,6 +20,7 @@ export const isCommand = (action: HeroAction): action is Verb => VERBS.includes(
 const QUIET: Omit<HeroActResult, 'text' | 'hits'> = {
   healed: 0, mpRestored: 0, enemyDefeated: false, crit: false,
   broke: false, weak: false, resisted: false, guarded: false, missed: false, burned: false,
+  thorns: 0, heroDead: false, revived: false,
 };
 
 export const heroResult = (text: string, over: Partial<HeroActResult> = {}): HeroActResult =>

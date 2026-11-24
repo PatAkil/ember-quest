@@ -2,7 +2,7 @@ import { createLoop } from '../engine';
 import { actInDepth, depthOf, derive, heroActions, validateData } from './sim';
 import { HOLD, installDevHook } from './devhook';
 import { createApp } from './app';
-import { selectNode, startRun, wireScenes } from './flow';
+import { enterAct, selectNode, startRun, wireScenes } from './flow';
 import { render, update } from './frame';
 import { at } from './lookup';
 import { createGame, installRng, resetCursorEdge, stageAt } from './state';
@@ -41,6 +41,7 @@ const dev = import.meta.env.DEV ? installDevHook({
   syncReveal: () => { syncReveal(g); },
   startRun: (hero, n, clears) => { startRun(g, hero, n, clears); },
   plan: () => g.plan,
+  remap: (stageSizes) => { g.plan = { ...g.plan, stageSizes }; enterAct(g); },
   selectNode: (node) => { selectNode(g, node); },
   nextNodes: () => g.map.reachable.map((i) => at(stageAt(g, g.map.curStage + 1), i)),
   bossNode: () => at(stageAt(g, g.map.stages.length - 1), 0),

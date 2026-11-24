@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 
 const SCALE = { n: 0, clears: 0, descentClears: null };
-const DESCENT_RUNS = 20;
+const STORY_RUNS = 20;
+const DESCENT_RUNS = 300;
+const DESCENT_POLICIES = ['balanced', 'glass', 'tank'];
 
 function counting() {
   let draws = 0;
@@ -11,7 +13,7 @@ function counting() {
 function multRules(sim) {
   sim.ACT_MULT.forEach((m, n) => { assert.equal(sim.actMult(n), m, `actMult(${n}) differs from ACT_MULT`); });
   for (let n = 1; n <= 40; n++) {assert.ok(sim.actMult(n) > sim.actMult(n - 1), `actMult not rising at n=${n}`);}
-  assert.ok(Math.abs(sim.actMult(4) - sim.ACT_MULT[3] * 1.08) < 1e-9, 'actMult(4) is not ACT_MULT[3] x DESCENT_GROWTH');
+  assert.ok(Math.abs(sim.actMult(4) - sim.ACT_MULT[3] * sim.DESCENT_GROWTH) < 1e-9, 'actMult(4) is not ACT_MULT[3] x DESCENT_GROWTH');
   return 'actMult equals ACT_MULT for n <= 3 and rises through n = 40';
 }
 
@@ -87,19 +89,30 @@ function foeRules(sim) {
   const hero = sim.createHero();
   const hollow = sim.spawnFoe('HOLLOW', { n: 7, clears: 0, descentClears: null, hero });
   assert.equal(hollow.def.kind, 'BOSS', 'THE HOLLOW is a boss');
-  assert.ok(hollow.maxHp >= 2 * sim.derive(hero).maxHp && hollow.atk > 0, 'THE HOLLOW stub is sane');
-  return 'affix resists, frozen clears term, THE HOLLOW stub';
+  assert.ok(hollow.maxHp >= sim.HOLLOW_HP_FLOOR * sim.derive(hero).maxHp && hollow.atk > 0, 'THE HOLLOW is sane');
+  return 'affix resists, frozen clears term, THE HOLLOW spawns';
+}
+
+function checkDescent(sim, deep) {
+  assert.ok(deep.actReached < sim.SIM_MAX_N, 'a descending run passed the cap');
+  assert.notEqual(deep.deathKind, 'STALL', `a descending run stalled at n=${deep.actReached}`);
+  if (deep.won) {assert.equal(deep.actReached, sim.SIM_MAX_N - 1, 'a descending run stopped without dying or reaching the cap');}
+  assert.ok((deep.pacts ?? []).length <= Math.max(0, sim.depthOf(deep.actReached) - 1), 'more pacts than depths entered');
 }
 
 function runRules(sim) {
   const rng = sim.createSeededRng(9).next;
-  for (let i = 0; i < DESCENT_RUNS; i++) {
+  for (let i = 0; i < STORY_RUNS; i++) {
     const story = sim.simulateRun(sim.POLICIES.balanced, rng);
     assert.ok(story.actReached <= 3, 'a story run went past act 4');
-    const deep = sim.simulateRun(sim.POLICIES.balanced, rng, { descend: true });
-    assert.ok(deep.actReached < sim.SIM_MAX_N, 'a descending run passed the cap');
   }
-  return `${DESCENT_RUNS} story runs end by act 4; descending runs stop under n = ${sim.SIM_MAX_N}`;
+  let deepest = 0;
+  for (let i = 0; i < DESCENT_RUNS; i++) {
+    const deep = sim.simulateRun(sim.POLICIES[DESCENT_POLICIES[i % DESCENT_POLICIES.length]], rng, { descend: true });
+    checkDescent(sim, deep);
+    deepest = Math.max(deepest, deep.actReached);
+  }
+  return `${STORY_RUNS} story runs end by act 4; ${DESCENT_RUNS} descending runs die or reach n = ${sim.SIM_MAX_N}, no STALL (deepest n = ${deepest})`;
 }
 
 export function descentRules(sim) {

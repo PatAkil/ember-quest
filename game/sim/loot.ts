@@ -14,11 +14,13 @@ import {
   type SpellId,
   type UpgradeTarget,
 } from '../types';
-import { ITEMS, LOOT_COUNT, LOOT_WEIGHTS, SPELLS } from '../data';
-import type { ActRef } from './descent';
+import { ITEMS, LOOT_COUNT, SPELLS } from '../data';
+import { inDescent, type ActRef } from './descent';
+import { lootWeights, shiftRarity } from './descent-loot';
 import { maxLevelFor } from './gear';
 import { clampVitals, equip, learnSpell } from './hero';
 import { ownedIds, packSize, stow, targetOwned, upgradableTargets } from './pack';
+import { pactMods, type PactTotals } from './pacts';
 import { clamp, isNonEmpty, pick } from './util';
 
 type UpgradeOffer = Extract<LootOffer, { kind: 'UPGRADE' }>;
@@ -140,15 +142,25 @@ export function ensureStarterWeapon(offers: LootOffer[], hero: Hero, act: number
   offers[lastItem] = { kind: 'ITEM', item: pick(starters, rng) };
 }
 
+const noDrop = (mods: PactTotals): boolean => mods.fightDrops <= 0;
+
+function cardsFor(source: LootSource, mods: PactTotals): number {
+  return LOOT_COUNT[source] + mods.extraCard + (source === 'ELITE' ? mods.eliteExtraCard : 0);
+}
+
+function bossOffers(ref: ActRef, hero: Hero, rng: Rng): LootOffer[] {
+  return inDescent(ref.n) ? rollDescentBossLoot(ref.n, hero, rng) : rollBossLoot(ref, hero, rng);
+}
+
 export function rollLoot(source: LootSource, ref: ActRef, hero: Hero, rng: Rng): LootOffer[] {
-  if (source === 'FIGHT' && fightIsDry(hero, rng)) {return [];}
-  const offers = source === 'BOSS' ? rollBossLoot(ref, hero, rng) : rollRoomLoot(source, ref.n, hero, rng);
+  if (source === 'FIGHT' && (noDrop(pactMods(hero)) || fightIsDry(hero, rng))) {return [];}
+  const offers = source === 'BOSS' ? bossOffers(ref, hero, rng) : rollRoomLoot(source, ref.n, hero, rng);
   ensureStarterWeapon(offers, hero, ref.n, rng);
   return offers.slice(0, MAX_OFFERS);
 }
 
 function rollRoomLoot(source: Exclude<LootSource, 'BOSS'>, act: number, hero: Hero, rng: Rng): LootOffer[] {
-  const want = LOOT_COUNT[source];
+  const want = cardsFor(source, pactMods(hero));
   const offers: LootOffer[] = [];
   const pity = source === 'LOOT' ? missedScrollOffer(hero, rng) : null;
   const bonus = pity ?? upgradeOffer(source, want, hero, rng);
@@ -178,10 +190,18 @@ function rollBossLoot({ n: act, plan }: ActRef, hero: Hero, rng: Rng): LootOffer
   const missed = oldestMissedScroll(hero, scroll ?? null);
   if (missed) {offers.push({ kind: 'SCROLL', spell: missed });}
   const equippedHere = new Set(offers.map((o) => (o.kind === 'ITEM' ? o.item.id : '')));
-  for (const item of rollItems({ source: 'BOSS', act, want: LOOT_COUNT.BOSS - offers.length }, hero, rng)) {
+  for (const item of rollItems({ source: 'BOSS', act, want: cardsFor('BOSS', pactMods(hero)) - offers.length }, hero, rng)) {
     if (equippedHere.has(item.id)) {continue;}
     offers.push({ kind: 'ITEM', item });
   }
+  return offers;
+}
+
+function rollDescentBossLoot(n: number, hero: Hero, rng: Rng): LootOffer[] {
+  const missed = oldestMissedScroll(hero, null);
+  const offers: LootOffer[] = missed ? [{ kind: 'SCROLL', spell: missed }] : [];
+  const want = cardsFor('BOSS', pactMods(hero));
+  for (const item of rollItems({ source: 'BOSS', act: n, want, signatures: true }, hero, rng)) {offers.push({ kind: 'ITEM', item });}
   return offers;
 }
 
@@ -194,7 +214,7 @@ export function noteDeclinedScrolls(hero: Hero, offers: LootOffer[], taken: Loot
   }
 }
 
-interface ItemRoll { source: LootSource; act: number; want: number }
+interface ItemRoll { source: LootSource; act: number; want: number; signatures?: boolean }
 
 function firstFilled(bucket: (ri: number) => Item[], start: number): Item[] {
   for (let ri = start; ri >= 0; ri -= 1) {
@@ -208,18 +228,18 @@ function firstFilled(bucket: (ri: number) => Item[], start: number): Item[] {
   return [];
 }
 
-function rollItems({ source, act, want }: ItemRoll, hero: Hero, rng: Rng): Item[] {
+function rollItems({ source, act, want, signatures = false }: ItemRoll, hero: Hero, rng: Rng): Item[] {
   if (want <= 0) {return [];}
-  const table = LOOT_WEIGHTS[source];
-  const weights = table[clamp(act, 0, table.length - 1)] ?? [1, 0, 0, 0];
+  const weights = lootWeights(source, act);
+  const shift = source === 'ELITE' || source === 'BOSS' ? pactMods(hero).rarityShift : 0;
   const equipped = new Set(ownedIds(hero));
   const taken = new Set<string>();
-  const available = ITEMS.filter((i) => !i.bossOnly && !equipped.has(i.id) && (i.minAct ?? 0) <= act);
+  const available = ITEMS.filter((i) => (signatures || !i.bossOnly) && !equipped.has(i.id) && (i.minAct ?? 0) <= act);
   const bucket = (ri: number) =>
     available.filter((i) => i.rarity === RARITIES[ri] && !taken.has(i.id));
   const out: Item[] = [];
   for (let n = 0; n < want; n += 1) {
-    const pool = firstFilled(bucket, rollRarity(weights, rng));
+    const pool = firstFilled(bucket, shiftRarity(rollRarity(weights, rng), shift));
     if (!isNonEmpty(pool)) {break;}
     const item = pick(pool, rng);
     taken.add(item.id);

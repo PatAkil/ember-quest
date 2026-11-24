@@ -3,7 +3,7 @@ import { PACT_IDS, type PactDef, type PactId } from '../types';
 export const PACTS: Record<PactId, PactDef> = {
   BRITTLE: { id: 'BRITTLE', name: 'BRITTLE', curse: '-20% MAX HP', boon: '+25% DAMAGE DEALT', mods: { maxHpMult: 0.8, dmgMult: 1.25 } },
   TITHE: { id: 'TITHE', name: 'TITHE', curse: 'CLEAR HEAL 25% TO 10%', boon: '+1 SP PER CLEAR', mods: { clearHealMult: 0.4, spPerClear: 1 } },
-  HEX: { id: 'HEX', name: 'HEX', curse: 'FOES GAIN +1 AFFIX', boon: 'ELITE AND BOSS LOOT +1 RARITY', mods: { foeAffix: 1, rarityShift: 1 } },
+  HEX: { id: 'HEX', name: 'HEX', curse: 'ELITES AND BOSSES +1 AFFIX', boon: 'ELITE AND BOSS LOOT +1 RARITY', mods: { foeAffix: 1, rarityShift: 1 } },
   IRON: { id: 'IRON', name: 'IRON', curse: 'FOES +15% ATK', boon: '+15% MAX HP, +1 SP PER BOSS', mods: { foeAtkMult: 1.15, maxHpMult: 1.15, spPerBoss: 1 } },
   MISER: { id: 'MISER', name: 'MISER', curse: 'FIGHT ROOMS NEVER DROP', boon: 'EVERY LOOT SCREEN +1 CARD', mods: { fightDrops: 0, extraCard: 1 } },
   STORM: { id: 'STORM', name: 'STORM', curse: 'ATTACK DEALS -15%', boon: 'BURST FILLS X1.5', mods: { attackMult: 0.85, burstGainMult: 1.5 } },

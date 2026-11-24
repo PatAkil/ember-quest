@@ -1,0 +1,180 @@
+import assert from 'node:assert/strict';
+
+const fixed = (v) => () => v;
+const SCALE = { n: 4, clears: 0, descentClears: 0 };
+const item = (sim, id) => {
+  const found = sim.ITEMS.find((i) => i.id === id);
+  assert.ok(found, `no item ${id}`);
+  return found;
+};
+
+function sturdy(sim) {
+  const hero = sim.createHero();
+  hero.bonusMaxHp = 2000;
+  hero.hp = sim.derive(hero).maxHp;
+  return hero;
+}
+
+const foe = (sim, affixes, id = 'SKELETON') => sim.spawnEnemy(id, SCALE, affixes);
+
+function strikeAt(sim, enemy, move) {
+  const battle = sim.createBattle(enemy);
+  battle.intent = move;
+  return battle;
+}
+
+function vampiric(sim) {
+  const e = foe(sim, ['VAMPIRIC']);
+  e.hp = Math.floor(e.maxHp / 2);
+  const before = e.hp;
+  const r = sim.enemyAct(sturdy(sim), strikeAt(sim, e, 'STRIKE'), fixed(0.5));
+  assert.ok(r.dmg > 0, 'VAMPIRIC test: no damage dealt');
+  assert.equal(r.healed, Math.round(r.dmg * sim.AFFIX_LIFESTEAL), 'VAMPIRIC heals 30 % of damage dealt');
+  assert.equal(e.hp - before, r.healed, 'VAMPIRIC heal not applied');
+  const full = foe(sim, ['VAMPIRIC']);
+  full.hp = full.maxHp - 1;
+  sim.enemyAct(sturdy(sim), strikeAt(sim, full, 'STRIKE'), fixed(0.5));
+  assert.equal(full.hp, full.maxHp, 'VAMPIRIC heal is not capped at max HP');
+  assert.equal(sim.enemyAct(sturdy(sim), strikeAt(sim, foe(sim, []), 'STRIKE'), fixed(0.5)).healed, 0, 'a plain foe heals');
+}
+
+function thorned(sim) {
+  const hero = sturdy(sim);
+  const hp0 = hero.hp;
+  const r = sim.heroAct(hero, sim.createBattle(foe(sim, ['THORNED'])), 'ATTACK', fixed(0.5));
+  const dealt = r.hits.reduce((a, h) => a + h.dmg, 0);
+  const want = Math.round(Math.min(dealt * sim.AFFIX_THORNS, sim.derive(hero).maxHp * sim.AFFIX_THORNS_CAP));
+  assert.equal(r.thorns, want, 'THORNED returns its share of damage taken');
+  assert.equal(hp0 - hero.hp, want, 'THORNED damage not taken');
+  const brute = sim.createHero();
+  brute.alloc.ATK = 60;
+  brute.hp = 1;
+  const cap = Math.round(sim.derive(brute).maxHp * sim.AFFIX_THORNS_CAP);
+  const fatal = sim.heroAct(brute, sim.createBattle(foe(sim, ['THORNED'], 'OGRE_KING')), 'ATTACK', fixed(0.5));
+  assert.equal(fatal.thorns, cap, 'THORNED is capped by the hero max HP');
+  assert.ok(fatal.heroDead && brute.hp === 0, 'THORNED can kill through heroFalls');
+  const last = foe(sim, ['THORNED']);
+  last.hp = 1;
+  const killing = sim.heroAct(sturdy(sim), sim.createBattle(last), 'ATTACK', fixed(0.5));
+  assert.ok(killing.enemyDefeated && killing.thorns === 0, 'THORNED answered the killing blow');
+}
+
+function swift(sim) {
+  const hero = sturdy(sim);
+  const e = foe(sim, ['SWIFT']);
+  const r = sim.heroAct(hero, sim.createBattle(e), 'ATTACK', fixed(0));
+  assert.ok(r.missed && r.hits.length === 0 && e.hp === e.maxHp, 'SWIFT evades ATTACK');
+  assert.equal(hero.ember, 0, 'an evaded action gained ember');
+  const mp0 = hero.mp;
+  const spell = sim.heroAct(hero, sim.createBattle(e), 'FIREBALL', fixed(0));
+  assert.ok(spell.missed && hero.mp === mp0 - sim.spellCost(hero, 'FIREBALL'), 'an evaded spell still spends MP');
+  assert.ok(!sim.heroAct(hero, sim.createBattle(e), 'ATTACK', fixed(0.5)).missed, 'SWIFT evaded above its chance');
+  hero.ember = 100;
+  const burst = sim.heroAct(hero, sim.createBattle(e), 'BURST', fixed(0));
+  assert.ok(!burst.missed && burst.hits.length === 1, 'BURST missed a SWIFT foe');
+  assert.ok(!sim.heroAct(sturdy(sim), sim.createBattle(foe(sim, [])), 'ATTACK', fixed(0)).missed, 'a plain foe evaded');
+}
+
+function searing(sim) {
+  const hot = sturdy(sim);
+  assert.ok(sim.enemyAct(hot, strikeAt(sim, foe(sim, ['SEARING']), 'STRIKE'), fixed(0.5)).burned && hot.burn, 'SEARING STRIKE burns');
+  const plain = sturdy(sim);
+  assert.ok(!sim.enemyAct(plain, strikeAt(sim, foe(sim, []), 'STRIKE'), fixed(0.5)).burned && !plain.burn, 'a plain STRIKE burns');
+  const wound = sturdy(sim);
+  assert.ok(!sim.enemyAct(wound, strikeAt(sim, foe(sim, ['SEARING']), 'WINDUP'), fixed(0.5)).burned, 'SEARING burned on a WINDUP');
+}
+
+function affixBehaviour(sim) {
+  [vampiric, thorned, swift, searing].forEach((rule) => { rule(sim); });
+  return 'VAMPIRIC heals 30 % capped; THORNED 15 % (cap 12 % max HP) can kill, never on the killing blow; SWIFT 15 % evades ATTACK and spells (MP spent, no ember), never BURST; SEARING STRIKEs burn';
+}
+
+function spawnTopUp(sim) {
+  const plans = sim.planDepth(2, sim.createSeededRng(5).next);
+  const plan = plans[0];
+  const hero = sim.createHero();
+  const ctx = { ...SCALE, hero, plan };
+  const boss = sim.spawnFoe(plan.boss, ctx);
+  assert.deepEqual(boss.affixes, plan.affixOrder.slice(0, 1), 'a depth-2 boss takes the elite count from the plan order');
+  assert.equal(boss.phaseAt, sim.DESCENT_PHASE_AT, 'descent boss phaseAt');
+  assert.deepEqual(sim.spawnFoe(plan.normals[0], ctx).affixes, [], 'a depth-2 normal carries an affix');
+  const given = sim.spawnFoe(plan.elites[0], { ...ctx, affixes: ['SEARING'] });
+  assert.deepEqual(given.affixes, ['SEARING'], 'a scouted elite was topped up past its count');
+  sim.takePact(hero, 'HEX');
+  assert.equal(sim.spawnFoe(plan.boss, ctx).affixes.length, 2, 'HEX adds an affix to bosses');
+  assert.equal(sim.spawnFoe(plan.elites[0], { ...ctx, affixes: ['SEARING'] }).affixes[0], 'SEARING', 'top-up dropped the scouted affix');
+  assert.equal(sim.spawnFoe(plan.normals[0], ctx).affixes.length, 0, 'HEX touched a normal');
+  const story = sim.planDepth(1, fixed(0.5))[0];
+  const storyBoss = sim.spawnFoe(story.boss, { n: 0, clears: 0, descentClears: null, hero, plan: story });
+  assert.deepEqual([storyBoss.affixes, storyBoss.phaseAt], [[], undefined], 'a story boss carries descent rules');
+  const deep = sim.spawnFoe(sim.planDepth(9, fixed(0.3))[0].boss, { n: 32, clears: 0, descentClears: 0, hero, plan: sim.planDepth(9, fixed(0.3))[0] });
+  assert.equal(deep.affixes.length, sim.AFFIX_MAX, 'affixes cap at AFFIX_MAX');
+  assert.equal(new Set(deep.affixes).size, deep.affixes.length, 'a boss repeats an affix');
+  return 'spawnFoe tops bosses up to the elite count from plan.affixOrder, HEX +1 on elites/bosses only, max 3, none in the story';
+}
+
+function phaseLine(sim) {
+  const plan = sim.planDepth(2, sim.createSeededRng(5).next)[0];
+  const boss = sim.spawnFoe(plan.boss, { ...SCALE, hero: sim.createHero(), plan });
+  boss.hp = Math.floor(boss.maxHp * sim.DESCENT_PHASE_AT) - 1;
+  assert.ok(sim.enemyAct(sturdy(sim), sim.createBattle(boss), fixed(0.5)).phaseChanged, 'descent boss did not turn at 70 %');
+  const story = sim.spawnEnemy(plan.boss, SCALE);
+  story.hp = Math.floor(story.maxHp * sim.DESCENT_PHASE_AT) - 1;
+  assert.ok(story.def.phase2.at < sim.DESCENT_PHASE_AT, 'fixture: story phase line should sit below 70 %');
+  assert.ok(!sim.enemyAct(sturdy(sim), sim.createBattle(story), fixed(0.5)).phaseChanged, 'story boss turned at 70 %');
+  return `boss phase line ${sim.DESCENT_PHASE_AT} via the instance in the descent, def line in the story`;
+}
+
+function expectedHollow(sim, hero, n) {
+  const d = sim.derive(hero);
+  const kind = hero.equipment.WEAPON?.weaponKind ?? 'PHYSICAL';
+  const base = kind === 'MAGIC' ? d.mag : d.atk;
+  const resPhys = Math.min(sim.HOLLOW_RES_CAP, d.def);
+  const resMagic = Math.min(sim.HOLLOW_RES_CAP, d.mdef);
+  const landed = base * (1 - (kind === 'MAGIC' ? resMagic : resPhys) / 100);
+  const hp = Math.max(1, Math.round(sim.HOLLOW_HP_HITS * landed), Math.round(sim.HOLLOW_HP_FLOOR * d.maxHp));
+  const atk = Math.max(1, Math.round((sim.HOLLOW_ATK_SHARE * base * sim.actMult(n)) / sim.ACT_MULT[3]));
+  return { kind, hp, atk, resPhys, resMagic };
+}
+
+function checkHollow(sim, hero, n, affixes) {
+  const h = sim.hollowOf(hero, n);
+  const want = expectedHollow(sim, hero, n);
+  assert.deepEqual([h.maxHp, h.hp, h.atk, h.resPhys, h.resMagic], [want.hp, want.hp, want.atk, want.resPhys, want.resMagic], `hollow n=${n} numbers`);
+  assert.equal(h.def.atkType, want.kind, 'hollow attack kind is the weapon kind');
+  assert.deepEqual(h.affixes, affixes, 'hollow affixes read off the gear');
+  assert.equal(h.def.kind, 'BOSS', 'hollow is a boss');
+  assert.ok(!h.def.weak && !h.def.resists && !h.def.phase2, 'hollow has a weakness, resist or phase 2');
+  assert.equal(h.def.moves.filter((m) => m === 'WINDUP').length, 1, 'hollow cycle has one wind-up');
+  return h;
+}
+
+function hollow(sim) {
+  checkHollow(sim, sim.createHero(), 7, []);
+  const geared = sim.createHero();
+  geared.alloc.ATK = 10;
+  for (const id of ['SOULEATER', 'BRAMBLE_VEST', 'WIND_GREAVES', 'PYRE_CHALICE']) {sim.equip(geared, item(sim, id));}
+  for (const n of [7, 11, 19]) {checkHollow(sim, geared, n, ['VAMPIRIC', 'THORNED', 'SWIFT']);}
+  const burner = sim.createHero();
+  sim.equip(burner, item(sim, 'PYRE_CHALICE'));
+  checkHollow(sim, burner, 7, ['SEARING']);
+  const floor = sim.createHero();
+  floor.bonusMaxHp = 600;
+  const floored = checkHollow(sim, floor, 7, []);
+  assert.equal(floored.maxHp, Math.round(sim.HOLLOW_HP_FLOOR * sim.derive(floor).maxHp), 'hollow HP floor');
+  const wall = sim.createHero();
+  wall.alloc.DEF = 20;
+  wall.alloc.MDEF = 20;
+  const capped = checkHollow(sim, wall, 7, []);
+  assert.deepEqual([capped.resPhys, capped.resMagic], [sim.HOLLOW_RES_CAP, sim.HOLLOW_RES_CAP], 'hollow resists cap at 40');
+  const mage = sim.createHero();
+  sim.equip(mage, sim.ITEMS.find((i) => i.slot === 'WEAPON' && i.weaponKind === 'MAGIC' && i.effect.kind === 'NONE'));
+  assert.equal(checkHollow(sim, mage, 7, []).def.atkType, 'MAGIC', 'a magic hero meets a magic hollow');
+  const viaSpawn = sim.spawnFoe('HOLLOW', { n: 7, clears: 3, descentClears: 3, hero: geared });
+  assert.deepEqual([viaSpawn.maxHp, viaSpawn.atk], [sim.hollowOf(geared, 7).maxHp, sim.hollowOf(geared, 7).atk], 'spawnFoe routes HOLLOW to hollowOf');
+  return `hollowOf: ATK ${sim.HOLLOW_ATK_SHARE} x plain attack x actMult/ACT_MULT[3], HP ${sim.HOLLOW_HP_HITS} plain hits (floor ${sim.HOLLOW_HP_FLOOR} x max HP), resists capped ${sim.HOLLOW_RES_CAP}, gear affixes in order (max 3), weapon kind`;
+}
+
+export function affixRules(sim) {
+  return [affixBehaviour, spawnTopUp, phaseLine, hollow].map((rule) => rule(sim)).join(' | ');
+}

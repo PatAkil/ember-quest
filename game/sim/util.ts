@@ -60,3 +60,14 @@ export function createSeededRng(seed: number): SeededRng {
     setState: (s) => { a = s >>> 0; },
   };
 }
+
+export function shuffled<T>(items: readonly T[], rng: Rng): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = pickOneIndex(rng, i + 1);
+    const held = at(out, i);
+    out[i] = at(out, j);
+    out[j] = held;
+  }
+  return out;
+}

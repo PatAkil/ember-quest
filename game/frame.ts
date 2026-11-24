@@ -1,11 +1,10 @@
-import { PICO8 } from '../engine';
 import type { SceneMachine } from '../engine';
 import { startPlaying } from './flow';
 import { updatePops } from './pops';
 import { drawReveal, revealActive, trackReveal } from './transition';
 import { resetCursorEdge } from './state';
 import type { Game, SubScene } from './state';
-import { C_ACCENT, C_BG, H, W } from './theme';
+import { C_BG, H, W } from './theme';
 import { renderBattle } from './screens/battle-view';
 import { updateBattle } from './screens/battle';
 import { renderCard, updateCard } from './screens/card';
@@ -23,7 +22,8 @@ import { renderPact } from './screens/pact-view';
 import { updatePact } from './screens/pact';
 import { renderThreshold } from './screens/threshold-view';
 import { updateThreshold } from './screens/threshold';
-import { renderEndingOverlay, renderPausedOverlay, renderTitle } from './screens/title';
+import { renderPausedOverlay, renderTitle } from './screens/title';
+import { renderGameOverOverlay, renderWinOverlay } from './screens/ending';
 
 type Scene = SceneMachine['current'];
 
@@ -94,8 +94,8 @@ export function update(g: Game, dt: number): void {
 const renderPlaying = (g: Game): void => { RENDER_SUB[g.subScene](g); drawReveal(g); };
 
 const renderPaused = (g: Game): void => { renderPlaying(g); renderPausedOverlay(g); };
-const renderGameOver = (g: Game): void => { renderPlaying(g); renderEndingOverlay(g, { headline: g.deathBiome, color: PICO8[8], sub: 'YOU DIED IN' }); };
-const renderWin = (g: Game): void => { renderPlaying(g); renderEndingOverlay(g, { headline: 'VICTORY', color: C_ACCENT, sub: 'THE SERAPH IS UNMADE' }); };
+const renderGameOver = (g: Game): void => { renderPlaying(g); renderGameOverOverlay(g); };
+const renderWin = (g: Game): void => { renderPlaying(g); renderWinOverlay(g); };
 
 const RENDER_SCENE: Record<Scene, (g: Game) => void> = {
   TITLE: renderTitle,

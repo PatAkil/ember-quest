@@ -32,27 +32,40 @@ function drawTag(ctx: Ctx, tag: Tag, at: { x: number; y: number }): void {
 
 interface Strip { plate: PlateBox; pad: number; y: number }
 
-function drawStrip(ctx: Ctx, tags: readonly Tag[], strip: Strip): void {
+type Choices = readonly Tag[];
+
+function drawStrip(ctx: Ctx, entries: readonly Choices[], strip: Strip): void {
   const { plate, pad, y } = strip;
   const right = plate.x + plate.w - pad + BACK_PAD;
   let x = plate.x + pad;
-  for (const tag of tags) {
-    const w = tagWidth(tag);
-    if (x + w + BACK_PAD > right) {continue;}
+  for (const choices of entries) {
+    const tag = choices.find((t) => x + tagWidth(t) + BACK_PAD <= right);
+    if (!tag) {continue;}
     drawTag(ctx, tag, { x, y });
-    x += w + 2 * BACK_PAD + TAG_GAP;
+    x += tagWidth(tag) + 2 * BACK_PAD + TAG_GAP;
   }
 }
 
 const word = (text: string, color: string): Tag => [{ text, color }];
 
-function enemyTags(e: EnemyInstance): Tag[] {
-  const tags: Tag[] = [];
-  if (e.def.weak) {tags.push([{ text: 'WEAK', color: C_TEXT }, { text: e.def.weak, color: ELEMENT_COLOR[e.def.weak] }]);}
-  if (e.wardTurns > 0) {tags.push(word(`WARD ${e.wardTurns}`, C_WARD));}
-  if (e.burn) {tags.push(word(`BURN ${e.burn.turns}`, C_EMBER));}
-  if (e.def.resists) {tags.push([{ text: 'RES', color: C_DIM }, { text: e.def.resists, color: ELEMENT_COLOR[e.def.resists] }]);}
-  for (const affix of e.affixes) {tags.push(word(affix, C_DIM));}
+const AFFIX_CYCLE = 1.6;
+export const C_AFFIX = PICO8[8];
+
+function affixChoices(affixes: readonly string[], clock: number): Choices {
+  const shown = affixes[Math.floor(clock / AFFIX_CYCLE) % Math.max(1, affixes.length)];
+  if (shown === undefined) {return [];}
+  const more = affixes.length - 1;
+  const alone = word(shown, C_AFFIX);
+  return more > 0 ? [[{ text: shown, color: C_AFFIX }, { text: `+${String(more)}`, color: C_DIM }], alone] : [alone];
+}
+
+function enemyTags(e: EnemyInstance, clock: number): Choices[] {
+  const tags: Choices[] = [];
+  if (e.def.weak) {tags.push([[{ text: 'WEAK', color: C_TEXT }, { text: e.def.weak, color: ELEMENT_COLOR[e.def.weak] }]]);}
+  tags.push(affixChoices(e.affixes, clock));
+  if (e.wardTurns > 0) {tags.push([word(`WARD ${e.wardTurns}`, C_WARD)]);}
+  if (e.burn) {tags.push([word(`BURN ${e.burn.turns}`, C_EMBER)]);}
+  if (e.def.resists) {tags.push([[{ text: 'RES', color: C_DIM }, { text: e.def.resists, color: ELEMENT_COLOR[e.def.resists] }]]);}
   return tags;
 }
 
@@ -77,6 +90,6 @@ function edgeTags(hero: Hero, state: BattleState | null): Tag[] {
 export function drawTags(g: Game, plates: TagPlates): void {
   const ctx = g.app.pc.ctx;
   const { enemy, state } = g.battle;
-  if (!g.heroDown) {drawStrip(ctx, heroTags(g.hero, state, guardShown(g)), { plate: plates.hero, pad: plates.pad, y: HERO_TAG_Y });}
-  if (enemy && enemy.hp > 0) {drawStrip(ctx, enemyTags(enemy), { plate: plates.enemy, pad: plates.pad, y: ENEMY_TAG_Y });}
+  if (!g.heroDown) {drawStrip(ctx, heroTags(g.hero, state, guardShown(g)).map((t) => [t]), { plate: plates.hero, pad: plates.pad, y: HERO_TAG_Y });}
+  if (enemy && enemy.hp > 0) {drawStrip(ctx, enemyTags(enemy, g.clock), { plate: plates.enemy, pad: plates.pad, y: ENEMY_TAG_Y });}
 }

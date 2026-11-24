@@ -22,6 +22,7 @@ import {
 import { CLEAR_HEAL, SKIP_MEND, SPELLS, SPELL_ORDER } from '../data';
 import { canBurst } from './burst';
 import { allEffects, effectiveEffect, effectiveMods, itemLevel } from './gear';
+import { pactMods, type PactTotals } from './pacts';
 import { clamp } from './util';
 
 export function createHero(): Hero {
@@ -80,7 +81,8 @@ function addEdgeMods(d: Derived, m: StatMods): void {
   d.mpRegen += m.mpRegen ?? 0;
 }
 
-function finalizeDerived(d: Derived, glass: number): Derived {
+function finalizeDerived(d: Derived, glass: number, hpMult: number): Derived {
+  if (hpMult !== 1) {d.maxHp = Math.round(d.maxHp * hpMult);}
   if (glass > 0) {d.maxHp = Math.round(d.maxHp * Math.max(0.1, 1 - glass));}
   d.maxHp = Math.max(1, Math.round(d.maxHp));
   d.maxMp = Math.max(0, Math.round(d.maxMp));
@@ -109,7 +111,7 @@ export function derive(hero: Hero): Derived {
     const eff = effectiveEffect(item, level);
     if (eff.kind === 'GLASS') {glass += eff.maxHpFraction;}
   }
-  return finalizeDerived(d, glass);
+  return finalizeDerived(d, glass, pactMods(hero).maxHpMult);
 }
 
 export function knownSpells(hero: Hero): SpellId[] {
@@ -185,10 +187,17 @@ export function fullHeal(hero: Hero): void {
   hero.mp = d.maxMp;
 }
 
+const KIND_SP: Record<EnemyKind, (mods: PactTotals) => number> = {
+  NORMAL: () => 0,
+  ELITE: (mods) => mods.eliteSp,
+  BOSS: (mods) => mods.spPerBoss,
+};
+
 export function grantClear(hero: Hero, kind: EnemyKind): { sp: number; hp: number; mp: number } {
-  const sp = SP_PER_KIND[kind];
+  const mods = pactMods(hero);
+  const sp = SP_PER_KIND[kind] + mods.spPerClear + KIND_SP[kind](mods);
   hero.sp += sp;
-  const healed = healFraction(hero, CLEAR_HEAL);
+  const healed = healFraction(hero, CLEAR_HEAL * mods.clearHealMult);
   return { sp, hp: healed.hp, mp: healed.mp };
 }
 

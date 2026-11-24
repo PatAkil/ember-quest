@@ -5,6 +5,7 @@ import {
   STAT_KEYS,
   type Derived,
   type Hero,
+  type PactId,
   type Rng,
   type StatKey,
 } from '../types';
@@ -91,7 +92,7 @@ const BALANCED_ALLOCATE = (hero: Hero, d: Derived): StatKey =>
 
 const randomIndex = (length: number): number => Math.floor(context.rng() * Math.max(1, length));
 
-const RANDOM_CHOICES: PolicyChoices = {
+const RANDOM_CHOICES: PolicyChoices & Pick<Policy, 'pactChoice'> = {
   stowOrEquip: () => (context.rng() < 0.5 ? 'STOW' : 'EQUIP'),
   dropWhich: (hero) => randomIndex(hero.pack.length + 1),
   upgradeTarget: (_hero, targets) => randomIndex(targets.length),
@@ -99,11 +100,19 @@ const RANDOM_CHOICES: PolicyChoices = {
     if (hero.pack.length > 0 && context.rng() < 0.5) {swapIn(hero, randomIndex(hero.pack.length));}
   },
   eventChoice: (hero, event) => randomEventChoice(hero, event, context.rng),
+  pactChoice: (_hero, offers) => randomIndex(offers.length),
 };
+
+const preferPacts = (order: readonly PactId[]) => (_hero: Hero, offers: readonly PactId[]): number => {
+  const ranked = offers.map((id) => order.indexOf(id));
+  return ranked.indexOf(Math.min(...ranked.map((r) => (r < 0 ? order.length : r))));
+};
+
+const STEADY_PACTS = preferPacts(['IRON', 'TITHE', 'HUNTER', 'MISER', 'ASH', 'HEX', 'STORM', 'BRITTLE']);
 
 const GLASS_BONUS: ItemBonus = (i) => (i.slot === 'WEAPON' && i.weaponKind === 'MAGIC' ? 8 : 0);
 const TANK_BONUS: ItemBonus = (i) => (i.slot === 'WEAPON' && i.weaponKind !== 'MAGIC' ? 6 : 0);
-const BALANCED_CHOICES = choicesFor(P_BALANCED);
+const BALANCED_CHOICES = { ...choicesFor(P_BALANCED), pactChoice: STEADY_PACTS };
 
 const randomPolicy: Policy = {
   ...RANDOM_CHOICES,
@@ -136,6 +145,7 @@ export const POLICIES: Record<PolicyName, Policy> = {
   },
   glass: {
     ...choicesFor(P_OFFENCE, GLASS_BONUS),
+    pactChoice: preferPacts(['BRITTLE', 'STORM', 'TITHE', 'HEX', 'MISER', 'IRON', 'HUNTER', 'ASH']),
     allocate: (hero, d) => cycleAllocate(hero, d, [primaryStat(d), 'CRIT', primaryStat(d), 'HP'], primaryStat(d)),
     pick: (hero, offered) => bestPick(hero, offered, P_OFFENCE, GLASS_BONUS),
     act: battleAct({ mendBelow: 0.35, verbs: true }),
@@ -143,6 +153,7 @@ export const POLICIES: Record<PolicyName, Policy> = {
   },
   tank: {
     ...choicesFor(P_DEFENCE, TANK_BONUS),
+    pactChoice: preferPacts(['IRON', 'ASH', 'TITHE', 'MISER', 'HUNTER', 'HEX', 'STORM', 'BRITTLE']),
     allocate: (hero, d) => cycleAllocate(hero, d, ['HP', 'DEF', 'ATK', 'MDEF'], 'HP'),
     pick: (hero, offered) => bestPick(hero, offered, P_DEFENCE, TANK_BONUS),
     act: battleAct({ mendBelow: 0.5, verbs: true }),
@@ -150,6 +161,7 @@ export const POLICIES: Record<PolicyName, Policy> = {
   },
   eliteHungry: {
     ...BALANCED_CHOICES,
+    pactChoice: preferPacts(['HUNTER', 'HEX', 'IRON', 'TITHE', 'MISER', 'ASH', 'STORM', 'BRITTLE']),
     allocate: BALANCED_ALLOCATE,
     pick: (hero, offered) => bestPick(hero, offered, P_BALANCED),
     act: battleAct({ mendBelow: 0.35, verbs: true }),
@@ -161,6 +173,7 @@ export const POLICIES: Record<PolicyName, Policy> = {
   },
   chestHungry: {
     ...BALANCED_CHOICES,
+    pactChoice: preferPacts(['MISER', 'TITHE', 'IRON', 'ASH', 'HUNTER', 'HEX', 'STORM', 'BRITTLE']),
     allocate: BALANCED_ALLOCATE,
     pick: (hero, offered) => bestPick(hero, offered, P_BALANCED),
     act: battleAct({ mendBelow: 0.35, verbs: true }),

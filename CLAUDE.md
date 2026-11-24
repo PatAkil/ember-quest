@@ -64,7 +64,7 @@ ember-quest/
 │   ├── pops.ts               # floating damage/score pops
 │   ├── storage.ts            # best score in localStorage
 │   ├── lookup.ts             # at, pickOneIndex (re-exported from sim), must, noop — guarded indexed access
-│   ├── screens/              # one update + one view per screen: battle/battle-view, map/map-view, loot/loot-view, levelup, card, status (map status panel), gear/gear-view (GEAR: worn slots + pack, B on the map), pick/pick-view (PICK: the shared chooser, e.g. UPGRADE WHICH?), threshold/threshold-view (THRESHOLD: ASCEND or DESCEND), pact/pact-view (PACT: one of up to three pacts), title (title, pause, endings)
+│   ├── screens/              # one update + one view per screen: battle/battle-view, map/map-view, loot/loot-view, levelup, card, status (map status panel), gear/gear-view (GEAR: worn slots + pack, B on the map), pick/pick-view (PICK: the shared chooser, e.g. UPGRADE WHICH?), threshold/threshold-view/threshold-gate (THRESHOLD: ASCEND or DESCEND, the abyss gate), pact/pact-view (PACT: one of up to three pacts), title (title, pause), ending (GAME OVER / WIN overlays), battle-fx-affix (SWIFT, THORNED, VAMPIRIC beats)
 │   │   ├── battle-fx.ts      #   choreography of a turn: wind-ups, impacts, pops, regen aura, defeat, entrance, death
 │   │   ├── battle-fx-view.ts #   draws the shots (orbs, bolts, slashes, blooms …) and the boss/elite banner strip
 │   │   ├── battle-fx-verbs.ts #  the beat of each battle verb: guard, parry, break, burst, potion, burn tick, phase, weak
@@ -122,7 +122,7 @@ ember-quest/
 - **Look before you report.** `npm run look -- --scene battle --act 2 --seed 7` prints one
   JSON line (`ok`, the game `state`, console/page `errors`, the screenshot path) in under
   a second; read the state first and the screenshot whenever the look changed. Scenes:
-  `title map battle levelup loot card paused gameover win gear pick drop battle-heavy battle-magic battle-ward battle-phase event threshold pact`; acts 1–4, depths 1–10 (`--depth`). Claude may say what
+  `title map battle levelup loot card paused gameover win gear pick drop battle-heavy battle-magic battle-ward battle-phase event threshold pact battle-hollow map-long battle-affix`; acts 1–4, depths 1–10 (`--depth`). Claude may say what
   it saw; the owner remains the playtester for feel — report "builds, boots clean,
   ready to play at <URL>", never "playtested".
 - **Done means**: `npm run check` and `npm run lint` after every edit (or `npx eslint
@@ -180,7 +180,9 @@ marked by `g.rngFromHook`, always wins); `?scene=<name>&act=<1..4>&depth=<1..10>
 deterministic fixture (seed defaults to 1) at stage `n = 4(depth − 1) + act − 1`; below depth 1
 the fixture holds the depth plan, `won`, the banked score and one pact per depth entered;
 `threshold` stops on the THRESHOLD after the depth's last boss, `win` ascends from it, and `pact`
-descends into `depth` (from the depth above it); `&hold=1` also seeds `Math.random` (ambient,
+descends into `depth` (from the depth above it); `battle-hollow` fights THE HOLLOW as the act's
+boss, `map-long` regenerates the act's map with 8 stages, `battle-affix` gives the foe THORNED,
+VAMPIRIC and SWIFT; `&hold=1` also seeds `Math.random` (ambient,
 shake) and stops the rAF loop from ticking or drawing, so frames advance only through
 the hook — this is what makes screenshots pixel-identical. In the page:
 `window.__ember.state()` (JSON: scene, subScene, act (= actInDepth + 1), n, depth, actInDepth, seed, cursor,

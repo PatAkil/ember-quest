@@ -11,6 +11,7 @@ import { enemyImpact, enemyWindup, reviveFx } from './battle-fx-enemy';
 import type { PopSpec } from './battle-fx';
 import { fxBreak, fxBurnTick, fxBurst, fxGuard, fxPhase, fxPotion, fxResist, fxRiposte, fxWeak } from './battle-fx-verbs';
 import { clampMenuCursor, menuChoice } from './battle-menu';
+import { fxSlipsAway, fxThorns } from './battle-fx-affix';
 import { clearPops, pushPop, scoreSpot } from '../pops';
 
 export function startBattle(g: Game, id: string, onWin: () => void, affixes: readonly AffixId[] = []): void {
@@ -167,11 +168,20 @@ function landHeroAction(g: Game, action: HeroAction, slot: number): void {
   heroImpact(g, { action, result: r, slot, preHp, riposte });
   verbFx(g, action, r);
   if (riposte) {fxRiposte(g);}
+  if (affixFx(g, r, slot)) {return;}
   if (r.enemyDefeated) { enemyDefeated(g, e, lastHitDelay(r.hits.length)); return; }
   if (r.broke) {cue(g, BREAK_SAY_DELAY, () => { say(g, `BREAK! ${e.def.name} LOSES ITS TURN`, C_ACCENT); });}
   g.battle.timer = heroHold(action, r);
   push(g, BRACE_DUR, () => { prepareFx(g); });
   push(g, ENEMY_TURN_HOLD, () => { enemyStep(g, e); });
+}
+
+function affixFx(g: Game, r: HeroActResult, slot: number): boolean {
+  if (r.missed) {fxSlipsAway(g, slot);}
+  if (r.thorns > 0) {fxThorns(g, r.thorns, r.hits.length);}
+  if (r.revived) {reviveFx(g);}
+  if (r.heroDead) { heroDies(g, r.text); return true; }
+  return false;
 }
 
 const elementOf = (action: HeroAction) => (isSpell(action) ? SPELLS[action].element : undefined);

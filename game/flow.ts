@@ -1,8 +1,8 @@
-import { ENEMIES, BOSS_ENTRY_HEAL } from './data';
+import { ENEMIES, BOSS_ENTRY_HEAL, PACTS } from './data';
 import { ACTS_PER_DEPTH } from './types';
 import type { EnemyKind, Hero, LootSource } from './types';
 import {
-  createHero, createSeededRng, depthOf, fullHeal, gloryBonus, grantClear, healFraction, isLastActOfDepth, offerPacts, planDepth, planOf,
+  actInDepth, createHero, createSeededRng, depthOf, fullHeal, gloryBonus, grantClear, healFraction, isLastActOfDepth, offerPacts, planDepth, planOf,
   refillPotions, scoreAfterDeath, scoreOf, takePendingBurn,
 } from './sim';
 import { at, must } from './lookup';
@@ -39,7 +39,7 @@ function onClear(g: Game, kind: EnemyKind): number {
   return grantClear(g.hero, kind).sp;
 }
 
-function enterAct(g: Game): void {
+export function enterAct(g: Game): void {
   g.map.stages = generateMap(g.rng, g.plan);
   g.map.pendingNode = null;
   g.map.curStage = -1;
@@ -58,12 +58,18 @@ function advanceAct(g: Game): void {
   showCard(g, [`${biome(g).name} AWAITS...`, 'THE DESCENT CONTINUES'], () => { enterAct(g); });
 }
 
+function depthCardLines(g: Game): string[] {
+  const pact = g.hero.pacts[g.hero.pacts.length - 1];
+  const sworn = pact === undefined ? 'NO PACT LEFT TO SWEAR' : `SWORN TO ${PACTS[pact].name}`;
+  return [`DEPTH ${String(depthOf(g.n))}`, `${biome(g).name} AWAITS...`, sworn];
+}
+
 function enterDepth(g: Game): void {
   g.n++;
   g.depthPlan = planDepth(depthOf(g.n), g.rng);
   g.plan = planOf(g.depthPlan, g.n);
   const offers = offerPacts(g.hero, g.rng);
-  const card = (): void => { showCard(g, [`DEPTH ${String(depthOf(g.n))}`, `${biome(g).name} AWAITS...`], () => { enterAct(g); }); };
+  const card = (): void => { showCard(g, depthCardLines(g), () => { enterAct(g); }); };
   if (offers.length === 0) { card(); return; }
   startPact(g, offers, freshStage(g, card));
 }
@@ -185,8 +191,8 @@ function settleDeath(g: Game): void {
 }
 
 function saveBest(g: Game): void {
-  g.beatBest = g.score > g.best;
-  if (g.beatBest) { g.best = g.score; storeBest(g.best); }
+  g.beatBest = g.score > g.best.score;
+  if (g.beatBest) { g.best = { score: g.score, depth: depthOf(g.n), act: actInDepth(g.n) + 1 }; storeBest(g.best); }
 }
 
 export function wireScenes(g: Game): void {

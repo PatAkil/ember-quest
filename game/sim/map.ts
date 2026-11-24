@@ -1,6 +1,6 @@
-import type { AffixId, Rng } from '../types';
+import { AFFIX_IDS, type AffixId, type Rng } from '../types';
 import type { RoomType } from './model';
-import { at, pickOneIndex } from './util';
+import { at, pickOneIndex, shuffled } from './util';
 
 type StageRoom = Exclude<RoomType, 'BOSS'>;
 
@@ -167,17 +167,35 @@ function ensureEvent(stages: readonly MapNode[][], rng: Rng): void {
   if (chosen) {chosen.type = 'EVENT';}
 }
 
-export interface FoePools { normals: readonly string[]; elites: readonly string[] }
+export interface FoePools {
+  normals: readonly string[];
+  elites: readonly string[];
+  affixCount?: { normal: number; elite: number };
+}
 
 function rollFoe(pool: readonly string[], fallback: readonly string[], rng: Rng): string | undefined {
   const from = pool.length > 0 ? pool : fallback;
   return from.length > 0 ? from[pickOneIndex(rng, from.length)] : undefined;
 }
 
+export const rollAffixes = (count: number, rng: Rng): AffixId[] => (count > 0 ? shuffled(AFFIX_IDS, rng).slice(0, count) : []);
+
+function scoutAffixes(node: MapNode, count: number, rng: Rng): void {
+  const affixes = rollAffixes(count, rng);
+  if (affixes.length > 0) {node.affixes = affixes;}
+}
+
 function scoutFoes(stages: readonly MapNode[][], pools: FoePools, rng: Rng): void {
+  const counts = pools.affixCount ?? { normal: 0, elite: 0 };
   for (const node of stages.flat()) {
-    if (node.type === 'FIGHT') {node.enemyId = rollFoe(pools.normals, pools.elites, rng);}
-    if (node.type === 'ELITE') {node.enemyId = rollFoe(pools.elites, pools.normals, rng);}
+    if (node.type === 'FIGHT') {
+      node.enemyId = rollFoe(pools.normals, pools.elites, rng);
+      scoutAffixes(node, counts.normal, rng);
+    }
+    if (node.type === 'ELITE') {
+      node.enemyId = rollFoe(pools.elites, pools.normals, rng);
+      scoutAffixes(node, counts.elite, rng);
+    }
   }
 }
 

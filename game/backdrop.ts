@@ -7,6 +7,7 @@ import type { Pose } from './fx';
 import type { PopAnchor } from './pops';
 import { ACTOR_PX, ENEMY_FRONT, ENEMY_MIN_X, FLOOR_Y, H, HERO_H, HERO_W, HERO_X, W } from './theme';
 import type { Point } from './theme';
+import { depthOf } from './sim';
 import { biomeLook } from './state';
 import type { Game } from './state';
 
@@ -130,11 +131,38 @@ function templeBackdrop(l: Layer): void {
 
 const BACKDROPS: readonly ((l: Layer) => void)[] = [cryptBackdrop, tundraBackdrop, desertBackdrop];
 
+interface DepthCast { color: string; alpha: number; rim?: string }
+
+const DEPTH_CASTS: readonly (DepthCast | null)[] = [null, null, { color: PICO8[8], alpha: 0.14 }, { color: PICO8[2], alpha: 0.34 }];
+const ABYSS_CAST: DepthCast = { color: PICO8[0], alpha: 0.55, rim: PICO8[8] };
+
+function depthCast(n: number): DepthCast | null {
+  const depth = depthOf(n);
+  return depth >= DEPTH_CASTS.length ? ABYSS_CAST : DEPTH_CASTS[depth] ?? null;
+}
+
+function castOver(g: Game, area: { y: number; h: number }): void {
+  const cast = depthCast(g.n);
+  if (!cast) {return;}
+  const ctx = g.app.pc.ctx;
+  ctx.globalAlpha = cast.alpha; ctx.fillStyle = cast.color;
+  ctx.fillRect(0, area.y, W, area.h);
+  ctx.globalAlpha = 1;
+}
+
 export function renderBiomeBackdrop(g: Game, dim = 1, showSun = true): void {
   const draw = BACKDROPS[g.plan.biomeIndex] ?? templeBackdrop;
   const ctx = g.app.pc.ctx;
   draw({ ctx, clock: g.clock, dim, showSun });
   ctx.globalAlpha = 1;
+  castOver(g, { y: 0, h: H });
+}
+
+function drawAbyssRim(g: Game): void {
+  const rim = depthCast(g.n)?.rim;
+  if (rim === undefined) {return;}
+  const ctx = g.app.pc.ctx;
+  ctx.fillStyle = rim; ctx.fillRect(0, FLOOR_Y, W, 1);
 }
 
 const FLOOR_BLEED = 1;
@@ -145,6 +173,8 @@ export function renderFloor(g: Game): void {
   drawBevel(ctx, { x: -FLOOR_BLEED, y: FLOOR_Y, w: W + 2 * FLOOR_BLEED, h: H - FLOOR_Y }, { fill: b.floor, light: b.floorLight, dark: b.floorDark });
   fillDither(ctx, { x: 0, y: FLOOR_Y + 2, w: W, h: 2 }, { colorA: b.floor, colorB: b.floorLight, pattern: 'sparse' });
   fillDither(ctx, { x: 0, y: H - 10, w: W, h: 10 }, { colorA: b.floor, colorB: b.floorDark, pattern: 'sparse' });
+  castOver(g, { y: FLOOR_Y, h: H - FLOOR_Y });
+  drawAbyssRim(g);
 }
 
 interface ActorPose { phase: number; px?: number; motion?: Pose; seed?: number; elite?: boolean }

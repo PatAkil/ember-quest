@@ -114,7 +114,8 @@ export const AFFIX_IDS: readonly AffixId[] = ['VAMPIRIC', 'ARMORED', 'WARDED', '
 export const AFFIX_MAX = 3;
 export const AFFIX_RESIST = 20;
 export const AFFIX_LIFESTEAL = 0.3;
-export const AFFIX_THORNS = 0.2;
+export const AFFIX_THORNS = 0.15;
+export const AFFIX_THORNS_CAP = 0.12;
 export const AFFIX_EVADE = 0.15;
 export interface FoeScale { n: number; clears: number; descentClears: number | null }
 export interface EnemyDef {
@@ -143,6 +144,7 @@ export interface EnemyInstance {
   burn: Burn | null;
   wardTurns: number;
   phase: 1 | 2;
+  phaseAt?: number;
   cycleIndex: number;
   mended: boolean;
   staggered: boolean;
@@ -225,6 +227,9 @@ export interface HeroActResult {
   guarded: boolean;
   missed: boolean;
   burned: boolean;
+  thorns: number;
+  heroDead: boolean;
+  revived: boolean;
 }
 export interface EnemyActResult {
   move: MoveId;
@@ -258,11 +263,22 @@ export interface TurnStart {
 export type Rng = () => number;
 
 export const ACTS_PER_DEPTH = 4;
-export const DESCENT_GROWTH = 1.08;
+export const DESCENT_GROWTH = 1.2;
 export const SCORE_PER_CLEAR = 100;
 export const SCORE_PER_BOSS = 500;
 export const GLORY_PER_DEPTH = 1000;
 export const HOLLOW_HP_FLOOR = 2;
+export const HOLLOW_ATK_SHARE = 0.7;
+export const HOLLOW_HP_HITS = 30;
+export const HOLLOW_RES_CAP = 40;
+export const HOLLOW_SWIFT_DODGE = 15;
+export const DESCENT_STAGE_MAX = 8;
+export const DESCENT_ELITE_STEP = 5;
+export const DESCENT_FIGHT_FLOOR = 21;
+export const DESCENT_PHASE_AT = 0.7;
+export const DESCENT_LEGENDARY_STEP = 3;
+export const DESCENT_LEGENDARY_CAP = 30;
+export const REST_MEND = 0.25;
 
 export type PactId = 'BRITTLE' | 'TITHE' | 'HEX' | 'IRON' | 'MISER' | 'STORM' | 'ASH' | 'HUNTER';
 export const PACT_IDS: readonly PactId[] = ['BRITTLE', 'TITHE', 'HEX', 'IRON', 'MISER', 'STORM', 'ASH', 'HUNTER'];

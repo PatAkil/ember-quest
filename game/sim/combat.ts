@@ -14,7 +14,7 @@ import {
   type SpellId,
 } from '../types';
 import { ENEMIES, SPELLS } from '../data';
-import { affixResists } from './affixes';
+import { affixResists, swiftEvades, thornsDamage } from './affixes';
 import { commandAct, heroResult, isCommand, settleBreak } from './commands';
 import { elementMult } from './element';
 import { gainEmber } from './burst';
@@ -22,8 +22,9 @@ import { actMult } from './descent';
 import { nextIntent } from './enemy-turn';
 import { findEffect } from './gear';
 import { derive, isGuardAction, spellCost } from './hero';
+import { pactDamage } from './pacts';
 import { burnChance, gearPower, heroElement, riposteMult } from './power';
-import { applyBurn, resistOf, tickWard } from './status';
+import { applyBurn, heroFalls, resistOf, tickWard } from './status';
 import { jitter, type EffectOf } from './util';
 
 type Scope = 'ATTACK' | 'SPELL';
@@ -193,13 +194,19 @@ function igniteFoe(hero: Hero, enemy: EnemyInstance, volley: Volley, rng: Rng): 
 interface Power { ramp: Ramp; opener: number }
 
 function strikePower(hero: Hero, battle: BattleState, d: Derived, action: StrikeAction): number {
-  const power = gearPower({ hero, battle, d, element: heroElement(hero, action) });
+  const power = gearPower({ hero, battle, d, element: heroElement(hero, action) }) * pactDamage(hero, action === 'ATTACK');
   return battle.riposte ? power * riposteMult(hero) : power;
 }
 
 function openerOf(hero: Hero, battle: BattleState, scope: Scope): Power {
   const firstStrike = findEffect(hero, 'FIRST_STRIKE');
   return { ramp: rampFor(hero, battle, scope), opener: firstStrike && battle.actionsTaken === 0 ? firstStrike.mult : 1 };
+}
+
+function slipsAway(battle: BattleState, ramp: Ramp, scope: Scope): HeroActResult {
+  advance(battle, ramp, scope);
+  battle.riposte = false;
+  return heroResult('IT SLIPS AWAY!', { missed: true });
 }
 
 function strikeAct(hero: Hero, battle: BattleState, action: StrikeAction, rng: Rng): HeroActResult {
@@ -213,6 +220,7 @@ function strikeAct(hero: Hero, battle: BattleState, action: StrikeAction, rng: R
     advance(battle, ramp, scope);
     return result;
   }
+  if (swiftEvades(enemy, rng)) {return slipsAway(battle, ramp, scope);}
   const swing = swingFor(hero, d, action);
   const elementMul = elementMult(enemy.def, heroElement(hero, action));
   const power = ramp.mult * opener * strikePower(hero, battle, d, action);
@@ -252,11 +260,21 @@ function act(hero: Hero, battle: BattleState, action: HeroAction, rng: Rng): Her
   return action === 'ATTACK' ? strikeAct(hero, battle, action, rng) : spellAct(hero, battle, action, rng);
 }
 
+function backlash(hero: Hero, battle: BattleState, result: HeroActResult): HeroActResult {
+  const dealt = result.hits.reduce((sum, h) => sum + h.dmg, 0);
+  const thorns = result.enemyDefeated ? 0 : thornsDamage(battle.enemy, dealt, derive(hero).maxHp);
+  if (thorns <= 0) {return result;}
+  hero.hp -= thorns;
+  const fall = heroFalls(hero);
+  const text = `${result.text.slice(0, 40)} THORNS ${String(thorns)}`;
+  return { ...result, text: text.slice(0, 52), thorns, heroDead: fall === 'DEAD', revived: fall === 'REVIVED' };
+}
+
 export function heroAct(hero: Hero, battle: BattleState, action: HeroAction, rng: Rng): HeroActResult {
   battle.guardChain = isGuardAction(action) ? battle.guardChain + 1 : 0;
   battle.guarding = false;
   battle.aegis = 0;
   const result = act(hero, battle, action, rng);
   tickWard(battle.enemy);
-  return settleBreak(hero, battle, action, result);
+  return backlash(hero, battle, settleBreak(hero, battle, action, result));
 }

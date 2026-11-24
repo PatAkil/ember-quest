@@ -8,6 +8,7 @@ import type { App } from './app';
 import { BIOME_LOOK, C_TEXT } from './theme';
 import type { BiomeLook } from './theme';
 import { loadBest } from './storage';
+import type { BestRecord } from './storage';
 import { at, noop, pickOneIndex } from './lookup';
 import { createFx, createReveal } from './fx-state';
 import type { FxState, Reveal } from './fx-state';
@@ -55,8 +56,8 @@ export interface GearScreen { cursor: number; refusedAt: number }
 export interface PickRow { icon?: Sprite; name: string; color: string; note: string; detail: string[] }
 export interface EventScreen { def: EventDef; cursor: number; refusedAt: number; onDone: () => void }
 export type ThresholdChoice = 'ASCEND' | 'DESCEND';
-export interface ThresholdScreen { cursor: number; choose: (choice: ThresholdChoice) => void }
-export interface PactScreen { offers: PactId[]; cursor: number; onDone: () => void }
+export interface ThresholdScreen { cursor: number; openedAt: number; choose: (choice: ThresholdChoice) => void }
+export interface PactScreen { offers: PactId[]; cursor: number; openedAt: number; onDone: () => void }
 export interface PickScreen { title: string; rows: PickRow[]; cursor: number; locked?: boolean; onPick: (i: number) => void; onCancel: () => void }
 
 export interface Game {
@@ -78,7 +79,7 @@ export interface Game {
   subScene: SubScene;
   prevDirY: number;
   prevDirX: number;
-  best: number;
+  best: BestRecord;
   beatBest: boolean;
   deathBiome: string;
   dying: boolean;
@@ -139,15 +140,15 @@ export function createGame(app: App): Game {
     gear: { cursor: 0, refusedAt: -1 },
     pick: { title: '', rows: [], cursor: 0, onPick: noop, onCancel: noop },
     event: { def: at(EVENTS, 0), cursor: 0, refusedAt: -1, onDone: noop },
-    threshold: { cursor: 0, choose: noop },
-    pact: { offers: [], cursor: 0, onDone: noop },
+    threshold: { cursor: 0, openedAt: 0, choose: noop },
+    pact: { offers: [], cursor: 0, openedAt: 0, onDone: noop },
   };
 }
 
 export const biome = (g: Game) => at(BIOMES, g.plan.biomeIndex);
 export const biomeLook = (g: Game): BiomeLook => at(BIOME_LOOK, g.plan.biomeIndex);
 export const actRef = (g: Game): ActRef => ({ n: g.n, plan: g.plan });
-export const foeScale = (g: Game): FoeScale => ({ n: g.n, clears: g.clears, descentClears: g.descentClears });
+export const foeScale = (g: Game): FoeScale & { plan: ActPlan } => ({ n: g.n, clears: g.clears, descentClears: g.descentClears, plan: g.plan });
 
 export function resetCursorEdge(g: Game): void {
   g.prevDirY = g.app.input.dir.y;

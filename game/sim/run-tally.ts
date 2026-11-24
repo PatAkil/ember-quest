@@ -1,4 +1,4 @@
-import { type Derived, type EnemyInstance, type EnemyKind, type Hero, type LootOffer, type Rng, type SpellId } from '../types';
+import { type AffixId, type Derived, type EnemyInstance, type EnemyKind, type Hero, type LootOffer, type PactId, type Rng, type SpellId } from '../types';
 import type { ActPlan } from './descent';
 import { equippedItems } from './gear';
 import { derive } from './hero';
@@ -31,6 +31,9 @@ export interface RunResult {
   upgradesPacked?: number;
   verbs?: VerbTally;
   events?: EventTally;
+  pacts?: PactId[];
+  deathAffixes?: AffixId[];
+  thornsDeath?: boolean;
 }
 
 export type EventTally = Record<string, [number, number]>;
@@ -67,6 +70,7 @@ export interface BattleOutcome {
   dmgTaken: number;
   landed: number;
   dmgDealt: number;
+  thorns: boolean;
 }
 
 export interface Tally {
@@ -107,6 +111,8 @@ export interface Ending {
   actReached: number;
   deathBy: string;
   deathKind: RunResult['deathKind'];
+  affixes?: AffixId[];
+  thorns?: boolean;
 }
 
 export function newTally(): Tally {
@@ -171,6 +177,9 @@ export function finish(run: RunState, ending: Ending): RunResult {
     ...tally,
     scrollsMissedAtEnd: hero.missedScrolls.length,
     packAtEnd: hero.pack.length,
+    pacts: [...hero.pacts],
+    deathAffixes: ending.affixes ?? [],
+    thornsDeath: ending.thorns ?? false,
   };
 }
 

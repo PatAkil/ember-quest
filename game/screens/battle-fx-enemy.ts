@@ -7,6 +7,7 @@ import type { Game } from '../state';
 import { C_ACCENT, C_DIM, C_DMG_TAKEN, C_EMBER, C_HP, C_WARD, FLOOR_Y, HERO_X, enemyColor, heroPos } from '../theme';
 import { STRIKE_LOOK, enemySide, impactMark, react, runWindup, toneFor } from './battle-fx';
 import type { Look } from './battle-fx';
+import { fxVampiric } from './battle-fx-affix';
 import { fxGuardedHit, fxHeavyHit, fxMend, fxParry, fxScorch, fxStaggered, fxWard } from './battle-fx-verbs';
 
 function baseLook(e: EnemyInstance): Look {
@@ -104,6 +105,7 @@ export function enemyImpact(g: Game, r: EnemyActResult): void {
   struck(g, r);
   if (r.heroDead) {return;}
   if (r.burned) {fxScorch(g);}
+  if (r.healed > 0) {fxVampiric(g, r.healed);}
   if (r.revived) {reviveFx(g);}
   if (r.reflected > 0) {reflectFx(g, r.reflected);}
   if (r.countered > 0) {counterFx(g, r.countered);}
