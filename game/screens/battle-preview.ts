@@ -15,7 +15,7 @@ const look = (short: string, hint: string, color: string, hot = false): IntentLo
 
 const INTENT: Record<MoveId, IntentLook> = {
   STRIKE: look('STRIKES', 'IT READIES A BLOW', C_TEXT),
-  WINDUP: look('WINDS UP', 'IT WINDS UP - A HEAVY BLOW FOLLOWS', C_WARN),
+  WINDUP: look('WINDS UP', 'IT WINDS UP (LIGHT HIT) - A HEAVY BLOW FOLLOWS', C_WARN),
   HEAVY: look('HEAVY BLOW', 'HEAVY BLOW COMING - GUARD IT OR BREAK IT', C_WARN, true),
   WARD: look('WARDS', 'IT RAISES A WARD - RESISTS RISE FOR 2 TURNS', C_WARD),
   SCORCH: look('SCORCHES', 'IT GATHERS FLAME - THE HIT WILL BURN', C_EMBER),

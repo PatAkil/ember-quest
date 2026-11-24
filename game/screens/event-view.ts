@@ -2,7 +2,7 @@ import { BUTTON_KEY, PICO8, SAFE_MARGIN, drawPanel, drawText, textWidth } from '
 import type { EventEffect, EventOption } from '../data';
 import { POTIONS_MAX } from '../types';
 import type { Hero } from '../types';
-import { effectIsGain, effectWords, eventOptionBlocker } from '../sim';
+import { derive, effectIsGain, effectWords, eventOptionBlocker } from '../sim';
 import { renderTableau } from '../backdrop';
 import type { Game } from '../state';
 import { BAND_Y, C_ACCENT, C_BORDER, C_DIM, C_FAINT, C_GOOD, C_LOG_HURT, C_PANEL, C_SEL_BAR, C_TEXT, C_WARN, HERO_W, HERO_X, W } from '../theme';
@@ -50,8 +50,11 @@ function drawOption(g: Game, ctx: CanvasRenderingContext2D, option: EventOption,
   drawText(ctx, `${sel ? '> ' : '  '}${option.label}`, { x: ROW_X + 2, y }, { color: rowColor(sel, open), shadow: sel });
 }
 
+const healsHp = (e: EventEffect): boolean => e.kind === 'fullHeal' || (e.kind === 'hpPct' && e.amount > 0);
+
 function effectInk(hero: Hero, e: EventEffect): Ink {
   if (e.kind === 'potion' && e.amount > 0 && hero.potions >= POTIONS_MAX) {return { text: 'POTIONS ALREADY FULL', color: C_DIM };}
+  if (healsHp(e) && hero.hp >= derive(hero).maxHp) {return { text: 'ALREADY AT FULL HP', color: C_DIM };}
   return { text: effectWords(e), color: effectIsGain(e) ? C_GOOD : C_LOG_HURT };
 }
 

@@ -4,6 +4,7 @@ import { fail, flag, idList, int, knownKey, list, oneOf, record } from './save-c
 import type { Fields } from './save-check';
 import { MAX_SLOTS, MAX_STAGES, ROOM_TYPES } from './save-read';
 import type { SavedMap, SavedNode, SavedStep } from './save-read';
+import { readRewardStep, readRoomExtras } from './save-battle';
 
 const INDEX = { lo: 0, hi: MAX_SLOTS - 1 };
 
@@ -36,13 +37,15 @@ export function readMap(value: unknown): SavedMap {
 }
 
 type StepAt = SavedStep['at'];
-const STEP_AT: readonly StepAt[] = ['MAP', 'ROOM', 'THRESHOLD', 'PACT'];
+const STEP_AT: readonly StepAt[] = ['MAP', 'ROOM', 'REWARD', 'THRESHOLD', 'PACT'];
 
-function readRoomStep(f: Fields, map: SavedMap): SavedStep {
+function readSpot(f: Fields, map: SavedMap): { stage: number; slot: number } {
   const stage = int(f.stage, 'step stage', { lo: 0, hi: map.stages.length - 1 });
   const slot = int(f.slot, 'step slot', { lo: 0, hi: (map.stages[stage]?.length ?? 0) - 1 });
-  return { at: 'ROOM', stage, slot };
+  return { stage, slot };
 }
+
+const readRoomStep = (f: Fields, map: SavedMap): SavedStep => ({ at: 'ROOM', ...readSpot(f, map), ...readRoomExtras(f) });
 
 function readPactStep(f: Fields): SavedStep {
   const offers = idList(f.offers, 'pact offers', PACT_IDS);
@@ -53,6 +56,7 @@ function readPactStep(f: Fields): SavedStep {
 const STEP_READERS: Record<StepAt, (f: Fields, map: SavedMap) => SavedStep> = {
   MAP: () => ({ at: 'MAP' }),
   ROOM: readRoomStep,
+  REWARD: (f, map) => readRewardStep(f, readSpot(f, map)),
   THRESHOLD: () => ({ at: 'THRESHOLD' }),
   PACT: readPactStep,
 };

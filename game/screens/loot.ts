@@ -6,7 +6,7 @@ import {
   resolveOverflow, resolveUpgrade, rollLoot, skipMend, upgradableTargets,
 } from '../sim';
 import type { AppliedOffer } from '../sim';
-import { actRef, dirEdge, dirEdgeX, resetCursorEdge, wrapCursor } from '../state';
+import { actRef, armA, dirEdge, dirEdgeX, resetCursorEdge, takeA, wrapCursor } from '../state';
 import type { Game, PickRow } from '../state';
 import { ICON_SCROLL } from '../sprites';
 import { C_ACCENT, C_SCROLL, heroPos, rarityColor } from '../theme';
@@ -30,6 +30,7 @@ export function startLoot(g: Game, source: LootSource, onDone: () => void): void
   }
   g.subScene = 'LOOT';
   resetCursorEdge(g);
+  armA(g);
 }
 
 export const choosesStow = (g: Game, offer: LootOffer | undefined): boolean =>
@@ -137,6 +138,7 @@ function upgradeRow(g: Game, offer: UpgradeOffer): PickRow {
 function backToOffers(g: Game): void {
   g.subScene = 'LOOT';
   resetCursorEdge(g);
+  armA(g);
 }
 
 export function chooseUpgrade(g: Game): void {
@@ -152,6 +154,7 @@ export function chooseUpgrade(g: Game): void {
 }
 
 function keepGear(g: Game): void {
+  if (g.loot.ash) { g.app.audio.play('blip'); showCard(g, ['THE ASHES COOL', 'YOUR GEAR STAYS AS IT IS'], g.loot.onDone); return; }
   const m = skipMend(g.hero);
   noteDeclinedScrolls(g.hero, g.loot.offers, null);
   g.app.audio.play('pickup');
@@ -174,7 +177,7 @@ function moveLootCursor(g: Game): void {
 
 export function updateLoot(g: Game): void {
   moveLootCursor(g);
-  if (!g.app.input.pressed('A')) {return;}
+  if (!takeA(g)) {return;}
   const offer = g.loot.offers[g.loot.cursor];
   if (!offer) { keepGear(g); return; }
   if (offer.kind === 'UPGRADE_ANY') { chooseUpgrade(g); return; }

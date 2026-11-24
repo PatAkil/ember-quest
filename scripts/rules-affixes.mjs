@@ -125,23 +125,78 @@ function phaseLine(sim) {
   return `boss phase line ${sim.DESCENT_PHASE_AT} via the instance in the descent, def line in the story`;
 }
 
+const SLOT_NAMES = ['WEAPON', 'ARMOR', 'NECKLACE', 'BOOTS', 'CHALICE', 'TOME'];
+
+function ownedBySlot(hero) {
+  return SLOT_NAMES.map((slot) => {
+    const worn = hero.equipment[slot] ? [{ item: hero.equipment[slot], level: hero.levels[slot] ?? 0 }] : [];
+    return [null, ...worn, ...hero.pack.filter((o) => o.item.slot === slot)];
+  });
+}
+
+function loadouts(sim, hero) {
+  let all = [{}];
+  for (const options of ownedBySlot(hero)) {all = all.flatMap((pick) => options.map((o) => (o ? { ...pick, [o.item.slot]: o } : pick)));}
+  return all.map((pick) => {
+    const worn = Object.values(pick);
+    const owned = ownedBySlot(hero).flat().filter((o) => o && !worn.includes(o));
+    return {
+      ...hero,
+      equipment: Object.fromEntries(worn.map((o) => [o.item.slot, o.item])),
+      levels: Object.fromEntries(worn.map((o) => [o.item.slot, o.level])),
+      pack: owned,
+    };
+  });
+}
+
+function bestOf(sim, hero, field) {
+  return Math.max(...loadouts(sim, hero).map((h) => sim.derive(h)[field]));
+}
+
 function expectedHollow(sim, hero, n) {
-  const d = sim.derive(hero);
-  const kind = hero.equipment.WEAPON?.weaponKind ?? 'PHYSICAL';
-  const base = kind === 'MAGIC' ? d.mag : d.atk;
-  const resPhys = Math.min(sim.HOLLOW_RES_CAP, d.def);
-  const resMagic = Math.min(sim.HOLLOW_RES_CAP, d.mdef);
-  const landed = base * (1 - (kind === 'MAGIC' ? resMagic : resPhys) / 100);
-  const hp = Math.max(1, Math.round(sim.HOLLOW_HP_HITS * landed), Math.round(sim.HOLLOW_HP_FLOOR * d.maxHp));
-  const atk = Math.max(1, Math.round((sim.HOLLOW_ATK_SHARE * base * sim.actMult(n)) / sim.ACT_MULT[3]));
+  const best = Object.fromEntries(['atk', 'mag', 'def', 'mdef', 'maxHp'].map((f) => [f, bestOf(sim, hero, f)]));
+  const kind = best.atk >= best.mag ? 'PHYSICAL' : 'MAGIC';
+  const base = Math.max(best.atk, best.mag);
+  const resPhys = Math.min(sim.HOLLOW_RES_CAP, best.def);
+  const resMagic = Math.min(sim.HOLLOW_RES_CAP, best.mdef);
+  const hex = ownedBySlot(hero).flat().some((o) => o && sim.effectiveEffect(o.item, o.level).kind === 'HEX_STRIKE');
+  const faced = kind === 'MAGIC' ? resMagic : hex ? Math.min(resPhys, resMagic) : resPhys;
+  const hp = Math.max(1, Math.round(sim.HOLLOW_HP_HITS * base * (1 - faced / 100)), Math.round(sim.HOLLOW_HP_FLOOR * best.maxHp));
+  const guard = kind === 'MAGIC' ? best.mdef : best.def;
+  const capped = (sim.HOLLOW_HIT_CAP * best.maxHp) / Math.max(0.05, 1 - guard / 100);
+  const atk = Math.max(1, Math.round((Math.min(sim.HOLLOW_ATK_SHARE * base, capped) * sim.actMult(n)) / sim.ACT_MULT[3]));
   return { kind, hp, atk, resPhys, resMagic };
+}
+
+function richOwner(sim) {
+  const hero = sim.createHero();
+  hero.alloc.MAG = 6;
+  hero.alloc.ATK = 3;
+  sim.equip(hero, item(sim, 'ARC_ROD'), 1);
+  sim.equip(hero, item(sim, 'PADDED_COAT'), 2);
+  sim.equip(hero, item(sim, 'CLAY_BOWL'), 0);
+  for (const id of ['IRON_SWORD', 'HEX_DAGGER', 'LEATHER_VEST']) {sim.stow(hero, { item: item(sim, id), level: 1 });}
+  return hero;
+}
+
+function swapProof(sim) {
+  const rich = richOwner(sim);
+  const want = sim.hollowOf(rich, 7);
+  const tried = loadouts(sim, rich);
+  for (const hero of tried) {
+    const h = sim.hollowOf(hero, 7);
+    assert.ok(h.maxHp >= want.maxHp && h.atk >= want.atk, `a loadout lowered the hollow: HP ${h.maxHp} < ${want.maxHp} or ATK ${h.atk} < ${want.atk}`);
+  }
+  const want2 = expectedHollow(sim, rich, 7);
+  assert.deepEqual([want.maxHp, want.atk, want.def.atkType], [want2.hp, want2.atk, want2.kind], 'hollow is not sized off the best loadout');
+  return `${tried.length} worn/packed loadouts of one hero: the hollow never drops below HP ${want.maxHp} / ATK ${want.atk}`;
 }
 
 function checkHollow(sim, hero, n, affixes) {
   const h = sim.hollowOf(hero, n);
   const want = expectedHollow(sim, hero, n);
   assert.deepEqual([h.maxHp, h.hp, h.atk, h.resPhys, h.resMagic], [want.hp, want.hp, want.atk, want.resPhys, want.resMagic], `hollow n=${n} numbers`);
-  assert.equal(h.def.atkType, want.kind, 'hollow attack kind is the weapon kind');
+  assert.equal(h.def.atkType, want.kind, 'hollow attack kind is the kind of the stronger stat');
   assert.deepEqual(h.affixes, affixes, 'hollow affixes read off the gear');
   assert.equal(h.def.kind, 'BOSS', 'hollow is a boss');
   assert.ok(!h.def.weak && !h.def.resists && !h.def.phase2, 'hollow has a weakness, resist or phase 2');
@@ -150,7 +205,7 @@ function checkHollow(sim, hero, n, affixes) {
 }
 
 function hollow(sim) {
-  checkHollow(sim, sim.createHero(), 7, []);
+  assert.equal(checkHollow(sim, sim.createHero(), 7, []).def.atkType, 'MAGIC', 'an unarmed hero (MAG 12 > ATK 7) meets a magic hollow');
   const geared = sim.createHero();
   geared.alloc.ATK = 10;
   for (const id of ['SOULEATER', 'BRAMBLE_VEST', 'WIND_GREAVES', 'PYRE_CHALICE']) {sim.equip(geared, item(sim, id));}
@@ -172,7 +227,11 @@ function hollow(sim) {
   assert.equal(checkHollow(sim, mage, 7, []).def.atkType, 'MAGIC', 'a magic hero meets a magic hollow');
   const viaSpawn = sim.spawnFoe('HOLLOW', { n: 7, clears: 3, descentClears: 3, hero: geared });
   assert.deepEqual([viaSpawn.maxHp, viaSpawn.atk], [sim.hollowOf(geared, 7).maxHp, sim.hollowOf(geared, 7).atk], 'spawnFoe routes HOLLOW to hollowOf');
-  return `hollowOf: ATK ${sim.HOLLOW_ATK_SHARE} x plain attack x actMult/ACT_MULT[3], HP ${sim.HOLLOW_HP_HITS} plain hits (floor ${sim.HOLLOW_HP_FLOOR} x max HP), resists capped ${sim.HOLLOW_RES_CAP}, gear affixes in order (max 3), weapon kind`;
+  const glassMage = sim.createHero();
+  glassMage.alloc.MAG = 60;
+  const mirrored = sim.hollowOf(glassMage, 7);
+  assert.ok(mirrored.atk < Math.round((sim.HOLLOW_ATK_SHARE * sim.derive(glassMage).mag * sim.actMult(7)) / sim.ACT_MULT[3]), 'a glass mage\'s hollow was not capped by max HP');
+  return `hollowOf: ATK ${sim.HOLLOW_ATK_SHARE} x best-loadout max(ATK, MAG) (a STRIKE capped at ${sim.HOLLOW_HIT_CAP} x max HP through the hero's resist) x actMult/ACT_MULT[3], HP ${sim.HOLLOW_HP_HITS} hits through the resist faced (floor ${sim.HOLLOW_HP_FLOOR} x max HP), resists capped ${sim.HOLLOW_RES_CAP}, gear affixes in order (max 3) | ${swapProof(sim)}`;
 }
 
 export function affixRules(sim) {

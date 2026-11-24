@@ -1,9 +1,10 @@
 import { SLOTS } from '../types';
-import type { OwnedItem } from '../types';
+import type { OwnedItem, Slot } from '../types';
 import { itemLevel, swapIn, unequip } from '../sim';
 import { dirEdge, dirEdgeX, resetCursorEdge, wrapCursor } from '../state';
 import type { Game } from '../state';
 import { rarityColor } from '../theme';
+import { persist } from '../persist';
 
 const REFUSAL_SHOWN = 1.2;
 
@@ -29,6 +30,7 @@ export const refusalShowing = (g: Game): boolean => g.gear.refusedAt >= 0 && g.c
 function closeGear(g: Game): void {
   g.subScene = 'MAP';
   resetCursorEdge(g);
+  persist(g, { at: 'MAP' });
 }
 
 function packRowFor(g: Game, cursor: number): number {
@@ -64,17 +66,25 @@ function refuse(g: Game): void {
   g.gear.refusedAt = g.clock;
 }
 
-function actOnRow(g: Game): void {
-  const { cursor } = g.gear;
-  const slot = SLOTS[cursor];
-  if (slot) {
-    const worn = wornAt(g, cursor);
-    if (!worn) {return;}
+function wearFromPack(g: Game, index: number): void {
+  const incoming = g.hero.pack[index];
+  if (swapIn(g.hero, index)) {celebrate(g, incoming);} else {refuse(g);}
+}
+
+function actOnSlot(g: Game, slot: Slot): void {
+  if (wornAt(g, g.gear.cursor)) {
     if (unequip(g.hero, slot)) {g.app.audio.play('pickup');} else {refuse(g);}
     return;
   }
-  const incoming = packedAt(g, cursor);
-  if (swapIn(g.hero, cursor - SLOTS.length)) {celebrate(g, incoming);}
+  const fitting = g.hero.pack.findIndex((o) => o.item.slot === slot);
+  if (fitting < 0) { g.app.audio.play('blip'); return; }
+  wearFromPack(g, fitting);
+}
+
+function actOnRow(g: Game): void {
+  const slot = SLOTS[g.gear.cursor];
+  if (slot) { actOnSlot(g, slot); return; }
+  wearFromPack(g, g.gear.cursor - SLOTS.length);
   g.gear.cursor = Math.min(g.gear.cursor, gearRowCount(g) - 1);
 }
 

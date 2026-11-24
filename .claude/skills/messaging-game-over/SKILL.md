@@ -57,4 +57,6 @@ Embed detection is `window.parent !== window` (exposed as `runtime.embedded`). W
 
    Putting it in the `onEnter` handler guarantees exactly one send per terminal entry.
 
+This game's sequence, checked end to end on 2026-11-24: a new run sends `stateChanged('PLAYING')` then `scoreChanged(0)`; CONTINUE sends `stateChanged('PLAYING')` then `scoreChanged(saved score)`; every clear one `scoreChanged`; a death sends `scoreChanged(final)` only when the unbanked-half rule changed the score, then `stateChanged('GAME_OVER')` and `gameOver({ score, won })`; ABANDON goes PAUSED → GAME_OVER directly (no `PLAYING` in between); ASCEND sends `scoreChanged(score + glory)`, `stateChanged('WIN')`, `gameOver({ score, won: true })`.
+
 That's all. The module enforces the shape; a game that wires these three points is fully covered. **improving-game-quality** owns the checklist that verifies scene-transition coverage; anything about which button restarts belongs to **handling-user-input**.

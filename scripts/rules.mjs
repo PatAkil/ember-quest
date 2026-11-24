@@ -38,13 +38,27 @@ function checkMap(stages, seed) {
   reachableCount(stages);
   const types = new Set(stages.flat().map((n) => n.type));
   for (const want of ['ELITE', 'REST', 'LOOT']) {assert.ok(types.has(want), `seed ${seed}: no ${want} room`);}
+  const elites = stages.map((stage) => stage.filter((n) => n.type === 'ELITE').length);
+  elites.forEach((count, s) => { assert.ok(count <= Math.floor(stages[s].length / 2), `seed ${seed}: stage ${s} is ${count}/${stages[s].length} ELITE`); });
+  const allElite = elites.map((count, s) => count > 0 && count === stages[s].length);
+  assert.ok(!allElite.some((all, s) => all && allElite[s + 1]), `seed ${seed}: two all-ELITE stages in a row`);
+}
+
+const DESCENT_SEEDS = 2000;
+
+function descentMaps(sim) {
+  const shapes = [2, 3, 6].map((depth) => ({ depth, shape: { stageSizes: sim.descentStageSizes(depth), weights: sim.descentWeights(depth) } }));
+  for (const { depth, shape } of shapes) {
+    for (let seed = 0; seed < DESCENT_SEEDS; seed++) {checkMap(sim.generateMap(sim.createSeededRng(seed).next, shape), `d${depth}/${seed}`);}
+  }
+  return `${DESCENT_SEEDS} maps each of ${shapes.map((s) => s.shape.stageSizes.length).join('/')} stages (depths ${shapes.map((s) => s.depth).join('/')}): the same invariants`;
 }
 
 function mapInvariants(sim) {
   for (let seed = 0; seed < MAP_SEEDS; seed++) {
     checkMap(sim.generateMap(sim.createSeededRng(seed).next), seed);
   }
-  return `${MAP_SEEDS} maps: every node reachable and linked, one BOSS last, ELITE + REST + LOOT present`;
+  return `${MAP_SEEDS} maps: every node reachable and linked, one BOSS last, ELITE + REST + LOOT present, at most half of a stage ELITE, no two all-ELITE stages in a row; ${descentMaps(sim)}`;
 }
 
 const draws = (next, n) => Array.from({ length: n }, () => next());

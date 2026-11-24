@@ -1,20 +1,22 @@
 import { ENEMIES, BOSS_ENTRY_HEAL, PACTS } from './data';
 import { ACTS_PER_DEPTH } from './types';
-import type { EnemyKind, Hero, LootSource } from './types';
+import type { EnemyKind, Hero, PactId } from './types';
 import {
-  actInDepth, createHero, createSeededRng, depthOf, fromSaved, gloryBonus, grantClear, healFraction, isLastActOfDepth, offerPacts, pactMods, planDepth, planOf,
-  loadRun, restHero, saveRun, scoreAfterDeath, scoreOf, storyPlan, takePendingBurn, toSaved,
+  actInDepth, createHero, enterActRecovery, createSeededRng, depthOf, gloryBonus, grantClear, healFraction, isLastActOfDepth, offerPacts, pactMods, planDepth, planOf,
+  restHero, scoreAfterDeath, scoreOf, takePendingBurn,
 } from './sim';
-import type { PactId } from './types';
-import type { RestOutcome, RunSnapshot, SavedRun, SavedStep } from './sim';
-import { at, must } from './lookup';
+import type { RestOutcome, RewardSource } from './sim';
+import { must } from './lookup';
 import { resetFx } from './fx';
 import { clearPops } from './pops';
 import { generateMap } from './mapgen';
-import { biome, biomeLook, installRng, pickOne, resetCursorEdge, stageAt } from './state';
-import type { Game, MapNode, RoomType, ThresholdChoice } from './state';
-import { clearRun, loadStoredRun, storeBest, storeRun } from './storage';
+import { biome, biomeLook, installRng, pickOne, resetCursorEdge } from './state';
+import type { BattleWin, Game, MapNode, RoomType, ThresholdChoice } from './state';
+import { forgetRun, keepBest, persist, persistBattle, persistReward, settleRoom } from './persist';
 import { startBattle } from './screens/battle';
+import { popHero } from './screens/battle-fx';
+import type { PopSpec } from './screens/battle-fx';
+import { C_HP, C_MP } from './theme';
 import { showCard } from './screens/card';
 import { startLevelUp } from './screens/levelup';
 import { chooseUpgrade, startLoot } from './screens/loot';
@@ -22,37 +24,19 @@ import { startEvent } from './screens/event';
 import { startPact } from './screens/pact';
 import { startThreshold } from './screens/threshold';
 
-function snapshotOf(g: Game, step: SavedStep): RunSnapshot {
-  const { stages, curStage, reachable, cursor } = g.map;
-  const run = { n: g.n, clears: g.clears, bosses: g.bosses, descentClears: g.descentClears, score: g.score, banked: g.banked, won: g.won };
-  return { hero: g.hero, run, depthPlan: g.depthPlan, map: { stages, curStage, reachable, cursor }, step, rng: g.rngSource.getState() };
-}
+export type FightSource = Exclude<RewardSource, 'EVENT'>;
 
-function persist(g: Game, step: SavedStep): void {
-  if (g.rngFromHook) {return;}
-  storeRun(saveRun(snapshotOf(g, step)));
-}
-
-function forgetRun(g: Game): void {
-  g.resume = null;
-  if (!g.rngFromHook) {clearRun();}
-}
-
-function backToMap(g: Game): void {
+export function backToMap(g: Game): void {
   g.subScene = 'MAP';
   resetCursorEdge(g);
 }
 
-function advanceStage(g: Game): void {
-  const node = g.map.pendingNode;
-  if (!node) {return;}
-  node.cleared = true;
-  g.map.curStage = node.stage;
-  g.map.reachable = node.links.length ? node.links : stageAt(g, node.stage + 1).map((_, i) => i);
-  g.map.cursor = at(g.map.reachable, 0);
+export function advanceStage(g: Game): void {
+  settleRoom(g);
   backToMap(g);
-  persist(g, { at: 'MAP' });
 }
+
+const KIND_OF: Record<FightSource, EnemyKind> = { FIGHT: 'NORMAL', ELITE: 'ELITE', BOSS: 'BOSS' };
 
 function onClear(g: Game, kind: EnemyKind): number {
   g.clears++;
@@ -66,7 +50,7 @@ export function enterAct(g: Game): void {
   g.map.stages = generateMap(g.rng, g.plan);
   g.map.pendingNode = null;
   g.map.curStage = -1;
-  g.map.reachable = stageAt(g, 0).map((_, i) => i);
+  g.map.reachable = (g.map.stages[0] ?? []).map((_, i) => i);
   g.map.cursor = 0;
   g.subScene = 'MAP';
   g.app.particles.setAmbient(biomeLook(g).ambient, biomeLook(g).ambientColor);
@@ -78,6 +62,7 @@ const freshStage = (g: Game, next: () => void) => (): void => { clearPops(g); ne
 
 function advanceAct(g: Game): void {
   g.n++;
+  enterActRecovery(g.hero);
   g.plan = planOf(g.depthPlan, g.n);
   enterAct(g);
   showCard(g, [`${biome(g).name} AWAITS...`, 'THE DESCENT CONTINUES'], () => { backToMap(g); });
@@ -91,6 +76,7 @@ function depthCardLines(g: Game): string[] {
 
 function enterDepth(g: Game): void {
   g.n++;
+  enterActRecovery(g.hero);
   g.depthPlan = planDepth(depthOf(g.n), g.rng);
   g.plan = planOf(g.depthPlan, g.n);
   const offers = offerPacts(g.hero, g.rng);
@@ -103,7 +89,7 @@ function openDepth(g: Game): void {
   showCard(g, depthCardLines(g), () => { backToMap(g); });
 }
 
-function openPact(g: Game, offers: PactId[]): void {
+export function openPact(g: Game, offers: PactId[]): void {
   persist(g, { at: 'PACT', offers });
   startPact(g, offers, freshStage(g, () => { openDepth(g); }));
 }
@@ -124,19 +110,22 @@ function descend(g: Game): void {
 
 const THRESHOLD_PATH: Record<ThresholdChoice, (g: Game) => void> = { ASCEND: ascend, DESCEND: descend };
 
-function openThreshold(g: Game): void {
+export function openThreshold(g: Game): void {
   persist(g, { at: 'THRESHOLD' });
   startThreshold(g, (choice) => { THRESHOLD_PATH[choice](g); });
 }
 
-function onActCleared(g: Game): void {
+export function onActCleared(g: Game): void {
   if (isLastActOfDepth(g.n)) { openThreshold(g); return; }
   advanceAct(g);
 }
 
-function levelThenLoot(g: Game, sp: number, source: LootSource, done: () => void): void {
+export function levelThenLoot(g: Game, sp: number, source: FightSource, done: () => void): void {
   clearPops(g);
-  startLevelUp(g, sp, freshStage(g, () => { startLoot(g, source, freshStage(g, done)); }));
+  startLevelUp(g, sp, freshStage(g, () => {
+    persistReward(g, source);
+    startLoot(g, source, freshStage(g, done));
+  }));
 }
 
 function ignitePendingBurn(g: Game): void {
@@ -144,75 +133,109 @@ function ignitePendingBurn(g: Game): void {
   if (burn) {g.hero.burn = burn;}
 }
 
-function fightRoom(g: Game, node: MapNode, kind: 'NORMAL' | 'ELITE'): void {
-  const { plan } = g;
-  const pool = kind === 'NORMAL' ? plan.normals : plan.elites;
-  const source: LootSource = kind === 'NORMAL' ? 'FIGHT' : 'ELITE';
-  startBattle(g, node.enemyId ?? pickOne(g.rng, pool), () => {
-    levelThenLoot(g, onClear(g, kind), source, () => { advanceStage(g); });
-  }, node.affixes ?? []);
+const REWARD_SALT = 0x5bd1e995;
+
+function reseedReward(g: Game): void {
+  g.rngSource.setState((g.roomSeed ^ REWARD_SALT) >>> 0);
+}
+
+function bossVictory(g: Game, sp: number): void {
+  const name = must(ENEMIES[g.plan.boss], g.plan.boss).name;
+  showCard(g, ['VICTORY!', `${name} IS NO MORE`], () => { levelThenLoot(g, sp, 'BOSS', () => { onActCleared(g); }); });
+}
+
+const AFTER_WIN: Record<FightSource, (g: Game, sp: number) => void> = {
+  FIGHT: (g, sp) => { levelThenLoot(g, sp, 'FIGHT', () => { advanceStage(g); }); },
+  ELITE: (g, sp) => { levelThenLoot(g, sp, 'ELITE', () => { advanceStage(g); }); },
+  BOSS: bossVictory,
+};
+
+export function winFor(g: Game, source: FightSource): BattleWin {
+  let sp: number | null = null;
+  const kill = (): void => {
+    if (sp !== null) {return;}
+    reseedReward(g);
+    sp = onClear(g, KIND_OF[source]);
+    persistReward(g, source);
+  };
+  return { kill, done: () => { kill(); AFTER_WIN[source](g, sp ?? 0); } };
+}
+
+function fightRoom(g: Game, node: MapNode, source: 'FIGHT' | 'ELITE'): void {
+  const pool = source === 'FIGHT' ? g.plan.normals : g.plan.elites;
+  startBattle(g, node.enemyId ?? pickOne(g.rng, pool), winFor(g, source), node.affixes ?? []);
   ignitePendingBurn(g);
+  persistBattle(g);
+}
+
+function entryHealPops(healed: { hp: number; mp: number }): PopSpec[] {
+  const hp = healed.hp > 0 ? [{ text: `+${String(healed.hp)} HP`, color: C_HP }] : [];
+  return healed.mp > 0 ? [...hp, { text: `+${String(healed.mp)} MP`, color: C_MP }] : hp;
 }
 
 function bossRoom(g: Game, node: MapNode): void {
-  const b = g.plan;
   node.cleared = true;
-  healFraction(g.hero, BOSS_ENTRY_HEAL);
-  const afterVictory = (sp: number) => (): void => { levelThenLoot(g, sp, 'BOSS', () => { onActCleared(g); }); };
-  startBattle(g, b.boss, () => {
-    const sp = onClear(g, 'BOSS');
-    showCard(g, ['VICTORY!', `${must(ENEMIES[b.boss], b.boss).name} IS NO MORE`], afterVictory(sp));
-  });
+  const healed = healFraction(g.hero, BOSS_ENTRY_HEAL);
+  startBattle(g, g.plan.boss, winFor(g, 'BOSS'));
+  popHero(g, entryHealPops(healed));
   ignitePendingBurn(g);
+  persistBattle(g);
 }
 
 function ashNote(rest: RestOutcome): string {
   if (rest.upgrade) {return 'THE ASHES OFFER AN UPGRADE';}
-  return rest.mended > 0 ? `NOTHING TO UPGRADE  MENDED ${String(rest.mended)} HP` : 'NOTHING TO UPGRADE';
+  return rest.mended > 0 ? `NOTHING TO UPGRADE  +${String(rest.mended)} HP` : 'NOTHING TO UPGRADE';
 }
 
-function restLines(g: Game, rest: RestOutcome): string[] {
+function gainsLine(rest: RestOutcome): string {
+  const hp = rest.hp - rest.mended;
+  const gains = [hp > 0 ? `+${String(hp)} HP` : '', rest.mp > 0 ? `+${String(rest.mp)} MP` : ''].filter(Boolean);
+  return [...gains, 'POTIONS FULL'].join('  ');
+}
+
+function restLines(g: Game, rest: RestOutcome, refilled: boolean): string[] {
   const mods = pactMods(g.hero);
-  if (mods.restHealMult >= 1 && mods.restUpgrade <= 0) {return ['FULLY RESTED', 'HP, MP AND POTIONS FULL'];}
+  const restored = rest.hp > 0 || rest.mp > 0 || refilled;
+  if (mods.restHealMult >= 1 && mods.restUpgrade <= 0) {
+    return restored ? ['FULLY RESTED', 'HP, MP AND POTIONS FULL'] : ['ALREADY AT FULL STRENGTH', 'POTIONS FULL'];
+  }
   const title = mods.restHealMult >= 1 ? 'FULLY RESTED' : `REST HEALS ${String(Math.round(mods.restHealMult * 100))}%`;
-  const healed = `+${String(rest.hp - rest.mended)} HP  +${String(rest.mp)} MP  POTIONS FULL`;
-  return mods.restUpgrade > 0 ? [title, healed, ashNote(rest)] : [title, healed];
+  return mods.restUpgrade > 0 ? [title, gainsLine(rest), ashNote(rest)] : [title, gainsLine(rest)];
 }
 
 function offerAshUpgrade(g: Game): void {
-  g.loot = { offers: [{ kind: 'UPGRADE_ANY' }], source: 'LOOT', cursor: 0, stow: false, onDone: freshStage(g, () => { advanceStage(g); }) };
+  g.loot = { offers: [{ kind: 'UPGRADE_ANY' }], source: 'LOOT', cursor: 0, stow: false, ash: true, onDone: freshStage(g, () => { advanceStage(g); }) };
   chooseUpgrade(g);
 }
 
 function restRoom(g: Game): void {
+  const potions = g.hero.potions;
   const rest = restHero(g.hero);
   g.app.audio.play('pickup');
-  showCard(g, restLines(g, rest), () => { if (rest.upgrade) {offerAshUpgrade(g);} else {advanceStage(g);} });
+  showCard(g, restLines(g, rest, g.hero.potions > potions), () => { if (rest.upgrade) {offerAshUpgrade(g);} else {advanceStage(g);} });
 }
 
-const normalRoom = (g: Game, node: MapNode): void => { fightRoom(g, node, 'NORMAL'); };
-const eliteRoom = (g: Game, node: MapNode): void => { fightRoom(g, node, 'ELITE'); };
-const lootRoom = (g: Game): void => { startLoot(g, 'LOOT', freshStage(g, () => { advanceStage(g); })); };
-const eventRoom = (g: Game): void => { startEvent(g, freshStage(g, () => { advanceStage(g); })); };
+export const leaveRoom = (g: Game): () => void => freshStage(g, () => { advanceStage(g); });
 
 const ROOMS: Record<RoomType, (g: Game, node: MapNode) => void> = {
-  FIGHT: normalRoom,
-  ELITE: eliteRoom,
+  FIGHT: (g, node) => { fightRoom(g, node, 'FIGHT'); },
+  ELITE: (g, node) => { fightRoom(g, node, 'ELITE'); },
   BOSS: bossRoom,
   REST: restRoom,
-  LOOT: lootRoom,
-  EVENT: eventRoom,
+  LOOT: (g) => { startLoot(g, 'LOOT', leaveRoom(g)); },
+  EVENT: (g) => { startEvent(g, leaveRoom(g)); },
 };
+
+const SEED_SPACE = 0x100000000;
 
 export function selectNode(g: Game, node: MapNode): void {
   g.map.pendingNode = node;
   persist(g, { at: 'ROOM', stage: node.stage, slot: node.slot });
+  g.roomSeed = Math.floor(g.rng() * SEED_SPACE);
   ROOMS[node.type](g, node);
 }
 
-const SEED_SPACE = 0x100000000;
-
-function seedRun(g: Game): void {
+export function seedRun(g: Game): void {
   if (g.rngFromHook) {return;}
   installRng(g, createSeededRng(Math.floor(Math.random() * SEED_SPACE)), false);
 }
@@ -227,7 +250,7 @@ function placeRun(g: Game, n: number, clears: number): void {
   g.descentClears = g.won ? clears : null;
 }
 
-function resetRunScreens(g: Game): void {
+export function resetRunScreens(g: Game): void {
   g.dying = false; g.heroDown = false; g.abandoned = false;
   g.battle.enemy = null; g.battle.state = null;
   clearPops(g);
@@ -245,6 +268,7 @@ export function startRun(g: Game, hero: Hero = createHero(), n = 0, clears = 0):
 export function startPlaying(g: Game): void {
   startRun(g);
   g.app.scenes.to('PLAYING');
+  g.app.runtime.scoreChanged(g.score);
 }
 
 export function startFresh(g: Game): void {
@@ -252,62 +276,22 @@ export function startFresh(g: Game): void {
   startPlaying(g);
 }
 
-function restore(g: Game, live: RunSnapshot): void {
-  seedRun(g);
-  g.rngSource.setState(live.rng);
-  g.hero = live.hero;
-  Object.assign(g, live.run);
-  g.depthPlan = live.depthPlan;
-  g.plan = planOf(g.depthPlan, g.n);
-  g.map = { ...live.map, pendingNode: null };
-}
-
-const RESUME_STEP: Record<SavedStep['at'], (g: Game, step: SavedStep) => void> = {
-  MAP: () => undefined,
-  ROOM: (g, step) => { if (step.at === 'ROOM') {selectNode(g, at(stageAt(g, step.stage), step.slot));} },
-  THRESHOLD: openThreshold,
-  PACT: (g, step) => { if (step.at === 'PACT') {openPact(g, step.offers);} },
-};
-
-export function continueRun(g: Game, saved: SavedRun): void {
-  const live = fromSaved(saved);
-  g.resume = null;
-  restore(g, live);
-  resetRunScreens(g);
-  g.app.particles.setAmbient(biomeLook(g).ambient, biomeLook(g).ambientColor);
-  backToMap(g);
-  g.app.scenes.to('PLAYING');
-  g.app.runtime.scoreChanged(g.score);
-  RESUME_STEP[live.step.at](g, live.step);
-}
-
-export function loadResume(g: Game): void {
-  if (g.rngFromHook) {return;}
-  const text = loadStoredRun();
-  g.resume = text === null ? null : loadRun(text);
-  if (text !== null && g.resume === null) {clearRun();}
-}
-
-export function offerResume(g: Game): void {
-  g.resume = toSaved(snapshotOf(g, { at: 'MAP' }));
-  g.depthPlan = storyPlan();
-  g.plan = planOf(g.depthPlan, 0);
-  g.app.particles.setAmbient(biomeLook(g).ambient, biomeLook(g).ambientColor);
-}
-
 export function abandonRun(g: Game): void {
   g.abandoned = true;
-  g.app.scenes.to('PLAYING');
   g.app.scenes.to('GAME_OVER');
 }
 
 function settleDeath(g: Game): void {
+  const before = g.score;
   g.score = scoreAfterDeath(g);
+  if (g.score !== before) {g.app.runtime.scoreChanged(g.score);}
 }
 
 function saveBest(g: Game): void {
   g.beatBest = g.score > g.best.score;
-  if (g.beatBest) { g.best = { score: g.score, depth: depthOf(g.n), act: actInDepth(g.n) + 1 }; storeBest(g.best); }
+  if (!g.beatBest) {return;}
+  g.best = { score: g.score, depth: depthOf(g.n), act: actInDepth(g.n) + 1 };
+  keepBest(g);
 }
 
 export function wireScenes(g: Game): void {
@@ -316,8 +300,13 @@ export function wireScenes(g: Game): void {
   scenes.onEnter('PLAYING', () => { runtime.stateChanged('PLAYING'); });
   scenes.onEnter('PAUSED', () => { g.pause = { cursor: 0, confirm: false }; runtime.stateChanged('PAUSED'); });
   scenes.onEnter('GAME_OVER', () => {
+    g.endedAt = g.clock;
     forgetRun(g); settleDeath(g); saveBest(g);
     runtime.stateChanged('GAME_OVER'); runtime.gameOver({ score: g.score, won: g.won });
   });
-  scenes.onEnter('WIN', () => { forgetRun(g); saveBest(g); runtime.stateChanged('WIN'); runtime.gameOver({ score: g.score, won: true }); });
+  scenes.onEnter('WIN', () => {
+    g.endedAt = g.clock;
+    forgetRun(g); saveBest(g);
+    runtime.stateChanged('WIN'); runtime.gameOver({ score: g.score, won: true });
+  });
 }

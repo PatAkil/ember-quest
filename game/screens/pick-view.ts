@@ -61,7 +61,7 @@ export function renderPick(g: Game): void {
     drawRow(ctx, row, { y: SAFE_MARGIN + ROW_TOP + i * ROW_PITCH, sel: first + i === pick.cursor });
   });
   drawScrollHints(ctx, { first, shown: shown.length, total: pick.rows.length, promptY });
-  const prompt = pick.locked ? `${BUTTON_KEY.A.hint} PICK ONE` : `${BUTTON_KEY.A.hint} PICK  ${BUTTON_KEY.B.hint} BACK`;
+  const prompt = pick.locked ? `${BUTTON_KEY.A.hint} PICK  YOU MUST CHOOSE` : `${BUTTON_KEY.A.hint} PICK  ${BUTTON_KEY.B.hint} BACK`;
   drawText(ctx, prompt, { x: Math.round(X0 + (PW - textWidth(prompt, 1)) / 2), y: promptY }, { color: C_DIM });
   drawBand(ctx, pick.rows[pick.cursor]);
 }

@@ -5,6 +5,7 @@ import { D_FIELDS, D_WEIGHT, deriveGhost, deriveWith, type DField } from './ghos
 import { derive, knownSpells } from './hero';
 import { resolveUpgrade } from './loot';
 import { upgradableTargets } from './pack';
+import { reviveSpent } from './status';
 import { onEffect, type EffectTable } from './util';
 
 export type Profile = Record<DField, number>;
@@ -70,6 +71,7 @@ function heroElements(hero: Hero): Set<Element> {
 }
 
 function effectValue(hero: Hero, item: Item, level: number): number {
+  if (reviveSpent(hero, item, level)) {return 0;}
   const eff = effectiveEffect(item, level);
   const value = onEffect(EFFECT_VALUE, eff);
   if (eff.kind !== 'ELEMENT_BOOST' || heroElements(hero).has(eff.element)) {return value;}

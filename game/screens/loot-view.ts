@@ -27,7 +27,11 @@ const TITLE: Record<LootSource, string> = {
   ELITE: 'ELITE SPOILS  CHOOSE ONE',
 };
 const GIFT_TITLE = 'A GIFT  TAKE IT OR LEAVE IT';
-const lootTitle = (g: Game): string => (g.loot.gift ? GIFT_TITLE : TITLE[g.loot.source]);
+const ASH_TITLE = 'THE ASHES  UPGRADE OR LEAVE';
+function lootTitle(g: Game): string {
+  if (g.loot.ash) {return ASH_TITLE;}
+  return g.loot.gift ? GIFT_TITLE : TITLE[g.loot.source];
+}
 
 interface OfferFace { icon: Sprite; name: string; color: string; hint: string; tag: string; tagColor: string }
 
@@ -65,9 +69,9 @@ function drawOfferRow(row: Row, face: OfferFace): void {
   fitText(row.ctx, face.hint, { x: NAME_X, y: row.y + 8, maxW: tagX - 4 - NAME_X }, { color: C_DIM });
 }
 
-function drawKeepRow(row: Row): void {
-  drawText(row.ctx, 'KEEP YOUR GEAR', { x: NAME_X, y: row.y + 1 }, { color: row.sel ? C_ACCENT : C_TEXT, shadow: row.sel });
-  drawText(row.ctx, 'MEND 25% HP AND MP', { x: NAME_X, y: row.y + 8 }, { color: C_DIM });
+function drawKeepRow(row: Row, ash: boolean): void {
+  drawText(row.ctx, ash ? 'LEAVE THE ASHES' : 'KEEP YOUR GEAR', { x: NAME_X, y: row.y + 1 }, { color: row.sel ? C_ACCENT : C_TEXT, shadow: row.sel });
+  drawText(row.ctx, ash ? 'YOU HAVE RESTED ALREADY' : 'MEND 25% HP AND MP', { x: NAME_X, y: row.y + 8 }, { color: C_DIM });
 }
 
 function blurbColor(offer: LootOffer): string {
@@ -101,11 +105,20 @@ const MEND_TEXT: CardText = {
   ],
 };
 
+const ASH_TEXT: CardText = {
+  name: 'LEAVE',
+  color: C_DIM,
+  lines: [
+    { text: 'THE CAMPFIRE HAS DONE ITS WORK.', color: C_TEXT },
+    { text: 'WALK ON WITHOUT AN UPGRADE.', color: C_DIM },
+  ],
+};
+
 function drawDetail(g: Game, ctx: CanvasRenderingContext2D): void {
   drawCommandBand(ctx);
   const offer = g.loot.offers[g.loot.cursor];
   if (!offer) {
-    drawItemCard(ctx, { icon: ROOM_ART.REST.icon, px: 2 }, MEND_TEXT);
+    drawItemCard(ctx, { icon: ROOM_ART.REST.icon, px: 2 }, g.loot.ash ? ASH_TEXT : MEND_TEXT);
     return;
   }
   if (offer.kind === 'ITEM' && choosesStow(g, offer) && !g.loot.stow) {
@@ -120,14 +133,22 @@ const panelCentre = (text: string): number => Math.round(X0 + (PW - textWidth(te
 
 function promptWord(g: Game): string {
   const offer = g.loot.offers[g.loot.cursor];
-  if (!offer) {return 'KEEP YOUR GEAR';}
+  if (!offer) {return g.loot.ash ? 'LEAVE' : 'KEEP YOUR GEAR';}
   if (!choosesStow(g, offer)) {return 'TAKE IT';}
-  return g.loot.stow ? '< STOW IN PACK >' : '< EQUIP IT >';
+  return g.loot.stow ? 'STOW' : 'EQUIP';
 }
 
+const TOGGLE_HINT = '< > EQUIP OR STOW';
+const TOGGLE_GAP = 8;
+
 function drawPrompt(g: Game, y: number): void {
+  const ctx = g.app.pc.ctx;
   const text = `${BUTTON_KEY.A.hint} ${promptWord(g)}`;
-  drawText(g.app.pc.ctx, text, { x: panelCentre(text), y }, { color: blinkHz(g.clock, 1.2) ? C_TEXT : C_DIM });
+  const toggle = choosesStow(g, g.loot.offers[g.loot.cursor]);
+  const full = toggle ? textWidth(text, 1) + TOGGLE_GAP + textWidth(TOGGLE_HINT, 1) : textWidth(text, 1);
+  const x = Math.round(X0 + (PW - full) / 2);
+  drawText(ctx, text, { x, y }, { color: blinkHz(g.clock, 1.2) ? C_TEXT : C_DIM });
+  if (toggle) {drawText(ctx, TOGGLE_HINT, { x: x + full - textWidth(TOGGLE_HINT, 1), y }, { color: C_ACCENT });}
 }
 
 export function renderLoot(g: Game): void {
@@ -145,7 +166,7 @@ export function renderLoot(g: Game): void {
     if (row.sel) { ctx.fillStyle = C_SEL_BAR; ctx.fillRect(X0 + 3, row.y - 1, PW - 6, ROW_PITCH - 1); }
     if (row.sel) {drawText(ctx, '>', { x: X0 + 4, y: row.y + 1 }, { color: C_ACCENT });}
     const offer = g.loot.offers[i];
-    if (offer) {drawOfferRow(row, offerFace(g, offer));} else {drawKeepRow(row);}
+    if (offer) {drawOfferRow(row, offerFace(g, offer));} else {drawKeepRow(row, g.loot.ash === true);}
   }
   drawPrompt(g, promptY);
   drawDetail(g, ctx);

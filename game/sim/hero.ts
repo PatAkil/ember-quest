@@ -4,6 +4,8 @@ import {
   CAP_DEF,
   CAP_DODGE,
   CAP_MDEF,
+  ACT_POTIONS,
+  CAP_STAT,
   POTIONS_MAX,
   SLOTS,
   SP_GAIN,
@@ -15,6 +17,7 @@ import {
   type HeroCommand,
   type Item,
   type OwnedItem,
+  type PactId,
   type SpellId,
   type StatKey,
   type StatMods,
@@ -22,7 +25,7 @@ import {
 import { CLEAR_HEAL, SKIP_MEND, SPELLS, SPELL_ORDER } from '../data';
 import { canBurst } from './burst';
 import { allEffects, effectiveEffect, effectiveMods, itemLevel } from './gear';
-import { pactMods, type PactTotals } from './pacts';
+import { pactMods, swallowedCards, type PactTotals } from './pacts';
 import { clamp } from './util';
 
 export function createHero(): Hero {
@@ -162,8 +165,13 @@ export function clampVitals(hero: Hero, minHp: number): void {
   hero.mp = clamp(hero.mp, 0, d.maxMp);
 }
 
+function statCapped(hero: Hero, stat: StatKey): boolean {
+  const cap = CAP_STAT[stat];
+  return cap !== undefined && derive(hero)[cap.field] >= cap.max;
+}
+
 export function spendPoint(hero: Hero, stat: StatKey): boolean {
-  if (hero.sp <= 0) {return false;}
+  if (hero.sp <= 0 || statCapped(hero, stat)) {return false;}
   hero.sp -= 1;
   hero.alloc[stat] += 1;
   if (stat === 'HP') {hero.hp += SP_GAIN.HP;}
@@ -185,6 +193,7 @@ export function fullHeal(hero: Hero): void {
   const d = derive(hero);
   hero.hp = d.maxHp;
   hero.mp = d.maxMp;
+  hero.burn = null;
 }
 
 const KIND_SP: Record<EnemyKind, (mods: PactTotals) => number> = {
@@ -195,10 +204,25 @@ const KIND_SP: Record<EnemyKind, (mods: PactTotals) => number> = {
 
 export function grantClear(hero: Hero, kind: EnemyKind): { sp: number; hp: number; mp: number } {
   const mods = pactMods(hero);
-  const sp = SP_PER_KIND[kind] + mods.spPerClear + KIND_SP[kind](mods);
+  const sp = SP_PER_KIND[kind] + mods.spPerClear + KIND_SP[kind](mods) + swallowedCards(kind, mods);
   hero.sp += sp;
+  hero.burn = null;
   const healed = healFraction(hero, CLEAR_HEAL * mods.clearHealMult);
   return { sp, hp: healed.hp, mp: healed.mp };
+}
+
+export function enterActRecovery(hero: Hero): number {
+  const before = hero.potions;
+  hero.potions = Math.min(POTIONS_MAX, hero.potions + ACT_POTIONS);
+  return hero.potions - before;
+}
+
+export function takePact(hero: Hero, id: PactId): void {
+  if (hero.pacts.includes(id)) {return;}
+  const before = derive(hero).maxHp;
+  hero.pacts.push(id);
+  hero.hp += Math.max(0, derive(hero).maxHp - before);
+  clampVitals(hero, 1);
 }
 
 export function learnSpell(hero: Hero, spell: SpellId): void {

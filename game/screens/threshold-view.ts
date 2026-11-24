@@ -1,12 +1,13 @@
 import { BUTTON_KEY, PICO8, SAFE_MARGIN, dimScene, drawText, drawTextCentered, textWidth } from '../../engine';
 import { depthOf, gloryBonus } from '../sim';
 import { renderTableau } from '../backdrop';
+import { armed } from '../state';
 import type { Game, ThresholdChoice } from '../state';
 import { BAND_Y, C_ACCENT, C_DIM, C_FAINT, C_GOOD, C_SEL_BAR, C_TEXT, C_WARN, H, W } from '../theme';
 import { blinkHz, drawCommandBand } from '../widgets';
 import { drawCardFrame } from './card';
 import { drawAbyssGate, drawGateGlow } from './threshold-gate';
-import { THRESHOLD_ARM, THRESHOLD_CHOICES, armed } from './threshold';
+import { THRESHOLD_ARM, THRESHOLD_CHOICES } from './threshold';
 
 export interface Ink { text: string; color: string }
 

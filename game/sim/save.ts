@@ -6,8 +6,11 @@ import { fail, int, list, record } from './save-check';
 import { readCounters, readDepthPlan, readHero, RNG_STATE, SAVE_VERSION } from './save-read';
 import type { SavedCounters, SavedHero, SavedNode, SavedRun, SavedStep } from './save-read';
 import { readMap, readStep } from './save-map';
+import { saneSave } from './save-sanity';
+import { copyRoomExtras } from './save-battle';
 
 export { SAVE_VERSION, type SavedRun, type SavedStep } from './save-read';
+export type { RewardSource, SavedBattle, SavedFoe } from './save-battle';
 
 interface LiveNode extends SavedNode { stage: number; slot: number }
 export interface LiveMap { stages: LiveNode[][]; curStage: number; reachable: number[]; cursor: number }
@@ -61,7 +64,10 @@ function nodeFromSaved(node: SavedNode, stage: number, slot: number): LiveNode {
 }
 
 const copyPlan = (plan: ActPlan): ActPlan => JSON.parse(JSON.stringify(plan)) as ActPlan;
-const copyStep = (step: SavedStep): SavedStep => (step.at === 'PACT' ? { at: 'PACT', offers: [...step.offers] } : { ...step });
+function copyStep(step: SavedStep): SavedStep {
+  if (step.at === 'PACT') {return { at: 'PACT', offers: [...step.offers] };}
+  return step.at === 'ROOM' ? { ...step, ...copyRoomExtras(step) } : { ...step };
+}
 
 export function toSaved(live: RunSnapshot): SavedRun {
   const { map } = live;
@@ -106,8 +112,8 @@ function readSaved(value: unknown): SavedRun {
 
 export function loadRun(text: string): SavedRun | null {
   try {
-    const data: unknown = JSON.parse(text);
-    return readSaved(data);
+    const saved = readSaved(JSON.parse(text));
+    return saneSave(saved, heroFromSaved(saved.hero));
   } catch {
     return null;
   }

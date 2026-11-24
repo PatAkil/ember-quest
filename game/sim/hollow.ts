@@ -3,9 +3,11 @@ import {
   AFFIX_MAX,
   HOLLOW_ATK_SHARE,
   HOLLOW_HP_FLOOR,
+  HOLLOW_HIT_CAP,
   HOLLOW_HP_HITS,
   HOLLOW_RES_CAP,
   HOLLOW_SWIFT_DODGE,
+  SLOTS,
   type AffixId,
   type DamageKind,
   type Derived,
@@ -13,11 +15,13 @@ import {
   type EnemyKind,
   type FoeScale,
   type Hero,
+  type OwnedItem,
+  type Slot,
 } from '../types';
 import { ACT_MULT, ENEMIES, HOLLOW_ID } from '../data';
 import { spawnEnemy } from './combat';
 import { actMult, affixCountFor, depthOf, inDescent, type ActPlan } from './descent';
-import { findEffect } from './gear';
+import { effectiveEffect, findEffect, itemLevel } from './gear';
 import { derive } from './hero';
 import { pactMods } from './pacts';
 import { at } from './util';
@@ -36,17 +40,57 @@ export const hollowAffixes = (hero: Hero, d: Derived = derive(hero)): AffixId[] 
 
 const storyPeak = (): number => at(ACT_MULT, ACT_MULT.length - 1);
 
+type ArmouryField = 'atk' | 'mag' | 'def' | 'mdef' | 'maxHp';
+
+const byId = (a: OwnedItem, b: OwnedItem): number => (a.item.id < b.item.id ? -1 : a.item.id > b.item.id ? 1 : a.level - b.level);
+
+function ownedIn(hero: Hero, slot: Slot): OwnedItem[] {
+  const worn = hero.equipment[slot];
+  const packed = hero.pack.filter((o) => o.item.slot === slot);
+  return [...(worn ? [{ item: worn, level: itemLevel(hero, slot) }] : []), ...packed].sort(byId);
+}
+
+const wearing = (hero: Hero, owned: OwnedItem): Hero =>
+  ({ ...hero, equipment: { ...hero.equipment, [owned.item.slot]: owned.item }, levels: { ...hero.levels, [owned.item.slot]: owned.level } });
+
+function bestLoadout(hero: Hero, field: ArmouryField): number {
+  let ghost: Hero = { ...hero, equipment: {}, levels: {}, pack: [] };
+  for (const slot of SLOTS) {
+    let best = derive(ghost)[field];
+    for (const owned of ownedIn(hero, slot)) {
+      const tried = wearing(ghost, owned);
+      const value = derive(tried)[field];
+      if (value > best) { best = value; ghost = tried; }
+    }
+  }
+  return derive(ghost)[field];
+}
+
+type Armoury = Record<ArmouryField, number>;
+
+const armouryOf = (hero: Hero): Armoury =>
+  ({ atk: bestLoadout(hero, 'atk'), mag: bestLoadout(hero, 'mag'), def: bestLoadout(hero, 'def'), mdef: bestLoadout(hero, 'mdef'), maxHp: bestLoadout(hero, 'maxHp') });
+
+const ownsHex = (hero: Hero): boolean =>
+  SLOTS.some((slot) => ownedIn(hero, slot).some((o) => effectiveEffect(o.item, o.level).kind === 'HEX_STRIKE'));
+
+function facedResist(hero: Hero, kind: DamageKind, res: { phys: number; magic: number }): number {
+  if (kind === 'MAGIC') {return res.magic;}
+  return ownsHex(hero) ? Math.min(res.phys, res.magic) : res.phys;
+}
+
 export function hollowOf(hero: Hero, n: number): EnemyInstance {
-  const d = derive(hero);
-  const kind: DamageKind = hero.equipment.WEAPON?.weaponKind ?? 'PHYSICAL';
-  const base = kind === 'MAGIC' ? d.mag : d.atk;
-  const resPhys = Math.min(HOLLOW_RES_CAP, d.def);
-  const resMagic = Math.min(HOLLOW_RES_CAP, d.mdef);
-  const landed = base * (1 - (kind === 'MAGIC' ? resMagic : resPhys) / 100);
-  const hp = Math.max(1, Math.round(HOLLOW_HP_HITS * landed), Math.round(HOLLOW_HP_FLOOR * d.maxHp));
-  const atk = Math.max(1, Math.round((HOLLOW_ATK_SHARE * base * actMult(n)) / storyPeak()));
-  const shell = spawnEnemy(HOLLOW_ID, { n, clears: 0, descentClears: null }, hollowAffixes(hero, d));
-  return { ...shell, def: { ...shell.def, atkType: kind }, hp, maxHp: hp, atk, resPhys, resMagic };
+  const best = armouryOf(hero);
+  const kind: DamageKind = best.atk >= best.mag ? 'PHYSICAL' : 'MAGIC';
+  const base = Math.max(best.atk, best.mag);
+  const res = { phys: Math.min(HOLLOW_RES_CAP, best.def), magic: Math.min(HOLLOW_RES_CAP, best.mdef) };
+  const landed = base * (1 - facedResist(hero, kind, res) / 100);
+  const hp = Math.max(1, Math.round(HOLLOW_HP_HITS * landed), Math.round(HOLLOW_HP_FLOOR * best.maxHp));
+  const guard = kind === 'MAGIC' ? best.mdef : best.def;
+  const capped = (HOLLOW_HIT_CAP * best.maxHp) / Math.max(0.05, 1 - guard / 100);
+  const atk = Math.max(1, Math.round((Math.min(HOLLOW_ATK_SHARE * base, capped) * actMult(n)) / storyPeak()));
+  const shell = spawnEnemy(HOLLOW_ID, { n, clears: 0, descentClears: null }, hollowAffixes(hero));
+  return { ...shell, def: { ...shell.def, atkType: kind }, hp, maxHp: hp, atk, resPhys: res.phys, resMagic: res.magic };
 }
 
 export interface SpawnContext extends FoeScale { hero: Hero; affixes?: readonly AffixId[]; plan?: ActPlan }

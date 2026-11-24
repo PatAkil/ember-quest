@@ -8,6 +8,7 @@ import { moveMult } from './enemy-turn';
 import { isGuardAction, isSpell, spellCost } from './hero';
 import { gearPower, heroElement, punishes, riposteMult } from './power';
 import type { Policy } from './model';
+import { pactDamage } from './pacts';
 import { resistOf } from './status';
 
 interface BattleStyle {
@@ -36,7 +37,7 @@ function swingDamage(f: Fight, action: HeroAction, sure: boolean): number {
   const element = f.style.verbs ? elementMult(battle.enemy.def, elem) : 1;
   const riposte = battle.riposte ? riposteMult(hero) : 1;
   const resist = 1 - resistOf(battle.enemy, swing.kind) / 100;
-  const power = gearPower({ hero, battle, d, element: elem });
+  const power = gearPower({ hero, battle, d, element: elem }) * pactDamage(hero, action === 'ATTACK');
   return swing.mults.reduce((sum, m) => sum + swing.base * m, 0) * crit * element * riposte * resist * power;
 }
 

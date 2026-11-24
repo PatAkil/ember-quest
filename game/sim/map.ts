@@ -121,6 +121,13 @@ function ensureRest(regular: readonly MapNode[][], rng: Rng): void {
   spareElites({ regular, stage, rolled, allowed: isRestSpot }).type = 'REST';
 }
 
+function capElites(regular: readonly MapNode[][]): void {
+  for (const stage of regular) {
+    const allowed = Math.floor(stage.length / 2);
+    stage.filter((n) => n.type === 'ELITE').slice(allowed).forEach((n) => { n.type = 'FIGHT'; });
+  }
+}
+
 function ensureVariety(regular: readonly MapNode[][], rng: Rng): void {
   for (const n of at(regular, 0)) {if (n.type === 'ELITE') {n.type = 'FIGHT';}}
   if (!hasType(regular.slice(1), 'ELITE')) {
@@ -205,6 +212,7 @@ export function generateMap(rng: Rng, shape: Partial<MapShape> = {}, pools?: Foe
   const regular = stageSizes.map((size) =>
     Array.from({ length: size }, (): MapNode => ({ type: rollRoom(table, rng), links: [] })));
   const stages: MapNode[][] = [...regular, [{ type: 'BOSS', links: [] }]];
+  capElites(regular);
   ensureVariety(regular, rng);
   stages.slice(0, -1).forEach((stage, s) => { linkStage(stage, at(stages, s + 1), rng); });
   unfeedEvents(stages);

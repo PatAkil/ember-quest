@@ -21,9 +21,23 @@ for (const name of Object.keys(BUTTON_KEY) as ButtonName[]) {
   for (const code of BUTTON_KEY[name].codes) {CODE_TO_BUTTON[code] = name;}
 }
 
+function dirOf(codes: ReadonlySet<string>): { x: number; y: number } {
+  let x = 0;
+  let y = 0;
+  for (const code of codes) {
+    const d = DIR_KEYS[code];
+    if (d) {
+      x += d.x;
+      y += d.y;
+    }
+  }
+  return { x: Math.sign(x), y: Math.sign(y) };
+}
+
 const OWNED = new Set<string>([...Object.keys(DIR_KEYS), ...Object.keys(CODE_TO_BUTTON)]);
 export interface Input {
   readonly dir: { x: number; y: number };
+  pressedDir(): { x: number; y: number };
   pressed(button: ButtonName): boolean;
   held(button: ButtonName): boolean;
   released(button: ButtonName): boolean;
@@ -40,6 +54,7 @@ export function createInput(actions: ActionDecl[], opts: InputOptions = {}): Inp
   const down = new Set<string>();
   const justPressed = new Set<ButtonName>();
   const justReleased = new Set<ButtonName>();
+  const justDir = new Set<string>();
   let firstKeySeen = false;
   const buttonDown = (button: ButtonName): boolean =>
     BUTTON_KEY[button].codes.some((code) => down.has(code));
@@ -51,6 +66,7 @@ export function createInput(actions: ActionDecl[], opts: InputOptions = {}): Inp
     }
     const button = CODE_TO_BUTTON[e.code];
     if (!e.repeat && button && !buttonDown(button)) {justPressed.add(button);}
+    if (!e.repeat && e.code in DIR_KEYS && !down.has(e.code)) {justDir.add(e.code);}
     down.add(e.code);
   };
   const onKeyUp = (e: KeyboardEvent): void => {
@@ -67,16 +83,10 @@ export function createInput(actions: ActionDecl[], opts: InputOptions = {}): Inp
   window.addEventListener('blur', onBlur);
   return {
     get dir() {
-      let x = 0;
-      let y = 0;
-      for (const code of down) {
-        const d = DIR_KEYS[code];
-        if (d) {
-          x += d.x;
-          y += d.y;
-        }
-      }
-      return { x: Math.sign(x), y: Math.sign(y) };
+      return dirOf(down);
+    },
+    pressedDir() {
+      return dirOf(justDir);
     },
     pressed(button) {
       return justPressed.has(button);
@@ -91,6 +101,7 @@ export function createInput(actions: ActionDecl[], opts: InputOptions = {}): Inp
     endFrame() {
       justPressed.clear();
       justReleased.clear();
+      justDir.clear();
     },
     dispose() {
       target.removeEventListener('keydown', onKeyDown as EventListener);

@@ -12,6 +12,7 @@ export {
   canAfford,
   createHero,
   derive,
+  enterActRecovery,
   equip,
   fullHeal,
   grantClear,
@@ -24,6 +25,7 @@ export {
   skipMend,
   spellCost,
   spendPoint,
+  takePact,
 } from './sim/hero';
 export {
   compareFull,
@@ -46,6 +48,7 @@ export type { Policy, RoomType } from './sim/model';
 export { POLICIES, type PolicyName } from './sim/policies';
 export { generateMap, MAP_SHAPE, rollAffixes, type FoePools } from './sim/map';
 export { at, createSeededRng, pickOneIndex, type SeededRng } from './sim/util';
+export { runBattle } from './sim/run-battle';
 export { SIM_MAX_N, simulateRun, type BossPick, type Probe, type RunResult, type SimOptions } from './sim/run';
 export {
   actInDepth,
@@ -68,8 +71,8 @@ export { affixResists, searingStrike, swiftEvades, thornsDamage, vampiricHeal } 
 export { foeAffixes, hollowAffixes, hollowOf, spawnFoe, type SpawnContext } from './sim/hollow';
 export { descentRow, lootWeights } from './sim/descent-loot';
 export { restHero, type RestOutcome } from './sim/rest';
-export { describeSave, fromSaved, loadRun, saveRun, SAVE_VERSION, toSaved, type RunSnapshot, type SavedRun, type SavedStep } from './sim/save';
-export { neutralMods, offerPacts, pactDamage, pactMods, takePact, type PactTotals } from './sim/pacts';
+export { describeSave, fromSaved, loadRun, saveRun, SAVE_VERSION, toSaved, type RunSnapshot, type SavedRun, type SavedStep, type RewardSource, type SavedBattle, type SavedFoe } from './sim/save';
+export { lootCards, neutralMods, offerPacts, pactDamage, pactMods, type PactTotals } from './sim/pacts';
 export { gloryBonus, scoreAfterDeath, scoreOf } from './sim/score';
 export { ACT_MULT, BIOMES, ITEMS, LOOT_WEIGHTS, PACTS, validateData, validatePacts } from './data';
 export {
@@ -83,14 +86,16 @@ export {
   DESCENT_LEGENDARY_CAP,
   DESCENT_PHASE_AT,
   DESCENT_STAGE_MAX,
+  ENRAGE_AFTER,
   HOLLOW_ATK_SHARE,
+  HOLLOW_HIT_CAP,
   HOLLOW_HP_FLOOR,
   HOLLOW_HP_HITS,
   HOLLOW_RES_CAP,
   HOLLOW_SWIFT_DODGE,
   REST_MEND,
 } from './types';
-export { validateEvents } from './data';
+export { EVENTS, QUIET_EVENT, validateEvents } from './data';
 export {
   appliedWords,
   applyEventCosts,
@@ -98,6 +103,7 @@ export {
   effectWords,
   eventOptionBlocker,
   eventOptionEnabled,
+  eventPlayable,
   pickEvent,
   rollEventItem,
   screenEffectOf,

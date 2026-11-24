@@ -14,6 +14,7 @@ import { SPELLS } from '../data';
 import { effectiveBlurb, effectiveEffect, effectiveMods, itemLevel } from './gear';
 import { biggestDelta, deriveGhost, deriveWith, type DField } from './ghost';
 import { derive, knownSpells, spellCost } from './hero';
+import { reviveSpent } from './status';
 import { onEffect, type EffectTable } from './util';
 
 const signed = (v: number) => (v >= 0 ? `+${v}` : `${v}`);
@@ -212,6 +213,9 @@ const SCROLL_FLAVOUR: Record<SpellId, string> = {
   AEGIS: 'A SHIELD THAT BITES BACK',
 };
 
+const SPENT_BLURB = 'REVIVE ALREADY SPENT THIS RUN';
+const SPENT_GAIN = 'ALREADY SPENT THIS RUN';
+
 const UPGRADE_ANY_LINES = ['+1 LEVEL TO ONE ITEM YOU OWN', 'WORN OR IN YOUR PACK'];
 
 export function describeOffer(hero: Hero, offer: LootOffer): string[] {
@@ -224,7 +228,7 @@ export function describeOffer(hero: Hero, offer: LootOffer): string[] {
   const level = offer.kind === 'UPGRADE' ? offer.toLevel : 0;
   const item = offer.item;
   const stats = packLines(describeItem(item, level), 30, 2);
-  const blurb = effectiveBlurb(item, level).slice(0, 30);
+  const blurb = reviveSpent(hero, item, level) ? SPENT_BLURB : effectiveBlurb(item, level).slice(0, 30);
   const out = [...stats, blurb];
   return out.slice(0, 3);
 }
@@ -267,7 +271,7 @@ export function compareFull(hero: Hero, candidate: Item, level: number): FullCom
   return {
     rows: compareRows(derive(hero), after),
     lose: worn ? effectiveBlurb(worn, itemLevel(hero, candidate.slot)) : '',
-    gain: effectiveBlurb(candidate, level),
+    gain: reviveSpent(hero, candidate, level) ? SPENT_GAIN : effectiveBlurb(candidate, level),
     kindChange: kindChangeText(worn, candidate),
   };
 }

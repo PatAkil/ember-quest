@@ -28,6 +28,15 @@ const liveMap = (stages) => stages.map((stage, s) => stage.map((node, slot) => {
   return node.affixes ? { ...base, affixes: node.affixes } : base;
 }));
 
+const battleFixture = () => ({
+  roomSeed: 3141592653,
+  foe: {
+    id: 'GOBLIN', hp: 31, maxHp: 44, atk: 6, resPhys: 20, resMagic: 0, affixes: ['THORNED'], burn: { perTurn: 3, turns: 2 },
+    wardTurns: 1, phase: 1, cycleIndex: -1, mended: false, staggered: true,
+  },
+  state: { rampStacks: 2, lastScope: 'SPELL', actionsTaken: 4, intent: 'HEAVY', guarding: false, guardChain: 1, riposte: true, aegis: 0 },
+});
+
 function liveRun(sim, depth) {
   const source = sim.createSeededRng(depth * 101);
   const n = (depth - 1) * 4 + 1;
@@ -36,9 +45,9 @@ function liveRun(sim, depth) {
   const hero = richHero(sim, depth, source.next);
   const stages = liveMap(sim.generateMap(source.next, { stageSizes: plan.stageSizes, weights: plan.weights }, plan));
   stages[0][0].cleared = true;
-  const run = { n, clears: 9, bosses: depth - 1, descentClears: depth > 1 ? 24 : null, score: 1234, banked: depth > 1 ? 900 : 0, won: depth > 1 };
+  const run = { n, clears: 9, bosses: depth - 1, descentClears: depth > 1 ? 24 : null, score: sim.scoreOf({ clears: 9, bosses: depth - 1 }), banked: depth > 1 ? 900 : 0, won: depth > 1 };
   const map = { stages, curStage: 0, reachable: stages[0][0].links, cursor: stages[0][0].links[0] };
-  const snapshot = { hero, run, depthPlan, map, step: { at: 'ROOM', stage: 1, slot: 0 }, rng: source.getState() };
+  const snapshot = { hero, run, depthPlan, map, step: { at: 'ROOM', stage: 1, slot: 0, roomSeed: 3141592653, battle: battleFixture() }, rng: source.getState() };
   return { snapshot, source, plan };
 }
 
@@ -90,11 +99,45 @@ function rejections(sim) {
     'NaN literal': text.replace(/"hp":[\d.]+/, '"hp":NaN'),
     'level past max': corrupt(text, (d) => { d.hero.pack[0].level = 9; }),
     'three acts': corrupt(text, (d) => { d.depthPlan.pop(); }),
+    'cursor off reachable': corrupt(text, (d) => { d.map.cursor = [0, 1, 2].find((i) => !d.map.reachable.includes(i)); }),
+    'n past the cap': corrupt(text, (d) => { d.run.n = sim.SIM_MAX_N + 1; }),
+    'dead hero': corrupt(text, (d) => { d.hero.hp = 0; }),
+    'item owned twice': corrupt(text, (d) => { d.hero.pack.push({ id: d.hero.equipment.WEAPON, level: 0 }); }),
+    'pack over size': corrupt(text, (d) => { d.hero.pack.push({ id: 'OAK_STAFF', level: 0 }, { id: 'GLASS_SABER', level: 0 }, { id: 'SURF_SPEAR', level: 0 }); }),
+    'room step at a cleared room': corrupt(text, (d) => { d.map.stages[d.step.stage][d.step.slot].cleared = true; }),
+    'room step out of reach': corrupt(text, (d) => { d.step.stage = 2; }),
+    'empty foe pool': corrupt(text, (d) => { d.depthPlan[1].normals = []; }),
+    'banked past the score': corrupt(text, (d) => { d.run.banked = 1e9; }),
+    'threshold mid-depth': corrupt(text, (d) => { d.step = { at: 'THRESHOLD' }; }),
+    'pact mid-depth': corrupt(text, (d) => { d.step = { at: 'PACT', offers: ['ASH'] }; }),
+    'pact already sworn': corrupt(text, (d) => { d.run.n = 4; d.step = { at: 'PACT', offers: [d.hero.pacts[0]] }; }),
   };
   for (const [what, raw] of Object.entries(bad)) {
     assert.equal(sim.loadRun(raw), null, `${what}: accepted`);
   }
-  return `${Object.keys(bad).length} corrupt saves rejected with null`;
+  return `${Object.keys(bad).length} corrupt saves rejected with null; ${repairs(sim, text)}`;
+}
+
+function repairs(sim, text) {
+  const rich = corrupt(text, (d) => { d.hero.hp = 1e5; d.hero.mp = 1e5; d.run.score = 99999; });
+  const back = sim.fromSaved(sim.loadRun(rich));
+  const d = sim.derive(back.hero);
+  assert.deepEqual([back.hero.hp, back.hero.mp], [d.maxHp, d.maxMp], 'HP/MP over the max were not clamped');
+  assert.equal(back.run.score, sim.scoreOf(back.run), 'the score was trusted instead of recomputed');
+  return 'HP/MP over max clamped; score recomputed from clears and bosses';
+}
+
+function sane(sim, saved, what) {
+  const live = sim.fromSaved(saved);
+  const d = sim.derive(live.hero);
+  assert.ok(Number.isFinite(d.maxHp) && live.hero.hp > 0 && live.hero.hp <= d.maxHp, `${what}: HP ${live.hero.hp} of ${d.maxHp}`);
+  assert.ok(live.hero.mp >= 0 && live.hero.mp <= d.maxMp, `${what}: MP ${live.hero.mp} of ${d.maxMp}`);
+  assert.ok(live.map.reachable.includes(live.map.cursor), `${what}: cursor off the reachable rooms`);
+  assert.ok(live.run.n <= sim.SIM_MAX_N && live.run.score === sim.scoreOf(live.run), `${what}: counters`);
+  const ids = [...Object.values(live.hero.equipment).map((i) => i.id), ...live.hero.pack.map((o) => o.item.id)];
+  assert.equal(new Set(ids).size, ids.length, `${what}: an item owned twice`);
+  assert.ok(live.depthPlan.every((p) => p.normals.length > 0 && p.elites.length > 0), `${what}: an empty pool`);
+  assert.doesNotThrow(() => sim.saveRun(live), `${what}: the accepted save cannot be saved again`);
 }
 
 function leaves(value, path = []) {
@@ -104,18 +147,32 @@ function leaves(value, path = []) {
 
 const ODD = [null, -1, 1e308, 'X', true, [], {}, 0.5, undefined];
 
+function loadQuietly(sim, raw, path) {
+  try {
+    return sim.loadRun(raw);
+  } catch (error) {
+    assert.fail(`mutating ${path.join('.')} threw: ${String(error)}`);
+  }
+}
+
 function fuzz(sim) {
   const text = sim.saveRun(liveRun(sim, 2).snapshot);
   const paths = leaves(JSON.parse(text)).filter((p) => p.length > 0);
   const rng = sim.createSeededRng(5).next;
+  let accepted = 0;
   for (let i = 0; i < SAMPLE_MUTATIONS; i++) {
     const data = JSON.parse(text);
     const path = paths[Math.floor(rng() * paths.length)];
     const parent = path.slice(0, -1).reduce((o, k) => o[k], data);
     parent[path.at(-1)] = ODD[Math.floor(rng() * ODD.length)];
-    assert.doesNotThrow(() => sim.loadRun(JSON.stringify(data)), `mutating ${path.join('.')} threw`);
+    const saved = loadQuietly(sim, JSON.stringify(data), path);
+    if (saved) {
+      accepted += 1;
+      sane(sim, saved, `mutating ${path.join('.')}`);
+    }
   }
-  return `${SAMPLE_MUTATIONS} random field mutations: loadRun never throws`;
+  assert.ok(accepted > 0, 'no mutation was accepted, so the sanity checks never ran');
+  return `${SAMPLE_MUTATIONS} random field mutations: loadRun never throws; ${accepted} accepted ones restore and pass the sanity checks`;
 }
 
 export function saveRules(sim) {

@@ -11,9 +11,10 @@ import {
   type EnemyInstance,
   type Hero,
   type HeroAction,
+  type Item,
   type TurnStart,
 } from '../types';
-import { allEffects, findEffect } from './gear';
+import { allEffects, effectiveEffect, findEffect } from './gear';
 import { derive, isGuardAction } from './hero';
 import { clamp } from './util';
 
@@ -24,6 +25,12 @@ export function applyBurn(target: Burnable, hitDmg: number): Burn {
   const burn = { perTurn: Math.max(perTurn, target.burn?.perTurn ?? 0), turns: BURN_TURNS };
   target.burn = burn;
   return burn;
+}
+
+export function mergeBurn(target: Burnable, burn: Burn): Burn {
+  const merged = { perTurn: Math.max(burn.perTurn, target.burn?.perTurn ?? 0), turns: Math.max(burn.turns, target.burn?.turns ?? 0) };
+  target.burn = merged;
+  return merged;
 }
 
 function tickBurn(target: Burnable): number {
@@ -65,10 +72,20 @@ function reviveCharges(hero: Hero): { total: number; hpFraction: number } {
   return { total: Math.min(2, total), hpFraction };
 }
 
+const livesSpent = (hero: Hero): number => (hero.revived ? 1 : 0) + (hero.revivedTwice ? 1 : 0);
+
+const livesLeft = (hero: Hero): number => Math.max(0, reviveCharges(hero).total - livesSpent(hero));
+
+export function reviveSpent(hero: Hero, item: Item, level: number): boolean {
+  if (effectiveEffect(item, level).kind !== 'REVIVE') {return false;}
+  const wearing: Hero = { ...hero, equipment: { ...hero.equipment, [item.slot]: item }, levels: { ...hero.levels, [item.slot]: level } };
+  const without: Hero = { ...hero, equipment: { ...hero.equipment, [item.slot]: undefined } };
+  return livesLeft(wearing) <= livesLeft(without);
+}
+
 function tryRevive(hero: Hero, d: Derived): boolean {
   const charges = reviveCharges(hero);
-  const spent = (hero.revived ? 1 : 0) + (hero.revivedTwice ? 1 : 0);
-  if (spent >= charges.total) {return false;}
+  if (livesSpent(hero) >= charges.total) {return false;}
   hero.hp = Math.max(1, Math.round(d.maxHp * charges.hpFraction));
   if (!hero.revived) {hero.revived = true;}
   else {hero.revivedTwice = true;}

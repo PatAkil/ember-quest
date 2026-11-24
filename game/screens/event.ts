@@ -1,12 +1,13 @@
 import { PICO8 } from '../../engine';
 import type { Rarity } from '../types';
-import type { EventOption } from '../data';
+import type { EventDef, EventOption } from '../data';
 import {
   appliedWords, applyEventCosts, discard, displayName, effectiveBlurb, eventOptionBlocker, pickEvent, rollEventItem, screenEffectOf,
 } from '../sim';
 import type { AppliedEffect } from '../sim';
 import { heroPos, rarityColor } from '../theme';
-import { dirEdge, resetCursorEdge, wrapCursor } from '../state';
+import { armA, dirEdge, resetCursorEdge, takeA, wrapCursor } from '../state';
+import { persistEvent, persistReward, settleRoom } from '../persist';
 import type { Game, PickRow } from '../state';
 import { noop } from '../lookup';
 import { itemIcon } from '../widgets';
@@ -15,17 +16,24 @@ import { startLevelUp } from './levelup';
 import { chooseUpgrade } from './loot';
 import { openPick } from './pick';
 
-export function startEvent(g: Game, onDone: () => void): void {
-  const def = pickEvent(g.rng);
+export function startEvent(g: Game, onDone: () => void, given?: EventDef): void {
+  const def = given ?? pickEvent(g.rng, g.hero);
   const open = def.options.findIndex((o) => eventOptionBlocker(g.hero, o) === null);
-  g.event = { def, cursor: Math.max(0, open), refusedAt: -1, onDone };
-  g.subScene = 'EVENT';
-  resetCursorEdge(g);
+  if (open < 0) {
+    reportError(new Error(`[event] ${def.id} opened with no playable option`));
+    settleRoom(g);
+    onDone();
+    return;
+  }
+  persistEvent(g, def.id);
+  g.event = { def, cursor: open, refusedAt: -1, onDone };
+  backToEvent(g);
 }
 
 function backToEvent(g: Game): void {
   g.subScene = 'EVENT';
   resetCursorEdge(g);
+  armA(g);
 }
 
 interface Burst { color: string; sfx: 'hit' | 'pickup' | 'whoosh'; flash: boolean }
@@ -67,7 +75,10 @@ function resultCard(g: Game, applied: readonly AppliedEffect[], extra: readonly 
 }
 
 function afterScreen(g: Game, applied: readonly AppliedEffect[]): () => void {
-  return applied.length > 0 ? () => { resultCard(g, applied); } : g.event.onDone;
+  return () => {
+    settleRoom(g);
+    if (applied.length > 0) {resultCard(g, applied);} else {g.event.onDone();}
+  };
 }
 
 function openUpgrade(g: Game, option: EventOption): void {
@@ -78,6 +89,7 @@ function openUpgrade(g: Game, option: EventOption): void {
   g.pick.onPick = (i) => {
     g.loot.onDone = afterScreen(g, payCosts(g, option));
     takeRow(i);
+    settleRoom(g);
   };
 }
 
@@ -97,18 +109,20 @@ function openDrop(g: Game, option: EventOption): void {
     onPick: (i) => {
       const applied = payCosts(g, option);
       const gone = discard(g.hero, i);
+      settleRoom(g);
       resultCard(g, applied, gone ? [`${gone.item.name} IS GONE`] : []);
     },
     onCancel: () => { backToEvent(g); },
   });
 }
 
-function offerItem(g: Game, rarity: Rarity, done: () => void): void {
+export function offerGift(g: Game, rarity: Rarity, done: () => void): void {
   const item = rollEventItem(g.hero, rarity, g.n, g.rng);
   if (!item) { done(); return; }
   g.loot = { offers: [{ kind: 'ITEM', item }], source: 'LOOT', cursor: 0, stow: false, gift: true, onDone: done };
   g.subScene = 'LOOT';
   resetCursorEdge(g);
+  armA(g);
 }
 
 function choose(g: Game, option: EventOption): void {
@@ -118,10 +132,16 @@ function choose(g: Game, option: EventOption): void {
   const applied = payCosts(g, option);
   if (screen?.kind === 'sp') {
     g.hero.sp += screen.amount;
+    persistReward(g, 'EVENT');
     startLevelUp(g, screen.amount, afterScreen(g, applied));
     return;
   }
-  if (screen?.kind === 'item') { offerItem(g, screen.rarity, afterScreen(g, applied)); return; }
+  if (screen?.kind === 'item') {
+    persistReward(g, 'EVENT', screen.rarity);
+    offerGift(g, screen.rarity, afterScreen(g, applied));
+    return;
+  }
+  settleRoom(g);
   resultCard(g, applied);
 }
 
@@ -129,7 +149,7 @@ export function updateEvent(g: Game): void {
   const ev = g.event;
   const dy = dirEdge(g);
   if (dy) { ev.cursor = wrapCursor(ev.cursor, dy, ev.def.options.length); g.app.audio.play('blip'); }
-  if (!g.app.input.pressed('A')) {return;}
+  if (!takeA(g)) {return;}
   const option = ev.def.options[ev.cursor];
   if (!option || eventOptionBlocker(g.hero, option) !== null) {
     ev.refusedAt = g.clock;

@@ -9,7 +9,7 @@ import {
   type Rng,
   type StatKey,
 } from '../types';
-import { BOSS_ENTRY_HEAL, type EventDef } from '../data';
+import { BOSS_ENTRY_HEAL, ENEMIES, type EventDef } from '../data';
 import type { ActPlan } from './descent';
 import { spawnFoe } from './hollow';
 import { applyEventCosts, eventOptionEnabled, pickEvent, rollEventItem, screenEffectOf, takePendingBurn, type ScreenEffect } from './events';
@@ -39,7 +39,7 @@ function spendAll(hero: Hero, policy: Policy): void {
     const d = derive(hero);
     const wanted = policy.allocate(hero, d);
     const stat: StatKey = STAT_KEYS.includes(wanted) ? wanted : 'HP';
-    if (!spendPoint(hero, stat)) {break;}
+    if (!spendPoint(hero, stat) && !spendPoint(hero, 'HP')) {break;}
   }
 }
 
@@ -47,6 +47,12 @@ function prepareFor(run: RunState, foe: EnemyDef): void {
   const before = SLOTS.map((slot) => run.hero.equipment[slot]?.id);
   run.policy.prepare(run.hero, foe);
   run.tally.prepareSwaps += SLOTS.filter((slot, i) => run.hero.equipment[slot]?.id !== before[i]).length;
+}
+
+function foeDef(id: string): EnemyDef {
+  const def = ENEMIES[id];
+  if (!def) {throw new Error(`unknown enemy: ${id}`);}
+  return def;
 }
 
 function resolveChoice(run: RunState, chosen: LootOffer): LootOffer {
@@ -96,11 +102,6 @@ function foeFor(node: MapNode, plan: ActPlan, rng: Rng): string {
   return isNonEmpty(from) ? pick(from, rng) : plan.boss;
 }
 
-function ignitePendingBurn(hero: Hero, n: number): void {
-  const burn = takePendingBurn(hero, n);
-  if (burn) {hero.burn = burn;}
-}
-
 function dropForEvent(run: RunState): void {
   const { hero } = run;
   const last = hero.pack.at(-1);
@@ -131,11 +132,11 @@ function chooseOption(run: RunState, event: EventDef): 0 | 1 {
 }
 
 function eventRoom(run: RunState): void {
-  const event = pickEvent(run.rng);
+  const event = pickEvent(run.rng, run.hero);
   const choice = chooseOption(run, event);
-  countEvent(run.tally, event.id, choice);
   const option = event.options[choice];
   if (!eventOptionEnabled(run.hero, option)) {return;}
+  countEvent(run.tally, event.id, choice);
   applyEventCosts(run.hero, option);
   const screen = screenEffectOf(option);
   if (screen) {eventScreen(run, screen);}
@@ -161,9 +162,9 @@ function fightRoom(run: RunState, node: MapNode): Ending | null {
     tally.hpAtElite.push(hero.hp / Math.max(1, derive(hero).maxHp));
   }
   const enemyId = foeFor(node, run.plan, rng);
+  prepareFor(run, foeDef(enemyId));
   const enemy = foeOf(run, enemyId, node);
-  prepareFor(run, enemy.def);
-  ignitePendingBurn(hero, run.n);
+  takePendingBurn(hero, run.n);
   const outcome = runBattle({ hero, enemy, policy: run.policy, rng, verbs: tally.verbs });
   if (!outcome.won) {return lost(run, enemy, outcome);}
   run.clears += 1;
@@ -199,9 +200,9 @@ export function playRoom(run: RunState, node: MapNode): Ending | null {
 export function bossRoom(run: RunState): Ending | null {
   const { hero, plan } = run;
   healFraction(hero, BOSS_ENTRY_HEAL);
+  prepareFor(run, foeDef(plan.boss));
   const boss = foeOf(run, plan.boss);
-  prepareFor(run, boss.def);
-  ignitePendingBurn(hero, run.n);
+  takePendingBurn(hero, run.n);
   const entry = derive(hero);
   const outcome = runBattle({ hero, enemy: boss, policy: run.policy, rng: run.rng, verbs: run.tally.verbs });
   run.probes.push(probeOf(run.n, run.clears, entry, { boss, outcome }));

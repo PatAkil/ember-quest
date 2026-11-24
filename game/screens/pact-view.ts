@@ -3,12 +3,13 @@ import type { AffixId } from '../types';
 import { AFFIX_IDS, PACTS, affixCountFor, depthOf, pactMods } from '../sim';
 import { renderTableau } from '../backdrop';
 import { at } from '../lookup';
+import { armed } from '../state';
 import type { Game } from '../state';
 import { BAND_Y, C_ACCENT, C_DIM, C_FAINT, C_GOOD, C_LOG_HURT, C_SEL_BAR, C_TEXT, C_WARN, W } from '../theme';
 import { drawCommandBand, wrap2 } from '../widgets';
 import { drawDetail, drawSkyCard, promptInk } from './threshold-view';
 import type { Ink } from './threshold-view';
-import { PACT_ARM, armed } from './threshold';
+import { PACT_ARM } from './threshold';
 
 const NAME_W = 58;
 const DETAIL_X = SAFE_MARGIN + NAME_W + 8;

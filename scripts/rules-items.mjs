@@ -184,6 +184,31 @@ function offerSpread(sim) {
   assert.deepEqual(missing, [], `never offered in ${OFFER_ROLLS} rolls`);
 }
 
+function pointCaps(sim) {
+  const hero = sim.createHero();
+  hero.alloc.DEF = 14;
+  hero.sp = 2;
+  assert.equal(sim.derive(hero).def, 42, 'fixture: DEF at its cap');
+  assert.equal(sim.spendPoint(hero, 'DEF'), false, 'a point went into a capped DEF');
+  assert.deepEqual([hero.sp, hero.alloc.DEF], [2, 14], 'a refused point was spent');
+  assert.equal(sim.spendPoint(hero, 'MDEF'), true, 'an uncapped stat refused a point');
+  return 'spendPoint refuses a capped DEF/MDEF/CRIT and keeps the SP';
+}
+
+function spentRevive(sim) {
+  const tear = itemOf(sim, 'PHOENIX_TEAR');
+  const fresh = sim.createHero();
+  assert.notEqual(sim.compareFull(fresh, tear, 0).gain, 'ALREADY SPENT THIS RUN', 'a live REVIVE shown as spent');
+  const risen = sim.createHero();
+  risen.revived = true;
+  assert.equal(sim.compareFull(risen, tear, 0).gain, 'ALREADY SPENT THIS RUN', 'compareFull sold a spent REVIVE');
+  const lines = sim.describeOffer(risen, { kind: 'ITEM', item: tear });
+  assert.equal(lines.at(-1), 'REVIVE ALREADY SPENT THIS RUN', `describeOffer sold a spent REVIVE: ${lines.join(' / ')}`);
+  const twice = sim.compareFull(risen, itemOf(sim, 'HOLY_GRAIL'), 2).gain;
+  assert.notEqual(twice, 'ALREADY SPENT THIS RUN', 'an awakened twice-REVIVE still holds a life after one revive');
+  return 'a spent REVIVE says ALREADY SPENT THIS RUN in compareFull and the offer text; a twice-REVIVE keeps its second life';
+}
+
 export function itemRules(sim) {
   guardKinds(sim);
   parryPower(sim);
@@ -197,5 +222,5 @@ export function itemRules(sim) {
   aegis(sim);
   newSpells(sim);
   offerSpread(sim);
-  return 'COUNTER, GUARD MP, PARRY x2.8, PUNISH x1.8 + break, EMBER x1.6, BURST x1.7, IMBUE weak + break, BOOST x1.4, IGNITE 35 %, BURN WARD, LOW HP x1.8; AEGIS guard+reflect+parry; EMBERS, TREMOR; every item offered';
+  return `${pointCaps(sim)}; ${spentRevive(sim)}; COUNTER, GUARD MP, PARRY x2.8, PUNISH x1.8 + break, EMBER x1.6, BURST x1.7, IMBUE weak + break, BOOST x1.4, IGNITE 35 %, BURN WARD, LOW HP x1.8; AEGIS guard+reflect+parry; EMBERS, TREMOR; every item offered`;
 }

@@ -1,4 +1,6 @@
 import {
+  ENRAGE_AFTER,
+  ENRAGE_STEP,
   GUARD_CHAIN_FACTOR,
   GUARD_FACTOR,
   GUARD_MP_GAIN,
@@ -64,6 +66,7 @@ const HIT_VERB: Partial<Record<MoveId, string>> = { WINDUP: 'WINDS UP AT', HEAVY
 const QUIET: Omit<EnemyActResult, 'move' | 'text'> = {
   dodged: false, dmg: 0, reflected: 0, revived: false, heroDead: false, enemyDefeated: false,
   guarded: false, parried: false, staggered: false, phaseChanged: false, burned: false, healed: 0, warded: false, countered: 0,
+  enraged: false,
 };
 
 const quiet = (move: MoveId, text: string, over: Partial<EnemyActResult> = {}): EnemyActResult =>
@@ -171,9 +174,26 @@ const MOVE_ACT: Record<MoveId, (t: Turn) => EnemyActResult> = {
   STRIKE: landHit, WINDUP: landHit, HEAVY: landHit, SCORCH: landHit, WARD: wardUp, MEND: mendUp,
 };
 
+function enrages(battle: BattleState): boolean {
+  const enemy = battle.enemy;
+  const hurt = enemy.hp < (battle.foeMark ?? enemy.maxHp);
+  battle.calm = hurt ? 0 : (battle.calm ?? 0) + 1;
+  if (battle.calm <= ENRAGE_AFTER) {return false;}
+  enemy.atk = Math.max(enemy.atk + 1, Math.round(enemy.atk * (1 + ENRAGE_STEP)));
+  return true;
+}
+
+function markFoe(battle: BattleState, hpBefore: number): void {
+  const enemy = battle.enemy;
+  if (enemy.hp < hpBefore) {battle.calm = 0;}
+  battle.foeMark = enemy.hp;
+}
+
 export function enemyAct(hero: Hero, battle: BattleState, rng: Rng): EnemyActResult {
   const enemy = battle.enemy;
   const phaseChanged = checkPhase(enemy);
+  const enraged = enrages(battle);
+  const hpBefore = enemy.hp;
   const move = battle.intent;
   const turn: Turn = { hero, battle, d: derive(hero), move, rng };
   const result = enemy.staggered
@@ -181,5 +201,6 @@ export function enemyAct(hero: Hero, battle: BattleState, rng: Rng): EnemyActRes
     : MOVE_ACT[move](turn);
   advanceCycle(battle, move, phaseChanged);
   enemy.staggered = false;
-  return { ...result, phaseChanged };
+  markFoe(battle, hpBefore);
+  return { ...result, phaseChanged, enraged };
 }

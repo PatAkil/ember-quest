@@ -33,9 +33,32 @@ function wardedBurnRule(sim) {
   assert.ok(ward, 'no BURN_WARD item to test with');
   sim.equip(hero, ward, 0);
   assert.ok(sim.burnWarded(hero), 'equipping a BURN_WARD item did not ward');
+  const why = sim.eventOptionBlocker(hero, option({ kind: 'burnNextFight' }));
+  assert.ok(why && why.length <= 24, `a warded hero may take a burn price (${String(why)})`);
+  const bare = sim.createHero();
+  sim.applyEventCosts(bare, option({ kind: 'burnNextFight' }));
+  sim.equip(bare, ward, 0);
+  const burn = sim.takePendingBurn(bare, 0);
+  assert.ok(burn && bare.burn === burn, 'a ward put on after paying dodged the pending burn');
+  assert.equal(bare.pendingBurn, 0, 'the pending burn was not consumed');
+  return why;
+}
+
+function burnLeaks(sim) {
+  const hero = sim.createHero();
+  hero.burn = { perTurn: 9, turns: 2 };
   sim.applyEventCosts(hero, option({ kind: 'burnNextFight' }));
-  assert.equal(sim.takePendingBurn(hero, 0), null, 'a BURN-warded hero still took the pending burn');
-  assert.equal(hero.pendingBurn, 0, 'a warded pending burn was not consumed');
+  const merged = sim.takePendingBurn(hero, 0);
+  assert.deepEqual(merged, { perTurn: 9, turns: 3 }, `pending burn overwrote a larger burn: ${JSON.stringify(merged)}`);
+  sim.grantClear(hero, 'NORMAL');
+  assert.equal(hero.burn, null, 'a won fight left the hero burning');
+  hero.burn = { perTurn: 4, turns: 3 };
+  sim.restHero(hero);
+  assert.equal(hero.burn, null, 'REST left the hero burning');
+  hero.burn = { perTurn: 4, turns: 3 };
+  sim.fullHeal(hero);
+  assert.equal(hero.burn, null, 'fullHeal left the hero burning');
+  return 'pending burn merges (larger perTurn kept); victory, REST and fullHeal put out the hero';
 }
 
 function burnRules(sim) {
@@ -43,13 +66,13 @@ function burnRules(sim) {
   assert.equal(sim.takePendingBurn(hero, 0), null, 'burn without a pending burn');
   sim.applyEventCosts(hero, option({ kind: 'burnNextFight' }));
   const first = sim.takePendingBurn(hero, 0);
-  assert.deepEqual(first, { perTurn: 3, turns: 3 }, `act 1 burn ${JSON.stringify(first)}`);
+  assert.deepEqual(first, { perTurn: Math.round(3 * sim.ACT_MULT[0]), turns: 3 }, `act 1 burn ${JSON.stringify(first)}`);
   assert.equal(sim.takePendingBurn(hero, 0), null, 'pending burn consumed twice');
   sim.applyEventCosts(hero, option({ kind: 'burnNextFight' }));
   const late = sim.takePendingBurn(hero, 3);
   assert.ok(late && late.perTurn > first.perTurn && late.turns === 3, `act 4 burn ${JSON.stringify(late)}`);
-  wardedBurnRule(sim);
-  return `BURN_WARD shrugs off a pending burn; pendingBurn consumed once; ${String(first.perTurn)}/turn in act 1, ${String(late.perTurn)}/turn in act 4, 3 turns`;
+  const why = wardedBurnRule(sim);
+  return `a warded hero cannot pay in fire (${why}) and a ward worn later does not dodge it; ${burnLeaks(sim)}; pendingBurn consumed once; ${String(first.perTurn)}/turn in act 1, ${String(late.perTurn)}/turn in act 4, 3 turns`;
 }
 
 function restFed(stages, s) {
@@ -92,10 +115,10 @@ function choiceRules(sim) {
   let disabledSeen = 0;
   for (let t = 0; t < EVENT_TRIALS; t++) {
     const hero = randomHero(sim, rng);
-    const event = sim.pickEvent(rng);
+    const event = sim.pickEvent(rng, hero);
     const open = event.options.map((o) => sim.eventOptionEnabled(hero, o));
     if (!open[0] || !open[1]) {disabledSeen += 1;}
-    if (!open[0] && !open[1]) {continue;}
+    assert.ok(open.includes(true), `pickEvent drew ${event.id} with no enabled option`);
     const picks = Object.entries(sim.POLICIES).map(([name, p]) => [name, p.eventChoice(hero, event)]);
     picks.push(['randomEventChoice', sim.randomEventChoice(hero, event, rng)]);
     for (const [name, i] of picks) {assert.ok(open[i], `${name} chose a disabled option of ${event.id}`);}
@@ -115,8 +138,49 @@ function eventRuns(sim) {
   return `${taken} events played in 100 balanced runs`;
 }
 
+function playableRules(sim) {
+  const fresh = sim.createHero();
+  for (const event of sim.EVENTS) {assert.ok(sim.eventPlayable(fresh, event), `${event.id} has no option a fresh hero can take`);}
+  const stuck = sim.createHero();
+  sim.equip(stuck, sim.ITEMS.find((i) => i.effect.kind === 'BURN_WARD'), 0);
+  stuck.hp = 1;
+  stuck.potions = 0;
+  const rng = sim.createSeededRng(3).next;
+  const drawn = new Set(Array.from({ length: 400 }, () => sim.pickEvent(rng, stuck).id));
+  for (const id of drawn) {assert.ok(sim.eventPlayable(stuck, sim.EVENTS.find((e) => e.id === id) ?? sim.QUIET_EVENT), `${id} drawn but unplayable`);}
+  return `every event playable by a fresh hero; pickEvent skips unplayable ones (${drawn.size} kinds drawn for a warded, empty, 1-HP hero)`;
+}
+
+function fullHpRules(sim) {
+  const hero = sim.createHero();
+  const bless = sim.EVENTS.find((e) => e.id === 'PILGRIM').options[1];
+  assert.equal(sim.eventOptionBlocker(hero, bless), 'ALREADY AT FULL HP', 'a heal-only option was open at full HP');
+  hero.hp -= 5;
+  assert.equal(sim.eventOptionBlocker(hero, bless), null, 'a heal-only option was dim below full HP');
+  const shrine = sim.EVENTS.find((e) => e.id === 'SHRINE').options[0];
+  hero.hp += 5;
+  hero.pack.push({ item: sim.ITEMS[0], level: 0 });
+  assert.equal(sim.eventOptionBlocker(hero, shrine), null, 'an option with a heal and other boons was dim at full HP');
+  const tired = sim.createHero();
+  tired.potions = 0;
+  sim.enterActRecovery(tired);
+  sim.enterActRecovery(tired);
+  sim.enterActRecovery(tired);
+  assert.equal(tired.potions, 2, 'enterActRecovery: one potion per act, max 2');
+  return 'a heal-only option is dim at full HP (ALREADY AT FULL HP); entering an act gives a potion back (max 2)';
+}
+
+function epicIdol(sim) {
+  const rng = sim.createSeededRng(9).next;
+  for (let i = 0; i < 200; i++) {
+    const got = sim.rollEventItem(sim.createHero(), 'EPIC', 0, rng);
+    assert.equal(got?.rarity, 'EPIC', `act-1 EPIC event item rolled ${got?.rarity} ${got?.id}`);
+  }
+  return '200 act-1 EPIC event items are EPIC (minAct ignored at the named rarity)';
+}
+
 export function eventRules(sim) {
   const bad = sim.validateEvents();
   assert.deepEqual(bad, [], `validateEvents: ${bad.join('; ')}`);
-  return [effectRules(sim), burnRules(sim), eventMaps(sim), choiceRules(sim), eventRuns(sim)].join(' | ');
+  return [effectRules(sim), burnRules(sim), playableRules(sim), fullHpRules(sim), epicIdol(sim), eventMaps(sim), choiceRules(sim), eventRuns(sim)].join(' | ');
 }

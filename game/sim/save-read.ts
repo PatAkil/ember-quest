@@ -6,15 +6,16 @@ import type { RoomType } from './model';
 import { maxLevelFor } from './gear';
 import { fail, flag, idList, int, knownKey, list, num, oneOf, record } from './save-check';
 import type { Bounds, Fields } from './save-check';
+import type { RewardStep, RoomExtras } from './save-battle';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 export interface SavedItem { id: string; level: number }
 export type SavedHero = Omit<Hero, 'equipment' | 'pack'> & { equipment: Partial<Record<Slot, string>>; pack: SavedItem[] };
 export interface SavedNode { type: RoomType; links: number[]; cleared: boolean; enemyId?: string; affixes?: AffixId[] }
 export interface SavedMap { stages: SavedNode[][]; curStage: number; reachable: number[]; cursor: number }
 export interface SavedCounters { n: number; clears: number; bosses: number; descentClears: number | null; score: number; banked: number; won: boolean }
-export type SavedStep = { at: 'MAP' } | { at: 'ROOM'; stage: number; slot: number } | { at: 'THRESHOLD' } | { at: 'PACT'; offers: PactId[] };
+export type SavedStep = { at: 'MAP' } | ({ at: 'ROOM'; stage: number; slot: number } & RoomExtras) | RewardStep | { at: 'THRESHOLD' } | { at: 'PACT'; offers: PactId[] };
 export interface SavedRun { version: typeof SAVE_VERSION; hero: SavedHero; run: SavedCounters; depthPlan: ActPlan[]; map: SavedMap; step: SavedStep; rng: number }
 
 const COUNT: Bounds = { lo: 0, hi: 1e6 };

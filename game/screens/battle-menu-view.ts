@@ -51,9 +51,18 @@ function topCell(g: Game, cmd: TopCommand, sel: boolean): Cell {
   return { label: cmd, note: '', color: labelColor(sel, true), sel };
 }
 
+function drawColumnHint(ctx: Ctx, cursor: number): void {
+  const col = cursor % MENU_COLS;
+  const other = cursor + (col === 0 ? 1 : -1);
+  if (other < 0 || other >= TOP_COMMANDS.length) {return;}
+  const { x, y } = cellAt(cursor);
+  drawText(ctx, col === 0 ? '>' : '<', { x: x + COL_W - 6, y }, { color: C_DIM });
+}
+
 function drawTop(g: Game): void {
   const ctx = g.app.pc.ctx;
   TOP_COMMANDS.forEach((cmd, i) => { drawCell(ctx, i, topCell(g, cmd, i === g.battle.topCursor)); });
+  drawColumnHint(ctx, g.battle.topCursor);
 }
 
 function drawMagic(g: Game): void {

@@ -31,6 +31,7 @@ type BattlePhase = 'MENU' | 'QUEUE';
 export type BattleMenu = 'TOP' | 'MAGIC';
 type Outcome = 'NONE' | 'WON' | 'LOST';
 interface QueueStep { hold: number; run: () => void }
+export interface BattleWin { kill: () => void; done: () => void }
 export interface BattleScreen {
   enemy: EnemyInstance | null;
   state: BattleState | null;
@@ -41,6 +42,7 @@ export interface BattleScreen {
   magicCursor: number;
   magicPage: number;
   outcome: Outcome;
+  onKill: () => void;
   onWon: () => void;
   queue: QueueStep[];
   timer: number;
@@ -51,7 +53,7 @@ export interface BattleScreen {
 
 export interface CardScreen { lines: string[]; onDone: () => void; art?: { icon: Sprite; color: string } }
 export interface LevelUpScreen { cursor: number; earned: number; onDone: () => void }
-export interface LootScreen { offers: LootOffer[]; cursor: number; source: LootSource; stow: boolean; gift?: boolean; onDone: () => void }
+export interface LootScreen { offers: LootOffer[]; cursor: number; source: LootSource; stow: boolean; gift?: boolean; ash?: boolean; onDone: () => void }
 export type DeathCause = 'BLOW' | 'BURN' | 'THORNS' | 'BLOOD' | '';
 export interface DeathRecord { killerId: string; killerName: string; elite: boolean; move: string; damage: number; lastLines: string[]; cause: DeathCause }
 export const emptyDeath = (): DeathRecord => ({ killerId: '', killerName: '', elite: false, move: '', damage: 0, lastLines: [], cause: '' });
@@ -85,6 +87,9 @@ export interface Game {
   subScene: SubScene;
   prevDirY: number;
   prevDirX: number;
+  aGate: { openedAt: number; released: boolean };
+  endedAt: number;
+  roomSeed: number;
   best: BestRecord;
   beatBest: boolean;
   deathBiome: string;
@@ -132,6 +137,9 @@ export function createGame(app: App): Game {
     subScene: 'MAP',
     prevDirY: 0,
     prevDirX: 0,
+    aGate: { openedAt: 0, released: true },
+    endedAt: 0,
+    roomSeed: 0,
     best: loadBest(),
     beatBest: false,
     deathBiome: '',
@@ -143,7 +151,7 @@ export function createGame(app: App): Game {
     reveal: createReveal(),
     map: { stages: [], curStage: -1, reachable: [0, 1], cursor: 0, pendingNode: null },
     battle: {
-      enemy: null, state: null, phase: 'MENU', menuCursor: 0, menu: 'TOP', topCursor: 0, magicCursor: 0, magicPage: 0, outcome: 'NONE', onWon: noop,
+      enemy: null, state: null, phase: 'MENU', menuCursor: 0, menu: 'TOP', topCursor: 0, magicCursor: 0, magicPage: 0, outcome: 'NONE', onKill: noop, onWon: noop,
       queue: [], timer: 0, text: '', color: C_TEXT, bufferedA: false,
     },
     card: { lines: [], onDone: noop },
@@ -170,18 +178,39 @@ export function resetCursorEdge(g: Game): void {
 }
 
 export function dirEdge(g: Game): number {
-  const dy = g.app.input.dir.y;
-  const edge = dy !== 0 && g.prevDirY === 0 ? dy : 0;
+  const { input } = g.app;
+  const dy = input.dir.y;
+  const tapped = input.pressedDir().y;
+  const edge = tapped !== 0 ? tapped : (dy !== 0 && g.prevDirY === 0 ? dy : 0);
   g.prevDirY = dy;
   return edge;
 }
 
 export function dirEdgeX(g: Game): number {
-  const dx = g.app.input.dir.x;
-  const edge = dx !== 0 && g.prevDirX === 0 ? dx : 0;
+  const { input } = g.app;
+  const dx = input.dir.x;
+  const tapped = input.pressedDir().x;
+  const edge = tapped !== 0 ? tapped : (dx !== 0 && g.prevDirX === 0 ? dx : 0);
   g.prevDirX = dx;
   return edge;
 }
+
+const A_DWELL = 0.25;
+
+export function armA(g: Game): void {
+  g.aGate = { openedAt: g.clock, released: false };
+}
+
+export function takeA(g: Game): boolean {
+  const { input } = g.app;
+  const gate = g.aGate;
+  if (!gate.released && (!input.held('A') || input.released('A'))) {gate.released = true;}
+  return gate.released && g.clock - gate.openedAt >= A_DWELL && input.pressed('A');
+}
+
+export interface Arming { openedAt: number; delay: number }
+
+export const armed = (g: Game, arming: Arming): boolean => g.clock - arming.openedAt >= arming.delay;
 
 export function wrapCursor(cursor: number, dy: number, n: number): number {
   return (cursor + dy + n) % n;

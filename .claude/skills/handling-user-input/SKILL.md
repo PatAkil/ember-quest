@@ -74,9 +74,13 @@ The `Input` interface exposes three queries per button:
 - `held(button)` — currently down. Use for continuous actions: charging, thrusting, variable jump height.
 - `released(button)` — went up **this frame**. Use for release-triggered actions (e.g. cutting a jump short).
 
+Directions have the same latch: `input.pressedDir()` returns `{ x, y }` for direction keys that went down since the last `endFrame()`, even if they were released before the tick ran (a quick tap, or Playwright's default `keyboard.press`). Menus never compare `input.dir` frames by hand — `dirEdge(g)` / `dirEdgeX(g)` read the latch first and the held 0 → ±1 edge second, so a held key still moves once and a tap is never lost.
+
+Confirm buttons on reward screens are **armed**: `armA(g)` when the screen opens, `takeA(g)` instead of `input.pressed('A')` when it reads A — A then counts only after it has been released once since the screen opened and 0.25 s have passed, so a press held or mashed through the previous screen cannot fire here. Timed choices (THRESHOLD, PACT, GAME OVER, WIN) use `armed(g, { openedAt, delay })` and draw their prompt faint until armed.
+
 Because buttons have alias keys, these are **button-level** edges: switching from one alias to another mid-hold (Space held, Z tapped) produces no `pressed` and no `released` — only the whole button going down or fully up does.
 
-**`endFrame()` must be called exactly once per update tick, after all input reads** — it clears the `pressed`/`released` edges. Call it as the last line of `update(dt)`, after the scene's handler has read `input.dir` and the button edges:
+**`endFrame()` must be called exactly once per update tick, after all input reads** — it clears the `pressed`/`released` edges and the `pressedDir()` latch. Call it as the last line of `update(dt)`, after the scene's handler has read `input.dir` and the button edges:
 
 ```ts
 function update(dt: number): void {

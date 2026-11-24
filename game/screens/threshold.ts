@@ -1,7 +1,7 @@
 import { PICO8 } from '../../engine';
 import { at } from '../lookup';
-import { dirEdge, resetCursorEdge, wrapCursor } from '../state';
-import type { Game, ThresholdChoice } from '../state';
+import { armed, dirEdge, resetCursorEdge, wrapCursor } from '../state';
+import type { Arming, Game, ThresholdChoice } from '../state';
 import { C_ACCENT, W } from '../theme';
 
 export const THRESHOLD_CHOICES: readonly ThresholdChoice[] = ['ASCEND', 'DESCEND'];
@@ -9,9 +9,7 @@ export const THRESHOLD_ARM = 1.0;
 export const PACT_ARM = 0.5;
 
 interface ChoiceStep { cursor: number; chosen: boolean }
-interface Arming { openedAt: number; delay: number }
-
-export const armed = (g: Game, arming: Arming): boolean => g.clock - arming.openedAt >= arming.delay;
+export const END_ARM = 1.0;
 
 export function stepChoice(g: Game, cursor: number, count: number, arming: Arming): ChoiceStep {
   const dy = dirEdge(g);

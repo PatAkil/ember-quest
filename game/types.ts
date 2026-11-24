@@ -16,6 +16,10 @@ export const CAP_MDEF = 42;
 export const CAP_CRIT = 60;
 export const CAP_DODGE = 40;
 
+export const CAP_STAT: Partial<Record<StatKey, { field: 'def' | 'mdef' | 'crit'; max: number }>> = {
+  DEF: { field: 'def', max: CAP_DEF }, MDEF: { field: 'mdef', max: CAP_MDEF }, CRIT: { field: 'crit', max: CAP_CRIT },
+};
+
 export const BASE = { hp: 46, mp: 14, atk: 7, mag: 12, crit: 5, critMult: 1.5 } as const;
 
 export interface StatMods {
@@ -85,6 +89,7 @@ export interface Item {
 }
 export interface OwnedItem { item: Item; level: number }
 export const PACK_SIZE = 4;
+export const LOOT_OFFERS_MAX = 4;
 export type UpgradeTarget = { where: 'WORN'; slot: Slot } | { where: 'PACK'; index: number };
 export type LootOffer =
   | { kind: 'ITEM'; item: Item }
@@ -177,12 +182,13 @@ export interface Hero {
 }
 
 export const POTIONS_MAX = 2;
+export const ACT_POTIONS = 1;
 export const POTION_HEAL = 0.4;
 export const GUARD_FACTOR = 0.5;
 export const GUARD_CHAIN_FACTOR = 0.75;
 export const GUARD_MP_GAIN = 2;
 export const RIPOSTE_MULT = 1.5;
-export const HEAVY_MULT = 2.2;
+export const HEAVY_MULT = 2.0;
 export const WINDUP_MULT = 0.6;
 export const SCORCH_MULT = 0.7;
 export const WARD_BONUS = 25;
@@ -198,6 +204,8 @@ export const EMBER_PER_ACTION = 6;
 export const EMBER_PER_HIT_TAKEN = 4;
 export const EMBER_PER_PARRY = 15;
 export const BURST_MULT = 2.5;
+export const ENRAGE_AFTER = 12;
+export const ENRAGE_STEP = 0.1;
 export const BREAK_AT: Record<EnemyKind, number> = { NORMAL: 0.25, ELITE: 0.15, BOSS: 0.08 };
 
 export interface BattleState {
@@ -210,6 +218,8 @@ export interface BattleState {
   guardChain: number;
   riposte: boolean;
   aegis: number;
+  calm?: number;
+  foeMark?: number;
 }
 export type HeroCommand = 'ATTACK' | 'GUARD' | 'BURST' | 'POTION';
 export type HeroAction = HeroCommand | SpellId;
@@ -248,6 +258,7 @@ export interface EnemyActResult {
   healed: number;
   warded: boolean;
   countered: number;
+  enraged: boolean;
 }
 export interface TurnStart {
   hpRegen: number;
@@ -263,13 +274,15 @@ export interface TurnStart {
 export type Rng = () => number;
 
 export const ACTS_PER_DEPTH = 4;
-export const DESCENT_GROWTH = 1.2;
+export const RUN_MAX_N = 40;
+export const DESCENT_GROWTH = 1.16;
 export const SCORE_PER_CLEAR = 100;
 export const SCORE_PER_BOSS = 500;
 export const GLORY_PER_DEPTH = 1000;
 export const HOLLOW_HP_FLOOR = 2;
-export const HOLLOW_ATK_SHARE = 0.7;
-export const HOLLOW_HP_HITS = 30;
+export const HOLLOW_ATK_SHARE = 0.65;
+export const HOLLOW_HP_HITS = 22;
+export const HOLLOW_HIT_CAP = 0.15;
 export const HOLLOW_RES_CAP = 40;
 export const HOLLOW_SWIFT_DODGE = 15;
 export const DESCENT_STAGE_MAX = 8;

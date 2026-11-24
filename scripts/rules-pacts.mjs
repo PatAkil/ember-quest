@@ -58,6 +58,8 @@ function clearMods(sim) {
   assert.equal(clearOf(sim, ['IRON'], 'ELITE').sp, clearOf(sim, [], 'ELITE').sp, 'IRON SP on an elite');
   assert.equal(clearOf(sim, ['HUNTER'], 'ELITE').sp, clearOf(sim, [], 'ELITE').sp + 2, 'HUNTER +2 SP per elite');
   assert.equal(clearOf(sim, ['HUNTER'], 'NORMAL').sp, base.sp, 'HUNTER SP on a normal');
+  assert.equal(clearOf(sim, ['MISER', 'HUNTER'], 'ELITE').sp, clearOf(sim, ['HUNTER'], 'ELITE').sp + 1, 'MISER + HUNTER: the card the cap swallows is not +1 SP');
+  assert.equal(clearOf(sim, ['MISER'], 'ELITE').sp, clearOf(sim, [], 'ELITE').sp, 'MISER alone swallowed a card');
   return ['clearHealMult', 'spPerClear', 'spPerBoss', 'eliteSp'];
 }
 
@@ -133,6 +135,18 @@ function restMods(sim) {
   return ['restHealMult', 'restUpgrade'];
 }
 
+function swearing(sim) {
+  const full = sim.createHero();
+  sim.takePact(full, 'BRITTLE');
+  assert.equal(full.hp, sim.derive(full).maxHp, `BRITTLE left ${full.hp}/${sim.derive(full).maxHp} HP`);
+  const iron = sim.createHero();
+  iron.hp = 30;
+  const before = sim.derive(iron).maxHp;
+  sim.takePact(iron, 'IRON');
+  assert.equal(iron.hp, 30 + sim.derive(iron).maxHp - before, 'IRON did not grant the HP its max HP adds');
+  return 'takePact clamps HP to the new max (BRITTLE) and grants the max HP it adds (IRON)';
+}
+
 function neutral(sim) {
   const hero = sim.createHero();
   assert.equal(sim.pactDamage(hero, true), 1, 'no pacts: damage multiplier');
@@ -143,5 +157,5 @@ export function pactEffectRules(sim) {
   neutral(sim);
   const covered = [maxHpMods, damageMods, clearMods, foeMods, lootMods, restMods].flatMap((rule) => rule(sim));
   assert.deepEqual([...covered].sort(), Object.keys(sim.neutralMods()).sort(), 'a PactMod has no rules test');
-  return `${covered.length} PactMods each observed (max HP, damage, ember, clear heal/SP, foe ATK/HP/affix, loot rarity/drops/cards, REST); neutral without pacts`;
+  return `${covered.length} PactMods each observed (max HP, damage, ember, clear heal/SP, foe ATK/HP/affix, loot rarity/drops/cards, REST); neutral without pacts; MISER+HUNTER's capped card becomes +1 SP; ${swearing(sim)}`;
 }

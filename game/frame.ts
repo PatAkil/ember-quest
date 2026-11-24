@@ -2,7 +2,8 @@ import type { SceneMachine } from '../engine';
 import { startPlaying } from './flow';
 import { updatePops } from './pops';
 import { drawReveal, revealActive, trackReveal } from './transition';
-import { resetCursorEdge } from './state';
+import { armed, resetCursorEdge } from './state';
+import { END_ARM } from './screens/threshold';
 import type { Game, SubScene } from './state';
 import { C_BG, H, W } from './theme';
 import { renderBattle } from './screens/battle-view';
@@ -55,11 +56,12 @@ const RENDER_SUB: Record<SubScene, (g: Game) => void> = {
 };
 
 function restartOnA(g: Game): void {
+  if (!armed(g, { openedAt: g.endedAt, delay: END_ARM })) {return;}
   if (g.app.input.pressed('A')) { g.app.audio.play('blip'); startPlaying(g); }
 }
 
 function updatePlaying(g: Game, dt: number): void {
-  if (g.app.input.pressed('PAUSE')) { g.app.audio.play('blip'); g.app.scenes.to('PAUSED'); return; }
+  if (g.app.input.pressed('PAUSE') && !g.dying) { g.app.audio.play('blip'); g.app.scenes.to('PAUSED'); return; }
   if (revealActive(g)) { resetCursorEdge(g); return; }
   UPDATE_SUB[g.subScene](g, dt);
 }

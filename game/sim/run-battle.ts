@@ -74,8 +74,8 @@ function round(f: Fight): Verdict {
   if (result.enemyDefeated) {return 'WON';}
   const reply = enemyAct(f.hero, f.battle, f.rng);
   tallyReply(f, reply);
-  if (reply.enemyDefeated) {return 'WON';}
-  return reply.heroDead ? 'LOST' : null;
+  if (reply.heroDead) {return 'LOST';}
+  return reply.enemyDefeated ? 'WON' : null;
 }
 
 interface Contest { hero: Hero; enemy: EnemyInstance; policy: Policy; rng: Rng; verbs: VerbTally }

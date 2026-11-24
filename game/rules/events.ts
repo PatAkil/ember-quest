@@ -39,7 +39,7 @@ export const EVENTS: readonly EventDef[] = [
     id: 'SMITH', title: 'A WANDERING SMITH', lines: ['NO FORGE, NO COIN WANTED.', 'HE WORKS FOR SWEAT ALONE.'],
     options: [
       { label: 'LEND HIM YOUR STRENGTH', effects: [{ kind: 'maxHp', amount: -8 }, { kind: 'upgradeAny' }] },
-      { label: 'SELL HIM SCRAP', effects: [{ kind: 'potion', amount: 2 }, { kind: 'dropPackItem' }] },
+      { label: 'TRADE A STORY', effects: [{ kind: 'potion', amount: 1 }] },
     ],
   },
   {
@@ -83,6 +83,11 @@ export const EVENTS: readonly EventDef[] = [
     options: [{ label: 'DRINK THE TEARS', effects: [{ kind: 'potion', amount: 2 }, { kind: 'burnNextFight' }] }, WALK_ON],
   },
 ];
+
+export const QUIET_EVENT: EventDef = {
+  id: 'QUIET', title: 'A QUIET HOLLOW', lines: ['NOTHING STIRS HERE.', 'YOU CATCH YOUR BREATH.'],
+  options: [{ label: 'REST A MOMENT', effects: [{ kind: 'hpPct', amount: 0.1 }] }, WALK_ON],
+};
 
 const SCREEN_KINDS: ReadonlySet<EffectKind> = new Set<EffectKind>(['sp', 'item', 'upgradeAny', 'dropPackItem']);
 

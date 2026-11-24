@@ -1,11 +1,11 @@
 import { BUTTON_KEY, SAFE_MARGIN, drawPanel, drawText, textWidth } from '../../engine';
 import { STAT_KEYS, SP_GAIN } from '../types';
-import type { Derived, StatKey } from '../types';
+import type { Derived, Hero, StatKey } from '../types';
 import { derive, spendPoint } from '../sim';
 import { heroAnchor, renderTableau } from '../backdrop';
 import { at } from '../lookup';
 import { drawPops, popSpot, pushPop } from '../pops';
-import { dirEdge, resetCursorEdge, wrapCursor } from '../state';
+import { armA, dirEdge, resetCursorEdge, takeA, wrapCursor } from '../state';
 import type { Game } from '../state';
 import { BAND_Y, C_ACCENT, C_BORDER, C_DIM, C_PANEL, C_SEL_BAR, C_TEXT, HERO_W, HERO_X, W } from '../theme';
 import { blinkHz, drawCommandBand, pct } from '../widgets';
@@ -15,14 +15,16 @@ export function startLevelUp(g: Game, earned: number, onDone: () => void): void 
   g.levelUp = { earned, cursor: 0, onDone };
   g.subScene = 'LEVELUP';
   resetCursorEdge(g);
+  armA(g);
 }
 
 export function updateLevelUp(g: Game): void {
   const lu = g.levelUp;
   const dy = dirEdge(g);
   if (dy) { lu.cursor = wrapCursor(lu.cursor, dy, STAT_KEYS.length); g.app.audio.play('blip'); }
-  if (!g.app.input.pressed('A')) {return;}
+  if (!takeA(g)) {return;}
   const key = at(STAT_KEYS, lu.cursor);
+  if (capped(g.hero, key)) { g.app.audio.play('blip'); return; }
   if (spendPoint(g.hero, key)) {
     g.app.audio.play('pickup');
     pushPop(g.pops, { x: Math.round((SAFE_MARGIN + PANEL.x) / 2), y: popSpot(heroAnchor()).y }, `${gainText(key)} ${key}`, C_ACCENT);
@@ -38,6 +40,13 @@ function currentValues(d: Derived): Record<StatKey, string> {
     HP: String(d.maxHp), MP: String(d.maxMp), ATK: String(d.atk), MAG: String(d.mag), DEF: pct(d.def), MDEF: pct(d.mdef), CRIT: pct(d.crit),
   };
 }
+
+function capped(hero: Hero, k: StatKey): boolean {
+  const next = { ...hero, alloc: { ...hero.alloc, [k]: hero.alloc[k] + 1 } };
+  return currentValues(derive(next))[k] === currentValues(derive(hero))[k];
+}
+
+const gainOrMax = (hero: Hero, k: StatKey): string => (capped(hero, k) ? 'MAX' : gainText(k));
 
 const PANEL = { x: HERO_X + HERO_W / 2 + 12, y: SAFE_MARGIN, h: 94 };
 const PANEL_W = W - SAFE_MARGIN - PANEL.x;
@@ -56,7 +65,7 @@ function drawStatRow(g: Game, k: StatKey, i: number, current: Record<StatKey, st
   const sel = i === g.levelUp.cursor;
   if (sel) { ctx.fillStyle = C_SEL_BAR; ctx.fillRect(PANEL.x + 3, y - 2, PANEL_W - 6, 9); }
   drawText(ctx, `${sel ? '> ' : '  '}${k}`, { x: PANEL.x + 6, y }, { color: sel ? C_ACCENT : C_TEXT, shadow: sel });
-  const v = `${current[k]} ${gainText(k)}`;
+  const v = `${current[k]} ${gainOrMax(g.hero, k)}`;
   drawText(ctx, v, { x: PANEL.x + PANEL_W - 6 - textWidth(v, 1), y }, { color: sel ? C_TEXT : C_DIM });
 }
 
@@ -68,7 +77,9 @@ function drawSpendBand(g: Game): void {
   const earned = `+${g.levelUp.earned} EARNED`;
   drawText(ctx, earned, { x: W - SAFE_MARGIN - 4 - textWidth(earned, 1), y: BAND_Y + 10 }, { color: C_DIM });
   const key = at(STAT_KEYS, g.levelUp.cursor);
-  drawText(ctx, `${key} ${gainText(key)}  ${STAT_HINT[key]}`, { x: SAFE_MARGIN + 4, y: BAND_Y + 22 }, { color: C_TEXT });
+  const full = capped(g.hero, key);
+  const line = full ? `${key} IS AT ITS CAP  SPEND ELSEWHERE` : `${key} ${gainText(key)}  ${STAT_HINT[key]}`;
+  drawText(ctx, line, { x: SAFE_MARGIN + 4, y: BAND_Y + 22 }, { color: full ? C_DIM : C_TEXT });
   const prompt = `${BUTTON_KEY.A.hint} SPEND A POINT`;
   drawText(ctx, prompt, { x: SAFE_MARGIN + 4, y: BAND_Y + 31 }, { color: blinkHz(g.clock, 1.2) ? C_ACCENT : C_DIM });
 }

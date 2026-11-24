@@ -212,6 +212,66 @@ function resistsReadInstance(sim) {
   assert.ok(hitAt(0) > hitAt(30), 'ATTACK ignored the instance resist');
 }
 
+function guardMendLoop(sim, f, rng) {
+  let enraged = false;
+  for (let turn = 0; turn < 200; turn++) {
+    const action = turn % 2 === 0 || !sim.canAfford(f.hero, 'MEND') ? 'GUARD' : 'MEND';
+    if (sim.startTurn(f.hero, f.battle, action).heroDead) {return enraged;}
+    sim.heroAct(f.hero, f.battle, action, rng);
+    const reply = sim.enemyAct(f.hero, f.battle, rng);
+    enraged ||= reply.enraged;
+    if (reply.heroDead || reply.enemyDefeated) {return enraged;}
+  }
+  return enraged;
+}
+
+function chainResets(sim) {
+  const rng = seeded(sim, 4);
+  const chain = fightOf(sim, 'SLIME');
+  sim.heroAct(chain.hero, chain.battle, 'GUARD', rng);
+  sim.heroAct(chain.hero, chain.battle, 'POTION', rng);
+  assert.equal(chain.battle.guardChain, 1, 'a POTION reset the guard chain');
+  sim.heroAct(chain.hero, chain.battle, 'ATTACK', rng);
+  assert.equal(chain.battle.guardChain, 0, 'ATTACK did not reset the guard chain');
+}
+
+function stallLoop(sim) {
+  const f = fightOf(sim, 'GOBLIN');
+  for (const id of ['LIFE_TOME', 'PADDED_COAT', 'CLAY_BOWL']) {sim.equip(f.hero, itemOf(sim, id), 2);}
+  const d = sim.derive(f.hero);
+  Object.assign(f.hero, { hp: Math.round(d.maxHp / 2), mp: Math.round(d.maxMp / 2), ember: 0 });
+  const start = { hp: f.hero.hp, mp: f.hero.mp, ember: f.hero.ember };
+  const enraged = guardMendLoop(sim, f, seeded(sim, 4));
+  const grew = f.hero.hp > start.hp && f.hero.mp > start.mp && f.hero.ember > start.ember;
+  assert.ok(f.hero.hp <= 0 || !grew, `GUARD/MEND loop is net-positive: ${JSON.stringify(start)} -> hp ${f.hero.hp} mp ${f.hero.mp} ember ${f.hero.ember}`);
+  assert.ok(enraged, 'a foe that took no damage for 12 actions never enraged');
+  chainResets(sim);
+  return `GUARD/MEND x200 vs GOBLIN ends ${f.hero.hp <= 0 ? 'with the hero dead' : 'not net-positive'}; only damage resets the guard chain; the calm foe enrages after ${sim.ENRAGE_AFTER}`;
+}
+
+function tieGoesToDeath(sim) {
+  const f = fightOf(sim, 'SLIME');
+  sim.equip(f.hero, itemOf(sim, 'BRAMBLE_VEST'), 0);
+  f.hero.hp = 1;
+  f.enemy.hp = 1;
+  f.enemy.atk = 50;
+  const verbs = { guards: 0, parries: 0, bursts: 0, potions: 0, phase2: 0, burnDeaths: 0, breakTry: { NORMAL: 0, ELITE: 0, BOSS: 0 }, breakHit: { NORMAL: 0, ELITE: 0, BOSS: 0 } };
+  const policy = { ...sim.POLICIES.balanced, act: () => 'GUARD' };
+  const out = sim.runBattle({ hero: f.hero, enemy: f.enemy, policy, rng: seeded(sim, 2), verbs });
+  assert.ok(f.enemy.hp <= 0, 'fixture: the reflect did not kill the foe');
+  assert.equal(out.won, false, 'a blow that kills both counted as a win');
+  return 'one enemy blow that kills both is a loss';
+}
+
+function swiftKeepsRiposte(sim) {
+  const f = fightOf(sim, 'SLIME');
+  f.enemy.affixes = ['SWIFT'];
+  f.battle.riposte = true;
+  const r = sim.heroAct(f.hero, f.battle, 'ATTACK', () => 0.01);
+  assert.ok(r.missed && f.battle.riposte, 'a SWIFT miss threw the riposte away');
+  return 'a SWIFT miss keeps the riposte';
+}
+
 export function verbRules(sim) {
   guardRules(sim);
   guardLeavesState(sim);
@@ -224,5 +284,6 @@ export function verbRules(sim) {
   breakRules(sim);
   potionRules(sim);
   resistsReadInstance(sim);
-  return 'GUARD x0.5/chain x0.75, MP and ember only when due, no regen; PARRY riposte x1.5; BURN 40 %/3, ticks kill (REVIVE answers); BURST 2.5x pierces; ember +6/+4/+15; WEAK/RESIST per hit; BREAK; POTION';
+  const fixes = [stallLoop, tieGoesToDeath, swiftKeepsRiposte].map((rule) => rule(sim)).join('; ');
+  return `GUARD x0.5/chain x0.75, MP and ember only when due, no regen; PARRY riposte x1.5; BURN 40 %/3, ticks kill (REVIVE answers); BURST 2.5x pierces; ember +6/+4/+15; WEAK/RESIST per hit; BREAK; POTION; ${fixes}`;
 }

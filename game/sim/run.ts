@@ -1,8 +1,8 @@
-import type { Rng } from '../types';
+import { RUN_MAX_N, type Rng } from '../types';
 import { actInDepth, depthOf, isLastActOfDepth, planDepth, planOf } from './descent';
-import { createHero } from './hero';
+import { createHero, enterActRecovery, takePact } from './hero';
 import { generateMap, type MapNode } from './map';
-import { offerPacts, takePact } from './pacts';
+import { offerPacts } from './pacts';
 import type { Policy, RoomType } from './model';
 import { withPolicyContext } from './policies';
 import { bossRoom, playRoom } from './run-rooms';
@@ -11,7 +11,7 @@ import { clamp } from './util';
 
 export type { BossPick, Probe, RunResult } from './run-tally';
 
-export const SIM_MAX_N = 40;
+export const SIM_MAX_N = RUN_MAX_N;
 
 export interface SimOptions { descend?: boolean }
 
@@ -50,6 +50,7 @@ function choosePact(run: RunState): void {
 
 function nextAct(run: RunState): void {
   run.n += 1;
+  enterActRecovery(run.hero);
   if (actInDepth(run.n) === 0) {
     run.descentClears ??= run.clears;
     run.depthPlan = planDepth(depthOf(run.n), run.rng);

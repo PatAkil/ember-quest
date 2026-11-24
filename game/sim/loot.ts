@@ -1,5 +1,6 @@
 import {
   FIGHT_DROP_CHANCE,
+  LOOT_OFFERS_MAX,
   MAX_LEVEL,
   MISSED_SCROLL_CHANCE,
   PITY_AFTER,
@@ -14,13 +15,13 @@ import {
   type SpellId,
   type UpgradeTarget,
 } from '../types';
-import { ITEMS, LOOT_COUNT, SPELLS } from '../data';
+import { ITEMS, SPELLS } from '../data';
 import { inDescent, type ActRef } from './descent';
 import { lootWeights, shiftRarity } from './descent-loot';
 import { maxLevelFor } from './gear';
 import { clampVitals, equip, learnSpell } from './hero';
 import { ownedIds, packSize, stow, targetOwned, upgradableTargets } from './pack';
-import { pactMods, type PactTotals } from './pacts';
+import { lootCards, pactMods, type PactTotals } from './pacts';
 import { clamp, isNonEmpty, pick } from './util';
 
 type UpgradeOffer = Extract<LootOffer, { kind: 'UPGRADE' }>;
@@ -29,7 +30,7 @@ export interface AppliedOffer { line: string; replaced?: OwnedItem; stowed: bool
 
 export interface OfferChoice { stow?: boolean }
 
-const MAX_OFFERS = 4;
+const MAX_OFFERS = LOOT_OFFERS_MAX;
 
 export function resolveUpgrade(hero: Hero, target: UpgradeTarget): UpgradeOffer | null {
   const owned = targetOwned(hero, target);
@@ -144,9 +145,7 @@ export function ensureStarterWeapon(offers: LootOffer[], hero: Hero, act: number
 
 const noDrop = (mods: PactTotals): boolean => mods.fightDrops <= 0;
 
-function cardsFor(source: LootSource, mods: PactTotals): number {
-  return LOOT_COUNT[source] + mods.extraCard + (source === 'ELITE' ? mods.eliteExtraCard : 0);
-}
+const cardsFor = (source: LootSource, mods: PactTotals): number => Math.min(MAX_OFFERS, lootCards(source, mods));
 
 function bossOffers(ref: ActRef, hero: Hero, rng: Rng): LootOffer[] {
   return inDescent(ref.n) ? rollDescentBossLoot(ref.n, hero, rng) : rollBossLoot(ref, hero, rng);

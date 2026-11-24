@@ -156,7 +156,7 @@ function parseFixture(q: URLSearchParams): Fixture | null {
 function parseSeed(q: URLSearchParams, fixture: Fixture | null): number | null {
   const s = Number.parseInt(q.get('seed') ?? '', 10);
   if (Number.isFinite(s) && s >= 0) {return s;}
-  return fixture ? 1 : null;
+  return fixture || HOLD ? 1 : null;
 }
 
 const MAX_DEPTH = 10;
@@ -230,6 +230,7 @@ function ticksUntil(driver: Driver, done: () => boolean, max: number, withA = fa
 }
 
 const ARM_TICKS = 70;
+const A_TICKS = 16;
 
 function settle(driver: Driver, ticks: number): void {
   for (let i = 0; i < ticks; i++) {driver.runTick(DT);}
@@ -345,7 +346,7 @@ function fixtureBuilders(fx: FixtureContext): Record<Fixture, () => void> {
     win: winRun,
     gear: () => { begin(kitted()); host.openGear(); },
     pick: () => { begin(laden()); enter('LOOT'); host.pickUpgrade(); },
-    drop: () => { chest(laden()); host.syncReveal(); driver.press('A'); driver.runTick(DT); },
+    drop: () => { chest(laden()); host.syncReveal(); settle(driver, A_TICKS); driver.press('A'); driver.runTick(DT); },
     event: () => { begin(wanderer(fresh())); enter('EVENT'); },
     threshold: () => { killLastBoss(); },
     pact: pactRun,

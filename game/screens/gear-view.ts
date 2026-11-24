@@ -111,7 +111,8 @@ function actionHint(g: Game): string {
   const { cursor } = g.gear;
   if (packedAt(g, cursor)) {return `${BUTTON_KEY.A.hint} WEAR IT`;}
   if (wornAt(g, cursor)) {return `${BUTTON_KEY.A.hint} TO PACK`;}
-  return '';
+  const slot = SLOTS[cursor];
+  return g.hero.pack.some((o) => o.item.slot === slot) ? `${BUTTON_KEY.A.hint} WEAR FROM PACK` : '';
 }
 
 function drawHeader(g: Game, ctx: CanvasRenderingContext2D): void {

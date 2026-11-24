@@ -1,10 +1,11 @@
 import { PICO8 } from '../../engine';
-import type { AffixId, EnemyActResult, EnemyInstance, HeroAction, HeroActResult, HeroCommand, TurnStart } from '../types';
+import type { AffixId, BattleState, EnemyActResult, EnemyInstance, HeroAction, HeroActResult, HeroCommand, TurnStart } from '../types';
 import { SPELLS } from '../data';
 import { canAfford, createBattle, enemyAct, heroAct, isSpell, spawnFoe, startTurn } from '../sim';
 import { BRACE_DUR, bannerBlocks, cue, dismissBanner, fadeProgress, flushFx, resetFx, skipToImpact, updateFx } from '../fx';
 import { biome, foeScale, resetCursorEdge } from '../state';
-import type { Game } from '../state';
+import type { BattleWin, Game } from '../state';
+import { forgetRun, persistBattle } from '../persist';
 import { C_ACCENT, C_DIM, C_DMG_TAKEN, C_HP, C_LOG_HURT, C_MP, C_TEXT, heroPos } from '../theme';
 import { MOTES_FLIGHT, deathFx, lastHitDelay, defeatFx, entranceFx, heroImpact, heroWindup, popHero, prepareFx, regenAura } from './battle-fx';
 import { enemyImpact, enemyWindup, reviveFx } from './battle-fx-enemy';
@@ -15,11 +16,10 @@ import { fxSlipsAway, fxThorns } from './battle-fx-affix';
 import { clearPops, pushPop, scoreSpot } from '../pops';
 import { noteLog, recordBlow, recordThorns, recordTurnDeath, resetDeath } from './battle-death';
 
-export function startBattle(g: Game, id: string, onWin: () => void, affixes: readonly AffixId[] = []): void {
-  const enemy = spawnFoe(id, { ...foeScale(g), hero: g.hero, affixes });
+function openBattle(g: Game, state: BattleState, win: BattleWin): void {
   const { magicCursor } = g.battle;
   g.battle = {
-    enemy, state: createBattle(enemy), onWon: onWin,
+    enemy: state.enemy, state, onKill: win.kill, onWon: win.done,
     phase: 'MENU', menuCursor: 0, menu: 'TOP', topCursor: 0, magicCursor, magicPage: 0, outcome: 'NONE',
     queue: [], timer: 0, text: '', color: C_TEXT, bufferedA: false,
   };
@@ -28,9 +28,19 @@ export function startBattle(g: Game, id: string, onWin: () => void, affixes: rea
   clearPops(g);
   resetFx(g);
   clampMenuCursor(g);
+  resetCursorEdge(g);
+}
+
+export function startBattle(g: Game, id: string, win: BattleWin, affixes: readonly AffixId[] = []): void {
+  const enemy = spawnFoe(id, { ...foeScale(g), hero: g.hero, affixes });
+  openBattle(g, createBattle(enemy), win);
   entranceFx(g, enemy);
   if (enemy.def.kind !== 'NORMAL') {say(g, `${enemy.def.name} BARS THE WAY!`, C_ACCENT);}
-  resetCursorEdge(g);
+}
+
+export function resumeBattle(g: Game, state: BattleState, win: BattleWin): void {
+  openBattle(g, state, win);
+  say(g, `THE FIGHT WITH ${state.enemy.def.name} GOES ON`, C_DIM);
 }
 
 function push(g: Game, hold: number, run: () => void): void { g.battle.queue.push({ hold, run }); }
@@ -63,6 +73,7 @@ export function onQueueDone(g: Game): void {
   }
   b.phase = 'MENU';
   clampMenuCursor(g);
+  persistBattle(g);
 }
 
 const DEFEAT_HOLD = 1.0;
@@ -71,6 +82,7 @@ const ENEMY_TURN_HOLD = 0.8;
 const DEFEAT_SAY_DELAY = 0.4;
 
 function enemyDefeated(g: Game, e: EnemyInstance, lastHit = 0): void {
+  g.battle.onKill();
   cue(g, lastHit, () => {
     defeatFx(g, e);
     pushPop(g.pops, scoreSpot(), '+100', C_ACCENT);
@@ -91,6 +103,7 @@ function heroDies(g: Game, text: string): void {
   juice.flash(PICO8[8], 0.45, { x: hp.x, y: hp.y });
   juice.hitStop(0.4);
   g.dying = true; g.heroDown = true;
+  forgetRun(g);
   g.battle.outcome = 'LOST';
   deathFx(g);
 }
@@ -280,8 +293,21 @@ function updateDying(g: Game, dt: number): void {
   g.app.scenes.to('GAME_OVER');
 }
 
+const KILL_SHOWN = 0.5;
+
+function hurryKill(g: Game): void {
+  if (g.fx.cues.length === 0) {return;}
+  flushFx(g);
+  g.battle.timer = Math.min(g.battle.timer, KILL_SHOWN);
+}
+
 function updateQueue(g: Game, dt: number): void {
   g.battle.timer -= dt;
+  if (g.battle.outcome === 'WON') {
+    if (consumeA(g)) {hurryKill(g);}
+    if (g.battle.timer <= 0) {advanceQueueStep(g);}
+    return;
+  }
   if (!consumeA(g)) {
     if (g.battle.timer <= 0) {advanceQueueStep(g);}
     return;

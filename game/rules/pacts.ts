@@ -5,7 +5,7 @@ export const PACTS: Record<PactId, PactDef> = {
   TITHE: { id: 'TITHE', name: 'TITHE', curse: 'CLEAR HEAL 25% TO 10%', boon: '+1 SP PER CLEAR', mods: { clearHealMult: 0.4, spPerClear: 1 } },
   HEX: { id: 'HEX', name: 'HEX', curse: 'ELITES AND BOSSES +1 AFFIX', boon: 'ELITE AND BOSS LOOT +1 RARITY', mods: { foeAffix: 1, rarityShift: 1 } },
   IRON: { id: 'IRON', name: 'IRON', curse: 'FOES +15% ATK', boon: '+15% MAX HP, +1 SP PER BOSS', mods: { foeAtkMult: 1.15, maxHpMult: 1.15, spPerBoss: 1 } },
-  MISER: { id: 'MISER', name: 'MISER', curse: 'FIGHT ROOMS NEVER DROP', boon: 'EVERY LOOT SCREEN +1 CARD', mods: { fightDrops: 0, extraCard: 1 } },
+  MISER: { id: 'MISER', name: 'MISER', curse: 'FIGHT ROOMS NEVER DROP', boon: 'CHESTS, ELITES, BOSSES +1 CARD', mods: { fightDrops: 0, extraCard: 1 } },
   STORM: { id: 'STORM', name: 'STORM', curse: 'ATTACK DEALS -15%', boon: 'BURST FILLS X1.5', mods: { attackMult: 0.85, burstGainMult: 1.5 } },
   ASH: { id: 'ASH', name: 'ASH', curse: 'REST HEALS 50%', boon: 'REST ALSO GIVES AN UPGRADE', mods: { restHealMult: 0.5, restUpgrade: 1 } },
   HUNTER: { id: 'HUNTER', name: 'HUNTER', curse: 'ELITES +30% HP', boon: 'ELITES +2 SP AND A 4TH CARD', mods: { eliteHpMult: 1.3, eliteSp: 2, eliteExtraCard: 1 } },

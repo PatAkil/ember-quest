@@ -1,14 +1,17 @@
 import { POTIONS_MAX, RARITIES, type Burn, type Hero, type Item, type Rarity, type Rng } from '../types';
-import { ACT_MULT, EVENTS, ITEMS, PENDING_BURN_BASE, PENDING_BURN_TURNS, opensScreen } from '../data';
+import { ACT_MULT, EVENTS, ITEMS, PENDING_BURN_BASE, PENDING_BURN_TURNS, QUIET_EVENT, opensScreen } from '../data';
 import type { EventDef, EventEffect, EventOption } from '../data';
 import { clampVitals, derive, fullHeal } from './hero';
 import { ownedIds, upgradableTargets } from './pack';
 import { actMult } from './descent';
 import { burnWarded } from './power';
-import { at, clamp, pickOneIndex } from './util';
+import { mergeBurn } from './status';
+import { clamp, pickOneIndex } from './util';
 
 type EffectOf<K extends EventEffect['kind']> = Extract<EventEffect, { kind: K }>;
 type EventTable<R> = { [K in EventEffect['kind']]: (effect: EffectOf<K>) => R };
+const WARD_REFUSES = 'YOUR WARD REFUSES FIRE';
+
 type ApplyTable = { [K in EventEffect['kind']]: (hero: Hero, effect: EffectOf<K>) => number };
 
 export type ScreenEffect = Extract<EventEffect, { kind: 'sp' | 'item' | 'upgradeAny' | 'dropPackItem' }>;
@@ -19,12 +22,13 @@ function onEvent<R>(table: EventTable<R>, effect: EventEffect): R {
   return handler(effect);
 }
 
-export const pickEvent = (rng: Rng): EventDef => at(EVENTS, pickOneIndex(rng, EVENTS.length));
-
 function eventItemPool(hero: Hero, rarity: Rarity, act: number): Item[] {
   const owned = new Set(ownedIds(hero));
-  const fits = ITEMS.filter((i) => !i.bossOnly && !owned.has(i.id) && (i.minAct ?? 0) <= act);
-  for (let ri = RARITIES.indexOf(rarity); ri >= 0; ri -= 1) {
+  const free = ITEMS.filter((i) => !i.bossOnly && !owned.has(i.id));
+  const named = free.filter((i) => i.rarity === rarity);
+  if (named.length > 0) {return named;}
+  const fits = free.filter((i) => (i.minAct ?? 0) <= act);
+  for (let ri = RARITIES.indexOf(rarity) - 1; ri >= 0; ri -= 1) {
     const pool = fits.filter((i) => i.rarity === RARITIES[ri]);
     if (pool.length > 0) {return pool;}
   }
@@ -43,7 +47,7 @@ function blockerOf(hero: Hero, effect: EventEffect): string | null {
     sp: () => null,
     item: (e) => (eventItemPool(hero, e.rarity, ACT_MULT.length - 1).length === 0 ? 'NOTHING LEFT TO FIND' : null),
     upgradeAny: () => (upgradableTargets(hero).length === 0 ? 'NOTHING TO UPGRADE' : null),
-    burnNextFight: () => null,
+    burnNextFight: () => (burnWarded(hero) ? WARD_REFUSES : null),
     fullHeal: () => null,
     dropPackItem: () => (hero.pack.length === 0 ? 'NO SPARE GEAR' : null),
     potion: (e) => (e.amount < 0 && hero.potions < -e.amount ? 'NO POTIONS' : null),
@@ -51,15 +55,29 @@ function blockerOf(hero: Hero, effect: EventEffect): string | null {
   return onEvent(table, effect);
 }
 
+const HEALS: ReadonlySet<EventEffect['kind']> = new Set<EventEffect['kind']>(['hpPct', 'fullHeal']);
+
+function healOnly(option: EventOption): boolean {
+  const gains = option.effects.filter((e) => effectIsGain(e));
+  return gains.length > 0 && gains.every((e) => HEALS.has(e.kind));
+}
+
 export function eventOptionBlocker(hero: Hero, option: EventOption): string | null {
   for (const effect of option.effects) {
     const why = blockerOf(hero, effect);
     if (why) {return why;}
   }
-  return null;
+  return healOnly(option) && hero.hp >= derive(hero).maxHp ? 'ALREADY AT FULL HP' : null;
 }
 
 export const eventOptionEnabled = (hero: Hero, option: EventOption): boolean => eventOptionBlocker(hero, option) === null;
+
+export const eventPlayable = (hero: Hero, event: EventDef): boolean => event.options.some((o) => eventOptionEnabled(hero, o));
+
+export function pickEvent(rng: Rng, hero: Hero): EventDef {
+  const playable = EVENTS.filter((e) => eventPlayable(hero, e));
+  return playable[pickOneIndex(rng, playable.length)] ?? QUIET_EVENT;
+}
 
 function changeHp(hero: Hero, fraction: number): number {
   const maxHp = derive(hero).maxHp;
@@ -119,9 +137,7 @@ export function takePendingBurn(hero: Hero, n: number): Burn | null {
   if (hero.pendingBurn <= 0) {return null;}
   const turns = hero.pendingBurn;
   hero.pendingBurn = 0;
-  if (burnWarded(hero)) {return null;}
-  const mult = actMult(n);
-  return { perTurn: Math.max(1, Math.round(PENDING_BURN_BASE * mult)), turns };
+  return mergeBurn(hero, { perTurn: Math.max(1, Math.round(PENDING_BURN_BASE * actMult(n))), turns });
 }
 
 const signed = (n: number): string => (n >= 0 ? `+${String(n)}` : String(n));

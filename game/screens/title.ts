@@ -1,7 +1,8 @@
 import { BUTTON_KEY, PICO8, SAFE_MARGIN, controlHints, drawLogo, drawText, drawTextCentered, textWidth } from '../../engine';
 import { describeSave } from '../sim';
 import type { SavedRun } from '../sim';
-import { continueRun, startFresh } from '../flow';
+import { startFresh } from '../flow';
+import { continueRun } from '../resume';
 import { ENEMY_FRAMES, heroFrames } from '../sprites';
 import { drawActor, renderBiomeBackdrop, renderFloor } from '../backdrop';
 import type { Game } from '../state';
@@ -56,7 +57,7 @@ export function renderTitle(g: Game): void {
   const hintOpts = { color: C_DIM, shadow: true };
   if (g.resume) {drawResumeChoice(g, g.resume);} else {
     drawTextCentered(ctx, `PRESS ${BUTTON_KEY.A.hint} TO DESCEND`, { width: W, y: BAND_Y + 6 }, { color: blinkHz(g.clock, 1.2) ? C_ACCENT : C_TEXT, shadow: true });
-    drawTextCentered(ctx, 'UP/DOWN  MOVE CURSOR', { width: W, y: BAND_Y + 18 }, hintOpts);
+    drawTextCentered(ctx, 'ARROWS  UP DOWN LEFT RIGHT IN EVERY MENU', { width: W, y: BAND_Y + 18 }, hintOpts);
   }
   drawTextCentered(ctx, controlHints(input).join('   '), { width: W, y: BAND_Y + 27 }, hintOpts);
   drawBest(g);

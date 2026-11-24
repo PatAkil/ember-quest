@@ -1,5 +1,5 @@
-import { PACT_IDS, PACT_OFFERS, type Hero, type PactId, type PactMod, type Rng } from '../types';
-import { PACTS } from '../data';
+import { LOOT_OFFERS_MAX, PACT_IDS, PACT_OFFERS, type EnemyKind, type Hero, type LootSource, type PactId, type PactMod, type Rng } from '../types';
+import { LOOT_COUNT, PACTS } from '../data';
 import { pickOneIndex } from './util';
 
 type Fold = 'MULT' | 'ADD';
@@ -44,11 +44,17 @@ export function offerPacts(hero: Hero, rng: Rng): PactId[] {
   return offers;
 }
 
-export function takePact(hero: Hero, id: PactId): void {
-  if (!hero.pacts.includes(id)) {hero.pacts.push(id);}
-}
-
 export function pactDamage(hero: Hero, attack: boolean): number {
   const mods = pactMods(hero);
   return attack ? mods.dmgMult * mods.attackMult : mods.dmgMult;
 }
+
+export function lootCards(source: LootSource, mods: PactTotals): number {
+  const extra = source === 'FIGHT' ? 0 : mods.extraCard;
+  return LOOT_COUNT[source] + extra + (source === 'ELITE' ? mods.eliteExtraCard : 0);
+}
+
+const CLEAR_SOURCE: Record<EnemyKind, LootSource> = { NORMAL: 'FIGHT', ELITE: 'ELITE', BOSS: 'BOSS' };
+
+export const swallowedCards = (kind: EnemyKind, mods: PactTotals): number =>
+  Math.max(0, lootCards(CLEAR_SOURCE[kind], mods) - LOOT_OFFERS_MAX);

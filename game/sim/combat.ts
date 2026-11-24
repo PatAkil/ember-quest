@@ -21,7 +21,7 @@ import { gainEmber } from './burst';
 import { actMult } from './descent';
 import { nextIntent } from './enemy-turn';
 import { findEffect } from './gear';
-import { derive, isGuardAction, spellCost } from './hero';
+import { derive, isGuardAction, isSpell, spellCost } from './hero';
 import { pactDamage } from './pacts';
 import { burnChance, gearPower, heroElement, riposteMult } from './power';
 import { applyBurn, heroFalls, resistOf, tickWard } from './status';
@@ -49,7 +49,7 @@ export function spawnEnemy(id: string, scale: FoeScale, affixes: readonly AffixI
 export function createBattle(enemy: EnemyInstance): BattleState {
   return {
     enemy, rampStacks: 0, lastScope: null, actionsTaken: 0,
-    intent: nextIntent(enemy), guarding: false, guardChain: 0, riposte: false, aegis: 0,
+    intent: nextIntent(enemy), guarding: false, guardChain: 0, riposte: false, aegis: 0, calm: 0, foeMark: enemy.hp,
   };
 }
 
@@ -205,7 +205,6 @@ function openerOf(hero: Hero, battle: BattleState, scope: Scope): Power {
 
 function slipsAway(battle: BattleState, ramp: Ramp, scope: Scope): HeroActResult {
   advance(battle, ramp, scope);
-  battle.riposte = false;
   return heroResult('IT SLIPS AWAY!', { missed: true });
 }
 
@@ -270,8 +269,16 @@ function backlash(hero: Hero, battle: BattleState, result: HeroActResult): HeroA
   return { ...result, text: text.slice(0, 52), thorns, heroDead: fall === 'DEAD', revived: fall === 'REVIVED' };
 }
 
+const dealsDamage = (action: HeroAction): boolean =>
+  action === 'ATTACK' || action === 'BURST' || (isSpell(action) && SPELLS[action].heal === undefined && SPELLS[action].guard === undefined);
+
+function chainAfter(battle: BattleState, action: HeroAction): number {
+  if (isGuardAction(action)) {return battle.guardChain + 1;}
+  return dealsDamage(action) ? 0 : battle.guardChain;
+}
+
 export function heroAct(hero: Hero, battle: BattleState, action: HeroAction, rng: Rng): HeroActResult {
-  battle.guardChain = isGuardAction(action) ? battle.guardChain + 1 : 0;
+  battle.guardChain = chainAfter(battle, action);
   battle.guarding = false;
   battle.aegis = 0;
   const result = act(hero, battle, action, rng);

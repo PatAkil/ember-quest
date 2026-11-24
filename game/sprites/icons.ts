@@ -89,14 +89,14 @@ export const ICON_EMPTY = makeSprite([
 ], { F: PICO8[13] });
 
 export const HERO_PIP = keyed([
-  '..WWW..',
-  '...W...',
-  '.RRRRR.',
-  'RRRRRRD',
-  'RYYYYYD',
-  'RRRRRRD',
-  '.RRDDD.',
-], { W: PICO8[7], R: PICO8[8], Y: PICO8[10], D: PICO8[2] });
+  '...R...',
+  '..RRR..',
+  '.SSSSS.',
+  'SWWWWWS',
+  'SkkkkkS',
+  'SWSkSWS',
+  '.SSSSS.',
+], { R: PICO8[8], S: PICO8[6], W: PICO8[7] });
 
 interface RoomRows { rows: string[]; map: SpriteMap; hue: string }
 

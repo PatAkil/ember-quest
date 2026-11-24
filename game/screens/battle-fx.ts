@@ -160,7 +160,7 @@ interface Landing { look: Look; hit: Hit; slot: number; scale: number }
 
 function hitPop(g: Game, land: Landing): void {
   const { hit: h, slot } = land;
-  const color = h.crit || land.scale > 3 ? C_ACCENT : h.kind === 'MAGIC' ? PICO8[14] : C_TEXT;
+  const color = h.crit || land.scale > 3 ? C_ACCENT : C_TEXT;
   const scale = Math.max(land.scale, h.crit ? 3 : 2);
   pushPop(g.pops, { ...popSpot(enemyAnchor(g), slot), scale }, `-${String(h.dmg)}${h.crit ? '!' : ''}`, color);
 }

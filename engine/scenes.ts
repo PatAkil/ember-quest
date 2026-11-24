@@ -3,7 +3,7 @@ type Scene = 'TITLE' | 'PLAYING' | 'PAUSED' | 'GAME_OVER' | 'WIN';
 const ALLOWED: Readonly<Record<Scene, readonly Scene[]>> = {
   TITLE: ['PLAYING'],
   PLAYING: ['PAUSED', 'GAME_OVER', 'WIN', 'PLAYING'],
-  PAUSED: ['PLAYING', 'TITLE'],
+  PAUSED: ['PLAYING', 'TITLE', 'GAME_OVER'],
   GAME_OVER: ['TITLE', 'PLAYING'],
   WIN: ['TITLE', 'PLAYING'],
 };

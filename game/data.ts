@@ -18,6 +18,7 @@ export {
   EVENTS,
   PENDING_BURN_BASE,
   PENDING_BURN_TURNS,
+  QUIET_EVENT,
   opensScreen,
   validateEvents,
   type EventDef,

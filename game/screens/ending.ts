@@ -1,7 +1,9 @@
 import { BUTTON_KEY, PICO8, dimScene, drawText, drawTextCentered, textWidth } from '../../engine';
 import { depthOf } from '../sim';
+import { armed } from '../state';
 import type { Game } from '../state';
-import { C_ACCENT, C_DIM, C_TEXT, C_WARN, H, W } from '../theme';
+import { END_ARM } from './threshold';
+import { C_ACCENT, C_DIM, C_FAINT, C_TEXT, C_WARN, H, W } from '../theme';
 import { blinkHz, drawCommandBand, wrap2 } from '../widgets';
 import { drawCardFrame } from './card';
 import { abandonRecap, deathRecap, winRecap } from './ending-recap';
@@ -73,7 +75,9 @@ function drawTally(g: Game, ending: Ending): void {
   const best = g.beatBest ? 'NEW BEST!' : `BEST ${String(g.best.score)}`;
   drawTextCentered(ctx, `${String(g.clears)} CLEARED   ${best}`, { width: W, y: TALLY_Y }, { color: g.beatBest ? C_ACCENT : C_DIM, shadow: true });
   const prompt = `${BUTTON_KEY.A.hint} ${ending.prompt}`;
-  drawTextCentered(ctx, prompt, { width: W, y: PROMPT_Y }, { color: blinkHz(g.clock, 1.2) ? C_TEXT : C_DIM, shadow: true });
+  const ready = armed(g, { openedAt: g.endedAt, delay: END_ARM });
+  const color = ready && blinkHz(g.clock, 1.2) ? C_TEXT : C_DIM;
+  drawTextCentered(ctx, prompt, { width: W, y: PROMPT_Y }, { color: ready ? color : C_FAINT, shadow: true });
 }
 
 function renderEndingOverlay(g: Game, ending: Ending): void {
