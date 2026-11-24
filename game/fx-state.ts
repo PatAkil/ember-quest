@@ -29,6 +29,7 @@ export interface FxState {
   lean: Record<Actor, Lean>;
   charge: number;
   note: Note | null;
+  guardSpent: boolean;
 }
 
 const idleMeter = (): Meter => ({ shown: 0, ghost: 0, last: 0, hold: 0 });
@@ -39,7 +40,7 @@ export function createFx(): FxState {
     pending: { heroHp: 0, heroMp: 0, enemyHp: 0, heroEmber: 0 },
     meters: { heroHp: idleMeter(), heroMp: idleMeter(), enemyHp: idleMeter(), heroEmber: idleMeter() },
     dissolve: null, fall: null, banner: null,
-    lean: { HERO: { x: 0, y: 0 }, ENEMY: { x: 0, y: 0 } }, charge: 0, note: null,
+    lean: { HERO: { x: 0, y: 0 }, ENEMY: { x: 0, y: 0 } }, charge: 0, note: null, guardSpent: false,
   };
 }
 

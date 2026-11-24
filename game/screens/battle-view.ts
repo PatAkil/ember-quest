@@ -13,6 +13,7 @@ import { KIND_TAG } from './battle-fx';
 import { drawBanner, drawBattleFx } from './battle-fx-view';
 import { renderActionMenu } from './battle-menu-view';
 import { intentLook } from './battle-preview';
+import { drawAuras } from './battle-auras';
 import { drawTags } from './battle-tags';
 import type { PlateBox } from './battle-tags';
 
@@ -84,8 +85,21 @@ function drawEmberBar(g: Game, plate: Box): void {
   ctx.fillStyle = PICO8[5]; ctx.fillRect(x, y, w, 2);
   const ghost = Math.round(w * Math.min(1, m.ghost / EMBER_MAX));
   ctx.fillStyle = PICO8[7]; ctx.fillRect(x, y, ghost, 2);
-  ctx.fillStyle = full && accentHz(g.clock, 2, 0.5) ? PICO8[7] : full ? C_ACCENT : C_EMBER;
+  ctx.fillStyle = full ? C_ACCENT : C_EMBER;
   ctx.fillRect(x, y, Math.round(w * Math.min(1, m.shown / EMBER_MAX)), 2);
+  if (full) {drawGlint(ctx, { x, w, y }, g.clock);}
+}
+
+const GLINT_PERIOD = 1.2;
+const GLINT_W = 8;
+
+function drawGlint(ctx: Ctx, bar: { x: number; w: number; y: number }, clock: number): void {
+  const u = (clock % GLINT_PERIOD) / GLINT_PERIOD;
+  const gx = Math.round(bar.x - GLINT_W + u * (bar.w + GLINT_W));
+  const left = Math.max(bar.x, gx);
+  const right = Math.min(bar.x + bar.w, gx + GLINT_W);
+  if (right <= left) {return;}
+  ctx.fillStyle = PICO8[7]; ctx.fillRect(left, bar.y, right - left, 2);
 }
 
 function renderHeroHud(g: Game, d: Derived): void {
@@ -174,6 +188,7 @@ const endingShown = (g: Game): boolean => g.app.scenes.is('GAME_OVER') || g.app.
 export function renderBattle(g: Game): void {
   renderTableau(g, true);
   if (endingShown(g)) {return;}
+  drawAuras(g);
   drawBattleFx(g);
   const d = derive(g.hero);
   renderEnemyHud(g);

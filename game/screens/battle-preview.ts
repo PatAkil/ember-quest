@@ -1,7 +1,7 @@
 import { BREAK_AT, BURST_MULT, EMBER_MAX, GUARD_MP_GAIN, POTION_HEAL, RIPOSTE_MULT } from '../types';
-import type { BattleState, DamageKind, Derived, EnemyInstance, Hero, HeroAction, MoveId, SpellId } from '../types';
+import type { BattleState, DamageKind, Derived, EnemyInstance, Hero, MoveId, SpellId } from '../types';
 import { SPELLS } from '../data';
-import { canAfford, derive, elementMult, isSpell, knownSpells, resistOf, spellCost } from '../sim';
+import { canAfford, derive, elementMult, knownSpells, resistOf, spellCost } from '../sim';
 import type { Game } from '../state';
 import { C_ACCENT, C_DIM, C_EMBER, C_GOOD, C_HEX, C_TEXT, C_WARD, C_WARN } from '../theme';
 import { hasHex, magicWeapon } from './battle-fx';
@@ -9,7 +9,7 @@ import { hasHex, magicWeapon } from './battle-fx';
 export interface Seg { text: string; color: string }
 export type PreviewLine = readonly Seg[];
 
-export interface IntentLook { short: string; hint: string; color: string; hot: boolean }
+interface IntentLook { short: string; hint: string; color: string; hot: boolean }
 
 const look = (short: string, hint: string, color: string, hot = false): IntentLook => ({ short, hint, color, hot });
 
@@ -155,9 +155,4 @@ export function previewTop(g: Game, cmd: TopCommand): PreviewLine[] {
 export function previewSpell(g: Game, id: SpellId): PreviewLine[] {
   const c = context(g);
   return c ? spellPreview(c, id) : [];
-}
-
-export function weakSpell(g: Game, a: HeroAction): boolean {
-  const e = g.battle.enemy;
-  return e !== null && isSpell(a) && elementMult(e.def, SPELLS[a].element) > 1;
 }

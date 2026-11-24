@@ -1,19 +1,20 @@
 import { PICO8, contrast } from '../../engine';
 import type { Sprite } from '../../engine';
-import type { EnemyActResult, EnemyInstance, EnemyKind, Hero, HeroAction, HeroActResult, HeroCommand, Hit, SpellId } from '../types';
+import type { EnemyInstance, EnemyKind, Hero, HeroAction, HeroActResult, HeroCommand, Hit, SpellId } from '../types';
 import { isSpell } from '../sim';
 import { enemyAnim, heroFrames } from '../sprites';
 import { enemyAnchor, enemyPos, heroAnchor } from '../backdrop';
-import { addMove, addShot, addTint, cue, holdMeter, meter, showBanner } from '../fx';
+import { addMove, addShot, addTint, cue, holdMeter, showBanner } from '../fx';
 import { enemyContact, enemyReach, heroContact, heroReach } from './battle-reach';
 import type { Actor, ShotKind } from '../fx-state';
 import { popSpot, pushPop } from '../pops';
+import { fxBurstCharge } from './battle-fx-verbs';
 import type { Game } from '../state';
-import { C_ACCENT, C_DIM, C_DMG_TAKEN, C_HP, C_MP, C_TEXT, FLOOR_Y, HERO_H, HERO_W, HERO_X, HUD_BOTTOM, enemyColor, heroPos } from '../theme';
+import { C_ACCENT, C_HP, C_MP, C_TEXT, FLOOR_Y, HERO_H, HERO_W, HERO_X, HUD_BOTTOM, enemyColor, heroPos } from '../theme';
 import type { Point } from '../theme';
 
-type Archetype = 'MELEE' | 'HEAVY' | 'SHOT' | 'SKY' | 'AURA';
-interface Look { arch: Archetype; impact: number; shot: ShotKind | null; color: string; glow: string }
+type Archetype = 'MELEE' | 'HEAVY' | 'SHOT' | 'SKY' | 'AURA' | 'GUARD' | 'DRINK' | 'BURST';
+export interface Look { arch: Archetype; impact: number; shot: ShotKind | null; color: string; glow: string }
 
 const SPELL_LOOK: Record<SpellId, Look> = {
   FIREBALL: { arch: 'SHOT', impact: 0.28, shot: 'ORB', color: PICO8[9], glow: PICO8[10] },
@@ -25,12 +26,12 @@ const SPELL_LOOK: Record<SpellId, Look> = {
   QUAKE: { arch: 'HEAVY', impact: 0.24, shot: 'DUST', color: PICO8[15], glow: PICO8[6] },
   MEND: { arch: 'AURA', impact: 0.22, shot: 'RISE', color: PICO8[11], glow: PICO8[7] },
 };
-const STRIKE_LOOK: Look = { arch: 'MELEE', impact: 0.18, shot: null, color: PICO8[7], glow: PICO8[6] };
+export const STRIKE_LOOK: Look = { arch: 'MELEE', impact: 0.18, shot: null, color: PICO8[7], glow: PICO8[6] };
 const HEXBOLT_LOOK: Look = { arch: 'SHOT', impact: 0.26, shot: 'BOLT', color: PICO8[14], glow: PICO8[7] };
 const COMMAND_LOOK: Record<Exclude<HeroCommand, 'ATTACK'>, Look> = {
-  GUARD: { arch: 'AURA', impact: 0.16, shot: 'RISE', color: PICO8[12], glow: PICO8[7] },
-  POTION: { arch: 'AURA', impact: 0.22, shot: 'RISE', color: PICO8[11], glow: PICO8[7] },
-  BURST: { arch: 'HEAVY', impact: 0.24, shot: 'DUST', color: PICO8[9], glow: PICO8[10] },
+  GUARD: { arch: 'GUARD', impact: 0.12, shot: 'SHIELD', color: PICO8[12], glow: PICO8[7] },
+  POTION: { arch: 'DRINK', impact: 0.4, shot: 'FLASK', color: PICO8[11], glow: PICO8[7] },
+  BURST: { arch: 'BURST', impact: 0.46, shot: 'BEAM', color: PICO8[9], glow: PICO8[10] },
 };
 const LAUNCH = 0.1;
 const STAGGER = 0.16;
@@ -47,11 +48,6 @@ function heroLook(hero: Hero, action: HeroAction): Look {
   return hasHex(hero) || magicWeapon(hero) ? HEXBOLT_LOOK : STRIKE_LOOK;
 }
 
-function enemyLook(e: EnemyInstance): Look {
-  if (e.def.atkType === 'PHYSICAL') {return { ...STRIKE_LOOK, impact: 0.2 };}
-  return { arch: 'SHOT', impact: 0.28, shot: 'HEX', color: enemyColor(e.def.id), glow: PICO8[7] };
-}
-
 interface Side { actor: Actor; foe: Actor; cast: Point; hit: Point; feet: Point; head: Point; contact: Point; reach: number }
 
 const heroCast = (): Point => ({ x: HERO_X + HERO_W / 2 + 2, y: FLOOR_Y - Math.round(HERO_H * 0.55) });
@@ -63,7 +59,7 @@ function heroSide(g: Game): Side {
   };
 }
 
-function enemySide(g: Game): Side {
+export function enemySide(g: Game): Side {
   const p = enemyPos(g);
   const a = enemyAnchor(g);
   return {
@@ -81,6 +77,8 @@ function launch(g: Game, s: Side, l: Look, flight: number): void {
 }
 
 const SKY_TOP = HUD_BOTTOM + 3;
+const HAND: Point = { x: HERO_X + 12, y: FLOOR_Y - 26 };
+const MOUTH: Point = { x: HERO_X + 2, y: FLOOR_Y - HERO_H + 14 };
 
 function skyStrike(g: Game, s: Side, l: Look, delay: number): void {
   addShot(g, { kind: 'SKYBOLT', dur: 0.2, from: { x: s.hit.x + 5, y: SKY_TOP }, to: s.hit, color: l.color, glow: l.glow }, delay);
@@ -96,17 +94,19 @@ const WINDUP: Record<Archetype, (g: Game, s: Side, l: Look) => void> = {
     skyStrike(g, s, l, l.impact - 0.02);
   },
   AURA: (g, s, l) => { addShot(g, { kind: 'RISE', dur: 0.6, from: s.feet, to: s.head, color: l.color, glow: l.glow }); },
+  GUARD: (g) => { whooshAt(g, 0.02); },
+  DRINK: (g, s, l) => {
+    addMove(g, s.actor, 'CAST', 2);
+    addShot(g, { kind: 'FLASK', dur: l.impact, from: HAND, to: MOUTH, color: l.color, glow: l.glow });
+  },
+  BURST: (g, s, l) => { addMove(g, s.actor, 'CAST', 6); fxBurstCharge(g, s.cast, l.impact); },
 };
+
+export function runWindup(g: Game, s: Side, l: Look): void { WINDUP[l.arch](g, s, l); }
 
 export function heroWindup(g: Game, action: HeroAction): number {
   const l = heroLook(g.hero, action);
   WINDUP[l.arch](g, heroSide(g), l);
-  return l.impact;
-}
-
-export function enemyWindup(g: Game, e: EnemyInstance): number {
-  const l = enemyLook(e);
-  WINDUP[l.arch](g, enemySide(g), l);
   return l.impact;
 }
 
@@ -129,14 +129,14 @@ function flashTone(s: Sprite): string {
   return tone;
 }
 
-function toneFor(g: Game, actor: Actor): string {
+export function toneFor(g: Game, actor: Actor): string {
   const e = g.battle.enemy;
   return flashTone(actor === 'ENEMY' && e ? enemyAnim(e.def.id)[0] : HERO_TONE_FROM);
 }
 
 interface Blow { target: Actor; at: Point; crit: boolean; heavy: boolean; burst: string }
 
-function react(g: Game, b: Blow): void {
+export function react(g: Game, b: Blow): void {
   const { audio, particles, juice } = g.app;
   addTint(g, b.target, toneFor(g, b.target), b.crit ? 0.12 : 0.07);
   addMove(g, b.target, 'RECOIL', b.crit ? 8 : b.heavy ? 7 : 6);
@@ -150,15 +150,19 @@ function react(g: Game, b: Blow): void {
   particles.burst(b.at.x, b.at.y, { count: 6, color: b.burst });
 }
 
-function hitPop(g: Game, h: Hit, slot: number): void {
-  const color = h.crit ? C_ACCENT : h.kind === 'MAGIC' ? PICO8[14] : C_TEXT;
-  pushPop(g.pops, { ...popSpot(enemyAnchor(g), slot), scale: h.crit ? 3 : 2 }, `-${h.dmg}${h.crit ? '!' : ''}`, color);
+interface Landing { look: Look; hit: Hit; slot: number; scale: number }
+
+function hitPop(g: Game, land: Landing): void {
+  const { hit: h, slot } = land;
+  const color = h.crit || land.scale > 3 ? C_ACCENT : h.kind === 'MAGIC' ? PICO8[14] : C_TEXT;
+  const scale = Math.max(land.scale, h.crit ? 3 : 2);
+  pushPop(g.pops, { ...popSpot(enemyAnchor(g), slot), scale }, `-${String(h.dmg)}${h.crit ? '!' : ''}`, color);
 }
 
 const ARC_DUR = 0.1;
 const BLOOM_DUR = 0.22;
 
-function impactMark(g: Game, s: Side, l: Look): void {
+export function impactMark(g: Game, s: Side, l: Look): void {
   if (l.arch === 'MELEE') {
     const to = { x: s.contact.x + Math.sign(s.hit.x - s.cast.x), y: s.contact.y };
     addShot(g, { kind: 'ARC', dur: ARC_DUR, from: s.contact, to, color: l.color, glow: l.glow });
@@ -166,17 +170,18 @@ function impactMark(g: Game, s: Side, l: Look): void {
   if (l.arch === 'SHOT') {addShot(g, { kind: 'BLOOM', dur: BLOOM_DUR, from: s.hit, to: s.hit, color: l.color, glow: l.glow });}
 }
 
-function landHit(g: Game, l: Look, h: Hit, slot: number): void {
+function landHit(g: Game, land: Landing): void {
+  const { look: l, hit: h, slot } = land;
   const s = heroSide(g);
   const e = g.battle.enemy;
-  hitPop(g, h, slot);
+  hitPop(g, land);
   impactMark(g, s, l);
-  react(g, { target: 'ENEMY', at: s.hit, crit: h.crit, heavy: l.arch === 'HEAVY', burst: e ? enemyColor(e.def.id) : C_TEXT });
+  react(g, { target: 'ENEMY', at: s.hit, crit: h.crit, heavy: l.arch === 'HEAVY' || l.arch === 'BURST', burst: e ? enemyColor(e.def.id) : C_TEXT });
   if (l.shot === 'SLASH' || (l.arch === 'MELEE' && slot > 0)) {addShot(g, { kind: 'SLASH', dur: 0.26, from: s.hit, to: s.hit, color: l.color, glow: l.glow });}
   if (l.arch === 'HEAVY') {addShot(g, { kind: 'DUST', dur: 0.32, from: { x: HERO_X + 16, y: FLOOR_Y }, to: { x: s.hit.x + 12, y: FLOOR_Y }, color: l.color, glow: l.glow });}
 }
 
-interface StagedHit { look: Look; hit: Hit; slot: number; drop: number }
+interface StagedHit extends Landing { drop: number }
 
 function stagedHit(g: Game, st: StagedHit): void {
   const delay = STAGGER * st.slot;
@@ -186,7 +191,7 @@ function stagedHit(g: Game, st: StagedHit): void {
   if (st.look.arch === 'SKY') {skyStrike(g, s, st.look, delay - 0.02);}
   cue(g, delay, () => {
     if (st.drop > 0) {holdMeter(g, 'enemyHp', -st.drop);}
-    landHit(g, st.look, st.hit, st.slot);
+    landHit(g, st);
   });
 }
 
@@ -224,18 +229,24 @@ function drainBack(g: Game, r: HeroActResult, slot: number): void {
   });
 }
 
-interface HeroImpact { action: HeroAction; result: HeroActResult; slot: number; preHp: number }
+interface HeroImpact { action: HeroAction; result: HeroActResult; slot: number; preHp: number; riposte: boolean }
+
+const popScale = (imp: HeroImpact): number => (imp.action === 'BURST' ? 4 : imp.riposte ? 3 : 2);
 
 export function heroImpact(g: Game, imp: HeroImpact): void {
   const { action, result: r, slot, preHp } = imp;
-  const l = heroLook(g.hero, action);
-  if (!r.hits.length) { selfRestore(g, r, slot); return; }
+  const look = heroLook(g.hero, action);
+  const scale = popScale(imp);
+  if (!r.hits.length) {
+    if (r.healed > 0 || r.mpRestored > 0) {selfRestore(g, r, slot);}
+    return;
+  }
   let rem = Math.max(0, preHp - (r.hits[0]?.dmg ?? 0));
-  r.hits.forEach((h, i) => {
-    if (i === 0) { landHit(g, l, h, 0); return; }
-    const drop = Math.min(rem, h.dmg);
+  r.hits.forEach((hit, i) => {
+    if (i === 0) { landHit(g, { look, hit, slot: 0, scale }); return; }
+    const drop = Math.min(rem, hit.dmg);
     rem -= drop;
-    stagedHit(g, { look: l, hit: h, slot: i, drop });
+    stagedHit(g, { look, hit, slot: i, drop, scale });
   });
   if (r.healed > 0) {drainBack(g, r, slot);} else if (r.mpRestored > 0) {popHero(g, restorePops(r), slot);}
 }
@@ -243,43 +254,6 @@ export function heroImpact(g: Game, imp: HeroImpact): void {
 export function regenAura(g: Game): void {
   const s = heroSide(g);
   addShot(g, { kind: 'RISE', dur: 0.4, from: s.feet, to: s.head, color: C_HP, glow: C_MP });
-}
-
-function reviveFx(g: Game): void {
-  const hp = heroPos();
-  const m = meter(g, 'heroHp');
-  m.shown = 0; m.ghost = 0; m.last = 0;
-  g.app.juice.flash(C_ACCENT, 0.6, { x: hp.x, y: hp.y });
-  g.app.particles.burst(hp.x, hp.y, { count: 16, color: C_ACCENT, speed: 140 });
-  g.app.audio.play('pickup');
-  addShot(g, { kind: 'RING', dur: 0.5, from: hp, to: hp, color: C_ACCENT, glow: PICO8[7] });
-  addShot(g, { kind: 'RISE', dur: 0.7, from: { x: HERO_X, y: FLOOR_Y - 4 }, to: heroAnchor().head, color: C_ACCENT, glow: PICO8[7] });
-  addTint(g, 'HERO', C_ACCENT, 0.14);
-}
-
-function reflectFx(g: Game, amount: number): void {
-  const p = enemyPos(g);
-  pushPop(g.pops, popSpot(enemyAnchor(g)), `-${amount}`, PICO8[9]);
-  g.app.particles.burst(p.x, p.y, { count: 5, color: PICO8[9] });
-  addTint(g, 'ENEMY', toneFor(g, 'ENEMY'), 0.07);
-  addMove(g, 'ENEMY', 'RECOIL', 2);
-}
-
-export function enemyImpact(g: Game, r: EnemyActResult): void {
-  if (r.dodged) {
-    g.app.audio.play('blip');
-    pushPop(g.pops, popSpot(heroAnchor()), 'MISS', C_DIM);
-    addMove(g, 'HERO', 'DODGE', 8);
-    return;
-  }
-  pushPop(g.pops, popSpot(heroAnchor()), `-${r.dmg}`, C_DMG_TAKEN);
-  const e = g.battle.enemy;
-  if (e) {impactMark(g, enemySide(g), enemyLook(e));}
-  if (r.heroDead) {return;}
-  react(g, { target: 'HERO', at: heroPos(), crit: false, heavy: false, burst: PICO8[8] });
-  g.app.juice.shake(3, 0.25);
-  if (r.revived) {reviveFx(g);}
-  if (r.reflected > 0) {reflectFx(g, r.reflected);}
 }
 
 export function deathFx(g: Game): void {

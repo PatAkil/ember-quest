@@ -147,10 +147,12 @@ export const meter = (g: Game, id: MeterId): Meter => g.fx.meters[id];
 
 export function holdMeter(g: Game, id: MeterId, amount: number): void { g.fx.pending[id] += amount; }
 
-export function heavyShown(g: Game): boolean {
+function heavyShown(g: Game): boolean {
   const e = g.battle.enemy;
   return g.battle.state?.intent === 'HEAVY' && e !== null && !e.staggered && e.hp > 0 && g.fx.dissolve === null;
 }
+
+export const guardShown = (g: Game): boolean => g.battle.state?.guarding === true && !g.fx.guardSpent && !g.heroDown;
 
 const STANCE_RATE = 10;
 const STILL_LEAN: Lean = { x: 0, y: 0 };
@@ -159,7 +161,7 @@ const WINDUP_LEAN: Lean = { x: -5, y: 1 };
 
 function leanTarget(g: Game, actor: Actor): Lean {
   if (actor === 'ENEMY') {return heavyShown(g) ? WINDUP_LEAN : STILL_LEAN;}
-  return g.battle.state?.guarding && !g.heroDown ? GUARD_LEAN : STILL_LEAN;
+  return guardShown(g) ? GUARD_LEAN : STILL_LEAN;
 }
 
 function stepStance(g: Game, dt: number): void {

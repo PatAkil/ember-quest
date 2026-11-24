@@ -9,7 +9,7 @@ import { isSpell, spellCost } from './hero';
 import type { Policy } from './model';
 import { resistOf } from './status';
 
-export interface BattleStyle {
+interface BattleStyle {
   mendBelow: number;
   verbs: boolean;
 }

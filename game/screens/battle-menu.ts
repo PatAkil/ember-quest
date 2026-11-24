@@ -50,7 +50,7 @@ function turnPage(cursor: number, n: number, dy: number): number {
   return page * PAGE_SIZE + row * MENU_COLS + col;
 }
 
-export function moveMagic(cursor: number, n: number, step: Step): number {
+function moveMagic(cursor: number, n: number, step: Step): number {
   const page = Math.floor(cursor / PAGE_SIZE);
   const local = cursor - page * PAGE_SIZE;
   const count = pageLen(n, page);

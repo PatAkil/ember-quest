@@ -79,7 +79,7 @@ function restRoom(g: Game): void {
   fullHeal(g.hero);
   refillPotions(g.hero);
   g.app.audio.play('pickup');
-  showCard(g, ['FULLY RESTED', 'HP AND MP RESTORED'], () => { advanceStage(g); });
+  showCard(g, ['FULLY RESTED', 'HP, MP AND POTIONS FULL'], () => { advanceStage(g); });
 }
 
 const normalRoom = (g: Game, node: MapNode): void => { fightRoom(g, node, 'NORMAL'); };

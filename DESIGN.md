@@ -230,8 +230,16 @@ enemy's move, intent, cycle and phase), `status` (turn start, BURN, WARD, `heroF
   BURST / POTION X2` (`BattleScreen.menu` `'TOP'`, `topCursor`). MAGIC opens the spell grid
   (2 × 3, pages with Down past the end beyond 6: `magicCursor`, `magicPage`), B = back;
   it opens even when nothing is affordable (rows dim). BURST is dim until the gauge is
-  full, POTION when none is left. The highlighted command's right-hand info previews it
-  against this foe (`MAG X1.5 WEAK`, `-25% WARD`, `BREAKS IT`).
+  full, POTION when none is left; choosing a dim command refuses with a blip and a short
+  reason in the hint line (`NOT ENOUGH MP`, `NO POTIONS LEFT`, `THE EMBER IS NOT FULL
+  YET`). A preview column right of the grid (3 lines) shows what the highlighted command
+  does against this foe: `ATK X1.0` / `MAG X0.8 2 HITS`, `WEAK X1.5` / `RESIST X0.5`,
+  `-25% WARD` / `-30% RES`, `BREAKS IT` / `TOO WEAK TO BREAK` against a shown HEAVY,
+  `RIPOSTE X1.5`; GUARD `HALVES THE NEXT HIT` / `PARRY THE HEAVY BLOW`; POTION `HEAL 40%
+  HP`; BURST `IGNORES ARMOR+WARDS`. The break preview is a presentation estimate (no
+  jitter, crit, RAMP or TWIN), so it can only under-promise. Cursor memory: the TOP
+  cursor holds between turns (ATTACK at each fight's start); MAGIC keeps the last spell
+  across fights; choosing an action returns to TOP.
 - **POTION.** `hero.potions` starts at 2 (`POTIONS_MAX`), REST refills; drinking heals
   40 % max HP (`POTION_HEAL`) and uses the turn; at 0 it cannot be chosen.
 - **Elements.** `SpellDef.element`: FIREBALL fire, WATER water, THUNDER and TWINBOLT
@@ -306,7 +314,12 @@ not from stat inflation alone.
 ## UI constraints (text overlap)
 
 Logical screen 240×160, font 4 px per char at scale 1. Battle log line
-<= 52 chars, or it wraps to two lines. Item names <= 13 chars, enemy names
+<= 52 chars, or it wraps to two lines. Battle verbs: the plate's intent text <= 10 chars
+(`HEAVY BLOW`, `STAGGERED` 9), the band's intent hint <= 52 chars, a phase banner
+<= 20 chars (scale 2 beside its tag), a menu preview line <= 82 px (21 chars), a spell
+cell `NAME` + `nMP` inside 68 px, a tag strip inside its plate's 96 px (tags that do not
+fit are dropped, lowest priority last: enemy WEAK, WARD, BURN, RES, affixes; hero BURN,
+RIPOSTE, GUARD, RAMP, `BURST READY`). Item names <= 13 chars, enemy names
 <= 12, spell names <= 9. Every panel is placed with `SAFE_MARGIN`; the loot
 and level-up panels sit beside the hero, never over him.
 Compare card: `displayName` (<= 16 chars) `>` name, `ATTACK NOW USES MAG` beside them;

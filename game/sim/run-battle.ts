@@ -27,7 +27,7 @@ function chooseAction({ hero, battle, policy }: Fight): HeroAction {
   return actions.includes(wanted) ? wanted : 'ATTACK';
 }
 
-export const breakAttempt = (battle: BattleState, action: HeroAction): boolean =>
+const breakAttempt = (battle: BattleState, action: HeroAction): boolean =>
   battle.intent === 'HEAVY' && (action === 'BURST' || elementMult(battle.enemy.def, actionElement(action)) > 1);
 
 const COUNTED: Partial<Record<HeroAction, 'guards' | 'bursts' | 'potions'>> = { GUARD: 'guards', BURST: 'bursts', POTION: 'potions' };

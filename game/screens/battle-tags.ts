@@ -1,6 +1,7 @@
 import { PICO8, drawText, textWidth } from '../../engine';
 import { EMBER_MAX } from '../types';
 import type { BattleState, EnemyInstance, Hero } from '../types';
+import { guardShown } from '../fx';
 import type { Game } from '../state';
 import { C_ACCENT, C_DIM, C_EMBER, C_TEXT, C_WARD, C_WARN, ELEMENT_COLOR, HUD_BOTTOM } from '../theme';
 import type { Seg } from './battle-preview';
@@ -54,11 +55,11 @@ function enemyTags(e: EnemyInstance): Tag[] {
   return tags;
 }
 
-function heroTags(hero: Hero, state: BattleState | null): Tag[] {
+function heroTags(hero: Hero, state: BattleState | null, guard: boolean): Tag[] {
   const tags: Tag[] = [];
   if (hero.burn) {tags.push(word(`BURN ${hero.burn.turns}`, C_EMBER));}
   if (state?.riposte) {tags.push(word('RIPOSTE', C_ACCENT));}
-  if (state?.guarding) {tags.push(word('GUARD', C_WARD));}
+  if (guard) {tags.push(word('GUARD', C_WARD));}
   if (state && state.rampStacks > 0) {tags.push(word(`RAMP ${state.rampStacks}`, C_WARN));}
   if (hero.ember >= EMBER_MAX) {tags.push(word('BURST READY', C_ACCENT));}
   return tags;
@@ -67,6 +68,6 @@ function heroTags(hero: Hero, state: BattleState | null): Tag[] {
 export function drawTags(g: Game, plates: TagPlates): void {
   const ctx = g.app.pc.ctx;
   const { enemy, state } = g.battle;
-  if (!g.heroDown) {drawStrip(ctx, heroTags(g.hero, state), { plate: plates.hero, pad: plates.pad, y: HERO_TAG_Y });}
+  if (!g.heroDown) {drawStrip(ctx, heroTags(g.hero, state, guardShown(g)), { plate: plates.hero, pad: plates.pad, y: HERO_TAG_Y });}
   if (enemy && enemy.hp > 0) {drawStrip(ctx, enemyTags(enemy), { plate: plates.enemy, pad: plates.pad, y: ENEMY_TAG_Y });}
 }
