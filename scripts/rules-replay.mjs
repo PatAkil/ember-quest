@@ -212,6 +212,23 @@ function guardDeaths(sim) {
   return tally;
 }
 
+function burstCleanses(sim) {
+  const hero = sim.createHero();
+  hero.hp = 5;
+  hero.ember = 100;
+  hero.burn = { perTurn: 8, turns: 3 };
+  const enemy = sim.spawnEnemy('SKELETON', { n: 0, clears: 0, descentClears: null }, []);
+  enemy.hp = enemy.maxHp = 100000;
+  const battle = sim.createBattle(enemy);
+  battle.intent = 'WARD';
+  assert.equal(sim.expectedPreBlowLoss(hero, battle, 'BURST'), 0, 'a full BURST cleanses the burn before it ticks');
+  assert.ok(sim.expectedPreBlowLoss(hero, battle, 'ATTACK') >= hero.hp, 'the same burn kills an attacking hero');
+  const result = sim.resolveTurn(hero, battle, 'BURST', 7);
+  assert.equal(hero.burn, null);
+  assert.equal(hero.hp, 5);
+  assert.notEqual(result.outcome, 'LOST');
+}
+
 export function estimateRules(sim) {
   const rng = sim.createSeededRng(41).next;
   let rolls = 0;
@@ -223,6 +240,7 @@ export function estimateRules(sim) {
     foeCheck(sim, fight, rng);
   }
   heavyParry(sim);
+  burstCleanses(sim);
   const t = guardDeaths(sim);
   return `${FIGHTS} random fights (enrage edge, burning heroes): expectedHeroDamage equals the hit after turn-start regen/BLOOD and brackets ${rolls} real rolls; expectedFoeDamage open/guarded likewise (enrage included), a parried HEAVY halved; ${GUARD_TURNS} GUARD turns: expectedPreBlowLoss exact, ${String(t.deaths)} guarded deaths all within jitter of guarded + pre-blow loss (${String(t.warned)} exactly warned)`;
 }

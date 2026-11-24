@@ -197,7 +197,7 @@ function emberPct(hero: Hero): string {
 function burstPreview(c: Ctx): PreviewLine[] {
   if (c.hero.ember < EMBER_MAX) {return [line(emberPct(c.hero), C_EMBER), line(`X${burstMult(c.hero).toFixed(1)} IGNORES ARMOR`, C_DIM), line('FILLS AS YOU FIGHT', C_DIM)];}
   const total = expectedHeroDamage(c.hero, c.state, 'BURST');
-  const third = breakLine(c, total, true) ?? line('EMPTIES THE EMBER', C_DIM);
+  const third = breakLine(c, total, true) ?? (c.hero.burn ? line('CLEANSES YOUR BURN', C_GOOD) : line('EMPTIES THE EMBER', C_DIM));
   return [[dmgSeg(total), { text: `${burstStat(c.d)} X${burstMult(c.hero).toFixed(1)}`, color: C_DIM }], line('IGNORES ARMOR+WARDS', C_TEXT), third];
 }
 
@@ -215,7 +215,7 @@ const TOP_PREVIEW: Record<TopCommand, (c: Ctx) => PreviewLine[]> = {
   ATTACK: (c) => lethalOnly(c, strikePreview(c, 'ATTACK')),
   MAGIC: (c) => lethalOnly(c, magicPreview(c)),
   GUARD: (c) => withBurn(guardPreview(c), burnAfter(c, 0)),
-  BURST: (c) => lethalOnly(c, burstPreview(c)),
+  BURST: (c) => (c.hero.ember >= EMBER_MAX ? burstPreview(c) : lethalOnly(c, burstPreview(c))),
   POTION: potionPreview,
 };
 
