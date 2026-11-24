@@ -246,6 +246,12 @@ function burnWarnings(sim) {
   assert.equal(sim.burnWillKill(burningHero(sim), sim.createBattle(stout), 'ATTACK'), true, 'the burn kills when the foe survives');
   assert.equal(sim.burnWillKill(burningHero(sim), sim.createBattle(swift), 'ATTACK'), true, 'a SWIFT foe may slip the killing hit');
   assert.equal(sim.burnWillKill(burningHero(sim), sim.createBattle(stout), 'GUARD'), true);
+  const near = { ...weak, hp: 3 };
+  assert.equal(sim.burnWillKill(burningHero(sim), sim.createBattle(near), 'ATTACK'), false, 'the lowest roll (4) still fells a 3-HP foe');
+  for (let seed = 0; seed < 1000; seed++) {
+    const result = sim.resolveTurn(burningHero(sim), sim.createBattle({ ...near }), 'ATTACK', seed);
+    assert.equal(result.outcome, 'WON', `3-HP foe, seed ${String(seed)}`);
+  }
   for (let seed = 0; seed < 1000; seed++) {
     const hero = burningHero(sim);
     const foe = { ...weak };
@@ -261,6 +267,7 @@ function warningsNeverLie(sim) {
   for (let i = 0; i < 4000; i++) {
     const fight = randomFight(sim, rng);
     fight.hero.burn = { perTurn: 1 + intBelow(30, rng), turns: 2 };
+    if (i % 2 === 0) {fight.battle.enemy.hp = Math.max(1, sim.expectedHeroDamage(fight.hero, fight.battle, 'ATTACK') - intBelow(4, rng));}
     for (const action of ['ATTACK', ...sim.heroActions(fight.hero).filter((a) => a !== 'ATTACK')]) {
       if (sim.burnWillKill(fight.hero, fight.battle, action)) {continue;}
       if (fight.hero.hp - sim.pendingTick(fight.hero) > 0) {continue;}

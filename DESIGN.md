@@ -330,7 +330,7 @@ enemy's move, intent, cycle and phase), `status` (turn start, BURN, WARD, `heroF
   hero's HP (`expectedPreBlowLoss(hero, battle, action = 'GUARD')`: the HP the hero loses
   this turn before the foe's blow — turn-start regen and BLOOD, his own action, thorns and
   his BURN tick — computed by running `startTurn` and `heroAct` on a shadow copy, so it is
-  exactly the real turn; the `estimate` rules group checks it over 6000 GUARD turns); `BURN n KILLS YOU` on a command only when `burnWillKill(hero, battle, action)` says so — never for a full BURST (it cleanses first) or a hit sure to end the fight at its lowest roll against a foe that cannot evade, and a heal counts only at its lowest roll, so a silent preview never hides a burn death (4000 fuzzed fights); BURST shows `CLEANSES YOUR BURN` while burning; POTION `HEAL 40% HP`; BURST `IGNORES ARMOR+WARDS`. The hint line reads
+  exactly the real turn; the `estimate` rules group checks it over 6000 GUARD turns); `BURN n KILLS YOU` on a command only when `burnWillKill(hero, battle, action)` says so — never for a full BURST (it cleanses first) or a hit whose lowest roll (`leastHeroDamage`: the real per-hit formula at minimum jitter, no crit) ends the fight against a foe that cannot evade, and a heal counts only at its lowest roll, so a silent preview never hides a burn death (4000 fuzzed fights); BURST shows `CLEANSES YOUR BURN` while burning; POTION `HEAL 40% HP`; BURST `IGNORES ARMOR+WARDS`. The hint line reads
   `HEAVY BLOW NEXT (~u): GUARD, OR BREAK IT` on a HEAVY, `WINDING UP: HIT NOW, GUARD NEXT
   TURN` on a WINDUP, and otherwise `ATTACKS GLANCE OFF: TRY MAGIC` when ATTACK is resisted
   (an element below 1 or 20 %+ resist, ward included) and an affordable damaging spell is

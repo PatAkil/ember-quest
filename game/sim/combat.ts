@@ -25,7 +25,7 @@ import { derive, isGuardAction, isSpell, spellCost } from './hero';
 import { pactDamage } from './pacts';
 import { burnChance, gearPower, heroElement, riposteMult } from './power';
 import { applyBurn, atTurnStart, heroBurnTick, heroFalls, resistOf, tickWard, type Fall } from './status';
-import { jitter, type EffectOf } from './util';
+import { JITTER_MIN, jitter, type EffectOf } from './util';
 
 type Scope = 'ATTACK' | 'SPELL';
 type StrikeAction = 'ATTACK' | SpellId;
@@ -316,10 +316,14 @@ export function heroAct(hero: Hero, battle: BattleState, action: HeroAction, rng
   return burnAfter(hero, backlash(hero, battle, settleBreak(hero, battle, action, result)));
 }
 
-export function expectedHeroDamage(hero: Hero, battle: BattleState, action: HeroAction): number {
+function heroDamageAt(hero: Hero, battle: BattleState, action: HeroAction, roll: number): number {
   const ready = atTurnStart(hero, action);
   if (action === 'BURST') {return burstBlow(ready, derive(ready)).dmg;}
   if (!strikesFoe(action)) {return 0;}
   const strike = strikeOf(ready, battle, action, openerOf(ready, battle, action === 'ATTACK' ? 'ATTACK' : 'SPELL'));
-  return strike.swing.mults.reduce((sum, mult) => sum + hitDamage(ready, battle.enemy, strike, { mult, jitter: 1, crit: false }), 0);
+  return strike.swing.mults.reduce((sum, mult) => sum + hitDamage(ready, battle.enemy, strike, { mult, jitter: roll, crit: false }), 0);
 }
+
+export const expectedHeroDamage = (hero: Hero, battle: BattleState, action: HeroAction): number => heroDamageAt(hero, battle, action, 1);
+
+export const leastHeroDamage = (hero: Hero, battle: BattleState, action: HeroAction): number => heroDamageAt(hero, battle, action, JITTER_MIN);

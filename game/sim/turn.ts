@@ -1,5 +1,5 @@
 import type { BattleState, EnemyActResult, Hero, HeroAction, HeroActResult, Rng, TurnCause, TurnResult } from '../types';
-import { expectedHeroDamage, heroAct } from './combat';
+import { heroAct, leastHeroDamage } from './combat';
 import { enemyAct } from './enemy-turn';
 import { pendingTick, startTurn } from './status';
 import { canBurst } from './burst';
@@ -76,7 +76,7 @@ const ROUNDING_SLACK = 2;
 const swift = (battle: BattleState): boolean => battle.enemy.affixes.includes('SWIFT');
 
 function surelyKills(hero: Hero, battle: BattleState, action: HeroAction): boolean {
-  return !swift(battle) && Math.floor(expectedHeroDamage(hero, battle, action) * JITTER_MIN) - ROUNDING_SLACK >= battle.enemy.hp;
+  return !swift(battle) && leastHeroDamage(hero, battle, action) >= battle.enemy.hp;
 }
 
 const spentALife = (before: Hero, after: Hero): boolean => before.revived !== after.revived || before.revivedTwice !== after.revivedTwice;
