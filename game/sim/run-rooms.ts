@@ -11,12 +11,14 @@ import {
   type StatKey,
 } from '../types';
 import { BOSS_ENTRY_HEAL } from '../data';
-import { createBattle, enemyAct, heroAct, spawnEnemy, startTurn } from './combat';
-import { canAfford, derive, fullHeal, grantClear, healFraction, heroActions, skipMend, spendPoint } from './hero';
+import { createBattle, heroAct, spawnEnemy } from './combat';
+import { enemyAct } from './enemy-turn';
+import { canAfford, derive, fullHeal, grantClear, healFraction, heroActions, refillPotions, skipMend, spendPoint } from './hero';
 import { applyOffer, noteDeclinedScrolls, resolveOverflow, resolveUpgrade, rollLoot } from './loot';
 import type { MapNode } from './map';
 import type { Policy } from './model';
 import { upgradableTargets } from './pack';
+import { startTurn } from './status';
 import {
   bossPickKind,
   countPick,
@@ -38,8 +40,9 @@ function runBattle(hero: Hero, enemy: EnemyInstance, policy: Policy, rng: Rng): 
   const outcome = (won: boolean, turns: number): BattleOutcome =>
     ({ won, stalled: false, turns, dmgTaken, landed, dmgDealt: startHp - enemy.hp });
   for (let turn = 0; turn < TURN_CAP; turn += 1) {
-    startTurn(hero);
-    if (hero.hp <= 0) {return outcome(false, turn);}
+    const start = startTurn(hero, battle);
+    if (start.heroDead) {return outcome(false, turn);}
+    if (start.enemyDefeated) {return outcome(true, turn);}
     const d = derive(hero);
     const actions = heroActions(hero).filter((a) => canAfford(hero, a));
     const wanted = policy.act(hero, d, battle, actions);
@@ -149,6 +152,7 @@ export function playRoom(run: RunState, room: Room): Ending | null {
   run.tally.rooms.push(type);
   if (type === 'REST') {
     fullHeal(run.hero);
+    refillPotions(run.hero);
     return null;
   }
   if (type === 'LOOT') {

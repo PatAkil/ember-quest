@@ -26,6 +26,7 @@ export interface MapState {
 }
 
 type BattlePhase = 'MENU' | 'QUEUE';
+export type BattleMenu = 'TOP' | 'MAGIC';
 type Outcome = 'NONE' | 'WON' | 'LOST';
 interface QueueStep { hold: number; run: () => void }
 export interface BattleScreen {
@@ -33,6 +34,10 @@ export interface BattleScreen {
   state: BattleState | null;
   phase: BattlePhase;
   menuCursor: number;
+  menu: BattleMenu;
+  topCursor: number;
+  magicCursor: number;
+  magicPage: number;
   outcome: Outcome;
   onWon: () => void;
   queue: QueueStep[];
@@ -104,7 +109,7 @@ export function createGame(app: App): Game {
     reveal: createReveal(),
     map: { stages: [], curStage: -1, reachable: [0, 1], cursor: 0, pendingNode: null },
     battle: {
-      enemy: null, state: null, phase: 'MENU', menuCursor: 0, outcome: 'NONE', onWon: noop,
+      enemy: null, state: null, phase: 'MENU', menuCursor: 0, menu: 'TOP', topCursor: 0, magicCursor: 0, magicPage: 0, outcome: 'NONE', onWon: noop,
       queue: [], timer: 0, text: '', color: C_TEXT, bufferedA: false,
     },
     card: { lines: [], onDone: noop },

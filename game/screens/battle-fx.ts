@@ -1,9 +1,10 @@
 import { PICO8, contrast } from '../../engine';
 import type { Sprite } from '../../engine';
-import type { EnemyActResult, EnemyInstance, EnemyKind, Hero, HeroAction, HeroActResult, Hit, SpellId } from '../types';
+import type { EnemyActResult, EnemyInstance, EnemyKind, Hero, HeroAction, HeroActResult, HeroCommand, Hit, SpellId } from '../types';
+import { isSpell } from '../sim';
 import { enemyAnim, heroFrames } from '../sprites';
 import { enemyAnchor, enemyPos, heroAnchor } from '../backdrop';
-import { addMove, addShot, addTint, cue, holdMeter, meter } from '../fx';
+import { addMove, addShot, addTint, cue, holdMeter, meter, showBanner } from '../fx';
 import { enemyContact, enemyReach, heroContact, heroReach } from './battle-reach';
 import type { Actor, ShotKind } from '../fx-state';
 import { popSpot, pushPop } from '../pops';
@@ -26,6 +27,11 @@ const SPELL_LOOK: Record<SpellId, Look> = {
 };
 const STRIKE_LOOK: Look = { arch: 'MELEE', impact: 0.18, shot: null, color: PICO8[7], glow: PICO8[6] };
 const HEXBOLT_LOOK: Look = { arch: 'SHOT', impact: 0.26, shot: 'BOLT', color: PICO8[14], glow: PICO8[7] };
+const COMMAND_LOOK: Record<Exclude<HeroCommand, 'ATTACK'>, Look> = {
+  GUARD: { arch: 'AURA', impact: 0.16, shot: 'RISE', color: PICO8[12], glow: PICO8[7] },
+  POTION: { arch: 'AURA', impact: 0.22, shot: 'RISE', color: PICO8[11], glow: PICO8[7] },
+  BURST: { arch: 'HEAVY', impact: 0.24, shot: 'DUST', color: PICO8[9], glow: PICO8[10] },
+};
 const LAUNCH = 0.1;
 const STAGGER = 0.16;
 export const MOTES_FLIGHT = 0.3;
@@ -36,7 +42,8 @@ export const hasHex = (hero: Hero): boolean => Object.values(hero.equipment).som
 export const magicWeapon = (hero: Hero): boolean => hero.equipment.WEAPON?.weaponKind === 'MAGIC';
 
 function heroLook(hero: Hero, action: HeroAction): Look {
-  if (action !== 'ATTACK') {return SPELL_LOOK[action];}
+  if (isSpell(action)) {return SPELL_LOOK[action];}
+  if (action !== 'ATTACK') {return COMMAND_LOOK[action];}
   return hasHex(hero) || magicWeapon(hero) ? HEXBOLT_LOOK : STRIKE_LOOK;
 }
 
@@ -311,7 +318,7 @@ export function entranceFx(g: Game, e: EnemyInstance): void {
   addMove(g, 'ENEMY', 'ENTER', 48);
   const tag = KIND_TAG[e.def.kind];
   if (!tag) {return;}
-  g.fx.banner = { t0: g.fx.t, name: e.def.name, tag, color: e.def.kind === 'BOSS' ? PICO8[8] : C_ACCENT };
+  showBanner(g, { name: e.def.name, tag, color: e.def.kind === 'BOSS' ? PICO8[8] : C_ACCENT });
 }
 
 const BRACE_PULL = 5;

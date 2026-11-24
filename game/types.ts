@@ -35,6 +35,8 @@ export const SLOTS: Slot[] = ['WEAPON', 'ARMOR', 'NECKLACE', 'BOOTS', 'CHALICE',
 export type Rarity = 'COMMON' | 'RARE' | 'EPIC' | 'LEGENDARY';
 export const RARITIES: Rarity[] = ['COMMON', 'RARE', 'EPIC', 'LEGENDARY'];
 export type DamageKind = 'PHYSICAL' | 'MAGIC';
+export type Element = 'FIRE' | 'WATER' | 'THUNDER' | 'EARTH';
+export type MoveId = 'STRIKE' | 'WINDUP' | 'HEAVY' | 'WARD' | 'SCORCH' | 'MEND';
 export type SpellId =
   | 'FIREBALL' | 'WATER' | 'SLASH' | 'THUNDER'
   | 'TWINBOLT' | 'LEECH' | 'QUAKE' | 'MEND';
@@ -90,6 +92,8 @@ export interface SpellDef {
   verb: string;
   heal?: number;
   leech?: number;
+  element?: Element;
+  guard?: { reflect: number };
 }
 
 export type EnemyKind = 'NORMAL' | 'ELITE' | 'BOSS';
@@ -103,11 +107,25 @@ export interface EnemyDef {
   def: number; mdef: number;
   mult: number;
   trait?: string;
+  moves: MoveId[];
+  phase2?: { at: number; moves: MoveId[]; banner: string; atkMult: number };
+  weak?: Element;
+  resists?: Element;
 }
+
+export interface Burn { perTurn: number; turns: number }
 
 export interface EnemyInstance {
   def: EnemyDef;
   hp: number; maxHp: number; atk: number;
+  resPhys: number; resMagic: number;
+  affixes: string[];
+  burn: Burn | null;
+  wardTurns: number;
+  phase: 1 | 2;
+  cycleIndex: number;
+  mended: boolean;
+  staggered: boolean;
 }
 export interface Biome {
   name: string;
@@ -128,14 +146,47 @@ export interface Hero {
   revivedTwice: boolean;
   dryFights: number;
   missedScrolls: SpellId[];
+  potions: number;
+  ember: number;
+  burn: Burn | null;
 }
+
+export const POTIONS_MAX = 2;
+export const POTION_HEAL = 0.4;
+export const GUARD_FACTOR = 0.5;
+export const GUARD_CHAIN_FACTOR = 0.75;
+export const GUARD_MP_GAIN = 2;
+export const RIPOSTE_MULT = 1.5;
+export const HEAVY_MULT = 2.2;
+export const WINDUP_MULT = 0.6;
+export const SCORCH_MULT = 0.7;
+export const WARD_BONUS = 25;
+export const WARD_CAP = 60;
+export const WARD_TURNS = 2;
+export const MEND_FRACTION = 0.1;
+export const WEAK_MULT = 1.5;
+export const RESIST_MULT = 0.5;
+export const BURN_FRACTION = 0.4;
+export const BURN_TURNS = 3;
+export const EMBER_MAX = 100;
+export const EMBER_PER_ACTION = 6;
+export const EMBER_PER_HIT_TAKEN = 4;
+export const EMBER_PER_PARRY = 15;
+export const BURST_MULT = 2.5;
+export const BREAK_AT: Record<EnemyKind, number> = { NORMAL: 0.25, ELITE: 0.15, BOSS: 0.08 };
+
 export interface BattleState {
   enemy: EnemyInstance;
   rampStacks: number;
   lastScope: 'ATTACK' | 'SPELL' | null;
   actionsTaken: number;
+  intent: MoveId;
+  guarding: boolean;
+  guardChain: number;
+  riposte: boolean;
 }
-export type HeroAction = 'ATTACK' | SpellId;
+export type HeroCommand = 'ATTACK' | 'GUARD' | 'BURST' | 'POTION';
+export type HeroAction = HeroCommand | SpellId;
 export interface Hit { dmg: number; crit: boolean; kind: DamageKind }
 export interface HeroActResult {
   hits: Hit[];
@@ -144,8 +195,14 @@ export interface HeroActResult {
   text: string;
   enemyDefeated: boolean;
   crit: boolean;
+  broke: boolean;
+  weak: boolean;
+  resisted: boolean;
+  guarded: boolean;
+  missed: boolean;
 }
 export interface EnemyActResult {
+  move: MoveId;
   dodged: boolean;
   dmg: number;
   reflected: number;
@@ -153,6 +210,23 @@ export interface EnemyActResult {
   heroDead: boolean;
   enemyDefeated: boolean;
   text: string;
+  guarded: boolean;
+  parried: boolean;
+  staggered: boolean;
+  phaseChanged: boolean;
+  burned: boolean;
+  healed: number;
+  warded: boolean;
+}
+export interface TurnStart {
+  hpRegen: number;
+  mpRegen: number;
+  bloodLoss: number;
+  heroBurn: number;
+  enemyBurn: number;
+  heroDead: boolean;
+  enemyDefeated: boolean;
+  revived: boolean;
 }
 
 export type Rng = () => number;

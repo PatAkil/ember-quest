@@ -29,11 +29,17 @@ ember-quest/
 │   │   ├── describe.ts       #   item / offer / compare text for the screens, compareFull (every changed stat, LOSE/GAIN)
 │   │   ├── loot.ts           #   rollLoot, applyOffer, resolveUpgrade, missed scrolls
 │   │   ├── pack.ts           #   the 4-item pack: stow, discard, swapIn, unequip, ownedIds, upgradableTargets
-│   │   ├── combat.ts         #   spawnEnemy, turns, damage, effects in battle
+│   │   ├── combat.ts         #   spawnEnemy, createBattle, heroAct (ATTACK + spells), damage, effects in battle
+│   │   ├── commands.ts       #   GUARD, POTION, BURST and the BREAK settle
+│   │   ├── enemy-turn.ts     #   enemyAct: moves, intent, cycle, phase switch
+│   │   ├── status.ts         #   startTurn (regen, BLOOD, BURN ticks), BURN, WARD, heroFalls
+│   │   ├── element.ts        #   elementMult (weakness / resistance)
+│   │   ├── burst.ts          #   ember gain, canBurst, the burst blow
 │   │   ├── map.ts            #   the one map generator, generateMap(rng, shape?) — game and simulator
 │   │   ├── model.ts          #   Policy (incl. stowOrEquip, dropWhich, upgradeTarget, prepare), RoomType (with BOSS)
 │   │   ├── scoring.ts        #   how policies value a loot offer
 │   │   ├── policies.ts       #   POLICIES (random, balanced, glass, tank, routing archetypes)
+│   │   ├── policy-battle.ts  #   how the policies fight (damageAct, expected damage)
 │   │   ├── policy-choices.ts #   DEFAULT_CHOICES: the shared pack/upgrade/prepare defaults every policy spreads
 │   │   └── run.ts            #   simulateRun, RunResult, Probe
 │   ├── main.ts               # wiring only: app, game state, scene hooks, dev hook, loop
@@ -54,6 +60,9 @@ ember-quest/
 │   ├── screens/              # one update + one view per screen: battle/battle-view, map/map-view, loot/loot-view, levelup, card, status (map status panel), gear/gear-view (GEAR: worn slots + pack, B on the map), pick/pick-view (PICK: the shared chooser, e.g. UPGRADE WHICH?), title (title, pause, endings)
 │   │   ├── battle-fx.ts      #   choreography of a turn: wind-ups, impacts, pops, regen aura, defeat, entrance, death
 │   │   ├── battle-fx-view.ts #   draws the shots (orbs, bolts, slashes, blooms …) and the boss/elite banner strip
+│   │   ├── battle-fx-verbs.ts #  the beat of each battle verb: guard, parry, break, burst, potion, burn tick, phase, weak
+│   │   ├── battle-menu.ts    #   the command menu: draw, cursor, choice
+│   │   ├── battle-tags.ts    #   the tag strips under the plates (RAMP, BURN, WARD, weakness …)
 │   │   ├── battle-reach.ts   #   lunge distances and contact points between the knight and the foe
 │   │   ├── map-view.ts       #   map nodes with room icons, edges and lit path, hero marker
 │   │   └── plate.ts          #   rarity rings, medallions and centred icons shared by loot and card
@@ -106,7 +115,7 @@ ember-quest/
 - **Look before you report.** `npm run look -- --scene battle --act 2 --seed 7` prints one
   JSON line (`ok`, the game `state`, console/page `errors`, the screenshot path) in under
   a second; read the state first and the screenshot whenever the look changed. Scenes:
-  `title map battle levelup loot card paused gameover win gear pick drop`; acts 1–4. Claude may say what
+  `title map battle levelup loot card paused gameover win gear pick drop battle-heavy battle-magic`; acts 1–4. Claude may say what
   it saw; the owner remains the playtester for feel — report "builds, boots clean,
   ready to play at <URL>", never "playtested".
 - **Done means**: `npm run check` and `npm run lint` after every edit (or `npx eslint

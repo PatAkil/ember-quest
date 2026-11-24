@@ -3,18 +3,15 @@ import {
   CAP_DEF,
   CAP_MDEF,
   STAT_KEYS,
-  type BattleState,
   type Derived,
   type Hero,
-  type HeroAction,
   type Rng,
   type StatKey,
 } from '../types';
-import { SPELLS } from '../data';
-import { swingFor } from './combat';
-import { canAfford, derive, spellCost } from './hero';
+import { canAfford, derive } from './hero';
 import type { Policy, RoomType } from './model';
 import { swapIn } from './pack';
+import { damageAct } from './policy-battle';
 import { choicesFor, type PolicyChoices } from './policy-choices';
 import { bestPick, P_BALANCED, P_DEFENCE, P_OFFENCE, type ItemBonus } from './scoring';
 import { pickOr } from './util';
@@ -32,51 +29,6 @@ export function withPolicyContext<T>(rng: Rng, hero: Hero, body: () => T): T {
     context.hero = previous.hero;
   }
 }
-
-function expectedDamage(hero: Hero, d: Derived, battle: BattleState, action: HeroAction): number {
-  if (action !== 'ATTACK' && SPELLS[action].heal !== undefined) {return 0;}
-  const swing = swingFor(hero, d, action);
-  const resist = swing.kind === 'PHYSICAL' ? battle.enemy.def.def : battle.enemy.def.mdef;
-  const critFactor = 1 + (d.crit / 100) * (d.critMult - 1);
-  let sum = 0;
-  for (const m of swing.mults) {sum += swing.base * m;}
-  return Math.max(0, sum * critFactor * (1 - resist / 100));
-}
-
-const isMend = (a: HeroAction) => a !== 'ATTACK' && SPELLS[a].heal !== undefined;
-
-const actionCost = (hero: Hero, a: HeroAction) => (a === 'ATTACK' ? 0 : spellCost(hero, a));
-
-interface Fight { hero: Hero; d: Derived; battle: BattleState }
-
-function hardestHit({ hero, d, battle }: Fight, affordable: HeroAction[], reserve: number): HeroAction {
-  let best: HeroAction = 'ATTACK';
-  let bestDmg = expectedDamage(hero, d, battle, 'ATTACK');
-  let bestCost = 0;
-  for (const a of affordable) {
-    if (a === 'ATTACK') {continue;}
-    const dmg = expectedDamage(hero, d, battle, a);
-    if (dmg <= 0) {continue;}
-    const cost = spellCost(hero, a);
-    if (hero.mp - cost < reserve && dmg < battle.enemy.hp) {continue;}
-    if (dmg > bestDmg + 1e-9 || (dmg > bestDmg - 1e-9 && cost < bestCost)) {
-      bestDmg = dmg;
-      best = a;
-      bestCost = cost;
-    }
-  }
-  return best;
-}
-
-const damageAct = (mendBelow: number): Policy['act'] => (hero, d, battle, actions) => {
-  const affordable = actions.filter((a) => canAfford(hero, a));
-  const mend = affordable.find(isMend);
-  const hpFrac = hero.hp / Math.max(1, d.maxHp);
-  if (mend && hpFrac < mendBelow) {return mend;}
-  const mendId = actions.find(isMend);
-  const reserve = mendId && hpFrac < 0.6 ? actionCost(hero, mendId) : 0;
-  return hardestHit({ hero, d, battle }, affordable, reserve);
-};
 
 function atCap(d: Derived, stat: StatKey): boolean {
   if (stat === 'DEF') {return d.def >= CAP_DEF;}

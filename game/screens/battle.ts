@@ -1,21 +1,22 @@
 import { PICO8 } from '../../engine';
-import type { EnemyInstance, HeroAction } from '../types';
+import type { EnemyInstance, HeroAction, HeroActResult, HeroCommand, TurnStart } from '../types';
 import { SPELLS } from '../data';
-import { canAfford, createBattle, enemyAct, heroAct, heroActions, spawnEnemy, startTurn } from '../sim';
-import { at } from '../lookup';
+import { canAfford, createBattle, enemyAct, heroAct, isSpell, spawnEnemy, startTurn } from '../sim';
 import { BRACE_DUR, bannerBlocks, cue, dismissBanner, fadeProgress, flushFx, resetFx, skipToImpact, updateFx } from '../fx';
-import { biome, dirEdge, resetCursorEdge, wrapCursor } from '../state';
+import { biome, resetCursorEdge } from '../state';
 import type { Game } from '../state';
 import { C_ACCENT, C_DIM, C_DMG_TAKEN, C_HP, C_LOG_HURT, C_MP, C_TEXT, heroPos } from '../theme';
 import { MOTES_FLIGHT, deathFx, lastHitDelay, defeatFx, enemyImpact, enemyWindup, entranceFx, heroImpact, heroWindup, popHero, prepareFx, regenAura } from './battle-fx';
 import type { PopSpec } from './battle-fx';
+import { fxBreak, fxBurnTick, fxBurst, fxGuard, fxParry, fxPhase, fxPotion, fxWeak } from './battle-fx-verbs';
+import { clampMenuCursor, menuChoice } from './battle-menu';
 import { clearPops, pushPop, scoreSpot } from '../pops';
 
 export function startBattle(g: Game, id: string, onWin: () => void): void {
   const enemy = spawnEnemy(id, g.clears, g.actIndex);
   g.battle = {
     enemy, state: createBattle(enemy), onWon: onWin,
-    phase: 'MENU', menuCursor: 0, outcome: 'NONE',
+    phase: 'MENU', menuCursor: 0, menu: 'TOP', topCursor: 0, magicCursor: 0, magicPage: 0, outcome: 'NONE',
     queue: [], timer: 0, text: '', color: C_TEXT, bufferedA: false,
   };
   g.subScene = 'BATTLE';
@@ -55,7 +56,7 @@ export function onQueueDone(g: Game): void {
     return;
   }
   b.phase = 'MENU';
-  b.menuCursor = Math.min(b.menuCursor, heroActions(g.hero).length - 1);
+  clampMenuCursor(g);
 }
 
 const DEFEAT_HOLD = 1.0;
@@ -95,6 +96,8 @@ export function applyEnemyAction(g: Game): void {
   say(g, r.text, r.dodged ? C_TEXT : C_LOG_HURT);
   if (r.revived) {g.battle.color = C_ACCENT;}
   enemyImpact(g, r);
+  if (r.parried) {fxParry(g);}
+  if (r.phaseChanged) {fxPhase(g, enemy);}
   if (r.heroDead) { heroDies(g, r.text); return; }
   if (r.enemyDefeated) {enemyDefeated(g, enemy);}
 }
@@ -103,8 +106,7 @@ function enemyStep(g: Game, e: EnemyInstance): void {
   cue(g, enemyWindup(g, e), () => { applyEnemyAction(g); }, true);
 }
 
-function turnStartPops(g: Game): PopSpec[] {
-  const turn = startTurn(g.hero);
+function turnStartPops(turn: TurnStart): PopSpec[] {
   const specs: PopSpec[] = [];
   if (turn.mpRegen > 0) {specs.push({ text: `+${turn.mpRegen} MP`, color: C_MP });}
   if (turn.hpRegen > 0) {specs.push({ text: `+${turn.hpRegen} HP`, color: C_HP });}
@@ -119,18 +121,39 @@ function landHeroAction(g: Game, action: HeroAction, slot: number): void {
   const r = heroAct(g.hero, state, action, g.rng);
   say(g, r.text, r.crit ? C_ACCENT : C_TEXT);
   heroImpact(g, { action, result: r, slot, preHp });
+  verbFx(g, action, r);
   if (r.enemyDefeated) { enemyDefeated(g, e, lastHitDelay(r.hits.length)); return; }
   g.battle.timer = Math.max(PREPARE_DELAY + lastHitDelay(r.hits.length), r.healed > 0 ? MOTES_FLIGHT : 0);
   push(g, BRACE_DUR, () => { prepareFx(g); });
   push(g, ENEMY_TURN_HOLD, () => { enemyStep(g, e); });
 }
 
+function verbFx(g: Game, action: HeroAction, r: HeroActResult): void {
+  if (r.guarded) {fxGuard(g);}
+  if (action === 'POTION' && r.healed > 0) {fxPotion(g);}
+  if (action === 'BURST' && r.hits.length > 0) {fxBurst(g);}
+  if (r.weak) {fxWeak(g);}
+  if (r.broke) {fxBreak(g);}
+}
+
+const VERB_SAY: Record<Exclude<HeroCommand, 'ATTACK'>, string> = { GUARD: 'HERO GUARDS!', BURST: 'EMBER BURST!', POTION: 'HERO DRINKS A POTION!' };
+
+function announce(action: HeroAction): string {
+  if (action === 'ATTACK') {return 'HERO ATTACKS!';}
+  return isSpell(action) ? `HERO CASTS ${SPELLS[action].name}!` : VERB_SAY[action];
+}
+
 function heroStep(g: Game, action: HeroAction): void {
-  if (!g.battle.enemy) {return;}
-  const turnPops = turnStartPops(g);
-  say(g, action === 'ATTACK' ? 'HERO ATTACKS!' : `HERO CASTS ${SPELLS[action].name}!`, C_DIM);
+  const { enemy: e, state } = g.battle;
+  if (!e || !state) {return;}
+  const turn = startTurn(g.hero, state, action);
+  const turnPops = turnStartPops(turn);
+  say(g, announce(action), C_DIM);
   popHero(g, turnPops);
   if (turnPops.length) {regenAura(g);}
+  if (turn.heroBurn > 0 || turn.enemyBurn > 0) {fxBurnTick(g, turn);}
+  if (turn.heroDead) { heroDies(g, 'THE FLAMES TAKE YOU!'); return; }
+  if (turn.enemyDefeated) { enemyDefeated(g, e); return; }
   cue(g, heroWindup(g, action), () => { landHeroAction(g, action, turnPops.length); }, true);
 }
 
@@ -157,10 +180,8 @@ function updateMenu(g: Game): void {
     if (consumeA(g)) {dismissBanner(g);}
     return;
   }
-  const actions = heroActions(g.hero);
-  const dy = dirEdge(g);
-  if (dy) { g.battle.menuCursor = wrapCursor(g.battle.menuCursor, dy, actions.length); g.app.audio.play('blip'); }
-  if (consumeA(g)) { g.app.audio.play('blip'); useAction(g, at(heroActions(g.hero), g.battle.menuCursor)); }
+  const chosen = menuChoice(g, consumeA(g));
+  if (chosen) {useAction(g, chosen);}
 }
 
 function updateDying(g: Game, dt: number): void {

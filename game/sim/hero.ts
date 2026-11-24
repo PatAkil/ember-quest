@@ -4,6 +4,7 @@ import {
   CAP_DEF,
   CAP_DODGE,
   CAP_MDEF,
+  POTIONS_MAX,
   SLOTS,
   SP_GAIN,
   SP_PER_KIND,
@@ -11,6 +12,7 @@ import {
   type EnemyKind,
   type Hero,
   type HeroAction,
+  type HeroCommand,
   type Item,
   type OwnedItem,
   type SpellId,
@@ -18,6 +20,7 @@ import {
   type StatMods,
 } from '../types';
 import { CLEAR_HEAL, SKIP_MEND, SPELLS, SPELL_ORDER } from '../data';
+import { canBurst } from './burst';
 import { allEffects, effectiveEffect, effectiveMods, itemLevel } from './gear';
 import { clamp } from './util';
 
@@ -35,6 +38,9 @@ export function createHero(): Hero {
     revivedTwice: false,
     dryFights: 0,
     missedScrolls: [],
+    potions: POTIONS_MAX,
+    ember: 0,
+    burn: null,
   };
 }
 
@@ -123,10 +129,23 @@ export function spellCost(hero: Hero, spell: SpellId): number {
   return Math.max(1, Math.round(base - discount));
 }
 
+const COMMANDS: readonly HeroAction[] = ['ATTACK', 'GUARD', 'BURST', 'POTION'] satisfies readonly HeroCommand[];
+
+export const isSpell = (action: HeroAction): action is SpellId => !COMMANDS.includes(action);
+
+const COMMAND_READY: Record<HeroCommand, (hero: Hero) => boolean> = {
+  ATTACK: () => true,
+  GUARD: () => true,
+  BURST: canBurst,
+  POTION: (hero) => hero.potions > 0,
+};
+
 export function canAfford(hero: Hero, action: HeroAction): boolean {
-  if (action === 'ATTACK') {return true;}
-  return hero.mp >= spellCost(hero, action);
+  if (isSpell(action)) {return hero.mp >= spellCost(hero, action);}
+  return COMMAND_READY[action](hero);
 }
+
+export const refillPotions = (hero: Hero): void => { hero.potions = POTIONS_MAX; };
 
 export function clampVitals(hero: Hero, minHp: number): void {
   const d = derive(hero);

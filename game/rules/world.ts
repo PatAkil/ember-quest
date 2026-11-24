@@ -1,13 +1,13 @@
 import type { Biome, LootSource, Rarity, SpellDef, SpellId } from '../types';
 
 export const SPELLS: Record<SpellId, SpellDef> = {
-  FIREBALL: { id: 'FIREBALL', name: 'FIREBALL', cost: 5, mult: 1.0, hits: 1, scale: 'MAG', kind: 'MAGIC', verb: 'HURLS FIRE AT' },
-  WATER: { id: 'WATER', name: 'WATER', cost: 8, mult: 1.6, hits: 1, scale: 'MAG', kind: 'MAGIC', verb: 'FLOODS' },
+  FIREBALL: { id: 'FIREBALL', name: 'FIREBALL', cost: 5, mult: 1.0, hits: 1, scale: 'MAG', kind: 'MAGIC', verb: 'HURLS FIRE AT', element: 'FIRE' },
+  WATER: { id: 'WATER', name: 'WATER', cost: 8, mult: 1.6, hits: 1, scale: 'MAG', kind: 'MAGIC', verb: 'FLOODS', element: 'WATER' },
   SLASH: { id: 'SLASH', name: 'SLASH', cost: 4, mult: 1.8, hits: 1, scale: 'ATK', kind: 'PHYSICAL', verb: 'SLASHES' },
-  THUNDER: { id: 'THUNDER', name: 'THUNDER', cost: 10, mult: 2.1, hits: 1, scale: 'MAG', kind: 'MAGIC', verb: 'CALLS LIGHTNING ON' },
-  TWINBOLT: { id: 'TWINBOLT', name: 'TWINBOLT', cost: 7, mult: 0.85, hits: 2, scale: 'MAG', kind: 'MAGIC', verb: 'FORKS BOLTS AT' },
+  THUNDER: { id: 'THUNDER', name: 'THUNDER', cost: 10, mult: 2.1, hits: 1, scale: 'MAG', kind: 'MAGIC', verb: 'CALLS LIGHTNING ON', element: 'THUNDER' },
+  TWINBOLT: { id: 'TWINBOLT', name: 'TWINBOLT', cost: 7, mult: 0.85, hits: 2, scale: 'MAG', kind: 'MAGIC', verb: 'FORKS BOLTS AT', element: 'THUNDER' },
   LEECH: { id: 'LEECH', name: 'LEECH', cost: 6, mult: 1.1, hits: 1, scale: 'MAG', kind: 'MAGIC', verb: 'LEECHES', leech: 0.4 },
-  QUAKE: { id: 'QUAKE', name: 'QUAKE', cost: 7, mult: 2.0, hits: 1, scale: 'ATK', kind: 'PHYSICAL', verb: 'QUAKES' },
+  QUAKE: { id: 'QUAKE', name: 'QUAKE', cost: 7, mult: 2.0, hits: 1, scale: 'ATK', kind: 'PHYSICAL', verb: 'QUAKES', element: 'EARTH' },
   MEND: { id: 'MEND', name: 'MEND', cost: 6, mult: 0, hits: 0, scale: 'MAG', kind: 'MAGIC', verb: 'MENDS', heal: 0.35 },
 };
 

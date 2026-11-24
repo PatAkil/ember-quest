@@ -1,6 +1,6 @@
 import { BIOMES, ENEMIES, BOSS_ENTRY_HEAL } from './data';
 import type { EnemyKind, Hero, LootSource } from './types';
-import { createHero, createSeededRng, fullHeal, grantClear, healFraction } from './sim';
+import { createHero, createSeededRng, fullHeal, grantClear, healFraction, refillPotions } from './sim';
 import { at, must } from './lookup';
 import { resetFx } from './fx';
 import { clearPops } from './pops';
@@ -77,6 +77,7 @@ function bossRoom(g: Game, node: MapNode): void {
 
 function restRoom(g: Game): void {
   fullHeal(g.hero);
+  refillPotions(g.hero);
   g.app.audio.play('pickup');
   showCard(g, ['FULLY RESTED', 'HP AND MP RESTORED'], () => { advanceStage(g); });
 }

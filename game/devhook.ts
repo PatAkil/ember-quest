@@ -1,19 +1,22 @@
 import type { SceneMachine } from '../engine';
-import type { Hero, Derived, EnemyInstance, EnemyKind, HeroAction, LootOffer, LootSource, Rng, StatKey } from './types';
-import { createHero, createSeededRng, grantClear, spendPoint, rollLoot, applyOffer, noteDeclinedScrolls, fullHeal, equip, stow } from './sim';
+import { EMBER_MAX } from './types';
+import type { Hero, Derived, EnemyInstance, EnemyKind, HeroAction, LootOffer, LootSource, MoveId, Rng, SpellId, StatKey } from './types';
+import { createHero, createSeededRng, grantClear, spendPoint, rollLoot, applyOffer, noteDeclinedScrolls, fullHeal, equip, stow, learnSpell } from './sim';
 import { BIOMES, ITEMS } from './data';
 import type { SeededRng } from './sim';
-import type { MapNode, RoomType, SubScene } from './state';
+import type { BattleScreen, MapNode, RoomType, SubScene } from './state';
 import { at, must, noop } from './lookup';
 
 type Action = 'A' | 'B' | 'PAUSE' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
-type Fixture = 'title' | 'map' | 'battle' | 'levelup' | 'loot' | 'card' | 'paused' | 'gameover' | 'win' | 'gear' | 'pick' | 'drop';
+type Fixture =
+  | 'title' | 'map' | 'battle' | 'levelup' | 'loot' | 'card' | 'paused' | 'gameover' | 'win' | 'gear' | 'pick' | 'drop'
+  | 'battle-heavy' | 'battle-magic';
 type DevNode = MapNode;
 
 interface DevView {
   scene: string; subScene: SubScene; act: number; hero: Hero; derived: Derived; enemy: EnemyInstance | null;
   clears: number; score: number; dying: boolean; cursors: Record<SubScene, number>;
-  battlePhase: string; battleText: string; actions: HeroAction[]; offers: LootOffer[]; card: string[];
+  battlePhase: string; battleText: string; intent: MoveId | null; actions: HeroAction[]; offers: LootOffer[]; card: string[];
   map: DevNode[][]; curStage: number; reachable: number[];
   pick: { title: string; rows: string[] };
 }
@@ -33,10 +36,13 @@ interface DevHost {
   enemyTurn(): void;
   openGear(): void;
   pickUpgrade(): void;
+  battle(): BattleScreen;
   view(): DevView;
 }
 
-const FIXTURES: readonly Fixture[] = ['title', 'map', 'battle', 'levelup', 'loot', 'card', 'paused', 'gameover', 'win', 'gear', 'pick', 'drop'];
+const FIXTURES: readonly Fixture[] = [
+  'title', 'map', 'battle', 'levelup', 'loot', 'card', 'paused', 'gameover', 'win', 'gear', 'pick', 'drop', 'battle-heavy', 'battle-magic',
+];
 const KEY: Record<Action, string> = {
   A: 'Space', B: 'KeyX', PAUSE: 'KeyP', UP: 'ArrowUp', DOWN: 'ArrowDown', LEFT: 'ArrowLeft', RIGHT: 'ArrowRight',
 };
@@ -86,6 +92,21 @@ function outfit(worn: readonly [string, number][], pack: readonly [string, numbe
   return hero;
 }
 
+const SCHOLAR: readonly SpellId[] = ['WATER', 'SLASH', 'THUNDER', 'TWINBOLT', 'LEECH', 'QUAKE'];
+
+function braced(hero: Hero): Hero {
+  hero.ember = EMBER_MAX;
+  hero.potions = 1;
+  hero.burn = { perTurn: 3, turns: 3 };
+  return hero;
+}
+
+function scholar(hero: Hero): Hero {
+  for (const spell of SCHOLAR) {learnSpell(hero, spell);}
+  fullHeal(hero);
+  return hero;
+}
+
 const kitted = (): Hero => outfit(KIT_WORN, KIT_PACK);
 const dressed = (): Hero => outfit([...KIT_WORN, ...KIT_REST], []);
 const laden = (): Hero => outfit([...KIT_WORN, ...KIT_REST], [...KIT_PACK, ...KIT_SPARE]);
@@ -130,7 +151,7 @@ function snapshot(v: DevView, seed: number | null): unknown {
   return JSON.parse(JSON.stringify({
     scene: v.scene, subScene: sub, act: v.act, seed, cursor: v.cursors[sub],
     hero: v.hero, derived: v.derived, enemy: v.enemy, clears: v.clears, score: v.score,
-    battle: sub === 'BATTLE' ? { phase: v.battlePhase, text: v.battleText, actions: v.actions } : null,
+    battle: sub === 'BATTLE' ? { phase: v.battlePhase, text: v.battleText, intent: v.intent, actions: v.actions } : null,
     loot: sub === 'LOOT' ? v.offers : null,
     card: sub === 'CARD' ? v.card : null,
     gear: sub === 'GEAR' ? { pack: v.hero.pack.length } : null,
@@ -176,8 +197,9 @@ interface FixtureContext { host: DevHost; driver: Driver; rng: Rng; act: number 
 
 function fixtureBuilders(fx: FixtureContext): Record<Fixture, () => void> {
   const { host, driver, rng, act } = fx;
+  const fresh = (): Hero => (act > 1 ? veteran(act - 1, rng) : createHero());
   const begin = (hero?: Hero): void => {
-    host.startRun(hero ?? (act > 1 ? veteran(act - 1, rng) : createHero()), act - 1, (act - 1) * ACT_CLEARS.length);
+    host.startRun(hero ?? fresh(), act - 1, (act - 1) * ACT_CLEARS.length);
     host.scenes.to('PLAYING');
   };
   const enter = (type: RoomType): void => {
@@ -187,7 +209,16 @@ function fixtureBuilders(fx: FixtureContext): Record<Fixture, () => void> {
     node.type = type;
     host.selectNode(node);
   };
-  const battle = (): void => { begin(); enter('FIGHT'); };
+  const battle = (hero?: Hero): void => { begin(hero); enter('FIGHT'); };
+  const heavy = (): void => {
+    battle(braced(fresh()));
+    const state = must(host.battle().state ?? undefined, 'battle state');
+    state.intent = 'HEAVY';
+  };
+  const magic = (): void => {
+    battle(scholar(fresh()));
+    host.battle().menu = 'MAGIC';
+  };
   const toItemOffer = (): void => {
     const i = host.view().offers.findIndex((o) => o.kind === 'ITEM');
     host.syncReveal();
@@ -210,6 +241,8 @@ function fixtureBuilders(fx: FixtureContext): Record<Fixture, () => void> {
     title: noop,
     map: () => { begin(); },
     battle,
+    'battle-heavy': heavy,
+    'battle-magic': magic,
     levelup: () => { battle(); host.winBattle(); },
     loot: () => { chest(dressed()); },
     card: () => { begin(); enter('REST'); },

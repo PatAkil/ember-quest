@@ -14,9 +14,9 @@ permadeath. v2 replaces the tier-upgrade gear with **skill points** and a
 | `game/data.ts` | the content import path: re-exports `game/rules/*` (ITEMS, ENEMIES, SPELLS, BIOMES, LOOT_WEIGHTS, ACT_MULT, the heal constants, `validateData`) | `./rules/*` only |
 | `game/rules/*.ts` | the content itself: `items` (ITEMS), `enemies` (ENEMIES), `world` (SPELLS, SPELL_ORDER, BIOMES, ACT_MULT, LOOT_WEIGHTS, LOOT_COUNT, CLEAR_HEAL, BOSS_ENTRY_HEAL, SKIP_MEND, RARITY_COLOR_INDEX), `validate` (`validateData`; never imports `data.ts`) | `../types`, each other |
 | `game/sim.ts` | the barrel: the only path presentation and the simulator use to reach the rules (also re-exports `validateData`, `generateMap`, `createSeededRng`, `at`) | `./sim/*`, `./data` |
-| `game/sim/*.ts` | pure rules, one concern per file: `util` (clamp, `at`, rng picks, `createSeededRng` — mulberry32 with readable state — and effect tables), `gear` (item levels, upgrades, effective mods/effects), `hero` (derived stats, skill points, heals, equip, spells), `ghost` (stats of a hypothetical equip), `describe` (item/offer/compare text, `compareFull`), `loot` (loot rolls, offers, scrolls, `resolveUpgrade`), `pack` (the pack: `stow`, `discard`, `swapIn`, `unequip`, `ownedIds`, `upgradableTargets`), `combat` (enemy scaling, turns, damage), `map` (**the one map generator**, `generateMap(rng, shape?)`, played by both the screens and the simulator), `model` (`Policy`, `RoomType` including `BOSS`), `scoring`, `policies` and `policy-choices` (how the archetypes decide; `DEFAULT_CHOICES` holds the shared pack/upgrade/prepare defaults), `run` (`simulateRun`) | `../types`, `../data`, each other |
+| `game/sim/*.ts` | pure rules, one concern per file: `util` (clamp, `at`, rng picks, `createSeededRng` — mulberry32 with readable state — and effect tables), `gear` (item levels, upgrades, effective mods/effects), `hero` (derived stats, skill points, heals, equip, spells), `ghost` (stats of a hypothetical equip), `describe` (item/offer/compare text, `compareFull`), `loot` (loot rolls, offers, scrolls, `resolveUpgrade`), `pack` (the pack: `stow`, `discard`, `swapIn`, `unequip`, `ownedIds`, `upgradableTargets`), `combat` (enemy scaling, battle creation, hero actions, damage), `commands` (GUARD, POTION, BURST, BREAK), `enemy-turn` (enemy moves, intent, phase), `status` (turn start, BURN, WARD, `heroFalls`), `element`, `burst`, `map` (**the one map generator**, `generateMap(rng, shape?)`, played by both the screens and the simulator), `model` (`Policy`, `RoomType` including `BOSS`), `scoring`, `policies`, `policy-battle` (how they fight) and `policy-choices` (how the archetypes decide; `DEFAULT_CHOICES` holds the shared pack/upgrade/prepare defaults), `run` (`simulateRun`) | `../types`, `../data`, each other |
 | `game/sprites.ts` + `game/sprites/*.ts` | hero/enemy/icon sprites: `helpers`, `hero`, `icons`, one file per biome; `sprites.ts` re-exports them and adds `enemyAnim(id)` | `../engine` only |
-| `game/main.ts` + `app`, `state`, `flow`, `frame`, `mapgen`, `theme`, `backdrop`, `widgets`, `pops`, `fx-state`, `fx`, `transition`, `storage`, `lookup`, `screens/*.ts` | presentation: `main.ts` only wires; `app` creates the engine objects and fits the canvas to the window; `state` holds the one `Game` object `g` with per-screen slices; `flow` runs the run (rooms, stages, clears, acts, scene hooks); `frame` dispatches update/render; `mapgen` adapts the shared headless map to the screens (adds `stage`, `slot`, `cleared`); the **fx / transition layer** presents what the rules decided and never decides anything — `fx-state` + `fx` hold the battle-fx clock (actor poses, timed cues, lagging meters, boss banner), `screens/battle-fx` choreographs a turn on it, `screens/battle-fx-view` draws its shots and banner, `screens/battle-reach` measures lunges, `transition` reveals each new sub-scene; `screens/` one update file and one view file per screen (`map-view`, `loot-view`, `battle-view`; `plate` holds the shared medallions) | everything |
+| `game/main.ts` + `app`, `state`, `flow`, `frame`, `mapgen`, `theme`, `backdrop`, `widgets`, `pops`, `fx-state`, `fx`, `transition`, `storage`, `lookup`, `screens/*.ts` | presentation: `main.ts` only wires; `app` creates the engine objects and fits the canvas to the window; `state` holds the one `Game` object `g` with per-screen slices; `flow` runs the run (rooms, stages, clears, acts, scene hooks); `frame` dispatches update/render; `mapgen` adapts the shared headless map to the screens (adds `stage`, `slot`, `cleared`); the **fx / transition layer** presents what the rules decided and never decides anything — `fx-state` + `fx` hold the battle-fx clock (actor poses, timed cues, lagging meters, boss banner), `screens/battle-fx` choreographs a turn on it, `screens/battle-fx-verbs` gives each battle verb its beat, `screens/battle-fx-view` draws its shots and banner, `screens/battle-menu` holds the command menu, `screens/battle-tags` the tag strips under the plates, `screens/battle-reach` measures lunges, `transition` reveals each new sub-scene; `screens/` one update file and one view file per screen (`map-view`, `loot-view`, `battle-view`; `plate` holds the shared medallions) | everything |
 | `game/devhook.ts` | the dev-only seeded hook (`?seed`, `?scene`, `&act`, `&hold`, `window.__ember`), never in the build | `../engine` types, `./sim`, presentation types |
 | `sim/run.mjs`, `sim/bundle.mjs`, `scripts/rules.mjs` | the balance simulator; the shared esbuild bundling of `game/sim.ts`; the rules gate (`npm run rules`, part of `verify`): `node:assert` invariants against the bundle — every map node reachable and linked, one BOSS last, ELITE + REST + LOOT on every map (5000 seeds), seeded-rng determinism and state round-trip, `validateData()` clean | the bundle |
 
@@ -141,14 +141,118 @@ fixes it instead).
   against a PHYSICAL one; a swap needs a 0.5-point edge). The `random` policy picks all
   four at random.
 
+## v3 — battle verbs (M2)
+
+Rules live in `game/sim/`: `combat` (spawn, battle creation, ATTACK and spells, the
+action dispatch), `commands` (GUARD, POTION, BURST, the BREAK settle), `enemy-turn` (the
+enemy's move, intent, cycle and phase), `status` (turn start, BURN, WARD, `heroFalls`),
+`element` (`elementMult`), `burst` (ember gain, `canBurst`, the burst blow),
+`policy-battle` (how the policies fight). Tuning constants are in `game/types.ts`.
+
+- **Instance stats.** `EnemyInstance` carries `resPhys`/`resMagic` (copied from the
+  definition's `def`/`mdef` at spawn, later changed by affixes), `affixes`, `burn`,
+  `wardTurns`, `phase`, `cycleIndex`, `mended`, `staggered`. All resist math and the enemy
+  plate read the instance (`resistOf(enemy, kind)` adds the ward).
+- **Moves and intents.** `EnemyDef.moves` is a cycle of any length; `battle.intent`
+  = the move at `cycleIndex` (a spent MEND reads as STRIKE), set at battle creation and
+  advanced after every enemy action, deterministic. Dodge is rolled first and only for
+  damaging moves; a dodged move still advances the cycle and a dodged SCORCH burns nothing.
+
+  | Move | Effect | Plate text |
+  |---|---|---|
+  | `STRIKE` | today's hit | `STRIKES` / `HEXES` |
+  | `WINDUP` | ×0.6 hit (`WINDUP_MULT`); always followed by `HEAVY` | `WINDS UP` |
+  | `HEAVY` | ×2.2 hit (`HEAVY_MULT`) | `HEAVY BLOW` |
+  | `WARD` | no damage; `wardTurns` = 2: resist = min(60, instance + 25) for the hero's next 2 actions (GUARD counts); never written into the instance; re-applying refreshes | `WARDS` |
+  | `SCORCH` | ×0.7 hit; the hero gains BURN | `SCORCHES` |
+  | `MEND` | heals 10 % max HP once per phase; afterwards that entry acts as `STRIKE` | `MENDS` |
+
+  Data rules (`validateData`): every `WINDUP` is immediately followed by `HEAVY` and no
+  `HEAVY` stands without one; normals use at most 2 distinct moves besides STRIKE,
+  elites 3, bosses any; `phase2.moves[0]` is never `HEAVY`; no cycle is empty.
+- **Phase switch** (`phase2: { at, moves, banner, atkMult }`). Checked as the enemy's
+  turn begins (nothing acts between the hero's action and it, so this is the check
+  "after each hero action"): HP ≤ `at` × max and alive → phase 2, ATK × `atkMult`, MEND
+  re-armed, the banner strip announces it (`EnemyActResult.phaseChanged`). The move shown
+  when the hero chose still resolves (unless it was broken); only then does the cycle
+  become `phase2.moves` at index 0, which is the next intent shown.
+- **GUARD** (always available). Until the hero's next action damage taken ×0.5
+  (`GUARD_FACTOR`, after DEF/MDEF; REFLECT uses the reduced number; BURN/BLOOD ticks are
+  not reduced). A hit landing on a guard gives +2 MP (`GUARD_MP_GAIN`). Guarding a
+  `HEAVY` (landed or dodged) is a **PARRY**: `battle.riposte`, every hit of the hero's next
+  damaging action ×1.5 (`RIPOSTE_MULT`, not BURST), +15 ember. Anti-stall: HP/MP regen
+  does not tick on a turn the hero guards (`startTurn(hero, battle, action)`); a GUARD
+  directly after a GUARD (`battle.guardChain` > 1) is ×0.75 and gives no MP and no
+  ember — unless it answers a shown `HEAVY` (full ×0.5, and it parries). GUARD leaves RAMP
+  stacks, `lastScope` and FIRST_STRIKE alone (`actionsTaken` counts damaging and healing
+  actions: spells, ATTACK, POTION).
+- **BREAK** (M2b). While the shown intent is `HEAVY`, a hero action breaks it when it is
+  a BURST, a hit on the foe's weakness, or any damaging action while `PUNISH_WINDUP` is
+  worn — and it deals at least `BREAK_AT[kind]` of the foe's max HP (NORMAL 25 %, ELITE
+  15 %, BOSS 8 %; a floor only). Pop `BREAK!`; the foe is `staggered` and loses that turn
+  (the cycle steps past the HEAVY). Order after a hero action: BREAK check, then the phase
+  check. "The telegraph never lies" exempts broken moves.
+- **Menu.** The band's top line (y 120) is the intent hint (`… GUARD IT` in M2a,
+  `… OR BREAK IT` in M2b); below it a 2 × 3 grid at 8 px pitch: `ATTACK MAGIC / GUARD
+  BURST / POTION X2` (`BattleScreen.menu` `'TOP'`, `topCursor`). MAGIC opens the spell grid
+  (2 × 3, pages with Down past the end beyond 6: `magicCursor`, `magicPage`), B = back;
+  it opens even when nothing is affordable (rows dim). BURST is dim until the gauge is
+  full, POTION when none is left. The highlighted command's right-hand info previews it
+  against this foe (`MAG X1.5 WEAK`, `-25% WARD`, `BREAKS IT`).
+- **POTION.** `hero.potions` starts at 2 (`POTIONS_MAX`), REST refills; drinking heals
+  40 % max HP (`POTION_HEAL`) and uses the turn; at 0 it cannot be chosen.
+- **Elements.** `SpellDef.element`: FIREBALL fire, WATER water, THUNDER and TWINBOLT
+  thunder, QUAKE earth; LEECH, SLASH, MEND none. `EnemyDef.weak` ×1.5 (`WEAK_MULT`),
+  `resists` ×0.5 (`RESIST_MULT`), after resist, on each hit of a multi-hit
+  (`HeroActResult.weak` / `resisted`). Weapon attacks carry an element only through
+  `IMBUE` gear (M3). Each act's commonest weakness is one the hero can own by then — act 1
+  FIRE, act 2 FIRE/WATER, act 3 WATER, act 4 THUNDER; one enemy per biome breaks the
+  theme; EARTH is the off-meta answer. `WEAK!` pop and a longer hit-stop on a weak hit.
+- **BURN** (the only ailment). `{ perTurn, turns }`: `perTurn` = 40 % of the hit that
+  applied it (min 1, `BURN_FRACTION`), `turns` = 3; re-applying keeps the larger
+  `perTurn` and resets turns. Ticks happen in `startTurn`, at the start of each round
+  (the hero's turn), hero first, then the foe (`TurnStart.heroBurn` / `enemyBurn`); they
+  give no ember, DRAIN never heals from them, and they can kill: hero deaths all go
+  through `heroFalls` (REVIVE answers a tick), a foe killed by a tick ends the fight
+  through the normal victory path (`TurnStart.enemyDefeated`). Sources: enemy `SCORCH`,
+  hero `BURN_ON_HIT` gear (M3).
+- **EMBER BURST.** `hero.ember` 0–100 (`EMBER_MAX`), carried from fight to fight (not
+  reset by REST or acts): +6 per damaging hero action (once per action, not BURST), +4
+  when hit (not on a chained GUARD), +15 on a parry. At 100 BURST lights: one hit of 2.5×
+  the higher of ATK and MAG (`BURST_MULT`), of the weapon's kind, no crit/RAMP/TWIN/
+  riposte/jitter, ignores DEF/MDEF and WARD, no element; it cleanses the hero's BURN and
+  empties the gauge, and leaves riposte, RAMP stacks, `lastScope` and `actionsTaken`
+  alone. Drawn as a 2 px bar under the hero plate.
+- **Where it is drawn.** The short intent text (≤ 10 chars) replaces `STRIKES`/`HEXES` on
+  the enemy plate's third row; the long hint is the band's top line. A tag strip at
+  y 37–43 under each plate (`screens/battle-tags`) carries pips and short words: enemy =
+  weakness, WARD, BURN, affix; hero = RAMP, BURN, GUARD, RIPOSTE. Pops never rise above
+  y 46 (`POP_CEIL`), so they never cross the strips; strip text stays inside the plate's
+  96 px. Every verb has its beat (`screens/battle-fx-verbs`: `fxGuard`, `fxParry`,
+  `fxBreak`, `fxBurst`, `fxPotion`, `fxBurnTick`, `fxPhase`, `fxWeak`); the phase banner
+  reuses the boss-entrance strip (`showBanner`); BURST is a full-screen moment.
+- **Policies** (`policy-battle.ts`). Against a shown HEAVY: kill if possible; else BREAK
+  if an affordable action reaches the threshold (BURST only against elites and bosses);
+  else GUARD when the unguarded hit ≥ 20 % of current HP. BURST otherwise on elites/bosses
+  when the foe is WARDED, its resist ≥ 25, or the hit kills. POTION below 35 % HP when the
+  fight is not won this turn. Expected damage goes through weakness. Control policy
+  **`naive`** = balanced without GUARD, BREAK, BURST timing or weakness awareness (it
+  drinks potions like balanced); M2a also reports balanced with potions disabled. Target:
+  naive ≤ 75 % of balanced's win rate, measured at the end of M2a before any tuning — if
+  the gap is thinner, `GUARD_FACTOR` drops (0.5 → 0.35, HEAVY stays 2.2).
+
 ## Combat
 
-- Hero turn: regen (chalice/necklace) → BLOOD tick → action. ATTACK is free,
+See *v3 — battle verbs (M2)* above for moves, intents, GUARD, POTION, elements, BURN,
+BURST and BREAK; the lines below are the base turn they build on.
+
+- Hero turn: regen (chalice/necklace) → BLOOD tick → BURN ticks → action. ATTACK is free,
   scales off ATK (or MAG for a magic weapon), deals `weaponKind` damage.
   Spells per `SPELLS`. Crit: `crit %` chance, `x critMult`.
-- Enemy DEF/MDEF blunt the matching damage kind — HEX_STRIKE turns physical
+- Enemy resists (the instance's `resPhys`/`resMagic`, plus WARD) blunt the matching damage kind — HEX_STRIKE turns physical
   attacks into magic damage, so a physical build can beat a plated foe.
-- Enemy turn: dodge check → damage × (1 − DEF/MDEF) → REFLECT → REVIVE check.
+- Enemy turn: phase check → the shown move; for a hit: dodge check → damage × move mult
+  × (1 − DEF/MDEF) × guard → REFLECT → `heroFalls` (REVIVE).
 - Enemies scale `(base + perClear × clears) × ACT_MULT[act] × def.mult`.
 
 ## Difficulty targets (balance sim, sane policy)

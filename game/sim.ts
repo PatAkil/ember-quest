@@ -17,8 +17,10 @@ export {
   grantClear,
   healFraction,
   heroActions,
+  isSpell,
   knownSpells,
   learnSpell,
+  refillPotions,
   skipMend,
   spellCost,
   spendPoint,
@@ -34,7 +36,10 @@ export {
 } from './sim/describe';
 export { applyOffer, ensureStarterWeapon, noteDeclinedScrolls, resolveOverflow, resolveUpgrade, rollLoot, type AppliedOffer, type OfferChoice } from './sim/loot';
 export { discard, ownedIds, packSize, stow, swapIn, unequip, upgradableTargets } from './sim/pack';
-export { createBattle, enemyAct, heroAct, spawnEnemy, startTurn } from './sim/combat';
+export { createBattle, heroAct, spawnEnemy } from './sim/combat';
+export { enemyAct } from './sim/enemy-turn';
+export { resistOf, startTurn } from './sim/status';
+export { elementMult } from './sim/element';
 export type { Policy, RoomType } from './sim/model';
 export { POLICIES, type PolicyName } from './sim/policies';
 export { generateMap, MAP_SHAPE, type FoePools } from './sim/map';

@@ -107,6 +107,7 @@ const ENEMY_RULES: Rule<EnemyDef>[] = [
   [(e) => e.name.length > 12, (e) => `${e.id}: enemy name ${e.name.length} chars`],
   [(e) => !!e.trait && e.trait.length > 14, (e) => `${e.id}: trait too long`],
   [(e) => e.def < 0 || e.def > 40 || e.mdef < 0 || e.mdef > 40, (e) => `${e.id}: resist out of 0..40`],
+  [(e) => e.moves.length === 0, (e) => `${e.id}: empty move cycle`],
 ];
 
 function validateSpellsAndEnemies(bad: string[]): void {

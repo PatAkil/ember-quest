@@ -1,5 +1,5 @@
 import { createFx } from './fx-state';
-import type { Actor, Fade, FxState, Meter, MeterId, MoveKind, Shot } from './fx-state';
+import type { Actor, Banner, Fade, FxState, Meter, MeterId, MoveKind, Shot } from './fx-state';
 import type { Game } from './state';
 
 type Ease = 'OUT' | 'IN' | 'INOUT' | 'LIN';
@@ -179,6 +179,10 @@ export function bannerBlocks(g: Game): boolean {
 }
 
 export const bannerDur = (): number => BANNER_DUR;
+
+export function showBanner(g: Game, banner: Omit<Banner, 't0'>): void {
+  g.fx.banner = { ...banner, t0: g.fx.t };
+}
 
 export function dismissBanner(g: Game): void {
   g.fx.banner = null;
