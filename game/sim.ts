@@ -23,12 +23,21 @@ export {
   spellCost,
   spendPoint,
 } from './sim/hero';
-export { compareLine, compareOffer, describeItem, describeOffer } from './sim/describe';
-export { applyOffer, noteDeclinedScrolls, rollLoot } from './sim/loot';
+export {
+  compareFull,
+  compareLine,
+  compareOffer,
+  describeItem,
+  describeOffer,
+  type CompareRow,
+  type FullCompare,
+} from './sim/describe';
+export { applyOffer, noteDeclinedScrolls, resolveUpgrade, rollLoot } from './sim/loot';
+export { discard, ownedIds, packSize, stow, swapIn, unequip, upgradableTargets } from './sim/pack';
 export { createBattle, enemyAct, heroAct, spawnEnemy, startTurn } from './sim/combat';
 export type { Policy, RoomType } from './sim/model';
 export { POLICIES, type PolicyName } from './sim/policies';
 export { generateMap, MAP_SHAPE } from './sim/map';
 export { at, createSeededRng, pickOneIndex, type SeededRng } from './sim/util';
 export { simulateRun, type BossPick, type Probe, type RunResult } from './sim/run';
-export { validateData } from './data';
+export { ITEMS, validateData } from './data';

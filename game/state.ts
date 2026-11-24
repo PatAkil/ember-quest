@@ -11,9 +11,9 @@ import { at, noop, pickOneIndex } from './lookup';
 import { createFx, createReveal } from './fx-state';
 import type { FxState, Reveal } from './fx-state';
 
-export type SubScene = 'MAP' | 'BATTLE' | 'LEVELUP' | 'LOOT' | 'CARD';
+export type SubScene = 'MAP' | 'BATTLE' | 'LEVELUP' | 'LOOT' | 'CARD' | 'GEAR' | 'PICK';
 export type { RoomType } from './sim';
-export interface MapNode { type: RoomType; stage: number; slot: number; links: number[]; cleared: boolean }
+export interface MapNode { type: RoomType; stage: number; slot: number; links: number[]; cleared: boolean; enemyId?: string }
 
 export interface Pop { x: number; y: number; life: number; text: string; color: string; scale: number }
 
@@ -44,7 +44,10 @@ export interface BattleScreen {
 
 export interface CardScreen { lines: string[]; onDone: () => void; art?: { icon: Sprite; color: string } }
 export interface LevelUpScreen { cursor: number; earned: number; onDone: () => void }
-export interface LootScreen { offers: LootOffer[]; cursor: number; source: LootSource; onDone: () => void }
+export interface LootScreen { offers: LootOffer[]; cursor: number; source: LootSource; stow: boolean; onDone: () => void }
+export interface GearScreen { cursor: number }
+export interface PickRow { icon?: Sprite; name: string; color: string; note: string; detail: string[] }
+export interface PickScreen { title: string; rows: PickRow[]; cursor: number; onPick: (i: number) => void; onCancel: () => void }
 
 export interface Game {
   app: App;
@@ -58,6 +61,7 @@ export interface Game {
   actIndex: number;
   subScene: SubScene;
   prevDirY: number;
+  prevDirX: number;
   best: number;
   beatBest: boolean;
   deathBiome: string;
@@ -71,6 +75,8 @@ export interface Game {
   card: CardScreen;
   levelUp: LevelUpScreen;
   loot: LootScreen;
+  gear: GearScreen;
+  pick: PickScreen;
 }
 
 export function createGame(app: App): Game {
@@ -87,6 +93,7 @@ export function createGame(app: App): Game {
     actIndex: 0,
     subScene: 'MAP',
     prevDirY: 0,
+    prevDirX: 0,
     best: loadBest(),
     beatBest: false,
     deathBiome: '',
@@ -102,7 +109,9 @@ export function createGame(app: App): Game {
     },
     card: { lines: [], onDone: noop },
     levelUp: { cursor: 0, earned: 0, onDone: noop },
-    loot: { offers: [], cursor: 0, source: 'FIGHT', onDone: noop },
+    loot: { offers: [], cursor: 0, source: 'FIGHT', stow: false, onDone: noop },
+    gear: { cursor: 0 },
+    pick: { title: '', rows: [], cursor: 0, onPick: noop, onCancel: noop },
   };
 }
 
@@ -111,12 +120,20 @@ export const biomeLook = (g: Game): BiomeLook => at(BIOME_LOOK, g.actIndex);
 
 export function resetCursorEdge(g: Game): void {
   g.prevDirY = g.app.input.dir.y;
+  g.prevDirX = g.app.input.dir.x;
 }
 
 export function dirEdge(g: Game): number {
   const dy = g.app.input.dir.y;
   const edge = dy !== 0 && g.prevDirY === 0 ? dy : 0;
   g.prevDirY = dy;
+  return edge;
+}
+
+export function dirEdgeX(g: Game): number {
+  const dx = g.app.input.dir.x;
+  const edge = dx !== 0 && g.prevDirX === 0 ? dx : 0;
+  g.prevDirX = dx;
   return edge;
 }
 

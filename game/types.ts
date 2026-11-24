@@ -69,9 +69,13 @@ export interface Item {
   awaken?: { blurb: string; mods?: StatMods; effect?: ItemEffect };
   bossOnly?: string;
 }
+export interface OwnedItem { item: Item; level: number }
+export const PACK_SIZE = 4;
+export type UpgradeTarget = { where: 'WORN'; slot: Slot } | { where: 'PACK'; index: number };
 export type LootOffer =
   | { kind: 'ITEM'; item: Item }
-  | { kind: 'UPGRADE'; slot: Slot; item: Item; toLevel: number }
+  | { kind: 'UPGRADE'; target: UpgradeTarget; item: Item; toLevel: number }
+  | { kind: 'UPGRADE_ANY' }
   | { kind: 'SCROLL'; spell: SpellId };
 export const MISSED_SCROLL_CHANCE = 0.3;
 export type LootSource = 'FIGHT' | 'ELITE' | 'LOOT' | 'BOSS';
@@ -118,6 +122,7 @@ export interface Hero {
   alloc: Record<StatKey, number>;
   equipment: Partial<Record<Slot, Item>>;
   levels: Partial<Record<Slot, number>>;
+  pack: OwnedItem[];
   baseSpells: SpellId[];
   revived: boolean;
   revivedTwice: boolean;

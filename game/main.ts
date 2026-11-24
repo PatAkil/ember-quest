@@ -9,6 +9,8 @@ import { createGame, installRng, resetCursorEdge, stageAt } from './state';
 import type { Game } from './state';
 import { syncReveal } from './transition';
 import { applyEnemyAction, onQueueDone } from './screens/battle';
+import { openGear } from './screens/gear';
+import { chooseUpgrade } from './screens/loot';
 
 const app = createApp(HOLD);
 const violations = validateData();
@@ -21,9 +23,10 @@ function view(game: Game) {
   return {
     scene: game.app.scenes.current, subScene: game.subScene, act: game.actIndex + 1, hero: game.hero, derived: derive(game.hero),
     enemy: battle.enemy, clears: game.clears, score: game.score, dying: game.dying,
-    cursors: { MAP: map.cursor, BATTLE: battle.menuCursor, LEVELUP: game.levelUp.cursor, LOOT: game.loot.cursor, CARD: 0 },
+    cursors: { MAP: map.cursor, BATTLE: battle.menuCursor, LEVELUP: game.levelUp.cursor, LOOT: game.loot.cursor, CARD: 0, GEAR: game.gear.cursor, PICK: game.pick.cursor },
     battlePhase: battle.phase, battleText: battle.text, actions: heroActions(game.hero), offers: game.loot.offers, card: game.card.lines,
     map: map.stages, curStage: map.curStage, reachable: map.reachable,
+    pick: { title: game.pick.title, rows: game.pick.rows.map((r) => r.name) },
   };
 }
 
@@ -38,6 +41,8 @@ const dev = import.meta.env.DEV ? installDevHook({
   bossNode: () => at(stageAt(g, g.map.stages.length - 1), 0),
   winBattle: () => { g.battle.outcome = 'WON'; onQueueDone(g); },
   enemyTurn: () => { applyEnemyAction(g); },
+  openGear: () => { openGear(g); },
+  pickUpgrade: () => { chooseUpgrade(g); },
   view: () => view(g),
 }) : null;
 createLoop(dev ?? { update: tick, render: draw }).start();

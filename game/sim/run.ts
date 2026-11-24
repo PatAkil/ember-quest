@@ -13,9 +13,10 @@ import { BIOMES, BOSS_ENTRY_HEAL } from '../data';
 import { createBattle, enemyAct, heroAct, spawnEnemy, startTurn } from './combat';
 import { equippedItems } from './gear';
 import { canAfford, createHero, derive, fullHeal, grantClear, healFraction, heroActions, skipMend, spendPoint } from './hero';
-import { applyOffer, noteDeclinedScrolls, rollLoot } from './loot';
+import { applyOffer, noteDeclinedScrolls, resolveUpgrade, rollLoot } from './loot';
 import { generateMap, type MapNode } from './map';
 import type { Policy, RoomType } from './model';
+import { upgradableTargets } from './pack';
 import { withPolicyContext } from './policies';
 import { clamp, isNonEmpty, pick } from './util';
 
@@ -142,9 +143,17 @@ function bossPickKind(chosen: LootOffer | null, act: number): BossPick {
 }
 
 function countPick(tally: Tally, chosen: LootOffer): void {
-  if (chosen.kind === 'UPGRADE') {tally.upgradesTaken += 1;}
+  if (chosen.kind === 'UPGRADE' || chosen.kind === 'UPGRADE_ANY') {tally.upgradesTaken += 1;}
   else if (chosen.kind === 'SCROLL') {tally.scrollsTaken += 1;}
   else {tally.itemsTaken += 1;}
+}
+
+function resolveChoice(run: RunState, chosen: LootOffer): LootOffer {
+  if (chosen.kind !== 'UPGRADE_ANY') {return chosen;}
+  const targets = upgradableTargets(run.hero);
+  const wanted = Math.floor(run.policy.upgradeTarget(run.hero, targets));
+  const target = targets[clamp(wanted, 0, Math.max(0, targets.length - 1))];
+  return (target && resolveUpgrade(run.hero, target)) ?? chosen;
 }
 
 function offerLoot(run: RunState, source: LootSource, act: number): void {
@@ -156,7 +165,7 @@ function offerLoot(run: RunState, source: LootSource, act: number): void {
   const scrollsOffered = offered.reduce((n, o) => n + (o.kind === 'SCROLL' ? 1 : 0), 0);
   if (source === 'BOSS') {tally.bossPicks.push(bossPickKind(chosen, act));}
   if (chosen) {
-    applyOffer(hero, chosen, rng);
+    applyOffer(hero, resolveChoice(run, chosen), rng);
     countPick(tally, chosen);
   } else {
     skipMend(hero);
@@ -174,6 +183,7 @@ function fightRoom(run: RunState, act: number, biome: Biome, elite: boolean): En
   const ids = elite ? biome.elites : biome.normals;
   const enemyId = isNonEmpty(ids) ? pick(ids, rng) : pick(biome.normals, rng);
   const enemy = spawnEnemy(enemyId, run.clears, act);
+  run.policy.prepare(hero, enemy.def);
   const outcome = runBattle(hero, enemy, run.policy, rng);
   if (!outcome.won) {
     const deathKind = outcome.stalled ? 'STALL' : elite ? 'ELITE' : 'NORMAL';
@@ -245,6 +255,7 @@ function bossRoom(run: RunState, act: number, biome: Biome): Ending | null {
   const { hero } = run;
   healFraction(hero, BOSS_ENTRY_HEAL);
   const boss = spawnEnemy(biome.boss, run.clears, act);
+  run.policy.prepare(hero, boss.def);
   const entry = derive(hero);
   const outcome = runBattle(hero, boss, run.policy, run.rng);
   run.probes.push(probeOf(act, run.clears, entry, { boss, outcome }));

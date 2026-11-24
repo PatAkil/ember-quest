@@ -59,10 +59,84 @@ function dataValid(sim) {
   return 'validateData() reports no violations';
 }
 
+const itemOf = (sim, id) => {
+  const item = sim.ITEMS.find((i) => i.id === id);
+  assert.ok(item, `no item ${id}`);
+  return item;
+};
+
+function levelsTravel(sim) {
+  const hero = sim.createHero();
+  sim.equip(hero, itemOf(sim, 'IRON_SWORD'), 1);
+  assert.ok(sim.stow(hero, { item: itemOf(sim, 'WILLOW_WAND'), level: 2 }));
+  assert.ok(sim.swapIn(hero, 0));
+  assert.equal(hero.equipment.WEAPON.id, 'WILLOW_WAND');
+  assert.equal(hero.levels.WEAPON, 2, 'the incoming item keeps its level');
+  assert.deepEqual(hero.pack.map((o) => [o.item.id, o.level]), [['IRON_SWORD', 1]], 'the outgoing item keeps its level');
+  assert.ok(sim.unequip(hero, 'WEAPON'));
+  assert.equal(hero.equipment.WEAPON, undefined);
+  assert.deepEqual(hero.pack.map((o) => [o.item.id, o.level]), [['IRON_SWORD', 1], ['WILLOW_WAND', 2]], 'unequip stows with the level');
+  const target = sim.upgradableTargets(hero).find((t) => t.where === 'PACK' && t.index === 0);
+  assert.ok(target, 'a packed item is an upgrade target');
+  sim.applyOffer(hero, sim.resolveUpgrade(hero, target), () => 0.5);
+  assert.equal(hero.pack[0].level, 2, 'a PACK upgrade raises the packed item');
+}
+
+function packBounded(sim) {
+  const hero = sim.createHero();
+  const ids = ['RUSTY_BLADE', 'LEATHER_VEST', 'BONE_CHARM', 'WORN_SHOES', 'TIN_CUP', 'SPARK_TOME'];
+  const stowed = ids.map((id) => sim.stow(hero, { item: itemOf(sim, id), level: 0 }));
+  assert.equal(hero.pack.length, 4, 'stow stops at PACK_SIZE');
+  assert.deepEqual(stowed, [true, true, true, true, false, false]);
+  assert.equal(sim.packSize(hero), 4);
+  sim.equip(hero, itemOf(sim, 'IRON_SWORD'), 0);
+  assert.equal(sim.unequip(hero, 'WEAPON'), false, 'unequip refuses with a full pack');
+  assert.equal(hero.equipment.WEAPON.id, 'IRON_SWORD');
+  for (let i = 0; i < 8; i++) {sim.swapIn(hero, i % 4);}
+  assert.ok(hero.pack.length <= 4, 'swapping never grows the pack');
+}
+
+function reviveNotMinted(sim) {
+  const hero = sim.createHero();
+  sim.equip(hero, itemOf(sim, 'PHOENIX_TEAR'), 0);
+  hero.revived = true;
+  assert.ok(sim.unequip(hero, 'NECKLACE'));
+  assert.ok(sim.swapIn(hero, 0));
+  assert.equal(hero.equipment.NECKLACE.id, 'PHOENIX_TEAR');
+  assert.equal(hero.revived, true, 'a spent REVIVE stays spent through unequip and swapIn');
+}
+
+function packRules(sim) {
+  levelsTravel(sim);
+  packBounded(sim);
+  reviveNotMinted(sim);
+  return 'levels travel through swapIn/unequip/PACK upgrades; pack capped at 4; a spent REVIVE is not re-armed by swapping';
+}
+
+function compareRules(sim) {
+  const hero = sim.createHero();
+  sim.equip(hero, itemOf(sim, 'IRON_SWORD'), 1);
+  const wand = itemOf(sim, 'WILLOW_WAND');
+  const cmp = sim.compareFull(hero, wand, 0);
+  assert.equal(cmp.kindChange, 'ATTACK NOW USES MAG');
+  assert.equal(cmp.lose, itemOf(sim, 'IRON_SWORD').blurb);
+  assert.equal(cmp.gain, wand.blurb);
+  assert.deepEqual(cmp.rows.map((r) => [r.label, r.better]), [['ATK', false], ['MAG', true]]);
+  const plate = sim.compareFull(hero, itemOf(sim, 'TITAN_PLATE'), 0);
+  assert.equal(plate.lose, '', 'an empty slot loses nothing');
+  assert.equal(plate.kindChange, '');
+  assert.deepEqual(plate.rows.map((r) => r.label), ['HP', 'DEF'], 'rows follow the priority order');
+  const full = sim.compareFull(sim.createHero(), itemOf(sim, 'BLOOD_CUP'), 0);
+  assert.ok(full.rows.length <= 6, 'at most six rows');
+  return 'compareFull: changed stats in priority order (max 6), LOSE/GAIN blurbs, weapon kind flip';
+}
+
 const GROUPS = [
   ['map', mapInvariants],
   ['rng', rngDeterminism],
   ['data', dataValid],
+  ['pack', packRules],
+  ['compare', compareRules],
 ];
 
 await withSim((sim) => {

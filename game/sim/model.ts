@@ -1,4 +1,4 @@
-import type { BattleState, Derived, Hero, HeroAction, LootOffer, StatKey } from '../types';
+import type { BattleState, Derived, EnemyDef, Hero, HeroAction, Item, LootOffer, OwnedItem, StatKey, UpgradeTarget } from '../types';
 
 export type RoomType = 'FIGHT' | 'ELITE' | 'REST' | 'LOOT' | 'BOSS';
 
@@ -7,4 +7,8 @@ export interface Policy {
   pick(hero: Hero, offered: LootOffer[], act: number): LootOffer | null;
   act(hero: Hero, d: Derived, battle: BattleState, actions: HeroAction[]): HeroAction;
   route(roomTypes: RoomType[]): number;
+  stowOrEquip(hero: Hero, item: Item): 'EQUIP' | 'STOW';
+  dropWhich(hero: Hero, entering: OwnedItem): number;
+  upgradeTarget(hero: Hero, targets: UpgradeTarget[]): number;
+  prepare(hero: Hero, foe: EnemyDef): void;
 }

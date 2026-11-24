@@ -14,6 +14,7 @@ import { SPELLS } from '../data';
 import { swingFor } from './combat';
 import { canAfford, derive, spellCost } from './hero';
 import type { Policy, RoomType } from './model';
+import { DEFAULT_CHOICES } from './policy-choices';
 import { bestPick, P_BALANCED, P_DEFENCE, P_OFFENCE } from './scoring';
 import { pickOr } from './util';
 
@@ -136,6 +137,7 @@ const BALANCED_ALLOCATE = (hero: Hero, d: Derived): StatKey =>
   cycleAllocate(hero, d, [primaryStat(d), 'HP', 'DEF', 'MDEF'], 'HP');
 
 const randomPolicy: Policy = {
+  ...DEFAULT_CHOICES,
   allocate: () => pickOr(STAT_KEYS, context.rng, 'HP'),
   pick: (_hero, offered) =>
     offered.length === 0 || context.rng() < 0.2 ? null : pickOr(offered, context.rng, null),
@@ -150,12 +152,14 @@ export type PolicyName =
 export const POLICIES: Record<PolicyName, Policy> = {
   random: randomPolicy,
   balanced: {
+    ...DEFAULT_CHOICES,
     allocate: BALANCED_ALLOCATE,
     pick: (hero, offered) => bestPick(hero, offered, P_BALANCED),
     act: damageAct(0.35),
     route: (types) => routeWithRest(types, 0.5, ['ELITE', 'LOOT', 'FIGHT', 'REST']),
   },
   glass: {
+    ...DEFAULT_CHOICES,
     allocate: (hero, d) => cycleAllocate(hero, d, [primaryStat(d), 'CRIT', primaryStat(d), 'HP'], primaryStat(d)),
     pick: (hero, offered) =>
       bestPick(hero, offered, P_OFFENCE, (i) =>
@@ -164,6 +168,7 @@ export const POLICIES: Record<PolicyName, Policy> = {
     route: (types) => routeWithRest(types, 0.45, ['ELITE', 'LOOT', 'FIGHT', 'REST']),
   },
   tank: {
+    ...DEFAULT_CHOICES,
     allocate: (hero, d) => cycleAllocate(hero, d, ['HP', 'DEF', 'ATK', 'MDEF'], 'HP'),
     pick: (hero, offered) =>
       bestPick(hero, offered, P_DEFENCE, (i) =>
@@ -172,6 +177,7 @@ export const POLICIES: Record<PolicyName, Policy> = {
     route: (types) => routeWithRest(types, 0.55, ['ELITE', 'LOOT', 'FIGHT', 'REST']),
   },
   eliteHungry: {
+    ...DEFAULT_CHOICES,
     allocate: BALANCED_ALLOCATE,
     pick: (hero, offered) => bestPick(hero, offered, P_BALANCED),
     act: damageAct(0.35),
@@ -182,6 +188,7 @@ export const POLICIES: Record<PolicyName, Policy> = {
     },
   },
   chestHungry: {
+    ...DEFAULT_CHOICES,
     allocate: BALANCED_ALLOCATE,
     pick: (hero, offered) => bestPick(hero, offered, P_BALANCED),
     act: damageAct(0.35),

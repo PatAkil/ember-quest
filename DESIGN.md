@@ -14,7 +14,7 @@ permadeath. v2 replaces the tier-upgrade gear with **skill points** and a
 | `game/data.ts` | the content import path: re-exports `game/rules/*` (ITEMS, ENEMIES, SPELLS, BIOMES, LOOT_WEIGHTS, ACT_MULT, the heal constants, `validateData`) | `./rules/*` only |
 | `game/rules/*.ts` | the content itself: `items` (ITEMS), `enemies` (ENEMIES), `world` (SPELLS, SPELL_ORDER, BIOMES, ACT_MULT, LOOT_WEIGHTS, LOOT_COUNT, CLEAR_HEAL, BOSS_ENTRY_HEAL, SKIP_MEND, RARITY_COLOR_INDEX), `validate` (`validateData`; never imports `data.ts`) | `../types`, each other |
 | `game/sim.ts` | the barrel: the only path presentation and the simulator use to reach the rules (also re-exports `validateData`, `generateMap`, `createSeededRng`, `at`) | `./sim/*`, `./data` |
-| `game/sim/*.ts` | pure rules, one concern per file: `util` (clamp, `at`, rng picks, `createSeededRng` — mulberry32 with readable state — and effect tables), `gear` (item levels, upgrades, effective mods/effects), `hero` (derived stats, skill points, heals, equip, spells), `ghost` (stats of a hypothetical equip), `describe` (item/offer/compare text), `loot` (loot rolls, offers, scrolls), `combat` (enemy scaling, turns, damage), `map` (**the one map generator**, `generateMap(rng, shape?)`, played by both the screens and the simulator), `model` (`Policy`, `RoomType` including `BOSS`), `scoring` and `policies` (how the archetypes decide), `run` (`simulateRun`) | `../types`, `../data`, each other |
+| `game/sim/*.ts` | pure rules, one concern per file: `util` (clamp, `at`, rng picks, `createSeededRng` — mulberry32 with readable state — and effect tables), `gear` (item levels, upgrades, effective mods/effects), `hero` (derived stats, skill points, heals, equip, spells), `ghost` (stats of a hypothetical equip), `describe` (item/offer/compare text, `compareFull`), `loot` (loot rolls, offers, scrolls, `resolveUpgrade`), `pack` (the pack: `stow`, `discard`, `swapIn`, `unequip`, `ownedIds`, `upgradableTargets`), `combat` (enemy scaling, turns, damage), `map` (**the one map generator**, `generateMap(rng, shape?)`, played by both the screens and the simulator), `model` (`Policy`, `RoomType` including `BOSS`), `scoring`, `policies` and `policy-choices` (how the archetypes decide; `DEFAULT_CHOICES` holds the shared pack/upgrade/prepare defaults), `run` (`simulateRun`) | `../types`, `../data`, each other |
 | `game/sprites.ts` + `game/sprites/*.ts` | hero/enemy/icon sprites: `helpers`, `hero`, `icons`, one file per biome; `sprites.ts` re-exports them and adds `enemyAnim(id)` | `../engine` only |
 | `game/main.ts` + `app`, `state`, `flow`, `frame`, `mapgen`, `theme`, `backdrop`, `widgets`, `pops`, `fx-state`, `fx`, `transition`, `storage`, `lookup`, `screens/*.ts` | presentation: `main.ts` only wires; `app` creates the engine objects and fits the canvas to the window; `state` holds the one `Game` object `g` with per-screen slices; `flow` runs the run (rooms, stages, clears, acts, scene hooks); `frame` dispatches update/render; `mapgen` adapts the shared headless map to the screens (adds `stage`, `slot`, `cleared`); the **fx / transition layer** presents what the rules decided and never decides anything — `fx-state` + `fx` hold the battle-fx clock (actor poses, timed cues, lagging meters, boss banner), `screens/battle-fx` choreographs a turn on it, `screens/battle-fx-view` draws its shots and banner, `screens/battle-reach` measures lunges, `transition` reveals each new sub-scene; `screens/` one update file and one view file per screen (`map-view`, `loot-view`, `battle-view`; `plate` holds the shared medallions) | everything |
 | `game/devhook.ts` | the dev-only seeded hook (`?seed`, `?scene`, `&act`, `&hold`, `window.__ember`), never in the build | `../engine` types, `./sim`, presentation types |
@@ -39,8 +39,9 @@ thousands of runs. ESLint and dependency-cruiser enforce the boundary.
 
 ## Items
 
-Six slots, one item each, no inventory: a new item **replaces** the slot's
-current item (the loot screen shows both). Rarity COMMON / RARE / EPIC /
+Six slots, one item each, plus a **4-item pack** (see *v3 — the pack, GEAR and chosen
+upgrades*): a new item takes the slot and the old one, with its level, can go to the
+pack instead of being lost (the loot screen shows both). Rarity COMMON / RARE / EPIC /
 LEGENDARY. Every RARE+ item carries a unique effect (`ItemEffect`). The pool
 is ~41 items; names <= 13 chars, blurbs <= 30 chars.
 
@@ -51,7 +52,7 @@ on mods, `scaleEffect` on effect magnitudes — downsides never grow). **+2 is
 the awakening** (`item.awaken`): an authored change to how the item plays —
 a sticky ramp, a hex that converts every physical hit, reflect that answers
 hexes too, a common blade that learns to execute. Legendaries stop at +1.
-Upgrades arrive as an **UPGRADE card** on the loot screen for one random
+Upgrades arrive as an **UPGRADE card** on the loot screen (v3: the player picks the item, see the v3 section) for one random
 equipped, not-maxed item: always in a chest, ~20–25 % of the time from
 fights and elites, never from bosses (`UPGRADE_CHANCE`).
 
@@ -86,6 +87,45 @@ choice at least once; an invented rest or chest never replaces an elite.
 Every run is seeded: `startRun` draws a random seed and plays it through
 `createSeededRng`, so the rng state is always readable (the dev hook's `?seed`
 fixes it instead).
+
+## v3 — the pack, GEAR and chosen upgrades (M1)
+
+- **Pack.** `hero.pack: OwnedItem[]` (`{ item, level }`), at most `PACK_SIZE` = 4
+  (`packSize(hero)`). An item's level travels with it everywhere: worn → pack, pack →
+  worn, and upgrades to a packed item. `equip` returns the replaced item and its level;
+  the caller decides whether it goes to the pack.
+- **Taking an ITEM.** Empty slot → it is worn. Occupied slot → `< EQUIP >` / `< STOW >`
+  (Left/Right, default EQUIP; `LootScreen.stow`): EQUIP wears it and the old item goes to
+  the pack, STOW puts the new one in the pack. A full pack opens `DROP WHICH?` (the pack
+  plus the entering item; A drops one for good, B returns to the offers). Dropping the
+  newcomer still counts as taking the offer (no mend). KEEP YOUR GEAR (25 % mend) stays.
+- **Owned items never re-roll**: `rollItems` and the boss signature exclude `ownedIds`
+  (worn + packed). The starter-weapon guarantee looks at what is worn only. Scrolls
+  never touch the pack. A loot screen shows at most 4 offers.
+- **REVIVE charges live on the hero** (`revived`, `revivedTwice`), so swapping a spent
+  REVIVE item out and in never restores a life. GLASS / HP items clamp current HP when
+  worn; taking them off gives nothing back.
+- **GEAR** (sub-scene `GEAR`, B on the map, B again returns): the six worn slots and the
+  pack (Up/Down run over slots then pack rows; Right jumps to the pack, Left from a pack
+  row to its slot). A on a pack row swaps it into its slot (`swapIn`); A on a worn row takes it off
+  into the pack if there is room (`unequip`), else a refusal blip. No discarding here.
+  Free and unlimited on the map; never in battle. The band shows `compareFull` of the
+  highlighted pack item against what is worn.
+- **Full compare.** `compareFull(hero, candidate, level)`: every derived stat that
+  changes, at most 6, in the order maxHp, atk, mag, def, mdef, crit, dodge, maxMp,
+  hpRegen, mpRegen, critMult; LOSE = the worn item's effect blurb at its level, GAIN = the
+  candidate's at `level`; `kindChange` (`ATTACK NOW USES MAG`) when a weapon flips the
+  attack's kind.
+- **Chosen upgrades.** An upgrade card is `{ kind: 'UPGRADE_ANY' }`; taking it opens
+  `UPGRADE WHICH?` (the shared `PICK` sub-scene) over every upgradable worn or packed
+  item; B returns to where it was opened from. It resolves (`resolveUpgrade`) to
+  `{ kind: 'UPGRADE'; target: { where: 'WORN'; slot } | { where: 'PACK'; index }; item;
+  toLevel }`.
+- **Scouting.** Every FIGHT / ELITE node carries its foe (`MapNode.enemyId`), rolled by the
+  map generator; fight rooms read it, and the map readout names the highlighted foe.
+- **Simulator policies** also choose `stowOrEquip`, `dropWhich`, `upgradeTarget`, and
+  `prepare(hero, foe)` before every fight (wear the best pack item per slot, weighting MDEF
+  ×2 against a MAGIC attacker and DEF ×2 against a PHYSICAL one).
 
 ## Combat
 

@@ -128,7 +128,7 @@ export function effectiveBlurb(item: Item, level: number): string {
   return item.blurb;
 }
 
-export function upgradableSlots(hero: Hero): Slot[] {
+function upgradableSlots(hero: Hero): Slot[] {
   const out: Slot[] = [];
   for (const slot of SLOTS) {
     const item = hero.equipment[slot];

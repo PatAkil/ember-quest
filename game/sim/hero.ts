@@ -12,6 +12,7 @@ import {
   type Hero,
   type HeroAction,
   type Item,
+  type OwnedItem,
   type SpellId,
   type StatKey,
   type StatMods,
@@ -28,6 +29,7 @@ export function createHero(): Hero {
     alloc: { HP: 0, MP: 0, ATK: 0, MAG: 0, DEF: 0, MDEF: 0, CRIT: 0 },
     equipment: {},
     levels: {},
+    pack: [],
     baseSpells: ['FIREBALL'],
     revived: false,
     revivedTwice: false,
@@ -168,12 +170,13 @@ export function learnSpell(hero: Hero, spell: SpellId): void {
   if (!hero.baseSpells.includes(spell)) {hero.baseSpells.push(spell);}
 }
 
-export function equip(hero: Hero, item: Item): Item | undefined {
+export function equip(hero: Hero, item: Item, level = 0): OwnedItem | undefined {
   const previous = hero.equipment[item.slot];
+  const replaced = previous ? { item: previous, level: itemLevel(hero, item.slot) } : undefined;
   hero.equipment[item.slot] = item;
-  hero.levels[item.slot] = 0;
+  hero.levels[item.slot] = level;
   clampVitals(hero, 1);
-  return previous;
+  return replaced;
 }
 
 export function skipMend(hero: Hero): { hp: number; mp: number } {

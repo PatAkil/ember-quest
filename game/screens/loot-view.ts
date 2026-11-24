@@ -45,6 +45,9 @@ function offerFace(g: Game, offer: LootOffer): OfferFace {
     return { icon: ICON_SCROLL, name: `SCROLL OF ${SPELLS[offer.spell].name}`, color: C_SCROLL, hint: 'LEARN A SPELL', tag: 'SCROLL', tagColor: C_SCROLL };
   }
   if (offer.kind === 'ITEM') {return itemFace(g, offer);}
+  if (offer.kind === 'UPGRADE_ANY') {
+    return { icon: ROOM_ART.LOOT.icon, name: 'UPGRADE AN ITEM', color: C_ACCENT, hint: 'YOU CHOOSE WHICH', tag: 'UPGRADE', tagColor: C_ACCENT };
+  }
   const hint = offer.toLevel >= 2 ? 'AWAKEN YOUR GEAR' : 'IMPROVE YOUR GEAR';
   return { icon: itemIcon(offer.item), name: displayName(offer.item, offer.toLevel), color: rarityColor(offer.item), hint, tag: 'UPGRADE', tagColor: C_ACCENT };
 }
@@ -71,7 +74,7 @@ function drawKeepRow(row: Row): void {
 
 function blurbColor(offer: LootOffer): string {
   if (offer.kind === 'SCROLL') {return C_SCROLL;}
-  if (offer.kind === 'UPGRADE') {return C_ACCENT;}
+  if (offer.kind === 'UPGRADE' || offer.kind === 'UPGRADE_ANY') {return C_ACCENT;}
   return offer.item.effect.kind === 'NONE' ? C_DIM : rarityColor(offer.item);
 }
 

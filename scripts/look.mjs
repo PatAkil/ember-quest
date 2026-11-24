@@ -9,8 +9,12 @@ const envOr = (name, fallback) => {
   return value !== undefined && value !== '' ? value : fallback;
 };
 const BASE = envOr('LOOK_URL', envOr('SMOKE_URL', 'http://localhost:5173/'));
-const KEY_NAMES = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', space: 'Space', esc: 'Escape', escape: 'Escape', enter: 'Enter' };
-const HOOK_ACTIONS = { arrowup: 'UP', w: 'UP', keyw: 'UP', arrowdown: 'DOWN', s: 'DOWN', keys: 'DOWN', space: 'A', z: 'A', keyz: 'A', p: 'PAUSE', keyp: 'PAUSE', escape: 'PAUSE' };
+const KEY_NAMES = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', space: 'Space', b: 'KeyX', x: 'KeyX', esc: 'Escape', escape: 'Escape', enter: 'Enter' };
+const HOOK_ACTIONS = {
+  arrowup: 'UP', w: 'UP', keyw: 'UP', arrowdown: 'DOWN', s: 'DOWN', keys: 'DOWN',
+  arrowleft: 'LEFT', keya: 'LEFT', arrowright: 'RIGHT', d: 'RIGHT', keyd: 'RIGHT',
+  space: 'A', z: 'A', keyz: 'A', keyx: 'B', c: 'B', keyc: 'B', p: 'PAUSE', keyp: 'PAUSE', escape: 'PAUSE',
+};
 
 const { values: opts } = parseArgs({
   options: {
@@ -24,7 +28,7 @@ const { values: opts } = parseArgs({
   },
 });
 
-const SCENES = ['title', 'map', 'battle', 'levelup', 'loot', 'card', 'paused', 'gameover', 'win'];
+const SCENES = ['title', 'map', 'battle', 'levelup', 'loot', 'card', 'paused', 'gameover', 'win', 'gear', 'pick'];
 if (opts.scene !== undefined && !SCENES.includes(opts.scene)) {
   console.log(JSON.stringify({ ok: false, state: null, errors: [`unknown --scene "${opts.scene}" (known: ${SCENES.join(', ')})`], shot: null }));
   process.exit(1);

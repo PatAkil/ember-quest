@@ -4,7 +4,7 @@ import { at, pickOneIndex } from './util';
 
 type StageRoom = Exclude<RoomType, 'BOSS'>;
 
-export interface MapNode { type: RoomType; links: number[] }
+export interface MapNode { type: RoomType; links: number[]; enemyId?: string }
 
 interface MapShape {
   stageSizes: readonly number[];

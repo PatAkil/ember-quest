@@ -9,17 +9,34 @@ import {
   type Item,
   type LootOffer,
   type LootSource,
+  type OwnedItem,
   type Rng,
-  type Slot,
   type SpellId,
+  type UpgradeTarget,
 } from '../types';
 import { BIOMES, ITEMS, LOOT_COUNT, LOOT_WEIGHTS, SPELLS } from '../data';
-import { equippedItems, itemLevel, maxLevelFor, upgradableSlots } from './gear';
+import { maxLevelFor } from './gear';
 import { clampVitals, equip, learnSpell } from './hero';
+import { ownedIds, targetOwned, upgradableTargets } from './pack';
 import { clamp, isNonEmpty, pick } from './util';
 
 type UpgradeOffer = Extract<LootOffer, { kind: 'UPGRADE' }>;
-interface AppliedOffer { replaced?: Item; line: string }
+interface AppliedOffer { replaced?: OwnedItem; line: string }
+
+export function resolveUpgrade(hero: Hero, target: UpgradeTarget): UpgradeOffer | null {
+  const owned = targetOwned(hero, target);
+  if (!owned || owned.level >= maxLevelFor(owned.item)) {return null;}
+  return { kind: 'UPGRADE', target, item: owned.item, toLevel: owned.level + 1 };
+}
+
+function setLevel(hero: Hero, target: UpgradeTarget, level: number): void {
+  if (target.where === 'WORN') {
+    hero.levels[target.slot] = level;
+    return;
+  }
+  const owned = hero.pack[target.index];
+  if (owned) {owned.level = level;}
+}
 
 function applyScroll(hero: Hero, spell: SpellId): AppliedOffer {
   learnSpell(hero, spell);
@@ -29,7 +46,7 @@ function applyScroll(hero: Hero, spell: SpellId): AppliedOffer {
 
 function applyUpgrade(hero: Hero, offer: UpgradeOffer): AppliedOffer {
   const level = clamp(Math.floor(offer.toLevel), 0, maxLevelFor(offer.item));
-  hero.levels[offer.slot] = level;
+  setLevel(hero, offer.target, level);
   clampVitals(hero, 1);
   const awakened = level >= MAX_LEVEL ? offer.item.awaken?.blurb : undefined;
   if (awakened) {
@@ -39,13 +56,19 @@ function applyUpgrade(hero: Hero, offer: UpgradeOffer): AppliedOffer {
   return { line: `+${level} ${offer.item.name}`.slice(0, 30) };
 }
 
+function firstUpgrade(hero: Hero): UpgradeOffer | null {
+  const [target] = upgradableTargets(hero);
+  return target ? resolveUpgrade(hero, target) : null;
+}
+
 export const applyOffer: (hero: Hero, offer: LootOffer, rng: Rng) => AppliedOffer = (hero, offer) => {
   if (offer.kind === 'SCROLL') {return applyScroll(hero, offer.spell);}
   if (offer.kind === 'ITEM') {
     const replaced = equip(hero, offer.item);
-    return { replaced, line: offer.item.blurb.slice(0, 30) };
+    return replaced ? { replaced, line: offer.item.blurb.slice(0, 30) } : { line: offer.item.blurb.slice(0, 30) };
   }
-  return applyUpgrade(hero, offer);
+  const upgrade = offer.kind === 'UPGRADE' ? offer : firstUpgrade(hero);
+  return upgrade ? applyUpgrade(hero, upgrade) : { line: 'NOTHING TO UPGRADE' };
 };
 
 function fightIsDry(hero: Hero, rng: Rng): boolean {
@@ -64,11 +87,9 @@ function missedScrollOffer(hero: Hero, rng: Rng): LootOffer | null {
 }
 
 function upgradeOffer(source: Exclude<LootSource, 'BOSS'>, want: number, hero: Hero, rng: Rng): LootOffer | null {
-  const upgradable = upgradableSlots(hero);
+  const upgradable = upgradableTargets(hero);
   if (want > 0 && isNonEmpty(upgradable) && rng() < UPGRADE_CHANCE[source]) {
-    const slot: Slot = pick(upgradable, rng);
-    const item = hero.equipment[slot];
-    if (item) {return { kind: 'UPGRADE', slot, item, toLevel: itemLevel(hero, slot) + 1 };}
+    return resolveUpgrade(hero, pick(upgradable, rng));
   }
   return null;
 }
@@ -90,7 +111,7 @@ export function rollLoot(source: LootSource, act: number, hero: Hero, rng: Rng):
 function signatureFor(bossId: string, hero: Hero): Item | undefined {
   const item = ITEMS.find((i) => i.bossOnly === bossId);
   if (!item) {return undefined;}
-  return hero.equipment[item.slot]?.id === item.id ? undefined : item;
+  return ownedIds(hero).includes(item.id) ? undefined : item;
 }
 
 function oldestMissedScroll(hero: Hero, except: SpellId | null): SpellId | undefined {
@@ -141,7 +162,7 @@ function rollItems({ source, act, want }: ItemRoll, hero: Hero, rng: Rng): Item[
   if (want <= 0) {return [];}
   const table = LOOT_WEIGHTS[source];
   const weights = table[clamp(act, 0, table.length - 1)] ?? [1, 0, 0, 0];
-  const equipped = new Set(equippedItems(hero).map((i) => i.id));
+  const equipped = new Set(ownedIds(hero));
   const taken = new Set<string>();
   const available = ITEMS.filter((i) => !i.bossOnly && !equipped.has(i.id) && (i.minAct ?? 0) <= act);
   const bucket = (ri: number) =>

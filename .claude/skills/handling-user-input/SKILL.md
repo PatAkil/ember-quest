@@ -40,7 +40,7 @@ This declaration is the **only** place a button's meaning is written down:
 - **Never hand-write the title-screen control hints anywhere else.** A hand-written hint is a second source of truth that drifts. (Other screens may show contextual button text — e.g. the reference game-over screen's `` `${BUTTON_KEY.A.hint} RESTART` `` — but the key name must come from the same physical binding `BUTTON_KEY` documents, and the title screen always renders from the declarations.)
 - When an edit changes what a button does, change the `label` in the **same declaration** in the same edit. There is no separate file to keep in sync — a wrong or missing label is visible the moment the game is played.
 
-Complete setup — the pattern `game/app.ts` follows. The actions are declared once, with their labels, and the title screen renders its hints from exactly this list through `controlHints`, so a label can never drift from what the button does. This game declares `A` as `select` and `PAUSE` as `pause`; `B` is deliberately undeclared (see `STYLE.md`):
+Complete setup — the pattern `game/app.ts` follows. The actions are declared once, with their labels, and the title screen renders its hints from exactly this list through `controlHints`, so a label can never drift from what the button does. This game declares `A` as `select`, `B` as `back / gear` and `PAUSE` as `pause` (see `STYLE.md`); horizontal edges go through `dirEdgeX(g)` in `game/state.ts`, vertical through `dirEdge(g)`, and `resetCursorEdge(g)` resets both:
 
 ```ts
 import { createInput, createAudio } from '../engine';
@@ -49,6 +49,7 @@ const audio = createAudio();
 const input = createInput(
   [
     { button: 'A', label: 'select' },
+    { button: 'B', label: 'back / gear' },
     { button: 'PAUSE', label: 'pause' },
   ],
   { onFirstKey: () => { audio.unlock(); } },

@@ -55,11 +55,11 @@ function levelThenLoot(g: Game, sp: number, source: LootSource, done: () => void
   startLevelUp(g, sp, freshStage(g, () => { startLoot(g, source, freshStage(g, done)); }));
 }
 
-function fightRoom(g: Game, kind: 'NORMAL' | 'ELITE'): void {
+function fightRoom(g: Game, node: MapNode, kind: 'NORMAL' | 'ELITE'): void {
   const b = biome(g);
   const pool = kind === 'NORMAL' ? b.normals : b.elites;
   const source: LootSource = kind === 'NORMAL' ? 'FIGHT' : 'ELITE';
-  startBattle(g, pickOne(g.rng, pool), () => {
+  startBattle(g, node.enemyId ?? pickOne(g.rng, pool), () => {
     levelThenLoot(g, onClear(g, kind), source, () => { advanceStage(g); });
   });
 }
@@ -81,8 +81,8 @@ function restRoom(g: Game): void {
   showCard(g, ['FULLY RESTED', 'HP AND MP RESTORED'], () => { advanceStage(g); });
 }
 
-const normalRoom = (g: Game): void => { fightRoom(g, 'NORMAL'); };
-const eliteRoom = (g: Game): void => { fightRoom(g, 'ELITE'); };
+const normalRoom = (g: Game, node: MapNode): void => { fightRoom(g, node, 'NORMAL'); };
+const eliteRoom = (g: Game, node: MapNode): void => { fightRoom(g, node, 'ELITE'); };
 const lootRoom = (g: Game): void => { startLoot(g, 'LOOT', freshStage(g, () => { advanceStage(g); })); };
 
 const ROOMS: Record<RoomType, (g: Game, node: MapNode) => void> = {

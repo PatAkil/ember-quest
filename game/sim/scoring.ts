@@ -3,6 +3,8 @@ import { SPELLS } from '../data';
 import { effectiveEffect, itemLevel } from './gear';
 import { D_FIELDS, D_WEIGHT, deriveGhost, deriveWith, type DField } from './ghost';
 import { derive, knownSpells } from './hero';
+import { resolveUpgrade } from './loot';
+import { upgradableTargets } from './pack';
 import { onEffect, type EffectTable } from './util';
 
 type Profile = Record<DField, number>;
@@ -59,13 +61,22 @@ function scoreItem(hero: Hero, item: Item, profile: Profile): number {
 
 function scoreUpgrade(hero: Hero, offer: Extract<LootOffer, { kind: 'UPGRADE' }>, profile: Profile): number {
   const from = Math.max(0, offer.toLevel - 1);
-  const before = deriveGhost(hero, offer.slot, offer.item, from);
-  const after = deriveGhost(hero, offer.slot, offer.item, offer.toLevel);
+  const before = deriveGhost(hero, offer.item.slot, offer.item, from);
+  const after = deriveGhost(hero, offer.item.slot, offer.item, offer.toLevel);
   let score = statGain(before, after, profile);
   score += effectValue(offer.item, offer.toLevel);
   score -= effectValue(offer.item, from);
   score += RARITY_BONUS[offer.item.rarity] * 0.8;
   return score;
+}
+
+function scoreAnyUpgrade(hero: Hero, profile: Profile): number {
+  let best = 0;
+  for (const target of upgradableTargets(hero)) {
+    const offer = resolveUpgrade(hero, target);
+    if (offer) {best = Math.max(best, scoreUpgrade(hero, offer, profile));}
+  }
+  return best;
 }
 
 const SCROLL_BASE: Record<SpellId, number> = {
@@ -96,6 +107,7 @@ type ItemBonus = (i: Item) => number;
 function scoreOffer(hero: Hero, offer: LootOffer, profile: Profile, bonus?: ItemBonus): number {
   if (offer.kind === 'SCROLL') {return scoreScroll(hero, offer.spell);}
   if (offer.kind === 'UPGRADE') {return scoreUpgrade(hero, offer, profile);}
+  if (offer.kind === 'UPGRADE_ANY') {return scoreAnyUpgrade(hero, profile);}
   return scoreItem(hero, offer.item, profile)
     + RARITY_BONUS[offer.item.rarity]
     + (bonus ? bonus(offer.item) : 0);

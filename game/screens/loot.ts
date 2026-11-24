@@ -1,12 +1,13 @@
 import { ITEMS, SPELLS } from '../data';
 import type { LootOffer, LootSource, SpellId } from '../types';
-import { applyOffer, compareOffer, displayName, noteDeclinedScrolls, rollLoot, skipMend } from '../sim';
+import { applyOffer, compareOffer, describeOffer, displayName, noteDeclinedScrolls, resolveUpgrade, rollLoot, skipMend, upgradableTargets } from '../sim';
 import { dirEdge, pickOne, resetCursorEdge, wrapCursor } from '../state';
-import type { Game } from '../state';
+import type { Game, PickRow } from '../state';
 import { ICON_SCROLL } from '../sprites';
 import { C_ACCENT, C_SCROLL, heroPos, rarityColor } from '../theme';
 import { itemIcon } from '../widgets';
 import { showCard } from './card';
+import { openPick } from './pick';
 
 type ItemOffer = Extract<LootOffer, { kind: 'ITEM' }>;
 type UpgradeOffer = Extract<LootOffer, { kind: 'UPGRADE' }>;
@@ -23,7 +24,7 @@ function ensureStarterWeapon(g: Game, offers: LootOffer[]): void {
 export function startLoot(g: Game, source: LootSource, onDone: () => void): void {
   const offers = rollLoot(source, g.actIndex, g.hero, g.rng);
   ensureStarterWeapon(g, offers);
-  g.loot = { offers, source, cursor: 0, onDone };
+  g.loot = { offers, source, cursor: 0, stow: false, onDone };
   if (offers.length === 0) {
     if (source === 'FIGHT') { onDone(); return; }
     const m = skipMend(g.hero);
@@ -45,7 +46,7 @@ function learnedScroll(g: Game, spell: SpellId): void {
 
 function equipped(g: Game, offer: ItemOffer, r: Applied): void {
   const item = offer.item;
-  const detail = r.replaced ? `${r.replaced.name} IS LEFT BEHIND` : item.blurb;
+  const detail = r.replaced ? `${r.replaced.item.name} IS LEFT BEHIND` : item.blurb;
   showCard(g, ['EQUIPPED', item.name, detail], g.loot.onDone, { icon: itemIcon(item), color: rarityColor(item) });
 }
 
@@ -58,7 +59,9 @@ function upgraded(g: Game, offer: UpgradeOffer, r: Applied, delta: string): void
   showCard(g, lines, g.loot.onDone, { icon: itemIcon(item), color: rarityColor(item) });
 }
 
-function takeOffer(g: Game, offer: LootOffer): void {
+type TakenOffer = Exclude<LootOffer, { kind: 'UPGRADE_ANY' }>;
+
+function takeOffer(g: Game, offer: TakenOffer): void {
   const delta = compareOffer(g.hero, offer);
   const r = applyOffer(g.hero, offer, g.rng);
   noteDeclinedScrolls(g.hero, g.loot.offers, offer);
@@ -68,6 +71,34 @@ function takeOffer(g: Game, offer: LootOffer): void {
     case 'ITEM': equipped(g, offer, r); break;
     case 'UPGRADE': upgraded(g, offer, r, delta); break;
   }
+}
+
+function upgradeRow(g: Game, offer: UpgradeOffer): PickRow {
+  const { item, toLevel, target } = offer;
+  return {
+    icon: itemIcon(item),
+    name: `${item.name} +${String(toLevel - 1)}>+${String(toLevel)}`,
+    color: rarityColor(item),
+    note: target.where,
+    detail: describeOffer(g.hero, offer),
+  };
+}
+
+function backToOffers(g: Game): void {
+  g.subScene = 'LOOT';
+  resetCursorEdge(g);
+}
+
+export function chooseUpgrade(g: Game): void {
+  const offers = upgradableTargets(g.hero).flatMap((t) => resolveUpgrade(g.hero, t) ?? []);
+  if (offers.length === 0) { g.app.audio.play('blip'); return; }
+  openPick(g, {
+    title: 'UPGRADE WHICH?',
+    rows: offers.map((o) => upgradeRow(g, o)),
+    cursor: 0,
+    onPick: (i) => { const o = offers[i]; if (o) {takeOffer(g, o);} },
+    onCancel: () => { backToOffers(g); },
+  });
 }
 
 function keepGear(g: Game): void {
@@ -83,5 +114,7 @@ export function updateLoot(g: Game): void {
   if (dy) { loot.cursor = wrapCursor(loot.cursor, dy, loot.offers.length + 1); g.app.audio.play('blip'); }
   if (!g.app.input.pressed('A')) {return;}
   const offer = loot.offers[loot.cursor];
-  if (offer) {takeOffer(g, offer);} else {keepGear(g);}
+  if (!offer) { keepGear(g); return; }
+  if (offer.kind === 'UPGRADE_ANY') { chooseUpgrade(g); return; }
+  takeOffer(g, offer);
 }

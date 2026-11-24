@@ -1,12 +1,13 @@
 import type { SceneMachine } from '../engine';
 import type { Hero, Derived, EnemyInstance, EnemyKind, HeroAction, LootOffer, LootSource, Rng, StatKey } from './types';
-import { createHero, createSeededRng, grantClear, spendPoint, rollLoot, applyOffer, noteDeclinedScrolls, fullHeal } from './sim';
+import { createHero, createSeededRng, grantClear, spendPoint, rollLoot, applyOffer, noteDeclinedScrolls, fullHeal, equip, stow } from './sim';
+import { ITEMS } from './data';
 import type { SeededRng } from './sim';
 import type { MapNode, RoomType, SubScene } from './state';
-import { at, noop } from './lookup';
+import { at, must, noop } from './lookup';
 
-type Action = 'A' | 'PAUSE' | 'UP' | 'DOWN';
-type Fixture = 'title' | 'map' | 'battle' | 'levelup' | 'loot' | 'card' | 'paused' | 'gameover' | 'win';
+type Action = 'A' | 'B' | 'PAUSE' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
+type Fixture = 'title' | 'map' | 'battle' | 'levelup' | 'loot' | 'card' | 'paused' | 'gameover' | 'win' | 'gear' | 'pick';
 type DevNode = MapNode;
 
 interface DevView {
@@ -14,6 +15,7 @@ interface DevView {
   clears: number; score: number; dying: boolean; cursors: Record<SubScene, number>;
   battlePhase: string; battleText: string; actions: HeroAction[]; offers: LootOffer[]; card: string[];
   map: DevNode[][]; curStage: number; reachable: number[];
+  pick: { title: string; rows: string[] };
 }
 
 interface DevHost {
@@ -29,11 +31,15 @@ interface DevHost {
   bossNode(): DevNode;
   winBattle(): void;
   enemyTurn(): void;
+  openGear(): void;
+  pickUpgrade(): void;
   view(): DevView;
 }
 
-const FIXTURES: readonly Fixture[] = ['title', 'map', 'battle', 'levelup', 'loot', 'card', 'paused', 'gameover', 'win'];
-const KEY: Record<Action, string> = { A: 'Space', PAUSE: 'KeyP', UP: 'ArrowUp', DOWN: 'ArrowDown' };
+const FIXTURES: readonly Fixture[] = ['title', 'map', 'battle', 'levelup', 'loot', 'card', 'paused', 'gameover', 'win', 'gear', 'pick'];
+const KEY: Record<Action, string> = {
+  A: 'Space', B: 'KeyX', PAUSE: 'KeyP', UP: 'ArrowUp', DOWN: 'ArrowDown', LEFT: 'ArrowLeft', RIGHT: 'ArrowRight',
+};
 const DT = 1 / 60;
 const PLAN: readonly StatKey[] = ['HP', 'ATK', 'MAG', 'DEF', 'MDEF', 'HP', 'MP', 'CRIT'];
 const ACT_CLEARS: EnemyKind[] = ['NORMAL', 'NORMAL', 'NORMAL', 'ELITE', 'NORMAL', 'BOSS'];
@@ -62,6 +68,19 @@ function veteran(acts: number, rng: Rng): Hero {
     }
     fullHeal(hero);
   }
+  return hero;
+}
+
+const KIT_WORN: readonly [string, number][] = [['IRON_SWORD', 1], ['LEATHER_VEST', 0], ['BONE_CHARM', 2]];
+const KIT_PACK: readonly [string, number][] = [['WILLOW_WAND', 0], ['BRAMBLE_VEST', 1], ['SWIFT_BOOTS', 0]];
+
+const itemById = (id: string) => must(ITEMS.find((i) => i.id === id), `item ${id}`);
+
+function kitted(): Hero {
+  const hero = createHero();
+  for (const [id, level] of KIT_WORN) {equip(hero, itemById(id), level);}
+  for (const [id, level] of KIT_PACK) {stow(hero, { item: itemById(id), level });}
+  fullHeal(hero);
   return hero;
 }
 
@@ -102,6 +121,8 @@ function snapshot(v: DevView, seed: number | null): unknown {
     battle: sub === 'BATTLE' ? { phase: v.battlePhase, text: v.battleText, actions: v.actions } : null,
     loot: sub === 'LOOT' ? v.offers : null,
     card: sub === 'CARD' ? v.card : null,
+    gear: sub === 'GEAR' ? { pack: v.hero.pack.length } : null,
+    pick: sub === 'PICK' ? v.pick : null,
     map: sub === 'MAP' ? { stage: v.curStage, reachable: v.reachable, stages: v.map.map((st) => st.map((n) => (n.cleared ? `${n.type}*` : n.type))) } : null,
   }));
 }
@@ -143,13 +164,14 @@ interface FixtureContext { host: DevHost; driver: Driver; rng: Rng; act: number 
 
 function fixtureBuilders(fx: FixtureContext): Record<Fixture, () => void> {
   const { host, driver, rng, act } = fx;
-  const begin = (): void => {
-    host.startRun(act > 1 ? veteran(act - 1, rng) : createHero(), act - 1, (act - 1) * ACT_CLEARS.length);
+  const begin = (hero?: Hero): void => {
+    host.startRun(hero ?? (act > 1 ? veteran(act - 1, rng) : createHero()), act - 1, (act - 1) * ACT_CLEARS.length);
     host.scenes.to('PLAYING');
   };
   const enter = (type: RoomType): void => {
     const nodes = host.nextNodes();
     const node = nodes.find((n) => n.type === type) ?? at(nodes, 0);
+    if (node.type !== type) {node.enemyId = undefined;}
     node.type = type;
     host.selectNode(node);
   };
@@ -168,7 +190,7 @@ function fixtureBuilders(fx: FixtureContext): Record<Fixture, () => void> {
   };
   return {
     title: noop,
-    map: begin,
+    map: () => { begin(); },
     battle,
     levelup: () => { battle(); host.winBattle(); },
     loot: () => { begin(); enter('LOOT'); },
@@ -176,6 +198,8 @@ function fixtureBuilders(fx: FixtureContext): Record<Fixture, () => void> {
     paused: () => { battle(); host.scenes.to('PAUSED'); },
     gameover: loseBattle,
     win: winRun,
+    gear: () => { begin(kitted()); host.openGear(); },
+    pick: () => { begin(kitted()); enter('LOOT'); host.pickUpgrade(); },
   };
 }
 

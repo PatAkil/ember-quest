@@ -9,10 +9,14 @@ import { C_ACCENT, C_BG, H, W } from './theme';
 import { renderBattle } from './screens/battle-view';
 import { updateBattle } from './screens/battle';
 import { renderCard, updateCard } from './screens/card';
+import { renderGear } from './screens/gear-view';
+import { updateGear } from './screens/gear';
 import { renderLevelUp, updateLevelUp } from './screens/levelup';
 import { renderLoot } from './screens/loot-view';
 import { updateLoot } from './screens/loot';
 import { renderMap, updateMap } from './screens/map';
+import { renderPick } from './screens/pick-view';
+import { updatePick } from './screens/pick';
 import { renderEndingOverlay, renderPausedOverlay, renderTitle } from './screens/title';
 
 type Scene = SceneMachine['current'];
@@ -23,6 +27,8 @@ const UPDATE_SUB: Record<SubScene, (g: Game, dt: number) => void> = {
   LEVELUP: updateLevelUp,
   LOOT: updateLoot,
   CARD: updateCard,
+  GEAR: updateGear,
+  PICK: updatePick,
 };
 
 const RENDER_SUB: Record<SubScene, (g: Game) => void> = {
@@ -31,6 +37,8 @@ const RENDER_SUB: Record<SubScene, (g: Game) => void> = {
   LEVELUP: renderLevelUp,
   LOOT: renderLoot,
   CARD: renderCard,
+  GEAR: renderGear,
+  PICK: renderPick,
 };
 
 function restartOnA(g: Game): void {

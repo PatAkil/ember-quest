@@ -38,7 +38,7 @@ export function createApp(fixedScale = false) {
   const pc = mountCanvas(fixedScale);
   const audio = createAudio();
   const input = createInput(
-    [{ button: 'A', label: 'select' }, { button: 'PAUSE', label: 'pause' }],
+    [{ button: 'A', label: 'select' }, { button: 'B', label: 'back / gear' }, { button: 'PAUSE', label: 'pause' }],
     { onFirstKey: () => { audio.unlock(); } },
   );
   const scenes = createScenes();

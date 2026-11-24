@@ -26,13 +26,15 @@ ember-quest/
 │   │   ├── gear.ts           #   item levels, upgrades, effective mods/effects/blurbs
 │   │   ├── hero.ts           #   createHero, derive, skill points, heals, equip, spells
 │   │   ├── ghost.ts          #   derived stats of a hypothetical equip (compare previews)
-│   │   ├── describe.ts       #   item / offer / compare text for the screens
-│   │   ├── loot.ts           #   rollLoot, applyOffer, missed scrolls
+│   │   ├── describe.ts       #   item / offer / compare text for the screens, compareFull (every changed stat, LOSE/GAIN)
+│   │   ├── loot.ts           #   rollLoot, applyOffer, resolveUpgrade, missed scrolls
+│   │   ├── pack.ts           #   the 4-item pack: stow, discard, swapIn, unequip, ownedIds, upgradableTargets
 │   │   ├── combat.ts         #   spawnEnemy, turns, damage, effects in battle
 │   │   ├── map.ts            #   the one map generator, generateMap(rng, shape?) — game and simulator
-│   │   ├── model.ts          #   Policy, RoomType (with BOSS)
+│   │   ├── model.ts          #   Policy (incl. stowOrEquip, dropWhich, upgradeTarget, prepare), RoomType (with BOSS)
 │   │   ├── scoring.ts        #   how policies value a loot offer
 │   │   ├── policies.ts       #   POLICIES (random, balanced, glass, tank, routing archetypes)
+│   │   ├── policy-choices.ts #   DEFAULT_CHOICES: the shared pack/upgrade/prepare defaults every policy spreads
 │   │   └── run.ts            #   simulateRun, RunResult, Probe
 │   ├── main.ts               # wiring only: app, game state, scene hooks, dev hook, loop
 │   ├── app.ts                # creates the engine objects (canvas, input, scenes, particles, juice, audio, CRT, runtime)
@@ -49,7 +51,7 @@ ember-quest/
 │   ├── pops.ts               # floating damage/score pops
 │   ├── storage.ts            # best score in localStorage
 │   ├── lookup.ts             # at, pickOneIndex (re-exported from sim), must, noop — guarded indexed access
-│   ├── screens/              # one update + one view per screen: battle/battle-view, map/map-view, loot/loot-view, levelup, card, status (map status panel), title (title, pause, endings)
+│   ├── screens/              # one update + one view per screen: battle/battle-view, map/map-view, loot/loot-view, levelup, card, status (map status panel), gear/gear-view (GEAR: worn slots + pack, B on the map), pick/pick-view (PICK: the shared chooser, e.g. UPGRADE WHICH?), title (title, pause, endings)
 │   │   ├── battle-fx.ts      #   choreography of a turn: wind-ups, impacts, pops, regen aura, defeat, entrance, death
 │   │   ├── battle-fx-view.ts #   draws the shots (orbs, bolts, slashes, blooms …) and the boss/elite banner strip
 │   │   ├── battle-reach.ts   #   lunge distances and contact points between the knight and the foe
@@ -104,7 +106,7 @@ ember-quest/
 - **Look before you report.** `npm run look -- --scene battle --act 2 --seed 7` prints one
   JSON line (`ok`, the game `state`, console/page `errors`, the screenshot path) in under
   a second; read the state first and the screenshot whenever the look changed. Scenes:
-  `title map battle levelup loot card paused gameover win`; acts 1–4. Claude may say what
+  `title map battle levelup loot card paused gameover win gear pick`; acts 1–4. Claude may say what
   it saw; the owner remains the playtester for feel — report "builds, boots clean,
   ready to play at <URL>", never "playtested".
 - **Done means**: `npm run check` and `npm run lint` after every edit (or `npx eslint
@@ -144,10 +146,10 @@ ember-quest/
 | Command | What it does |
 |---|---|
 | `npm run setup` | Browser + dev server, idempotent; prints `eyes: ready - … \| chromium /tmp/ember-chromium \| dev <url>`; marker `/tmp/ember-eyes.json` (`url` is the public exposed-port URL when `JBCENTRAL_EXPOSED_PORT_URL_5173` is set, else `http://localhost:5173/`). `--force` redoes everything |
-| `npm run look -- [--scene S] [--act N] [--seed N] [--keys "Down,Space"] [--steps N] [--out file.png] [--no-shot]` | One JSON line `{"ok","state","errors","shot"}`; exit 1 on any console/page error or no canvas. With `--scene` or `--seed` the page runs in hold mode and each key is followed by `--steps` (default 30) fixed ticks. Keys: `Up Down Left Right Space Esc Enter` or Playwright names (`ArrowDown`, `KeyZ`, `KeyP`). Default shot: `$AIR_ARTIFACTS_DIR/look/<scene>-a<act>-s<seed>.png`, else `/tmp/ember-look/` |
+| `npm run look -- [--scene S] [--act N] [--seed N] [--keys "Down,Space"] [--steps N] [--out file.png] [--no-shot]` | One JSON line `{"ok","state","errors","shot"}`; exit 1 on any console/page error or no canvas. With `--scene` or `--seed` the page runs in hold mode and each key is followed by `--steps` (default 30) fixed ticks. Keys: `Up Down Left Right Space B Esc Enter` (`B`/`X` = button B) or Playwright names (`ArrowDown`, `KeyZ`, `KeyX`, `KeyP`). Default shot: `$AIR_ARTIFACTS_DIR/look/<scene>-a<act>-s<seed>.png`, else `/tmp/ember-look/` |
 | `npm run verify` | eyes, lint, check, build, smoke, rules (map invariants over 5000 seeds, seeded-rng determinism, `validateData`), `sim:quick` (informational: balanced and random win rates), two at a time; one `PASS/FAIL/INFO` line per gate with its time, then `TOTAL`. About 10 s |
 | `npm run verify -- --full` | adds knip, jscpd, depcruise, `dist:no-hook` (no `__ember` in `dist/`), `look:all` (every scene), and the full sim. About 30 s |
-| `node scripts/oracle.mjs --save <file>` / `--check <file>` | 72 cases (9 scenes × 4 acts × still / after `Down,Space,Space,Down,Space`, seed 7): sha256 of the state JSON and of the exact screenshot. `--check` prints `ORACLE OK` or lists each differing case as `(state)` or `(pixels)`. Save before a refactor, check after. Needs the dev server; about 80 s |
+| `node scripts/oracle.mjs --save <file>` / `--check <file>` | 88 cases (11 scenes × 4 acts × still / after `Down,Space,Space,Down,Space`, seed 7): sha256 of the state JSON and of the exact screenshot. `--check` prints `ORACLE OK` or lists each differing case as `(state)` or `(pixels)`. Save before a refactor, check after. Needs the dev server; about 80 s |
 | `npm run browse -- <command>` (or `npx agent-browser`) | Free-form interactive exploration (`open <url>`, `press Space`, `screenshot <file>`, `errors`, `eval <js>`, `close`). Export `AGENT_BROWSER_EXECUTABLE_PATH=/tmp/ember-chromium` first (setup writes it into `CLAUDE_ENV_FILE` when the harness provides one) |
 
 `smoke.mjs`, `look.mjs` and `oracle.mjs` use `/tmp/ember-chromium` automatically when
@@ -163,9 +165,9 @@ deterministic fixture (seed defaults to 1); `&hold=1` also seeds `Math.random` (
 shake) and stops the rAF loop from ticking or drawing, so frames advance only through
 the hook — this is what makes screenshots pixel-identical. In the page:
 `window.__ember.state()` (JSON: scene, subScene, act, seed, cursor, hero, derived,
-enemy, clears, score, and the battle/loot/card/map slice of the current sub-scene),
+enemy, clears, score, and the battle/loot/card/gear/pick/map slice of the current sub-scene),
 `step(n)` (n fixed ticks synchronously, one render, returns the state) and
-`press('A' | 'PAUSE' | 'UP' | 'DOWN')` (one edge press on the next tick).
+`press('A' | 'B' | 'PAUSE' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT')` (one edge press on the next tick).
 
 ## Automatic feedback (hooks)
 

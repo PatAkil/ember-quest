@@ -5,6 +5,7 @@ import { at } from '../lookup';
 import { biome, dirEdge, stageAt } from '../state';
 import type { Game, RoomType } from '../state';
 import { C_ACCENT, C_DIM, C_TEXT, H, W } from '../theme';
+import { openGear } from './gear';
 import { drawEdges, drawHeroMarker, drawNodes } from './map-view';
 import { drawStatusPanel, STATUS_PANEL_H } from './status';
 
@@ -27,6 +28,7 @@ function moveCursor(g: Game, dy: number): void {
 export function updateMap(g: Game): void {
   const dy = dirEdge(g);
   if (dy) {moveCursor(g, dy);}
+  if (g.app.input.pressed('B')) { g.app.audio.play('blip'); openGear(g); return; }
   if (g.app.input.pressed('A') && g.map.reachable.length) {
     g.app.audio.play('blip');
     selectNode(g, at(stageAt(g, g.map.curStage + 1), g.map.cursor));

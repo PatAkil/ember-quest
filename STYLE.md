@@ -46,5 +46,6 @@ Permadeath; felling the Seraph wins the run. Rules live in `game/sim/`, content 
 ## Controls (as presented)
 
 Up / Down (arrows or WASD) move every cursor; **A** confirms, spends a point or
-advances; **PAUSE** pauses. **B is intentionally undeclared** — the title's hints come
-from the declared actions (`select`, `pause`).
+advances; **B** (X/C) goes back and opens GEAR from the map; Left / Right toggle a choice
+(the loot screen's EQUIP / STOW); **PAUSE** pauses. The title's hints come from the declared
+actions (`select`, `back / gear`, `pause`).
