@@ -39,7 +39,7 @@ function boostMult(hero: Hero, element: Element | undefined): number {
   return product(allEffects(hero, 'ELEMENT_BOOST').filter((e) => e.element === element).map((e) => e.mult));
 }
 
-export interface PowerCtx { hero: Hero; battle: BattleState; d: Derived; element: Element | undefined }
+interface PowerCtx { hero: Hero; battle: BattleState; d: Derived; element: Element | undefined }
 
 export function gearPower({ hero, battle, d, element }: PowerCtx): number {
   return punishMult(hero, battle) * lowHpMult(hero, d) * boostMult(hero, element);

@@ -66,6 +66,7 @@ function counterFx(g: Game, amount: number): void {
     addShot(g, { kind: 'SLASH', dur: 0.24, from: p, to: p, color: C_ACCENT, glow: PICO8[7] });
     addTint(g, 'ENEMY', toneFor(g, 'ENEMY'), 0.07);
     addMove(g, 'ENEMY', 'RECOIL', 4);
+    g.app.particles.burst(p.x, p.y, { count: 7, color: C_ACCENT, speed: 110 });
     g.app.audio.play('hit');
   });
 }

@@ -14,7 +14,7 @@ permadeath. v2 replaces the tier-upgrade gear with **skill points** and a
 | `game/data.ts` | the content import path: re-exports `game/rules/*` (ITEMS, ENEMIES, SPELLS, BIOMES, LOOT_WEIGHTS, ACT_MULT, the heal constants, `validateData`, EVENTS and their types) | `./rules/*` only |
 | `game/rules/*.ts` | the content itself: `items` (ITEMS), `enemies` (ENEMIES), `world` (SPELLS, SPELL_ORDER, BIOMES, ACT_MULT, LOOT_WEIGHTS, LOOT_COUNT, CLEAR_HEAL, BOSS_ENTRY_HEAL, SKIP_MEND, RARITY_COLOR_INDEX), `validate` (`validateData`; never imports `data.ts`), `events` (EVENTS, the effect vocabulary, `validateEvents`) | `../types`, each other |
 | `game/sim.ts` | the barrel: the only path presentation and the simulator use to reach the rules (also re-exports `validateData`, `generateMap`, `createSeededRng`, `at`) | `./sim/*`, `./data` |
-| `game/sim/*.ts` | pure rules, one concern per file: `util` (clamp, `at`, rng picks, `createSeededRng` — mulberry32 with readable state — and effect tables), `gear` (item levels, upgrades, effective mods/effects), `hero` (derived stats, skill points, heals, equip, spells), `ghost` (stats of a hypothetical equip), `describe` (item/offer/compare text, `compareFull`), `loot` (loot rolls, offers, scrolls, `resolveUpgrade`), `pack` (the pack: `stow`, `discard`, `swapIn`, `unequip`, `ownedIds`, `upgradableTargets`), `combat` (enemy scaling, battle creation, hero actions, damage), `commands` (GUARD, POTION, BURST, BREAK), `enemy-turn` (enemy moves, intent, phase), `status` (turn start, BURN, WARD, `heroFalls`), `element`, `burst`, `events` (event effects, enablement, `takePendingBurn`, preview words), `map` (**the one map generator**, `generateMap(rng, shape?)`, played by both the screens and the simulator), `model` (`Policy`, `RoomType` including `BOSS`), `scoring`, `policies`, `policy-battle` (how they fight) and `policy-choices` (how the archetypes decide; `DEFAULT_CHOICES` holds the shared pack/upgrade/prepare defaults), `run` (`simulateRun`) | `../types`, `../data`, each other |
+| `game/sim/*.ts` | pure rules, one concern per file: `util` (clamp, `at`, rng picks, `createSeededRng` — mulberry32 with readable state — and effect tables), `gear` (item levels, upgrades, effective mods/effects), `hero` (derived stats, skill points, heals, equip, spells), `ghost` (stats of a hypothetical equip), `describe` (item/offer/compare text, `compareFull`), `loot` (loot rolls, offers, scrolls, `resolveUpgrade`), `pack` (the pack: `stow`, `discard`, `swapIn`, `unequip`, `ownedIds`, `upgradableTargets`), `combat` (enemy scaling, battle creation, hero actions, damage), `commands` (GUARD, POTION, BURST, BREAK), `enemy-turn` (enemy moves, intent, phase), `status` (turn start, BURN, WARD, `heroFalls`), `element`, `burst`, `power` (the gear-driven damage multipliers: IMBUE element, PUNISH, LOW HP, ELEMENT BOOST, riposte power, ignite chance, the guard counter), `events` (event effects, enablement, `takePendingBurn`, preview words), `map` (**the one map generator**, `generateMap(rng, shape?)`, played by both the screens and the simulator), `model` (`Policy`, `RoomType` including `BOSS`), `scoring`, `policies`, `policy-battle` (how they fight) and `policy-choices` (how the archetypes decide; `DEFAULT_CHOICES` holds the shared pack/upgrade/prepare defaults), `run` (`simulateRun`) | `../types`, `../data`, each other |
 | `game/sprites.ts` + `game/sprites/*.ts` | hero/enemy/icon sprites: `helpers`, `hero`, `icons`, one file per biome; `sprites.ts` re-exports them and adds `enemyAnim(id)` | `../engine` only |
 | `game/main.ts` + `app`, `state`, `flow`, `frame`, `mapgen`, `theme`, `backdrop`, `widgets`, `pops`, `fx-state`, `fx`, `transition`, `storage`, `lookup`, `screens/*.ts` | presentation: `main.ts` only wires; `app` creates the engine objects and fits the canvas to the window; `state` holds the one `Game` object `g` with per-screen slices; `flow` runs the run (rooms, stages, clears, acts, scene hooks); `frame` dispatches update/render; `mapgen` adapts the shared headless map to the screens (adds `stage`, `slot`, `cleared`); the **fx / transition layer** presents what the rules decided and never decides anything — `fx-state` + `fx` hold the battle-fx clock (actor poses, timed cues, lagging meters, boss banner), `screens/battle-fx` choreographs a turn on it, `screens/battle-fx-verbs` gives each battle verb its beat, `screens/battle-fx-view` draws its shots and banner, `screens/battle-menu` holds the command menu, `screens/battle-tags` the tag strips under the plates, `screens/battle-reach` measures lunges, `transition` reveals each new sub-scene; `screens/` one update file and one view file per screen (`map-view`, `loot-view`, `battle-view`; `plate` holds the shared medallions) | everything |
 | `game/devhook.ts` | the dev-only seeded hook (`?seed`, `?scene`, `&act`, `&hold`, `window.__ember`), never in the build | `../engine` types, `./sim`, presentation types |
@@ -35,15 +35,16 @@ thousands of runs. ESLint and dependency-cruiser enforce the boundary.
   gone: OGRE KING and WRAITH LORD become Crypt elites, DARK LORD is the boss).
 - Caps: DEF/MDEF 42 %, CRIT 60 %, DODGE 40 % — items + points together.
 - Act-entry spells unchanged: WATER (act 2), SLASH (act 3), THUNDER (act 4).
-  TOME items grant extra spells (TWINBOLT, LEECH, QUAKE, MEND) while equipped.
+  TOME items grant extra spells (TWINBOLT, LEECH, QUAKE, MEND, EMBERS, TREMOR, AEGIS) while equipped.
 
 ## Items
 
 Six slots, one item each, plus a **4-item pack** (see *v3 — the pack, GEAR and chosen
 upgrades*): a new item takes the slot and the old one, with its level, can go to the
 pack instead of being lost (the loot screen shows both). Rarity COMMON / RARE / EPIC /
-LEGENDARY. Every RARE+ item carries a unique effect (`ItemEffect`). The pool
-is ~41 items; names <= 13 chars, blurbs <= 30 chars.
+LEGENDARY. Every RARE+ item carries a unique effect (`ItemEffect`); a COMMON carries
+none, except `IMBUE` (see *v3 — item pool and new effects*). The pool is 69 items (44 + 25
+in M3); names <= 13 chars, blurbs <= 30 chars.
 
 ### Upgrades (+1 / +2)
 
@@ -342,6 +343,60 @@ Content lives in `game/rules/events.ts` (`EVENTS`, `validateEvents()`, wired int
 | THE BLOOD TITHE | PAY IN VIGOUR: −12 max HP, +2 SP | PAY IN BLOOD: −35 % HP, +1 SP |
 | A WEEPING STATUE | DRINK THE TEARS: +2 potions, burn next fight | WALK ON |
 
+## v3 — item pool and new effects (M3)
+
+Rules: `game/sim/power.ts` (the gear multipliers on a hero strike), `combat` (ATTACK/spells,
+AEGIS, ignite), `commands` (the BREAK rule), `enemy-turn` (counter, guard MP, AEGIS
+reflect, burn ward), `burst` (ember rate, burst power). Items in `game/rules/items.ts`.
+
+| Kind | Shipped magnitude (+1 step) | Rule |
+|---|---|---|
+| `GUARD_COUNTER {fraction}` | 1.0, awakened 1.5 (+0.15, cap 1.2) | a hit that lands on a guard (GUARD or AEGIS) strikes back for fraction × the weapon stat (ATK, MAG for a magic weapon), of the weapon's kind, through the foe's resist; summed over items; `EnemyActResult.countered` |
+| `GUARD_MANA {amount}` | +3 (+1) | extra MP on every guarded hit that pays guard MP (not a chained guard) |
+| `PARRY_POWER {mult}` | 2.5 / 2.8 (+0.2, cap 3) | the riposte multiplier becomes `mult` (highest worn) instead of 1.5 |
+| `PUNISH_WINDUP {mult}` | 1.8, 2.3 awakened, 2.0 legendary (+0.15) | ×mult on every hit of an ATTACK or spell while the shown intent is HEAVY and the foe is not staggered; with it worn ANY damaging action may BREAK (still needs `BREAK_AT`) |
+| `BURST_GAIN {mult}` | 1.6 / 2.0 (+0.2) | every ember gain × mult (rounded) |
+| `BURST_POWER {mult}` | 1.5 / 2.0, 1.7 legendary (+0.2) | the burst blow × mult |
+| `IMBUE {element}` | – | weapon ATTACKs (every hit, TWIN included) carry the element: weakness ×1.5, resist ×0.5, `WEAK!` and BREAK-by-weakness apply |
+| `ELEMENT_BOOST {element, mult}` | 1.4 / 1.75 (+0.1) | ×mult on hits of that element (spell or imbued ATTACK); not a weakness, so it never breaks by itself |
+| `BURN_ON_HIT {chance}` | 0.35 / 0.55 (+0.1, cap 0.8) | after a damaging ATTACK or spell that leaves the foe alive, one roll on the injected rng: the foe burns per the BURN rules (40 % of the volley total, 3 turns); `HeroActResult.burned`, pop `IGNITE` |
+| `BURN_WARD {}` | – | the hero never gains BURN from SCORCH; its item always carries MDEF (`validateData`) |
+| `LOW_HP_POWER {threshold, mult}` | below 40 % ×1.5 (locket), below 50 % ×1.8 (legendary) (+0.15) | ×mult on strikes while HP / max HP < threshold; tag `DESPERATE` |
+
+A strike's power = RAMP × opener × riposte (× `PARRY_POWER`) × PUNISH × LOW HP × ELEMENT
+BOOST; weakness/resist and DEF/WARD after. BURST stays outside all of it (BURST_POWER only).
+
+**Spells** (TOME only): `EMBERS` (fire, 2 × 0.8 MAG, 7 MP, CINDER TOME), `TREMOR` (earth,
+1.3 ATK physical, 3 MP, FAULT TOME), `AEGIS` (5 MP, WARDEN TOME): a GUARD for every guard
+rule — ×0.5 (chain ×0.75), parry on a HEAVY, guard MP, ember, no regen that turn
+(`isGuardAction`), GUARD_COUNTER — that also reflects 50 % of the reduced hit
+(`SpellDef.guard.reflect`, `battle.aegis`, added to `reflected`). Policies cast AEGIS
+instead of GUARD against a HEAVY whenever it is affordable, never otherwise.
+
+**Build lines.** Bulwark: BULWARK MAIL, PADDED COAT, CLAY BOWL, WARDEN TOME. Duelist:
+DUELIST FOIL, DANCER SLIPS (parry power on awakening). Breaker: BREAKER MAUL, OATH CHALICE
+(legendary). Burst: EMBER TREADS, NOVA STRIDERS (legendary), SERAPH HALO (the Seraph's
+signature, act 3, `bossOnly`). Elements: fire — EMBER BRAND (COMMON, act 0, the starter
+guarantee may offer it), CINDER TOME, FIRE GOBLET, PYRE CHALICE; water — SURF SPEAR (COMMON,
+act 1), TIDE PEARL; thunder — VOLT ROD, STORM GREAVES; earth — FAULT TOME, GRANITE MAIL.
+Fireproof: ASH MANTLE, FROST BEAD. Gambler: TIN LOCKET (awakening), LAST LIGHT (legendary).
+Every COMMON slot but TOME (a tome must grant a spell) has one new common whose +2 grants a
+new kind; IMBUE commons keep their element when awakened (mods only).
+
+Presentation: an imbued ATTACK takes its element's colour; a counter is a `COUNTER -n` pop
+with a slash on the foe; an ignite pops `IGNITE` on the foe; the hero tag strip shows
+`AEGIS` (instead of GUARD), `PUNISH` (a HEAVY is shown and PUNISH_WINDUP is worn) and
+`DESPERATE` (LOW_HP_POWER active); the menu preview folds the gear multipliers, the parry
+power and the burst power into its numbers and lets `BREAKS IT` show for any hit while
+PUNISH_WINDUP is worn; AEGIS previews `PARRY THE HEAVY BLOW` / `A GUARD THAT BITES` and
+`RETURNS 50% OF IT`.
+
+`validateData` adds: a COMMON may carry only `IMBUE`; `BURN_WARD` needs MDEF; every
+effect kind is used (base or awakening); every element has ≥ 2 hero sources by act 2
+(FIREBALL, the act-1 scroll, and items with `minAct` ≤ 1 that IMBUE or grant an element's
+spell). Policies score the new kinds with `EFFECT_VALUE` and count an ELEMENT_BOOST at 20 %
+when the hero has no source of that element.
+
 ## Combat
 
 See *v3 — battle verbs (M2)* above for moves, intents, GUARD, POTION, elements, BURN,
@@ -389,24 +444,43 @@ temporary directory (`sim/bundle.mjs`), then calls `simulateRun` with each of
 default 1; `--policy`; `--json`; `--no-potions`). Same seed and same code give
 byte-identical `--json` output. The simulator replicates the drop rates, upgrade cards and
 boss tables, and plays **the same map generator as the game** (`game/sim/map.ts`).
-Numbers below: 2000 runs, seed 1, after M2 (battle verbs: move cycles, phase 2, GUARD and
-PARRY, POTION, elements, BURN, EMBER BURST, BREAK).
+Numbers below: 2000 runs, seed 1, after M3 items (69-item pool, EMBERS/TREMOR/AEGIS) with
+the EVENT rooms in the tree as they stood on 2026-11-24. `--items` adds a per-item table
+(offered, pick rate when offered, runs holding it at the end and their win rate) over
+balanced + glass + tank, and the effect kinds worn at the end.
 
 | policy | win | reach act 2 | act 3 | act 4 | boss clears a1/a2/a3/a4 |
 |---|---|---|---|---|---|
-| balanced | 38 % | 99 % | 68 % | 48 % | 99/85/85/81 |
-| naive (no verbs) | 10 % | 88 % | 25 % | 13 % | 90/40/68/76 |
-| balanced, no potions | 21 % | 93 % | 44 % | 28 % | 98/75/82/76 |
-| glass (all offence) | 22 % | 100 % | 57 % | 31 % | 100/79/75/77 |
-| tank (HP/DEF, physical) | 19 % | 97 % | 42 % | 24 % | 97/63/67/84 |
-| elite-hungry routing | 37 % | 99 % | 68 % | 48 % | 99/85/86/81 |
-| chest-hungry routing | 32 % | 98 % | 64 % | 47 % | 99/75/83/73 |
-| random picks + points | 0 % | 24 % | 0 % | 0 % | 34/0/–/– |
+| balanced | 35 % | 99 % | 71 % | 50 % | 99/84/82/74 |
+| naive (no verbs) | 9 % | 91 % | 35 % | 19 % | 91/53/66/60 |
+| balanced, no potions | 18 % | 95 % | 45 % | 29 % | 99/72/76/66 |
+| glass (all offence) | 15 % | 99 % | 60 % | 32 % | 99/78/67/54 |
+| tank (HP/DEF, physical) | 20 % | 99 % | 53 % | 25 % | 99/67/58/85 |
+| elite-hungry routing | 35 % | 99 % | 72 % | 50 % | 99/85/81/74 |
+| chest-hungry routing | 28 % | 99 % | 69 % | 47 % | 99/79/80/65 |
+| random picks + points | 0 % | 33 % | 0 % | 0 % | 43/0/–/– |
 
-Verb use per run (balanced): GUARD 5.6 (every one answers a HEAVY, so PARRY 5.6), BURST
-4.5, POTION 2.0, BREAK succeeded/attempted 0.32/0.52 normals, 0.59/0.93 elites,
-1.57/1.95 bosses; phase 2 reached 2.8 times. naive/balanced = **0.25** (target ≤ 0.75).
-0 STALL deaths in any policy; BURN ticks end 4.8 % of balanced runs (96 / 2000).
+M3 item findings: every item is picked 8–68 % of the times it is offered to balanced/glass/
+tank (top LUCKY BOOTS 68, SHADOW EDGE 64, EMBER TREADS 59, TITAN PLATE 58, DARK CROWN 55;
+bottom GOLEM FIST 8, RUNE TORC 8, JADE AMULET 9, OAK STAFF 9, GLASS SABER 10). Adding 25
+items diluted the pool: with the new items offered but never taken balanced fell from 37 % to
+28 %, so the new RARE/EPIC items carry real stat lines and the conditional kinds (PUNISH,
+PARRY, COUNTER) big multipliers, while `EFFECT_VALUE` rates them low (the policies took
+them over better items when they were scored like the old kinds). Old items retuned: SHADOW
+EDGE crit 18 → 12 (was picked 80 %), BLOOD CUP ATK/MAG 6 → 4 (73 %), GOLEM FIST atk 15 → 19
++8 % crit, opener 2.2 → 2.5 and the THUNDER scroll's policy score 34 → 28 (it was never
+taken over the scroll), RUNE STAFF mag 10 → 12 +4 MP, RUNE TORC +14 HP +1 HP/turn, JADE
+AMULET mdef 18 → 20 +6 MP, WAR CLEAVER atk 10 → 12 +4 % crit, PLATE ARMOR +10 HP, GLASS SABER
+atk 12 → 15, NIGHT SCEPTRE mag 17 → 20. PARRY_POWER and GUARD_MANA only exist on common
+awakenings, so few runs end wearing them (10 and 18 of 6000).
+
+Verb use per run (balanced): GUARD 4.6 (PARRY 4.7), BURST 4.4, POTION 2.2, BREAK
+succeeded/attempted 0.25/0.39 normals, 0.62/0.97 elites, 1.56/1.94 bosses (the attempt
+count misses PUNISH and IMBUE breaks: `run-battle` counts weakness spells and BURST only);
+phase 2 reached 2.9 times. naive/balanced = **0.27** (target ≤ 0.75). 0 STALL deaths in
+any policy; BURN ticks end 5.2 % of balanced runs (104 / 2000).
+
+M2 (2026-11-24), for reference: balanced 38 %, naive 10 %, glass 22 %, tank 19 %, random 0 %.
 
 Tuning in M2: `ACT_MULT` [1.0, 1.38, 2.2, 3.1] → [1.15, 1.95, 2.78, 3.41]; FROST WISP
 hpBase 76 → 70, atkBase 5.2 → 4.8. Before tuning (new cycles and verbs, old numbers)

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { withSim } from '../sim/bundle.mjs';
 import { foeRules } from './rules-foe.mjs';
+import { itemRules } from './rules-items.mjs';
 import { verbRules } from './rules-verbs.mjs';
 import { eventRules } from './rules-events.mjs';
 
@@ -272,6 +273,7 @@ const GROUPS = [
   ['scout', scoutRules],
   ['foes', foeRules],
   ['verbs', verbRules],
+  ['items', itemRules],
   ['events', eventRules],
 ];
 

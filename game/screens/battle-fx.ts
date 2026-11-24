@@ -263,6 +263,7 @@ function igniteFx(g: Game, slot: number): void {
     pushPop(g.pops, { ...popSpot(enemyAnchor(g), slot), scale: 1 }, 'IGNITE', C_EMBER);
     addTint(g, 'ENEMY', C_EMBER, 0.08);
     g.app.particles.burst(at.x, at.y, { count: 10, color: C_EMBER, speed: 80 });
+    g.app.audio.play('blip');
   });
 }
 
