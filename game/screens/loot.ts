@@ -1,29 +1,26 @@
-import { ITEMS, SPELLS } from '../data';
-import type { LootOffer, LootSource, SpellId } from '../types';
-import { applyOffer, compareOffer, describeOffer, displayName, noteDeclinedScrolls, resolveUpgrade, rollLoot, skipMend, upgradableTargets } from '../sim';
-import { dirEdge, pickOne, resetCursorEdge, wrapCursor } from '../state';
+import { BUTTON_KEY } from '../../engine';
+import { SPELLS } from '../data';
+import type { Item, LootOffer, LootSource, OwnedItem, SpellId } from '../types';
+import {
+  applyOffer, compareOffer, describeItem, describeOffer, displayName, effectiveBlurb, noteDeclinedScrolls,
+  resolveOverflow, resolveUpgrade, rollLoot, skipMend, upgradableTargets,
+} from '../sim';
+import type { AppliedOffer } from '../sim';
+import { dirEdge, dirEdgeX, resetCursorEdge, wrapCursor } from '../state';
 import type { Game, PickRow } from '../state';
 import { ICON_SCROLL } from '../sprites';
 import { C_ACCENT, C_SCROLL, heroPos, rarityColor } from '../theme';
+import { noop } from '../lookup';
 import { itemIcon } from '../widgets';
 import { showCard } from './card';
 import { openPick } from './pick';
 
 type ItemOffer = Extract<LootOffer, { kind: 'ITEM' }>;
 type UpgradeOffer = Extract<LootOffer, { kind: 'UPGRADE' }>;
-type Applied = ReturnType<typeof applyOffer>;
-
-function ensureStarterWeapon(g: Game, offers: LootOffer[]): void {
-  const itemIdx = offers.map((o, i) => (o.kind === 'ITEM' ? i : -1)).filter((i) => i >= 0);
-  const lastItem = itemIdx[itemIdx.length - 1];
-  if (g.hero.equipment.WEAPON || lastItem === undefined || offers.some((o) => o.kind === 'ITEM' && o.item.slot === 'WEAPON')) {return;}
-  const starters = ITEMS.filter((i) => i.slot === 'WEAPON' && i.rarity === 'COMMON' && (i.minAct ?? 0) <= g.actIndex);
-  if (starters.length) {offers[lastItem] = { kind: 'ITEM', item: pickOne(g.rng, starters) };}
-}
+type TakenOffer = Exclude<LootOffer, { kind: 'UPGRADE_ANY' }>;
 
 export function startLoot(g: Game, source: LootSource, onDone: () => void): void {
   const offers = rollLoot(source, g.actIndex, g.hero, g.rng);
-  ensureStarterWeapon(g, offers);
   g.loot = { offers, source, cursor: 0, stow: false, onDone };
   if (offers.length === 0) {
     if (source === 'FIGHT') { onDone(); return; }
@@ -35,6 +32,9 @@ export function startLoot(g: Game, source: LootSource, onDone: () => void): void
   resetCursorEdge(g);
 }
 
+export const choosesStow = (g: Game, offer: LootOffer | undefined): boolean =>
+  offer?.kind === 'ITEM' && g.hero.equipment[offer.item.slot] !== undefined;
+
 function learnedScroll(g: Game, spell: SpellId): void {
   const hp = heroPos();
   g.app.particles.burst(hp.x, hp.y - 10, { count: 14, color: C_SCROLL, speed: 100 });
@@ -44,13 +44,22 @@ function learnedScroll(g: Game, spell: SpellId): void {
   showCard(g, ['YOU LEARNED', sp.name, stats], g.loot.onDone, { icon: ICON_SCROLL, color: C_SCROLL });
 }
 
-function equipped(g: Game, offer: ItemOffer, r: Applied): void {
-  const item = offer.item;
-  const detail = r.replaced ? `${r.replaced.item.name} IS LEFT BEHIND` : item.blurb;
-  showCard(g, ['EQUIPPED', item.name, detail], g.loot.onDone, { icon: itemIcon(item), color: rarityColor(item) });
+interface Outcome { item: Item; stowed: boolean; replaced?: OwnedItem; dropped?: OwnedItem }
+
+function outcomeLines(o: Outcome): string[] {
+  const name = o.item.name;
+  if (o.dropped?.item === o.item) {return ['LEFT BEHIND', name, 'YOUR PACK STAYS AS IT WAS'];}
+  const gone = o.dropped ? `${displayName(o.dropped.item, o.dropped.level)} IS DROPPED` : '';
+  if (o.stowed) {return ['STOWED IN YOUR PACK', name, gone || `${BUTTON_KEY.B.hint} ON THE MAP OPENS GEAR`];}
+  if (o.replaced) {return ['EQUIPPED', name, gone || `${o.replaced.item.name} GOES TO YOUR PACK`];}
+  return ['EQUIPPED', name, o.item.blurb];
 }
 
-function upgraded(g: Game, offer: UpgradeOffer, r: Applied, delta: string): void {
+function itemTaken(g: Game, o: Outcome): void {
+  showCard(g, outcomeLines(o), g.loot.onDone, { icon: itemIcon(o.item), color: rarityColor(o.item) });
+}
+
+function upgraded(g: Game, offer: UpgradeOffer, r: AppliedOffer, delta: string): void {
   const hp = heroPos();
   g.app.particles.burst(hp.x, hp.y, { count: 12, color: C_ACCENT, speed: 90 });
   const awakens = offer.toLevel >= 2;
@@ -59,18 +68,59 @@ function upgraded(g: Game, offer: UpgradeOffer, r: Applied, delta: string): void
   showCard(g, lines, g.loot.onDone, { icon: itemIcon(item), color: rarityColor(item) });
 }
 
-type TakenOffer = Exclude<LootOffer, { kind: 'UPGRADE_ANY' }>;
+function ownedDetail(owned: OwnedItem): string[] {
+  const stats = describeItem(owned.item, owned.level).slice(0, 2);
+  return [...stats, effectiveBlurb(owned.item, owned.level)];
+}
+
+function dropRow(owned: OwnedItem, note: string): PickRow {
+  return {
+    icon: itemIcon(owned.item),
+    name: displayName(owned.item, owned.level),
+    color: rarityColor(owned.item),
+    note,
+    detail: ownedDetail(owned),
+  };
+}
+
+function chooseDrop(g: Game, item: Item, r: AppliedOffer & { overflow: OwnedItem }): void {
+  const entering = r.overflow;
+  const rows = [...g.hero.pack.map((o) => dropRow(o, 'PACK')), dropRow(entering, r.stowed ? 'NEW' : 'OLD')];
+  openPick(g, {
+    title: 'PACK FULL  DROP WHICH?',
+    rows,
+    cursor: rows.length - 1,
+    locked: true,
+    onPick: (i) => {
+      const dropped = resolveOverflow(g.hero, entering, i);
+      itemTaken(g, { item, stowed: r.stowed, replaced: r.replaced, dropped });
+    },
+    onCancel: noop,
+  });
+}
+
+function takeItem(g: Game, offer: ItemOffer): void {
+  const stow = choosesStow(g, offer) && g.loot.stow;
+  const r = applyOffer(g.hero, offer, g.rng, { stow });
+  const { overflow } = r;
+  if (overflow) { chooseDrop(g, offer.item, { ...r, overflow }); return; }
+  itemTaken(g, { item: offer.item, stowed: r.stowed, replaced: r.replaced });
+}
 
 function takeOffer(g: Game, offer: TakenOffer): void {
-  const delta = compareOffer(g.hero, offer);
-  const r = applyOffer(g.hero, offer, g.rng);
   noteDeclinedScrolls(g.hero, g.loot.offers, offer);
   g.app.audio.play('pickup');
-  switch (offer.kind) {
-    case 'SCROLL': learnedScroll(g, offer.spell); break;
-    case 'ITEM': equipped(g, offer, r); break;
-    case 'UPGRADE': upgraded(g, offer, r, delta); break;
-  }
+  if (offer.kind === 'ITEM') { takeItem(g, offer); return; }
+  const delta = compareOffer(g.hero, offer);
+  const r = applyOffer(g.hero, offer, g.rng);
+  if (offer.kind === 'SCROLL') {learnedScroll(g, offer.spell);} else {upgraded(g, offer, r, delta);}
+}
+
+function upgradeDetail(g: Game, offer: UpgradeOffer): string[] {
+  const said = describeOffer(g.hero, offer);
+  const blurb = said.slice(-1);
+  const stat = said.length > 1 ? said.slice(0, 1) : [];
+  return [compareOffer(g.hero, offer), ...stat, ...blurb];
 }
 
 function upgradeRow(g: Game, offer: UpgradeOffer): PickRow {
@@ -80,7 +130,7 @@ function upgradeRow(g: Game, offer: UpgradeOffer): PickRow {
     name: `${item.name} +${String(toLevel - 1)}>+${String(toLevel)}`,
     color: rarityColor(item),
     note: target.where,
-    detail: describeOffer(g.hero, offer),
+    detail: upgradeDetail(g, offer),
   };
 }
 
@@ -108,12 +158,24 @@ function keepGear(g: Game): void {
   showCard(g, ['YOU KEEP YOUR GEAR', `MENDED ${m.hp} HP AND ${m.mp} MP`], g.loot.onDone);
 }
 
-export function updateLoot(g: Game): void {
+function moveLootCursor(g: Game): void {
   const loot = g.loot;
   const dy = dirEdge(g);
-  if (dy) { loot.cursor = wrapCursor(loot.cursor, dy, loot.offers.length + 1); g.app.audio.play('blip'); }
+  const dx = dirEdgeX(g);
+  if (dy) {
+    loot.cursor = wrapCursor(loot.cursor, dy, loot.offers.length + 1);
+    loot.stow = false;
+    g.app.audio.play('blip');
+  } else if (dx && choosesStow(g, loot.offers[loot.cursor])) {
+    loot.stow = !loot.stow;
+    g.app.audio.play('blip');
+  }
+}
+
+export function updateLoot(g: Game): void {
+  moveLootCursor(g);
   if (!g.app.input.pressed('A')) {return;}
-  const offer = loot.offers[loot.cursor];
+  const offer = g.loot.offers[g.loot.cursor];
   if (!offer) { keepGear(g); return; }
   if (offer.kind === 'UPGRADE_ANY') { chooseUpgrade(g); return; }
   takeOffer(g, offer);

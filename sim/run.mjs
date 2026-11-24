@@ -14,7 +14,8 @@ const pct = (n, d) => (d === 0 ? '  - ' : `${((100 * n) / d).toFixed(0).padStart
 const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
 const newStats = () => ({ runs: RUNS, won: 0, reach: [0, 0, 0, 0, 0], bossFought: [0, 0, 0, 0, 0], bossWon: [0, 0, 0, 0, 0],
-  clears: 0, deathKind: {}, deathBy: {}, elites: 0, chests: 0, upgrades: 0, items: 0, ttk4: [], hit4: [] });
+  clears: 0, deathKind: {}, deathBy: {}, elites: 0, chests: 0, upgrades: 0, items: 0, ttk4: [], hit4: [],
+  stowed: 0, packEnd: 0, drops: 0, swaps: 0, upWorn: 0, upPacked: 0 });
 
 function tallyProbe(s, p) {
   s.bossFought[p.act + 1]++;
@@ -29,6 +30,11 @@ function tallyRooms(s, r) {
   s.upgrades += r.upgradesTaken ?? 0; s.items += r.itemsTaken ?? 0;
 }
 
+function tallyPack(s, r) {
+  s.stowed += r.itemsStowed ?? 0; s.packEnd += r.packAtEnd ?? 0; s.drops += r.drops ?? 0;
+  s.swaps += r.prepareSwaps ?? 0; s.upWorn += r.upgradesWorn ?? 0; s.upPacked += r.upgradesPacked ?? 0;
+}
+
 function tallyRun(s, r) {
   if (r.won) {s.won++;}
   for (let a = 1; a <= r.actReached + 1; a++) {s.reach[a]++;}
@@ -36,6 +42,7 @@ function tallyRun(s, r) {
   bump(s.deathKind, r.deathKind === '' ? 'WIN' : r.deathKind);
   if (r.deathBy) {bump(s.deathBy, r.deathBy);}
   tallyRooms(s, r);
+  tallyPack(s, r);
   for (const p of r.probes) {tallyProbe(s, p);}
 }
 
@@ -49,6 +56,8 @@ function summarize(s) {
     meanElites: s.elites / RUNS, meanChests: s.chests / RUNS,
     meanItems: s.items / RUNS, meanUpgrades: s.upgrades / RUNS,
     act4Ttk: mean(s.ttk4), act4HitFrac: mean(s.hit4),
+    meanStowed: s.stowed / RUNS, meanPackAtEnd: s.packEnd / RUNS, meanDrops: s.drops / RUNS,
+    meanPrepareSwaps: s.swaps / RUNS, meanUpgradesWorn: s.upWorn / RUNS, meanUpgradesPacked: s.upPacked / RUNS,
     deathKind: s.deathKind,
     topKillers: Object.entries(s.deathBy).sort((a, b) => b[1] - a[1]).slice(0, 5),
   };
@@ -62,6 +71,9 @@ function printText(name, s, r) {
     (s.ttk4.length ? `  a4 boss ttk ${r.act4Ttk.toFixed(1)}t hit ${(100 * r.act4HitFrac).toFixed(0)}%` : ''));
   console.log(`${''.padEnd(12)} deaths ${Object.entries(s.deathKind).map(([k, v]) => `${k} ${pct(v, RUNS).trim()}`).join(', ')}` +
     `  top killers ${r.topKillers.map(([k, v]) => `${k} ${v}`).join(', ')}`);
+  console.log(`${''.padEnd(12)} pack: stowed ${r.meanStowed.toFixed(2)}  at end ${r.meanPackAtEnd.toFixed(2)}` +
+    `  drops ${r.meanDrops.toFixed(2)}  prepare swaps ${r.meanPrepareSwaps.toFixed(2)}` +
+    `  upgrades worn/packed ${r.meanUpgradesWorn.toFixed(2)}/${r.meanUpgradesPacked.toFixed(2)}`);
 }
 
 await withSim((sim) => {

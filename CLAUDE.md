@@ -106,7 +106,7 @@ ember-quest/
 - **Look before you report.** `npm run look -- --scene battle --act 2 --seed 7` prints one
   JSON line (`ok`, the game `state`, console/page `errors`, the screenshot path) in under
   a second; read the state first and the screenshot whenever the look changed. Scenes:
-  `title map battle levelup loot card paused gameover win gear pick`; acts 1–4. Claude may say what
+  `title map battle levelup loot card paused gameover win gear pick drop`; acts 1–4. Claude may say what
   it saw; the owner remains the playtester for feel — report "builds, boots clean,
   ready to play at <URL>", never "playtested".
 - **Done means**: `npm run check` and `npm run lint` after every edit (or `npx eslint
@@ -149,7 +149,7 @@ ember-quest/
 | `npm run look -- [--scene S] [--act N] [--seed N] [--keys "Down,Space"] [--steps N] [--out file.png] [--no-shot]` | One JSON line `{"ok","state","errors","shot"}`; exit 1 on any console/page error or no canvas. With `--scene` or `--seed` the page runs in hold mode and each key is followed by `--steps` (default 30) fixed ticks. Keys: `Up Down Left Right Space B Esc Enter` (`B`/`X` = button B) or Playwright names (`ArrowDown`, `KeyZ`, `KeyX`, `KeyP`). Default shot: `$AIR_ARTIFACTS_DIR/look/<scene>-a<act>-s<seed>.png`, else `/tmp/ember-look/` |
 | `npm run verify` | eyes, lint, check, build, smoke, rules (map invariants over 5000 seeds, seeded-rng determinism, `validateData`), `sim:quick` (informational: balanced and random win rates), two at a time; one `PASS/FAIL/INFO` line per gate with its time, then `TOTAL`. About 10 s |
 | `npm run verify -- --full` | adds knip, jscpd, depcruise, `dist:no-hook` (no `__ember` in `dist/`), `look:all` (every scene), and the full sim. About 30 s |
-| `node scripts/oracle.mjs --save <file>` / `--check <file>` | 88 cases (11 scenes × 4 acts × still / after `Down,Space,Space,Down,Space`, seed 7): sha256 of the state JSON and of the exact screenshot. `--check` prints `ORACLE OK` or lists each differing case as `(state)` or `(pixels)`. Save before a refactor, check after. Needs the dev server; about 80 s |
+| `node scripts/oracle.mjs --save <file>` / `--check <file>` | 96 cases (12 scenes × 4 acts × still / after `Down,Space,Space,Down,Space`, seed 7): sha256 of the state JSON and of the exact screenshot. `--check` prints `ORACLE OK` or lists each differing case as `(state)` or `(pixels)`. Save before a refactor, check after. Needs the dev server; about 80 s |
 | `npm run browse -- <command>` (or `npx agent-browser`) | Free-form interactive exploration (`open <url>`, `press Space`, `screenshot <file>`, `errors`, `eval <js>`, `close`). Export `AGENT_BROWSER_EXECUTABLE_PATH=/tmp/ember-chromium` first (setup writes it into `CLAUDE_ENV_FILE` when the harness provides one) |
 
 `smoke.mjs`, `look.mjs` and `oracle.mjs` use `/tmp/ember-chromium` automatically when

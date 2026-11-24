@@ -45,9 +45,9 @@ export interface BattleScreen {
 export interface CardScreen { lines: string[]; onDone: () => void; art?: { icon: Sprite; color: string } }
 export interface LevelUpScreen { cursor: number; earned: number; onDone: () => void }
 export interface LootScreen { offers: LootOffer[]; cursor: number; source: LootSource; stow: boolean; onDone: () => void }
-export interface GearScreen { cursor: number }
+export interface GearScreen { cursor: number; refusedAt: number }
 export interface PickRow { icon?: Sprite; name: string; color: string; note: string; detail: string[] }
-export interface PickScreen { title: string; rows: PickRow[]; cursor: number; onPick: (i: number) => void; onCancel: () => void }
+export interface PickScreen { title: string; rows: PickRow[]; cursor: number; locked?: boolean; onPick: (i: number) => void; onCancel: () => void }
 
 export interface Game {
   app: App;
@@ -110,7 +110,7 @@ export function createGame(app: App): Game {
     card: { lines: [], onDone: noop },
     levelUp: { cursor: 0, earned: 0, onDone: noop },
     loot: { offers: [], cursor: 0, source: 'FIGHT', stow: false, onDone: noop },
-    gear: { cursor: 0 },
+    gear: { cursor: 0, refusedAt: -1 },
     pick: { title: '', rows: [], cursor: 0, onPick: noop, onCancel: noop },
   };
 }

@@ -32,12 +32,12 @@ export {
   type CompareRow,
   type FullCompare,
 } from './sim/describe';
-export { applyOffer, noteDeclinedScrolls, resolveUpgrade, rollLoot } from './sim/loot';
+export { applyOffer, ensureStarterWeapon, noteDeclinedScrolls, resolveOverflow, resolveUpgrade, rollLoot, type AppliedOffer, type OfferChoice } from './sim/loot';
 export { discard, ownedIds, packSize, stow, swapIn, unequip, upgradableTargets } from './sim/pack';
 export { createBattle, enemyAct, heroAct, spawnEnemy, startTurn } from './sim/combat';
 export type { Policy, RoomType } from './sim/model';
 export { POLICIES, type PolicyName } from './sim/policies';
-export { generateMap, MAP_SHAPE } from './sim/map';
+export { generateMap, MAP_SHAPE, type FoePools } from './sim/map';
 export { at, createSeededRng, pickOneIndex, type SeededRng } from './sim/util';
 export { simulateRun, type BossPick, type Probe, type RunResult } from './sim/run';
 export { ITEMS, validateData } from './data';

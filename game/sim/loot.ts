@@ -17,11 +17,16 @@ import {
 import { BIOMES, ITEMS, LOOT_COUNT, LOOT_WEIGHTS, SPELLS } from '../data';
 import { maxLevelFor } from './gear';
 import { clampVitals, equip, learnSpell } from './hero';
-import { ownedIds, targetOwned, upgradableTargets } from './pack';
+import { ownedIds, packSize, stow, targetOwned, upgradableTargets } from './pack';
 import { clamp, isNonEmpty, pick } from './util';
 
 type UpgradeOffer = Extract<LootOffer, { kind: 'UPGRADE' }>;
-interface AppliedOffer { replaced?: OwnedItem; line: string }
+
+export interface AppliedOffer { line: string; replaced?: OwnedItem; stowed: boolean; overflow?: OwnedItem }
+
+export interface OfferChoice { stow?: boolean }
+
+const MAX_OFFERS = 4;
 
 export function resolveUpgrade(hero: Hero, target: UpgradeTarget): UpgradeOffer | null {
   const owned = targetOwned(hero, target);
@@ -41,7 +46,7 @@ function setLevel(hero: Hero, target: UpgradeTarget, level: number): void {
 function applyScroll(hero: Hero, spell: SpellId): AppliedOffer {
   learnSpell(hero, spell);
   hero.missedScrolls = hero.missedScrolls.filter((s) => s !== spell);
-  return { line: `YOU LEARNED ${SPELLS[spell].name}`.slice(0, 30) };
+  return { line: `YOU LEARNED ${SPELLS[spell].name}`.slice(0, 30), stowed: false };
 }
 
 function applyUpgrade(hero: Hero, offer: UpgradeOffer): AppliedOffer {
@@ -51,9 +56,9 @@ function applyUpgrade(hero: Hero, offer: UpgradeOffer): AppliedOffer {
   const awakened = level >= MAX_LEVEL ? offer.item.awaken?.blurb : undefined;
   if (awakened) {
     const long = `AWAKENED: ${awakened}`;
-    return { line: (long.length <= 30 ? long : awakened).slice(0, 30) };
+    return { line: (long.length <= 30 ? long : awakened).slice(0, 30), stowed: false };
   }
-  return { line: `+${level} ${offer.item.name}`.slice(0, 30) };
+  return { line: `+${level} ${offer.item.name}`.slice(0, 30), stowed: false };
 }
 
 function firstUpgrade(hero: Hero): UpgradeOffer | null {
@@ -61,15 +66,41 @@ function firstUpgrade(hero: Hero): UpgradeOffer | null {
   return target ? resolveUpgrade(hero, target) : null;
 }
 
-export const applyOffer: (hero: Hero, offer: LootOffer, rng: Rng) => AppliedOffer = (hero, offer) => {
-  if (offer.kind === 'SCROLL') {return applyScroll(hero, offer.spell);}
-  if (offer.kind === 'ITEM') {
-    const replaced = equip(hero, offer.item);
-    return replaced ? { replaced, line: offer.item.blurb.slice(0, 30) } : { line: offer.item.blurb.slice(0, 30) };
+function intoPack(hero: Hero, entering: OwnedItem): OwnedItem | undefined {
+  return stow(hero, entering) ? undefined : entering;
+}
+
+function applyItem(hero: Hero, item: Item, choice: OfferChoice): AppliedOffer {
+  const line = item.blurb.slice(0, 30);
+  if (!hero.equipment[item.slot]) {
+    equip(hero, item);
+    return { line, stowed: false };
   }
+  if (choice.stow) {
+    const overflow = intoPack(hero, { item, level: 0 });
+    return overflow ? { line, stowed: true, overflow } : { line, stowed: true };
+  }
+  const replaced = equip(hero, item);
+  const overflow = replaced ? intoPack(hero, replaced) : undefined;
+  if (!replaced) {return { line, stowed: false };}
+  return overflow ? { line, replaced, stowed: false, overflow } : { line, replaced, stowed: false };
+}
+
+export function resolveOverflow(hero: Hero, entering: OwnedItem, dropIndex: number): OwnedItem {
+  const candidates = [...hero.pack, entering];
+  const index = clamp(Math.floor(dropIndex), 0, candidates.length - 1);
+  const dropped = candidates[index] ?? entering;
+  const kept = candidates.filter((_, i) => i !== index);
+  hero.pack = kept.slice(0, packSize(hero));
+  return dropped;
+}
+
+export function applyOffer(hero: Hero, offer: LootOffer, _rng: Rng, choice: OfferChoice = {}): AppliedOffer {
+  if (offer.kind === 'SCROLL') {return applyScroll(hero, offer.spell);}
+  if (offer.kind === 'ITEM') {return applyItem(hero, offer.item, choice);}
   const upgrade = offer.kind === 'UPGRADE' ? offer : firstUpgrade(hero);
-  return upgrade ? applyUpgrade(hero, upgrade) : { line: 'NOTHING TO UPGRADE' };
-};
+  return upgrade ? applyUpgrade(hero, upgrade) : { line: 'NOTHING TO UPGRADE', stowed: false };
+}
 
 function fightIsDry(hero: Hero, rng: Rng): boolean {
   if (rng() >= FIGHT_DROP_CHANCE && hero.dryFights < PITY_AFTER) {
@@ -87,16 +118,35 @@ function missedScrollOffer(hero: Hero, rng: Rng): LootOffer | null {
 }
 
 function upgradeOffer(source: Exclude<LootSource, 'BOSS'>, want: number, hero: Hero, rng: Rng): LootOffer | null {
-  const upgradable = upgradableTargets(hero);
-  if (want > 0 && isNonEmpty(upgradable) && rng() < UPGRADE_CHANCE[source]) {
-    return resolveUpgrade(hero, pick(upgradable, rng));
+  if (want > 0 && upgradableTargets(hero).length > 0 && rng() < UPGRADE_CHANCE[source]) {
+    return { kind: 'UPGRADE_ANY' };
   }
   return null;
 }
 
+function starterWeapons(hero: Hero, act: number): Item[] {
+  const owned = new Set(ownedIds(hero));
+  return ITEMS.filter((i) =>
+    i.slot === 'WEAPON' && i.rarity === 'COMMON' && !i.bossOnly && !owned.has(i.id) && (i.minAct ?? 0) <= act);
+}
+
+export function ensureStarterWeapon(offers: LootOffer[], hero: Hero, act: number, rng: Rng): void {
+  if (hero.equipment.WEAPON) {return;}
+  if (offers.some((o) => o.kind === 'ITEM' && o.item.slot === 'WEAPON')) {return;}
+  const lastItem = offers.reduce((last, o, i) => (o.kind === 'ITEM' ? i : last), -1);
+  const starters = starterWeapons(hero, act);
+  if (lastItem < 0 || !isNonEmpty(starters)) {return;}
+  offers[lastItem] = { kind: 'ITEM', item: pick(starters, rng) };
+}
+
 export function rollLoot(source: LootSource, act: number, hero: Hero, rng: Rng): LootOffer[] {
   if (source === 'FIGHT' && fightIsDry(hero, rng)) {return [];}
-  if (source === 'BOSS') {return rollBossLoot(act, hero, rng);}
+  const offers = source === 'BOSS' ? rollBossLoot(act, hero, rng) : rollRoomLoot(source, act, hero, rng);
+  ensureStarterWeapon(offers, hero, act, rng);
+  return offers.slice(0, MAX_OFFERS);
+}
+
+function rollRoomLoot(source: Exclude<LootSource, 'BOSS'>, act: number, hero: Hero, rng: Rng): LootOffer[] {
   const want = LOOT_COUNT[source];
   const offers: LootOffer[] = [];
   const pity = source === 'LOOT' ? missedScrollOffer(hero, rng) : null;

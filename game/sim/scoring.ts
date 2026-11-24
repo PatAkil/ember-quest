@@ -1,4 +1,4 @@
-import type { Derived, Hero, Item, LootOffer, Rarity, SpellId } from '../types';
+import type { Derived, EnemyDef, Hero, Item, LootOffer, OwnedItem, Rarity, SpellId, UpgradeTarget } from '../types';
 import { SPELLS } from '../data';
 import { effectiveEffect, itemLevel } from './gear';
 import { D_FIELDS, D_WEIGHT, deriveGhost, deriveWith, type DField } from './ghost';
@@ -7,7 +7,7 @@ import { resolveUpgrade } from './loot';
 import { upgradableTargets } from './pack';
 import { onEffect, type EffectTable } from './util';
 
-type Profile = Record<DField, number>;
+export type Profile = Record<DField, number>;
 
 export const P_BALANCED: Profile = { ...D_WEIGHT };
 
@@ -20,6 +20,8 @@ export const P_DEFENCE: Profile = {
   maxHp: 1.1, maxMp: 0.6, atk: 1.4, mag: 1.4, def: 3.2, mdef: 3.2,
   crit: 1.0, critMult: 8, dodge: 3.0, hpRegen: 4, mpRegen: 2,
 };
+
+export type ItemBonus = (i: Item) => number;
 
 const RARITY_BONUS: Record<Rarity, number> = { COMMON: 0, RARE: 1.5, EPIC: 4, LEGENDARY: 7 };
 
@@ -102,7 +104,6 @@ function scoreScroll(hero: Hero, spell: SpellId): number {
   return SCROLL_BASE[spell] + delta * SCROLL_DAMAGE_WEIGHT;
 }
 
-type ItemBonus = (i: Item) => number;
 
 function scoreOffer(hero: Hero, offer: LootOffer, profile: Profile, bonus?: ItemBonus): number {
   if (offer.kind === 'SCROLL') {return scoreScroll(hero, offer.spell);}
@@ -124,4 +125,23 @@ export function bestPick(hero: Hero, offered: LootOffer[], profile: Profile, bon
     }
   }
   return best;
+}
+
+export function ownedScore(hero: Hero, owned: OwnedItem, profile: Profile, bonus?: ItemBonus): number {
+  const { item, level } = owned;
+  const bare = deriveGhost(hero, item.slot, undefined, 0);
+  const worn = deriveGhost(hero, item.slot, item, level);
+  return statGain(bare, worn, profile) + effectValue(item, level) + (bonus ? bonus(item) : 0);
+}
+
+export function upgradeGain(hero: Hero, target: UpgradeTarget, profile: Profile): number {
+  const offer = resolveUpgrade(hero, target);
+  return offer ? scoreUpgrade(hero, offer, profile) : -Infinity;
+}
+
+const GUARD_WEIGHT = 2;
+
+export function foeProfile(profile: Profile, foe: EnemyDef): Profile {
+  if (foe.atkType === 'MAGIC') {return { ...profile, mdef: profile.mdef * GUARD_WEIGHT };}
+  return { ...profile, def: profile.def * GUARD_WEIGHT };
 }

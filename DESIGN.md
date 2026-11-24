@@ -97,10 +97,17 @@ fixes it instead).
 - **Taking an ITEM.** Empty slot → it is worn. Occupied slot → `< EQUIP >` / `< STOW >`
   (Left/Right, default EQUIP; `LootScreen.stow`): EQUIP wears it and the old item goes to
   the pack, STOW puts the new one in the pack. A full pack opens `DROP WHICH?` (the pack
-  plus the entering item; A drops one for good, B returns to the offers). Dropping the
+  plus the entering item; A drops one for good; B does nothing — the offer is already applied, so a
+  choice must be made). Dropping the
   newcomer still counts as taking the offer (no mend). KEEP YOUR GEAR (25 % mend) stays.
+- **The loot contract.** `applyOffer(hero, offer, rng, { stow? })` returns
+  `{ line, replaced?, stowed, overflow? }`. A full pack never drops anything silently: the
+  item that had to enter it comes back as `overflow` (the equip itself has happened), and
+  `resolveOverflow(hero, entering, dropIndex)` drops one of `[...pack, entering]` and
+  returns it.
 - **Owned items never re-roll**: `rollItems` and the boss signature exclude `ownedIds`
-  (worn + packed). The starter-weapon guarantee looks at what is worn only. Scrolls
+  (worn + packed). The starter-weapon guarantee is a rule (`rollLoot` applies it): it
+  looks at what is worn only and offers a common weapon that is not already packed. Scrolls
   never touch the pack. A loot screen shows at most 4 offers.
 - **REVIVE charges live on the hero** (`revived`, `revivedTwice`), so swapping a spent
   REVIVE item out and in never restores a life. GLASS / HP items clamp current HP when
@@ -122,10 +129,17 @@ fixes it instead).
   `{ kind: 'UPGRADE'; target: { where: 'WORN'; slot } | { where: 'PACK'; index }; item;
   toLevel }`.
 - **Scouting.** Every FIGHT / ELITE node carries its foe (`MapNode.enemyId`), rolled by the
-  map generator; fight rooms read it, and the map readout names the highlighted foe.
-- **Simulator policies** also choose `stowOrEquip`, `dropWhich`, `upgradeTarget`, and
-  `prepare(hero, foe)` before every fight (wear the best pack item per slot, weighting MDEF
-  ×2 against a MAGIC attacker and DEF ×2 against a PHYSICAL one).
+  map generator from the biome's pools after linking (`generateMap(rng, shape, pools)`;
+  without pools nothing is rolled, so a seed's layout does not change); fight rooms read
+  it, and the map readout names the highlighted foe. An empty elite pool falls back to
+  the normals.
+- **Simulator policies** also choose `stowOrEquip` (keep the higher-scored item worn under
+  the archetype's profile), `dropWhich` (drop the lowest-scored of pack + entering),
+  `upgradeTarget` (the worn item with the best scored gain; a packed one only when nothing
+  worn is upgradable), and `prepare(hero, foe)` before every fight and boss (wear the best
+  item per slot among worn + packed, weighting MDEF ×2 against a MAGIC attacker and DEF ×2
+  against a PHYSICAL one; a swap needs a 0.5-point edge). The `random` policy picks all
+  four at random.
 
 ## Combat
 
@@ -150,8 +164,14 @@ Logical screen 240×160, font 4 px per char at scale 1. Battle log line
 <= 52 chars, or it wraps to two lines. Item names <= 13 chars, enemy names
 <= 12, spell names <= 9. Every panel is placed with `SAFE_MARGIN`; the loot
 and level-up panels sit beside the hero, never over him.
+Compare card: `displayName` (<= 16 chars) `>` name, `ATTACK NOW USES MAG` beside them;
+six cells of <= 18 chars (74 px columns); `LOSE:` / `GAIN:` lines <= 36 chars (blurbs
+<= 30). A loot offer's hint <= 64 px (the worn item's `displayName`). GEAR rows <= 92 px
+of name; PICK rows `NAME +n>+n+1` <= 84 px beside a <= 4-char note (`WORN`, `PACK`,
+`NEW`, `OLD`); PICK titles <= 30 chars; PICK detail <= 3 lines. The map readout
+`ELITE  NAME  HEXES` stays inside the 160 px between the corner labels.
 
-## Balance state (measured with the headless simulator, 2026-11-23)
+## Balance state (measured with the headless simulator, 2026-11-24)
 
 Harness: `npm run sim` (`sim/run.mjs`) bundles `game/sim.ts` with esbuild into a
 temporary directory (`sim/bundle.mjs`), then calls `simulateRun` with each of
@@ -159,20 +179,32 @@ temporary directory (`sim/bundle.mjs`), then calls `simulateRun` with each of
 default 1; `--policy`; `--json`). Same seed and same code give byte-identical `--json`
 output. The simulator replicates the drop rates, upgrade cards and boss tables, and
 plays **the same map generator as the game** (`game/sim/map.ts`). Numbers below:
-2000 runs, seed 1, after the generators were unified (M0); no tuning was changed.
+2000 runs, seed 1, after M1 (pack, chosen upgrades, scouted foes, headless starter
+weapon); no tuning was changed.
 
 | policy | win | reach act 2 | act 3 | act 4 | boss clears a1/a2/a3/a4 |
 |---|---|---|---|---|---|
-| balanced | 24.9 % | 81 % | 62 % | 42 % | 94/86/79/67 |
-| glass (all offence) | 13.0 % | 85 % | 61 % | 35 % | 97/87/73/47 |
-| tank (HP/DEF, physical) | 23.3 % | 86 % | 56 % | 31 % | 91/77/62/86 |
-| elite-hungry routing | 24.5 % | 82 % | 62 % | 43 % | 93/87/78/66 |
-| chest-hungry routing | 18.3 % | 78 % | 52 % | 32 % | 85/70/66/59 |
-| random picks + points | 0 % | 38 % | 2 % | 0 % | 46/10/6/– |
+| balanced | 32 % | 86 % | 68 % | 50 % | 93/88/83/72 |
+| glass (all offence) | 20 % | 92 % | 64 % | 38 % | 98/87/72/63 |
+| tank (HP/DEF, physical) | 27 % | 90 % | 55 % | 34 % | 94/75/68/87 |
+| elite-hungry routing | 33 % | 87 % | 67 % | 50 % | 94/88/83/73 |
+| chest-hungry routing | 22 % | 82 % | 52 % | 36 % | 86/67/72/63 |
+| random picks + points | 0 % | 45 % | 2 % | 0 % | 49/13/22/0 |
 
-Act-4 boss vs the balanced hero: ~10.5 turns to kill, each hit ≈ 21 % of max HP.
-Balanced fights ~3.8 elites and opens ~3.2 chests per run (up from 2.8 / 2.7 on the
-simulator's old, stingier linking). Hero base: 46 HP, +6 HP per skill point;
+Every win rate rose (balanced 24.9 → 32 %, glass 13 → 20 %, tank 23 → 27 %) because
+the pack and chosen upgrades are hero power: an UPGRADE card now lands on the best worn
+item instead of a random one (balanced takes 3.0 upgrades a run, up from 2.4), nothing
+taken is lost, and the starter weapon is guaranteed in the simulator too. The pack itself
+is mostly a reserve: balanced ends with ~2 packed items, stows 0.09, drops 0.14 and
+`prepare` swaps only 0.01 times a run — the scored policies rarely carry a better
+counter-item than what they wear. M1's pass line (balanced ≥ 24.9 %) holds and it stays
+under the 45 % ceiling, so nothing was retuned.
+
+M0 (2026-11-23), for reference: balanced 24.9 %, glass 13.0 %, tank 23.3 %,
+elite-hungry 24.5 %, chest-hungry 18.3 %, random 0 %.
+
+Act-4 boss vs the balanced hero: ~9.7 turns to kill, each hit ≈ 21 % of max HP.
+Balanced fights ~4.0 elites and opens ~3.5 chests per run. Hero base: 46 HP, +6 HP per skill point;
 DEF/MDEF cap 42 %; `ACT_MULT` [1.0, 1.38, 2.2, 3.1].
 
 Findings from the 2026-09-04 tuning pass (on the simulator's old map, not re-measured

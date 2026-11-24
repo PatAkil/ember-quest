@@ -131,22 +131,152 @@ function compareRules(sim) {
   return 'compareFull: changed stats in priority order (max 6), LOSE/GAIN blurbs, weapon kind flip';
 }
 
+const level = (hero, slot) => hero.levels[slot] ?? 0;
+const packIds = (hero) => hero.pack.map((o) => [o.item.id, o.level]);
+
+function equipStowsOld(sim) {
+  const hero = sim.createHero();
+  sim.equip(hero, itemOf(sim, 'IRON_SWORD'), 2);
+  const out = sim.applyOffer(hero, { kind: 'ITEM', item: itemOf(sim, 'WAR_CLEAVER') }, () => 0.5);
+  assert.equal(hero.equipment.WEAPON.id, 'WAR_CLEAVER');
+  assert.equal(level(hero, 'WEAPON'), 0);
+  assert.deepEqual(packIds(hero), [['IRON_SWORD', 2]], 'EQUIP sends the old item to the pack with its level');
+  assert.equal(out.stowed, false);
+  assert.equal(out.replaced.item.id, 'IRON_SWORD');
+  assert.equal(out.overflow, undefined);
+}
+
+function stowKeepsWorn(sim) {
+  const hero = sim.createHero();
+  sim.equip(hero, itemOf(sim, 'IRON_SWORD'), 1);
+  const out = sim.applyOffer(hero, { kind: 'ITEM', item: itemOf(sim, 'WAR_CLEAVER') }, () => 0.5, { stow: true });
+  assert.equal(hero.equipment.WEAPON.id, 'IRON_SWORD', 'STOW leaves the worn item');
+  assert.equal(level(hero, 'WEAPON'), 1, 'STOW leaves the worn level');
+  assert.deepEqual(packIds(hero), [['WAR_CLEAVER', 0]]);
+  assert.equal(out.stowed, true);
+  const empty = sim.createHero();
+  sim.applyOffer(empty, { kind: 'ITEM', item: itemOf(sim, 'WAR_CLEAVER') }, () => 0.5, { stow: true });
+  assert.equal(empty.equipment.WEAPON.id, 'WAR_CLEAVER', 'an empty slot always equips');
+  assert.equal(empty.pack.length, 0);
+}
+
+function fullPackHero(sim) {
+  const hero = sim.createHero();
+  for (const id of ['LEATHER_VEST', 'BONE_CHARM', 'WORN_SHOES', 'TIN_CUP']) {sim.stow(hero, { item: itemOf(sim, id), level: 1 });}
+  return hero;
+}
+
+function overflowResolves(sim) {
+  const hero = fullPackHero(sim);
+  sim.equip(hero, itemOf(sim, 'IRON_SWORD'), 1);
+  const out = sim.applyOffer(hero, { kind: 'ITEM', item: itemOf(sim, 'WAR_CLEAVER') }, () => 0.5);
+  assert.equal(hero.equipment.WEAPON.id, 'WAR_CLEAVER', 'the equip happens even when the pack is full');
+  assert.equal(out.overflow.item.id, 'IRON_SWORD', 'the replaced item is returned as overflow');
+  assert.equal(hero.pack.length, 4, 'nothing is dropped silently');
+  const dropped = sim.resolveOverflow(hero, out.overflow, 1);
+  assert.equal(dropped.item.id, 'BONE_CHARM');
+  assert.ok(hero.pack.length <= sim.packSize(hero));
+  assert.ok(hero.pack.some((o) => o.item.id === 'IRON_SWORD' && o.level === 1), 'the entering item keeps its level');
+  const stowHero = fullPackHero(sim);
+  sim.equip(stowHero, itemOf(sim, 'IRON_SWORD'), 0);
+  const stowed = sim.applyOffer(stowHero, { kind: 'ITEM', item: itemOf(sim, 'WAR_CLEAVER') }, () => 0.5, { stow: true });
+  assert.equal(stowed.overflow.item.id, 'WAR_CLEAVER');
+  assert.equal(sim.resolveOverflow(stowHero, stowed.overflow, 4).item.id, 'WAR_CLEAVER', 'dropping the newcomer');
+  assert.equal(stowHero.pack.length, 4);
+  assert.equal(stowHero.equipment.WEAPON.id, 'IRON_SWORD');
+}
+
+function offerRules(sim) {
+  equipStowsOld(sim);
+  stowKeepsWorn(sim);
+  overflowResolves(sim);
+  return 'EQUIP packs the old item with its level; STOW leaves worn gear; a full pack returns overflow and resolveOverflow keeps it at 4';
+}
+
+const SOURCES = ['FIGHT', 'ELITE', 'LOOT', 'BOSS'];
+const LOOT_ROLLS = 2000;
+
+function rollAll(sim, makeHero, check) {
+  const rng = sim.createSeededRng(11).next;
+  for (let n = 0; n < LOOT_ROLLS; n++) {
+    const hero = makeHero();
+    const source = SOURCES[n % SOURCES.length];
+    const act = Math.floor(n / SOURCES.length) % 4;
+    check(hero, sim.rollLoot(source, act, hero, rng), `${source} act ${act}`);
+  }
+}
+
+function heavyHero(sim) {
+  const hero = sim.createHero();
+  for (const id of ['DARK_CROWN', 'YETI_HIDE', 'GOLEM_FIST', 'SOULEATER']) {sim.stow(hero, { item: itemOf(sim, id), level: 0 });}
+  for (const id of ['IRON_SWORD', 'LEATHER_VEST', 'WORN_SHOES']) {sim.equip(hero, itemOf(sim, id), 0);}
+  return hero;
+}
+
+function lootRules(sim) {
+  let anyUpgrade = 0;
+  rollAll(sim, () => heavyHero(sim), (hero, offers, where) => {
+    const owned = new Set(sim.ownedIds(hero));
+    assert.ok(offers.length <= 4, `${where}: ${offers.length} offers`);
+    for (const o of offers) {
+      assert.ok(!(o.kind === 'ITEM' && owned.has(o.item.id)), `${where}: owned ${o.kind === 'ITEM' ? o.item.id : ''} re-rolled`);
+      assert.notEqual(o.kind, 'UPGRADE', `${where}: a resolved UPGRADE was rolled`);
+      if (o.kind === 'UPGRADE_ANY') {anyUpgrade++;}
+    }
+  });
+  assert.ok(anyUpgrade > 0, 'an upgradable hero is offered UPGRADE_ANY');
+  rollAll(sim, () => sim.createHero(), (_hero, offers, where) => {
+    assert.ok(offers.every((o) => o.kind !== 'UPGRADE_ANY' && o.kind !== 'UPGRADE'), `${where}: upgrade with nothing to upgrade`);
+  });
+  return `${LOOT_ROLLS} rolls with a full pack: no owned id re-rolled, <= 4 offers, UPGRADE_ANY only when something is upgradable`;
+}
+
+function starterRules(sim) {
+  rollAll(sim, () => sim.createHero(), (_hero, offers, where) => {
+    const items = offers.filter((o) => o.kind === 'ITEM');
+    if (items.length === 0) {return;}
+    assert.ok(items.some((o) => o.item.slot === 'WEAPON'), `${where}: an unarmed hero got no weapon`);
+  });
+  return `${LOOT_ROLLS} unarmed rolls: every roll with an item offers a weapon`;
+}
+
+const POOLS = { normals: ['N1', 'N2', 'N3'], elites: ['E1', 'E2'] };
+const shapeOf = (stages) => stages.map((st) => st.map((n) => `${n.type}:${n.links.join('.')}`).join(' ')).join(' | ');
+
+function scoutRules(sim) {
+  for (let seed = 0; seed < MAP_SEEDS; seed++) {
+    const bare = sim.generateMap(sim.createSeededRng(seed).next);
+    const scouted = sim.generateMap(sim.createSeededRng(seed).next, {}, POOLS);
+    assert.equal(shapeOf(scouted), shapeOf(bare), `seed ${seed}: pools changed the map shape`);
+    assert.ok(bare.flat().every((n) => n.enemyId === undefined), `seed ${seed}: a foe was rolled without pools`);
+    for (const n of scouted.flat()) {
+      if (n.type === 'FIGHT') {assert.ok(POOLS.normals.includes(n.enemyId), `seed ${seed}: FIGHT foe ${n.enemyId}`);}
+      if (n.type === 'ELITE') {assert.ok(POOLS.elites.includes(n.enemyId), `seed ${seed}: ELITE foe ${n.enemyId}`);}
+    }
+  }
+  return `${MAP_SEEDS} maps: every FIGHT/ELITE scouted from its pool, shape identical to the unscouted map`;
+}
+
 const GROUPS = [
   ['map', mapInvariants],
   ['rng', rngDeterminism],
   ['data', dataValid],
   ['pack', packRules],
   ['compare', compareRules],
+  ['offer', offerRules],
+  ['loot', lootRules],
+  ['starter', starterRules],
+  ['scout', scoutRules],
 ];
 
 await withSim((sim) => {
   let failed = 0;
   for (const [name, check] of GROUPS) {
     try {
-      console.log(`PASS  ${name.padEnd(6)} ${check(sim)}`);
+      console.log(`PASS  ${name.padEnd(7)} ${check(sim)}`);
     } catch (e) {
       failed++;
-      console.log(`FAIL  ${name.padEnd(6)} ${e.message}`);
+      console.log(`FAIL  ${name.padEnd(7)} ${e.message}`);
     }
   }
   if (failed) {process.exitCode = 1;}

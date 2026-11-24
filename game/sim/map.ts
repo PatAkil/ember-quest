@@ -129,7 +129,21 @@ function ensureVariety(regular: readonly MapNode[][], rng: Rng): void {
   ensureLoot(regular, rng);
 }
 
-export function generateMap(rng: Rng, shape: Partial<MapShape> = {}): MapNode[][] {
+export interface FoePools { normals: readonly string[]; elites: readonly string[] }
+
+function rollFoe(pool: readonly string[], fallback: readonly string[], rng: Rng): string | undefined {
+  const from = pool.length > 0 ? pool : fallback;
+  return from.length > 0 ? from[pickOneIndex(rng, from.length)] : undefined;
+}
+
+function scoutFoes(stages: readonly MapNode[][], pools: FoePools, rng: Rng): void {
+  for (const node of stages.flat()) {
+    if (node.type === 'FIGHT') {node.enemyId = rollFoe(pools.normals, pools.elites, rng);}
+    if (node.type === 'ELITE') {node.enemyId = rollFoe(pools.elites, pools.normals, rng);}
+  }
+}
+
+export function generateMap(rng: Rng, shape: Partial<MapShape> = {}, pools?: FoePools): MapNode[][] {
   const { stageSizes, weights } = { ...MAP_SHAPE, ...shape };
   const table = thresholds(weights);
   const regular = stageSizes.map((size) =>
@@ -137,5 +151,6 @@ export function generateMap(rng: Rng, shape: Partial<MapShape> = {}): MapNode[][
   const stages: MapNode[][] = [...regular, [{ type: 'BOSS', links: [] }]];
   ensureVariety(regular, rng);
   stages.slice(0, -1).forEach((stage, s) => { linkStage(stage, at(stages, s + 1), rng); });
+  if (pools) {scoutFoes(stages, pools, rng);}
   return stages;
 }

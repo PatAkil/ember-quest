@@ -32,7 +32,7 @@ function onClear(g: Game, kind: EnemyKind): number {
 }
 
 function enterAct(g: Game): void {
-  g.map.stages = generateMap(g.rng);
+  g.map.stages = generateMap(g.rng, biome(g));
   g.map.pendingNode = null;
   g.map.curStage = -1;
   g.map.reachable = stageAt(g, 0).map((_, i) => i);

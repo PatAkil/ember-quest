@@ -2,27 +2,23 @@ import { BUTTON_KEY, SAFE_MARGIN, drawPanel, drawSprite, drawText, textWidth } f
 import type { Sprite } from '../../engine';
 import { SPELLS } from '../data';
 import type { LootOffer, LootSource } from '../types';
-import { compareOffer, describeOffer, displayName, itemLevel } from '../sim';
+import { compareOffer, describeOffer, displayName, itemLevel, packSize } from '../sim';
 import { ICON_SCROLL, ROOM_ART } from '../sprites';
 import { renderTableau } from '../backdrop';
 import type { Game } from '../state';
-import { BAND_Y, C_ACCENT, C_BORDER, C_DIM, C_HP, C_PANEL, C_SCROLL, C_SEL_BAR, C_TEXT, HERO_W, HERO_X, W, rarityColor } from '../theme';
+import { C_ACCENT, C_BORDER, C_DIM, C_HP, C_PANEL, C_SCROLL, C_SEL_BAR, C_TEXT, C_WARN, HERO_W, HERO_X, W, rarityColor } from '../theme';
 import { blinkHz, drawCommandBand, fitText, itemIcon } from '../widgets';
-import { drawIconIn, drawMedallion } from './plate';
+import { drawCompare, drawItemCard } from './compare-view';
+import type { CardLine, CardText } from './compare-view';
+import { choosesStow } from './loot';
 
 const X0 = HERO_X + HERO_W / 2 + 12;
 const PW = W - SAFE_MARGIN - X0;
 const ROW_TOP = 15;
-const ROW_PITCH = 16;
+const ROW_PITCH = 15;
 const ICON_X = X0 + 8;
 const NAME_X = X0 + 19;
 const TAG_RIGHT = X0 + PW - 5;
-const CARD_BOX = 34;
-const CARD_X = SAFE_MARGIN;
-const CARD_Y = BAND_Y + 5;
-const CARD_TEXT_X = CARD_X + CARD_BOX + 6;
-const CARD_TEXT_W = W - SAFE_MARGIN - 2 - CARD_TEXT_X;
-const LINE = 7;
 
 const TITLE: Record<LootSource, string> = {
   LOOT: 'A CHEST  TAKE ONE OR LEAVE',
@@ -36,7 +32,7 @@ interface OfferFace { icon: Sprite; name: string; color: string; hint: string; t
 function itemFace(g: Game, offer: Extract<LootOffer, { kind: 'ITEM' }>): OfferFace {
   const item = offer.item;
   const owned = g.hero.equipment[item.slot];
-  const hint = owned ? `VS ${displayName(owned, itemLevel(g.hero, item.slot))}` : `EMPTY ${item.slot} SLOT`;
+  const hint = owned ? displayName(owned, itemLevel(g.hero, item.slot)) : 'EMPTY SLOT';
   return { icon: itemIcon(item), name: item.name, color: rarityColor(item), hint, tag: item.rarity, tagColor: rarityColor(item) };
 }
 
@@ -46,7 +42,7 @@ function offerFace(g: Game, offer: LootOffer): OfferFace {
   }
   if (offer.kind === 'ITEM') {return itemFace(g, offer);}
   if (offer.kind === 'UPGRADE_ANY') {
-    return { icon: ROOM_ART.LOOT.icon, name: 'UPGRADE AN ITEM', color: C_ACCENT, hint: 'YOU CHOOSE WHICH', tag: 'UPGRADE', tagColor: C_ACCENT };
+    return { icon: ROOM_ART.LOOT.icon, name: 'UPGRADE', color: C_ACCENT, hint: 'CHOOSE AN ITEM', tag: '+1 LEVEL', tagColor: C_ACCENT };
   }
   const hint = offer.toLevel >= 2 ? 'AWAKEN YOUR GEAR' : 'IMPROVE YOUR GEAR';
   return { icon: itemIcon(offer.item), name: displayName(offer.item, offer.toLevel), color: rarityColor(offer.item), hint, tag: 'UPGRADE', tagColor: C_ACCENT };
@@ -78,35 +74,19 @@ function blurbColor(offer: LootOffer): string {
   return offer.item.effect.kind === 'NONE' ? C_DIM : rarityColor(offer.item);
 }
 
-interface CardLine { text: string; color: string }
-interface CardText { name: string; color: string; lines: CardLine[] }
-
-function mergeStats(lines: CardLine[]): CardLine[] {
-  const [a, b, ...rest] = lines;
-  if (!a || !b || lines.length <= 3 || a.color !== b.color) {return lines;}
-  const joined = `${a.text}  ${b.text}`;
-  return textWidth(joined, 1) <= CARD_TEXT_W ? [{ text: joined, color: a.color }, ...rest] : lines;
-}
-
-function drawItemCard(ctx: CanvasRenderingContext2D, art: { icon: Sprite; px: number }, text: CardText): void {
-  const box = { x: CARD_X, y: CARD_Y, w: CARD_BOX, h: CARD_BOX };
-  drawMedallion(ctx, box, text.color);
-  drawIconIn(ctx, art.icon, box, art.px);
-  const lines = mergeStats(text.lines);
-  const big = lines.length <= 3 && textWidth(text.name, 2) <= CARD_TEXT_W;
-  const top = CARD_Y - 1;
-  drawText(ctx, text.name, { x: CARD_TEXT_X, y: top }, { color: text.color, scale: big ? 2 : 1, shadow: true });
-  const first = top + (big ? 13 : 8);
-  lines.slice(0, 4).forEach((line, i) => {
-    fitText(ctx, line.text, { x: CARD_TEXT_X, y: first + i * LINE, maxW: CARD_TEXT_W }, { color: line.color });
-  });
+function packLine(g: Game): CardLine {
+  const { pack } = g.hero;
+  const size = packSize(g.hero);
+  if (pack.length >= size) {return { text: 'PACK FULL: YOU WILL DROP ONE', color: C_WARN };}
+  return { text: `GOES TO YOUR PACK  ${String(pack.length + 1)}/${String(size)}`, color: C_DIM };
 }
 
 function offerCardText(g: Game, offer: LootOffer, face: OfferFace): CardText {
   const said = describeOffer(g.hero, offer);
   const last = said.length - 1;
   const lines = said.map((text, i) => ({ text, color: i === last ? blurbColor(offer) : C_TEXT }));
-  return { name: face.name, color: face.color, lines: [...lines, { text: compareOffer(g.hero, offer), color: C_DIM }] };
+  const tail = g.loot.stow && choosesStow(g, offer) ? packLine(g) : { text: compareOffer(g.hero, offer), color: C_DIM };
+  return { name: face.name, color: face.color, lines: [...lines, tail] };
 }
 
 const MEND_TEXT: CardText = {
@@ -126,15 +106,25 @@ function drawDetail(g: Game, ctx: CanvasRenderingContext2D): void {
     drawItemCard(ctx, { icon: ROOM_ART.REST.icon, px: 2 }, MEND_TEXT);
     return;
   }
+  if (offer.kind === 'ITEM' && choosesStow(g, offer) && !g.loot.stow) {
+    drawCompare(ctx, g.hero, { item: offer.item, level: 0 });
+    return;
+  }
   const face = offerFace(g, offer);
   drawItemCard(ctx, { icon: face.icon, px: 3 }, offerCardText(g, offer, face));
 }
 
 const panelCentre = (text: string): number => Math.round(X0 + (PW - textWidth(text, 1)) / 2);
 
+function promptWord(g: Game): string {
+  const offer = g.loot.offers[g.loot.cursor];
+  if (!offer) {return 'KEEP YOUR GEAR';}
+  if (!choosesStow(g, offer)) {return 'TAKE IT';}
+  return g.loot.stow ? '< STOW IN PACK >' : '< EQUIP IT >';
+}
+
 function drawPrompt(g: Game, y: number): void {
-  const take = g.loot.offers[g.loot.cursor] ? 'TAKE IT' : 'KEEP YOUR GEAR';
-  const text = `${BUTTON_KEY.A.hint} ${take}`;
+  const text = `${BUTTON_KEY.A.hint} ${promptWord(g)}`;
   drawText(g.app.pc.ctx, text, { x: panelCentre(text), y }, { color: blinkHz(g.clock, 1.2) ? C_TEXT : C_DIM });
 }
 

@@ -1,13 +1,13 @@
 import type { SceneMachine } from '../engine';
 import type { Hero, Derived, EnemyInstance, EnemyKind, HeroAction, LootOffer, LootSource, Rng, StatKey } from './types';
 import { createHero, createSeededRng, grantClear, spendPoint, rollLoot, applyOffer, noteDeclinedScrolls, fullHeal, equip, stow } from './sim';
-import { ITEMS } from './data';
+import { BIOMES, ITEMS } from './data';
 import type { SeededRng } from './sim';
 import type { MapNode, RoomType, SubScene } from './state';
 import { at, must, noop } from './lookup';
 
 type Action = 'A' | 'B' | 'PAUSE' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
-type Fixture = 'title' | 'map' | 'battle' | 'levelup' | 'loot' | 'card' | 'paused' | 'gameover' | 'win' | 'gear' | 'pick';
+type Fixture = 'title' | 'map' | 'battle' | 'levelup' | 'loot' | 'card' | 'paused' | 'gameover' | 'win' | 'gear' | 'pick' | 'drop';
 type DevNode = MapNode;
 
 interface DevView {
@@ -36,7 +36,7 @@ interface DevHost {
   view(): DevView;
 }
 
-const FIXTURES: readonly Fixture[] = ['title', 'map', 'battle', 'levelup', 'loot', 'card', 'paused', 'gameover', 'win', 'gear', 'pick'];
+const FIXTURES: readonly Fixture[] = ['title', 'map', 'battle', 'levelup', 'loot', 'card', 'paused', 'gameover', 'win', 'gear', 'pick', 'drop'];
 const KEY: Record<Action, string> = {
   A: 'Space', B: 'KeyX', PAUSE: 'KeyP', UP: 'ArrowUp', DOWN: 'ArrowDown', LEFT: 'ArrowLeft', RIGHT: 'ArrowRight',
 };
@@ -73,15 +73,27 @@ function veteran(acts: number, rng: Rng): Hero {
 
 const KIT_WORN: readonly [string, number][] = [['IRON_SWORD', 1], ['LEATHER_VEST', 0], ['BONE_CHARM', 2]];
 const KIT_PACK: readonly [string, number][] = [['WILLOW_WAND', 0], ['BRAMBLE_VEST', 1], ['SWIFT_BOOTS', 0]];
+const KIT_REST: readonly [string, number][] = [['WORN_SHOES', 0], ['TIN_CUP', 1], ['SPARK_TOME', 0]];
+const KIT_SPARE: readonly [string, number][] = [['RUNE_TORC', 0]];
 
 const itemById = (id: string) => must(ITEMS.find((i) => i.id === id), `item ${id}`);
 
-function kitted(): Hero {
+function outfit(worn: readonly [string, number][], pack: readonly [string, number][]): Hero {
   const hero = createHero();
-  for (const [id, level] of KIT_WORN) {equip(hero, itemById(id), level);}
-  for (const [id, level] of KIT_PACK) {stow(hero, { item: itemById(id), level });}
+  for (const [id, level] of worn) {equip(hero, itemById(id), level);}
+  for (const [id, level] of pack) {stow(hero, { item: itemById(id), level });}
   fullHeal(hero);
   return hero;
+}
+
+const kitted = (): Hero => outfit(KIT_WORN, KIT_PACK);
+const dressed = (): Hero => outfit([...KIT_WORN, ...KIT_REST], []);
+const laden = (): Hero => outfit([...KIT_WORN, ...KIT_REST], [...KIT_PACK, ...KIT_SPARE]);
+
+function scoutedFoe(type: RoomType, act: number): string | undefined {
+  const b = at(BIOMES, act - 1);
+  if (type === 'FIGHT') {return b.normals[0];}
+  return type === 'ELITE' ? b.elites[0] : undefined;
 }
 
 interface Params { seed: number | null; fixture: Fixture | null; act: number }
@@ -171,11 +183,17 @@ function fixtureBuilders(fx: FixtureContext): Record<Fixture, () => void> {
   const enter = (type: RoomType): void => {
     const nodes = host.nextNodes();
     const node = nodes.find((n) => n.type === type) ?? at(nodes, 0);
-    if (node.type !== type) {node.enemyId = undefined;}
+    if (node.type !== type) {node.enemyId = scoutedFoe(type, act);}
     node.type = type;
     host.selectNode(node);
   };
   const battle = (): void => { begin(); enter('FIGHT'); };
+  const toItemOffer = (): void => {
+    const i = host.view().offers.findIndex((o) => o.kind === 'ITEM');
+    host.syncReveal();
+    for (let n = 0; n < i; n++) { driver.press('DOWN'); driver.runTick(DT); }
+  };
+  const chest = (hero: Hero): void => { begin(hero); enter('LOOT'); toItemOffer(); };
   const loseBattle = (): void => {
     battle();
     for (let i = 0; i < 500 && !host.view().dying && host.view().enemy; i++) {host.enemyTurn();}
@@ -193,13 +211,14 @@ function fixtureBuilders(fx: FixtureContext): Record<Fixture, () => void> {
     map: () => { begin(); },
     battle,
     levelup: () => { battle(); host.winBattle(); },
-    loot: () => { begin(); enter('LOOT'); },
+    loot: () => { chest(dressed()); },
     card: () => { begin(); enter('REST'); },
     paused: () => { battle(); host.scenes.to('PAUSED'); },
     gameover: loseBattle,
     win: winRun,
     gear: () => { begin(kitted()); host.openGear(); },
-    pick: () => { begin(kitted()); enter('LOOT'); host.pickUpgrade(); },
+    pick: () => { begin(laden()); enter('LOOT'); host.pickUpgrade(); },
+    drop: () => { chest(laden()); host.syncReveal(); driver.press('A'); driver.runTick(DT); },
   };
 }
 

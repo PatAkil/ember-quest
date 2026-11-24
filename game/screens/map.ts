@@ -1,10 +1,11 @@
-import { SAFE_MARGIN, drawText, drawTextCentered, hudText, textWidth } from '../../engine';
+import { BUTTON_KEY, SAFE_MARGIN, drawText, drawTextCentered, hudText, textWidth } from '../../engine';
 import { renderBiomeBackdrop } from '../backdrop';
 import { selectNode } from '../flow';
 import { at } from '../lookup';
 import { biome, dirEdge, stageAt } from '../state';
-import type { Game, RoomType } from '../state';
-import { C_ACCENT, C_DIM, C_TEXT, H, W } from '../theme';
+import type { Game, MapNode, RoomType } from '../state';
+import { ENEMIES } from '../data';
+import { C_ACCENT, C_DIM, C_LOG_HURT, C_TEXT, C_WARN, H, W } from '../theme';
 import { openGear } from './gear';
 import { drawEdges, drawHeroMarker, drawNodes } from './map-view';
 import { drawStatusPanel, STATUS_PANEL_H } from './status';
@@ -35,6 +36,22 @@ export function updateMap(g: Game): void {
   }
 }
 
+interface Ink { text: string; color: string }
+
+function foeParts(id: string | undefined): Ink[] {
+  const foe = id === undefined ? undefined : ENEMIES[id];
+  if (!foe) {return [];}
+  const physical = foe.atkType === 'PHYSICAL';
+  return [{ text: foe.name, color: C_TEXT }, { text: physical ? 'STRIKES' : 'HEXES', color: physical ? C_WARN : C_LOG_HURT }];
+}
+
+function readoutParts(g: Game, node: MapNode): Ink[] {
+  const head = { text: node.type, color: C_ACCENT };
+  const id = node.type === 'BOSS' ? biome(g).boss : node.enemyId;
+  const foe = node.type === 'FIGHT' || node.type === 'ELITE' || node.type === 'BOSS' ? foeParts(id) : [];
+  return foe.length ? [head, ...foe] : [head, { text: ROOM_BLURB[node.type], color: C_DIM }];
+}
+
 function drawReadout(g: Game, y: number): void {
   const ctx = g.app.pc.ctx;
   const node = g.map.reachable.length ? g.map.stages[g.map.curStage + 1]?.[g.map.cursor] : undefined;
@@ -42,12 +59,14 @@ function drawReadout(g: Game, y: number): void {
     drawTextCentered(ctx, 'CHOOSE YOUR PATH', { width: W, y }, { color: C_DIM, shadow: true });
     return;
   }
-  const head = node.type;
-  const blurb = ROOM_BLURB[node.type];
+  const parts = readoutParts(g, node);
   const gap = 8;
-  const x = Math.round((W - textWidth(head, 1) - gap - textWidth(blurb, 1)) / 2);
-  drawText(ctx, head, { x, y }, { color: C_ACCENT, shadow: true });
-  drawText(ctx, blurb, { x: x + textWidth(head, 1) + gap, y }, { color: C_DIM, shadow: true });
+  const total = parts.reduce((sum, p) => sum + textWidth(p.text, 1), 0) + gap * (parts.length - 1);
+  let x = Math.round((W - total) / 2);
+  for (const part of parts) {
+    drawText(ctx, part.text, { x, y }, { color: part.color, shadow: true });
+    x += textWidth(part.text, 1) + gap;
+  }
 }
 
 export function renderMap(g: Game): void {
@@ -62,4 +81,5 @@ export function renderMap(g: Game): void {
   drawHeroMarker(g);
   drawStatusPanel(g, H - SAFE_MARGIN - STATUS_PANEL_H);
   hudText(pc, `SCORE ${g.score}`, { h: 'right', v: 'top' }, { color: C_TEXT });
+  hudText(pc, `${BUTTON_KEY.B.hint} GEAR`, { h: 'left', v: 'top' }, { color: C_DIM });
 }

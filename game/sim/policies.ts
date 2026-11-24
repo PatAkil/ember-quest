@@ -14,8 +14,9 @@ import { SPELLS } from '../data';
 import { swingFor } from './combat';
 import { canAfford, derive, spellCost } from './hero';
 import type { Policy, RoomType } from './model';
-import { DEFAULT_CHOICES } from './policy-choices';
-import { bestPick, P_BALANCED, P_DEFENCE, P_OFFENCE } from './scoring';
+import { swapIn } from './pack';
+import { choicesFor, type PolicyChoices } from './policy-choices';
+import { bestPick, P_BALANCED, P_DEFENCE, P_OFFENCE, type ItemBonus } from './scoring';
 import { pickOr } from './util';
 
 const context: { rng: Rng; hero: Hero | null } = { rng: () => 0.5, hero: null };
@@ -136,8 +137,23 @@ function chestHungryRoute(types: RoomType[]): number {
 const BALANCED_ALLOCATE = (hero: Hero, d: Derived): StatKey =>
   cycleAllocate(hero, d, [primaryStat(d), 'HP', 'DEF', 'MDEF'], 'HP');
 
+const randomIndex = (length: number): number => Math.floor(context.rng() * Math.max(1, length));
+
+const RANDOM_CHOICES: PolicyChoices = {
+  stowOrEquip: () => (context.rng() < 0.5 ? 'STOW' : 'EQUIP'),
+  dropWhich: (hero) => randomIndex(hero.pack.length + 1),
+  upgradeTarget: (_hero, targets) => randomIndex(targets.length),
+  prepare: (hero) => {
+    if (hero.pack.length > 0 && context.rng() < 0.5) {swapIn(hero, randomIndex(hero.pack.length));}
+  },
+};
+
+const GLASS_BONUS: ItemBonus = (i) => (i.slot === 'WEAPON' && i.weaponKind === 'MAGIC' ? 8 : 0);
+const TANK_BONUS: ItemBonus = (i) => (i.slot === 'WEAPON' && i.weaponKind !== 'MAGIC' ? 6 : 0);
+const BALANCED_CHOICES = choicesFor(P_BALANCED);
+
 const randomPolicy: Policy = {
-  ...DEFAULT_CHOICES,
+  ...RANDOM_CHOICES,
   allocate: () => pickOr(STAT_KEYS, context.rng, 'HP'),
   pick: (_hero, offered) =>
     offered.length === 0 || context.rng() < 0.2 ? null : pickOr(offered, context.rng, null),
@@ -152,32 +168,28 @@ export type PolicyName =
 export const POLICIES: Record<PolicyName, Policy> = {
   random: randomPolicy,
   balanced: {
-    ...DEFAULT_CHOICES,
+    ...BALANCED_CHOICES,
     allocate: BALANCED_ALLOCATE,
     pick: (hero, offered) => bestPick(hero, offered, P_BALANCED),
     act: damageAct(0.35),
     route: (types) => routeWithRest(types, 0.5, ['ELITE', 'LOOT', 'FIGHT', 'REST']),
   },
   glass: {
-    ...DEFAULT_CHOICES,
+    ...choicesFor(P_OFFENCE, GLASS_BONUS),
     allocate: (hero, d) => cycleAllocate(hero, d, [primaryStat(d), 'CRIT', primaryStat(d), 'HP'], primaryStat(d)),
-    pick: (hero, offered) =>
-      bestPick(hero, offered, P_OFFENCE, (i) =>
-        i.slot === 'WEAPON' && i.weaponKind === 'MAGIC' ? 8 : 0),
+    pick: (hero, offered) => bestPick(hero, offered, P_OFFENCE, GLASS_BONUS),
     act: damageAct(0.35),
     route: (types) => routeWithRest(types, 0.45, ['ELITE', 'LOOT', 'FIGHT', 'REST']),
   },
   tank: {
-    ...DEFAULT_CHOICES,
+    ...choicesFor(P_DEFENCE, TANK_BONUS),
     allocate: (hero, d) => cycleAllocate(hero, d, ['HP', 'DEF', 'ATK', 'MDEF'], 'HP'),
-    pick: (hero, offered) =>
-      bestPick(hero, offered, P_DEFENCE, (i) =>
-        i.slot === 'WEAPON' && i.weaponKind !== 'MAGIC' ? 6 : 0),
+    pick: (hero, offered) => bestPick(hero, offered, P_DEFENCE, TANK_BONUS),
     act: damageAct(0.5),
     route: (types) => routeWithRest(types, 0.55, ['ELITE', 'LOOT', 'FIGHT', 'REST']),
   },
   eliteHungry: {
-    ...DEFAULT_CHOICES,
+    ...BALANCED_CHOICES,
     allocate: BALANCED_ALLOCATE,
     pick: (hero, offered) => bestPick(hero, offered, P_BALANCED),
     act: damageAct(0.35),
@@ -188,7 +200,7 @@ export const POLICIES: Record<PolicyName, Policy> = {
     },
   },
   chestHungry: {
-    ...DEFAULT_CHOICES,
+    ...BALANCED_CHOICES,
     allocate: BALANCED_ALLOCATE,
     pick: (hero, offered) => bestPick(hero, offered, P_BALANCED),
     act: damageAct(0.35),
