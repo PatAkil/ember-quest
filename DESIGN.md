@@ -12,12 +12,12 @@ permadeath. v2 replaces the tier-upgrade gear with **skill points** and a
 |---|---|---|
 | `game/types.ts` | shared types + tuning constants (caps, SP gains) | nothing |
 | `game/data.ts` | the content import path: re-exports `game/rules/*` (ITEMS, ENEMIES, SPELLS, BIOMES, LOOT_WEIGHTS, ACT_MULT, the heal constants, `validateData`, EVENTS and their types) | `./rules/*` only |
-| `game/rules/*.ts` | the content itself: `items` (ITEMS), `enemies` (ENEMIES), `world` (SPELLS, SPELL_ORDER, BIOMES, ACT_MULT, LOOT_WEIGHTS, LOOT_COUNT, CLEAR_HEAL, BOSS_ENTRY_HEAL, SKIP_MEND, RARITY_COLOR_INDEX), `validate` (`validateData`; never imports `data.ts`), `events` (EVENTS, the effect vocabulary, `validateEvents`) | `../types`, each other |
+| `game/rules/*.ts` | the content itself: `items` (ITEMS), `enemies` (ENEMIES), `world` (SPELLS, SPELL_ORDER, BIOMES, ACT_MULT, LOOT_WEIGHTS, LOOT_COUNT, CLEAR_HEAL, BOSS_ENTRY_HEAL, SKIP_MEND, RARITY_COLOR_INDEX), `validate` (`validateData`; never imports `data.ts`), `events` (EVENTS, the effect vocabulary, `validateEvents`), `pacts` (PACTS, `validatePacts`); `enemies` also holds the descent-only THE HOLLOW | `../types`, each other |
 | `game/sim.ts` | the barrel: the only path presentation and the simulator use to reach the rules (also re-exports `validateData`, `generateMap`, `createSeededRng`, `at`) | `./sim/*`, `./data` |
-| `game/sim/*.ts` | pure rules, one concern per file: `util` (clamp, `at`, rng picks, `createSeededRng` — mulberry32 with readable state — and effect tables), `gear` (item levels, upgrades, effective mods/effects), `hero` (derived stats, skill points, heals, equip, spells), `ghost` (stats of a hypothetical equip), `describe` (item/offer/compare text, `compareFull`), `loot` (loot rolls, offers, scrolls, `resolveUpgrade`), `pack` (the pack: `stow`, `discard`, `swapIn`, `unequip`, `ownedIds`, `upgradableTargets`), `combat` (enemy scaling, battle creation, hero actions, damage), `commands` (GUARD, POTION, BURST, BREAK), `enemy-turn` (enemy moves, intent, phase), `status` (turn start, BURN, WARD, `heroFalls`), `element`, `burst`, `power` (the gear-driven damage multipliers: IMBUE element, PUNISH, LOW HP, ELEMENT BOOST, riposte power, ignite chance, the guard counter), `events` (event effects, enablement, `takePendingBurn`, preview words), `map` (**the one map generator**, `generateMap(rng, shape?)`, played by both the screens and the simulator), `model` (`Policy`, `RoomType` including `BOSS`), `scoring`, `policies`, `policy-battle` (how they fight) and `policy-choices` (how the archetypes decide; `DEFAULT_CHOICES` holds the shared pack/upgrade/prepare defaults), `run` (`simulateRun`) | `../types`, `../data`, each other |
+| `game/sim/*.ts` | pure rules, one concern per file: `util` (clamp, `at`, rng picks, `createSeededRng` — mulberry32 with readable state — and effect tables), `gear` (item levels, upgrades, effective mods/effects), `hero` (derived stats, skill points, heals, equip, spells), `ghost` (stats of a hypothetical equip), `describe` (item/offer/compare text, `compareFull`), `loot` (loot rolls, offers, scrolls, `resolveUpgrade`), `pack` (the pack: `stow`, `discard`, `swapIn`, `unequip`, `ownedIds`, `upgradableTargets`), `combat` (enemy scaling, battle creation, hero actions, damage), `commands` (GUARD, POTION, BURST, BREAK), `enemy-turn` (enemy moves, intent, phase), `status` (turn start, BURN, WARD, `heroFalls`), `element`, `burst`, `power` (the gear-driven damage multipliers: IMBUE element, PUNISH, LOW HP, ELEMENT BOOST, riposte power, ignite chance, the guard counter), `events` (event effects, enablement, `takePendingBurn`, preview words), `map` (**the one map generator**, `generateMap(rng, shape?)`, played by both the screens and the simulator), `model` (`Policy`, `RoomType` including `BOSS`), `scoring`, `policies`, `policy-battle` (how they fight) and `policy-choices` (how the archetypes decide; `DEFAULT_CHOICES` holds the shared pack/upgrade/prepare defaults), `descent` (`n`, `depthOf`, `actInDepth`, `actMult`, `ActPlan`, `planDepth`), `affixes`, `hollow` (`hollowOf`, `spawnFoe`), `pacts` (`pactMods`, `offerPacts`), `score`, `run` (`simulateRun`) | `../types`, `../data`, each other |
 | `game/sprites.ts` + `game/sprites/*.ts` | hero/enemy/icon sprites: `helpers`, `hero`, `icons`, one file per biome; `sprites.ts` re-exports them and adds `enemyAnim(id)` | `../engine` only |
 | `game/main.ts` + `app`, `state`, `flow`, `frame`, `mapgen`, `theme`, `backdrop`, `widgets`, `pops`, `fx-state`, `fx`, `transition`, `storage`, `lookup`, `screens/*.ts` | presentation: `main.ts` only wires; `app` creates the engine objects and fits the canvas to the window; `state` holds the one `Game` object `g` with per-screen slices; `flow` runs the run (rooms, stages, clears, acts, scene hooks); `frame` dispatches update/render; `mapgen` adapts the shared headless map to the screens (adds `stage`, `slot`, `cleared`); the **fx / transition layer** presents what the rules decided and never decides anything — `fx-state` + `fx` hold the battle-fx clock (actor poses, timed cues, lagging meters, boss banner), `screens/battle-fx` choreographs a turn on it, `screens/battle-fx-verbs` gives each battle verb its beat, `screens/battle-fx-view` draws its shots and banner, `screens/battle-menu` holds the command menu, `screens/battle-tags` the tag strips under the plates, `screens/battle-reach` measures lunges, `transition` reveals each new sub-scene; `screens/` one update file and one view file per screen (`map-view`, `loot-view`, `battle-view`; `plate` holds the shared medallions) | everything |
-| `game/devhook.ts` | the dev-only seeded hook (`?seed`, `?scene`, `&act`, `&hold`, `window.__ember`), never in the build | `../engine` types, `./sim`, presentation types |
+| `game/devhook.ts` | the dev-only seeded hook (`?seed`, `?scene`, `&act`, `&depth`, `&hold`, `window.__ember`), never in the build | `../engine` types, `./sim`, presentation types |
 | `sim/run.mjs`, `sim/bundle.mjs`, `scripts/rules.mjs` | the balance simulator; the shared esbuild bundling of `game/sim.ts`; the rules gate (`npm run rules`, part of `verify`): `node:assert` invariants against the bundle — every map node reachable and linked, one BOSS last, ELITE + REST + LOOT on every map (5000 seeds), seeded-rng determinism and state round-trip, `validateData()` clean | the bundle |
 
 `types.ts`, `data.ts`, `sim.ts` and `game/sim/` are **headless** (no engine, no DOM,
@@ -397,6 +397,97 @@ effect kind is used (base or awakening); every element has ≥ 2 hero sources by
 spell). Policies score the new kinds with `EFFECT_VALUE` and count an ELEMENT_BOOST at 20 %
 when the hero has no source of that element.
 
+## v3 — the endless descent (M4)
+
+The Seraph kill is banked as the win; the player may then ASCEND (end the run) or
+DESCEND into ever-steeper depths. Status: the foundation is in (types, state, the
+stage counter, `actMult`, score, THRESHOLD and PACT flow and minimal screens, the
+dev hook); parts marked *placeholder* are filled in by the rules and screens writers.
+
+- **Stage counter.** `n` (`g.n`, the simulator's `run.n`) is the 0-based index of the
+  act being played and never resets. `depthOf(n) = floor(n / 4) + 1`, `actInDepth(n) =
+  n % 4` (`game/sim/descent.ts`). Every rule that indexes a 4-row table clamps with
+  `storyAct(n) = min(n, 3)` (`LOOT_WEIGHTS` rows) or reads what it needs from the
+  act's `ActPlan`; `minAct` compares with `n`, so in the descent it is always met.
+- **`actMult(n)`** = `ACT_MULT[n]` for n ≤ 3, else `ACT_MULT[3] × DESCENT_GROWTH^(n − 3)`,
+  `DESCENT_GROWTH` = 1.08 (HP and ATK both scale, ≈ 1.17× threat per act). It scales
+  `spawnEnemy` and the event burn (`takePendingBurn`). `spawnEnemy(id, { n, clears,
+  descentClears }, affixes)`: the per-clear term uses `descentClears` (the clears count
+  held when the descent began) whenever it is set, so it freezes in the descent.
+- **`ActPlan`** `{ biomeIndex, normals, elites, boss, scroll?, affixCount: { normal, elite },
+  stageSizes, weights, phaseAt? }`. `planDepth(depth, rng)` is drawn once on entering a
+  depth and held as `g.depthPlan`; `g.plan = planOf(g.depthPlan, n)` (= `depthPlan[n % 4]`).
+  Depth 1 is exactly the four story acts built from `BIOMES` and draws no rng (a rules
+  test). Enemy pools, boss, scroll, biome name, look, backdrop and map shape all read the
+  plan (`plan.biomeIndex`, never `n`). `rollLoot(source, { n, plan }, hero, rng)`: boss
+  tables take the plan's scroll and its boss's signature item.
+  *Placeholder until the rules writer:* depth ≥ 2 returns the story acts again with only
+  `affixCount` set. Contract: biome order reshuffled per depth; each pool gains one
+  invader from another biome; one extra stage per depth (sizes alternate 2/3, max 8);
+  ELITE weight +5 per depth taken from FIGHT; boss `phaseAt` 0.7 instead of 0.5; the last
+  boss of every descent depth is THE HOLLOW.
+- **THE HOLLOW** (`ENEMIES.HOLLOW`, a BOSS exempt from biome membership, `phase2` and a
+  signature item via `DESCENT_ONLY`). `spawnFoe(id, ctx)` is the one spawn path (game and
+  simulator) and routes `HOLLOW` to `hollowOf(hero, n)`. Contract: attack kind = the
+  hero's weapon kind; ATK = 0.5 × the hero's plain ATTACK base (ATK or MAG; no crit,
+  opener, RAMP, TWIN, riposte or BURST) × `actMult(n) / ACT_MULT[3]`; resists = the hero's
+  DEF/MDEF capped at 40; HP = 8 × the hero's plain ATTACK after those resists, at least
+  2 × hero max HP; at most 3 affixes read off the gear (DRAIN → VAMPIRIC, REFLECT →
+  THORNED, dodge ≥ 15 → SWIFT, BURN_ON_HIT → SEARING); a fixed cycle with one wind-up;
+  drawn as the hero's sprite, mirrored, in one dark tint. *Placeholder:* `hollowOf` scales
+  the definition by `actMult(n)` with HP at least 2 × hero max HP.
+- **Affixes** (`AffixId`, `EnemyInstance.affixes`, `MapNode.affixes`; depth ≥ 2 only;
+  normals `depth − 2`, elites and bosses `depth − 1`, max 3, no repeats on one foe —
+  `affixCountFor(depth)`):
+
+  | Affix | Effect | State |
+  |---|---|---|
+  | ARMORED | +20 DEF (`resPhys`) | applied by `spawnEnemy` |
+  | WARDED | +20 MDEF (`resMagic`) | applied by `spawnEnemy` |
+  | VAMPIRIC | heals 30 % of damage dealt | value in `vampiricHeal`, not wired yet |
+  | THORNED | returns 20 % of damage taken | value in `thornsDamage`, not wired yet |
+  | SWIFT | 15 % to evade ATTACK and damaging spells (`IT SLIPS AWAY`) | `swiftEvades`, not wired yet |
+  | SEARING | its STRIKEs apply BURN | `searingStrike`, not wired yet |
+
+  Map nodes do not roll affixes yet (rules writer: `sim/map.ts` scouting by the plan's
+  `affixCount`).
+- **Pacts** (`game/rules/pacts.ts`, `validatePacts()` in `validateData`; `hero.pacts`).
+  Entering each depth ≥ 2: pick 1 of min(3, remaining) drawn with the run's rng from the
+  8 not yet taken (`offerPacts`, no skip; none left → no PACT screen). `pactMods(hero)`
+  folds every taken pact into `Required<PactMod>` (multipliers multiply, counts add; no
+  pacts → neutral: 1 for multipliers, 0 for counts). *Not applied anywhere yet* (rules
+  writer).
+
+  | Pact | Curse | Boon | Mods |
+  |---|---|---|---|
+  | BRITTLE | −20 % max HP | +25 % damage dealt | maxHpMult 0.8, dmgMult 1.25 |
+  | TITHE | clear heal 25 % → 10 % | +1 SP per clear | clearHealMult 0.4, spPerClear 1 |
+  | HEX | foes +1 affix | elite and boss loot one rarity higher | foeAffix 1, rarityShift 1 |
+  | IRON | foes +15 % ATK | +15 % max HP, +1 SP per boss | foeAtkMult 1.15, maxHpMult 1.15, spPerBoss 1 |
+  | MISER | FIGHT rooms never drop | every loot screen +1 card | fightDrops 0, extraCard 1 |
+  | STORM | ATTACK deals −15 % | BURST gauge fills ×1.5 | attackMult 0.85, burstGainMult 1.5 |
+  | ASH | REST heals 50 % | every REST also gives an UPGRADE card (a 25 % mend if none) | restHealMult 0.5, restUpgrade 1 |
+  | HUNTER | elites +30 % HP | elites +2 SP and a 4th card | eliteHpMult 1.3, eliteSp 2, eliteExtraCard 1 |
+
+- **Loot in the descent** (rules writer): the act-4 weight row with +3 LEGENDARY per depth
+  taken from COMMON, then RARE, never below 0 (LEGENDARY cap 30); boss tables are three
+  rolled EPIC+ (signature items not owned re-enter the roll).
+- **THRESHOLD** (sub-scene after the last boss's loot of every depth, `isLastActOfDepth(n)`):
+  `ASCEND` → WIN with a glory bonus `gloryBonus(depth) = 1000 × depth`. `DESCEND` → `g.won
+  = true`, `g.banked = g.score`, `descentClears` set on the first descent, `n += 1`, the
+  next depth's plan drawn, then the PACT screen, then the depth's act card. A later death
+  reaches GAME_OVER as usual; the score becomes `scoreAfterDeath` = banked + floor(half of
+  what was earned since the last THRESHOLD) and the host hears `gameOver({ score, won:
+  g.won })`. The scene machine is unchanged.
+- **Score** (`game/sim/score.ts`): `scoreOf({ clears, bosses }) = clears × 100 + 500 ×
+  bosses`, plus the glory bonus on ASCEND. (Before M4 it was `clears × 100`; the WIN
+  number changes on purpose.) The best score keeps its old bare-number storage until the
+  screens writer moves it to `{ score, depth, act }`.
+- **Simulator**: `simulateRun(policy, rng, { descend })`; `descend` is off by default, so
+  `npm run sim` still ends at the Seraph (its `--json` was byte-identical across the
+  foundation step). With it on, runs descend until death or n = `SIM_MAX_N` (40).
+  *Placeholder:* no pacts are taken in the sim yet; depth reporting is the rules writer's.
+
 ## Combat
 
 See *v3 — battle verbs (M2)* above for moves, intents, GUARD, POTION, elements, BURN,
@@ -409,7 +500,7 @@ BURST and BREAK; the lines below are the base turn they build on.
   attacks into magic damage, so a physical build can beat a plated foe.
 - Enemy turn: phase check → the shown move; for a hit: dodge check → damage × move mult
   × (1 − DEF/MDEF) × guard → REFLECT → `heroFalls` (REVIVE).
-- Enemies scale `(base + perClear × clears) × ACT_MULT[act] × def.mult`; `ACT_MULT` [1.15, 1.95, 2.78, 3.41].
+- Enemies scale `(base + perClear × clears) × actMult(n) × def.mult`; `ACT_MULT` [1.15, 1.95, 2.78, 3.41] for n ≤ 3 (see *the endless descent*); in the descent `clears` is the frozen `descentClears`.
 
 ## Difficulty targets (balance sim, sane policy)
 

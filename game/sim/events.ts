@@ -3,6 +3,7 @@ import { ACT_MULT, EVENTS, ITEMS, PENDING_BURN_BASE, PENDING_BURN_TURNS, opensSc
 import type { EventDef, EventEffect, EventOption } from '../data';
 import { clampVitals, derive, fullHeal } from './hero';
 import { ownedIds, upgradableTargets } from './pack';
+import { actMult } from './descent';
 import { at, clamp, pickOneIndex } from './util';
 
 type EffectOf<K extends EventEffect['kind']> = Extract<EventEffect, { kind: K }>;
@@ -113,11 +114,11 @@ export function screenEffectOf(option: EventOption): ScreenEffect | undefined {
   return last.kind === 'sp' || last.kind === 'item' || last.kind === 'upgradeAny' || last.kind === 'dropPackItem' ? last : undefined;
 }
 
-export function takePendingBurn(hero: Hero, act: number): Burn | null {
+export function takePendingBurn(hero: Hero, n: number): Burn | null {
   if (hero.pendingBurn <= 0) {return null;}
   const turns = hero.pendingBurn;
   hero.pendingBurn = 0;
-  const mult = ACT_MULT[clamp(act, 0, ACT_MULT.length - 1)] ?? 1;
+  const mult = actMult(n);
   return { perTurn: Math.max(1, Math.round(PENDING_BURN_BASE * mult)), turns };
 }
 

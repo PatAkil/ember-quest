@@ -104,7 +104,7 @@ function openDrop(g: Game, option: EventOption): void {
 }
 
 function offerItem(g: Game, rarity: Rarity, done: () => void): void {
-  const item = rollEventItem(g.hero, rarity, g.actIndex, g.rng);
+  const item = rollEventItem(g.hero, rarity, g.n, g.rng);
   if (!item) { done(); return; }
   g.loot = { offers: [{ kind: 'ITEM', item }], source: 'LOOT', cursor: 0, stow: false, onDone: done };
   g.subScene = 'LOOT';

@@ -1,5 +1,6 @@
 export { ITEMS } from './rules/items';
-export { ENEMIES } from './rules/enemies';
+export { ENEMIES, HOLLOW_ID } from './rules/enemies';
+export { PACTS, validatePacts } from './rules/pacts';
 export {
   ACT_MULT,
   BIOMES,

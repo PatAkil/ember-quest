@@ -5,6 +5,7 @@ import { at } from '../lookup';
 import { biome, dirEdge, stageAt } from '../state';
 import type { Game, MapNode, RoomType } from '../state';
 import { ENEMIES } from '../data';
+import { actInDepth } from '../sim';
 import { C_ACCENT, C_DIM, C_LOG_HURT, C_TEXT, C_WARN, H, W } from '../theme';
 import { openGear } from './gear';
 import { drawEdges, drawHeroMarker, drawNodes } from './map-view';
@@ -48,7 +49,7 @@ function foeParts(id: string | undefined): Ink[] {
 
 function readoutParts(g: Game, node: MapNode): Ink[] {
   const head = { text: node.type, color: C_ACCENT };
-  const id = node.type === 'BOSS' ? biome(g).boss : node.enemyId;
+  const id = node.type === 'BOSS' ? g.plan.boss : node.enemyId;
   const foe = node.type === 'FIGHT' || node.type === 'ELITE' || node.type === 'BOSS' ? foeParts(id) : [];
   return foe.length ? [head, ...foe] : [head, { text: ROOM_BLURB[node.type], color: C_DIM }];
 }
@@ -75,7 +76,7 @@ export function renderMap(g: Game): void {
   const ctx = pc.ctx;
   renderBiomeBackdrop(g, MAP_BACKDROP_DIM);
   particles.render(ctx);
-  drawTextCentered(ctx, `ACT ${g.actIndex + 1}  ${biome(g).name}`, { width: W, y: SAFE_MARGIN }, { color: C_ACCENT, shadow: true });
+  drawTextCentered(ctx, `ACT ${actInDepth(g.n) + 1}  ${biome(g).name}`, { width: W, y: SAFE_MARGIN }, { color: C_ACCENT, shadow: true });
   drawReadout(g, SAFE_MARGIN + 8);
   drawEdges(g);
   drawNodes(g);

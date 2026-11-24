@@ -1,5 +1,5 @@
 import { createLoop } from '../engine';
-import { derive, heroActions, validateData } from './sim';
+import { actInDepth, depthOf, derive, heroActions, validateData } from './sim';
 import { HOLD, installDevHook } from './devhook';
 import { createApp } from './app';
 import { selectNode, startRun, wireScenes } from './flow';
@@ -21,13 +21,16 @@ wireScenes(g);
 function view(game: Game) {
   const { map, battle } = game;
   return {
-    scene: game.app.scenes.current, subScene: game.subScene, act: game.actIndex + 1, hero: game.hero, derived: derive(game.hero),
+    scene: game.app.scenes.current, subScene: game.subScene, act: actInDepth(game.n) + 1, n: game.n, depth: depthOf(game.n), hero: game.hero, derived: derive(game.hero),
     enemy: battle.enemy, clears: game.clears, score: game.score, dying: game.dying,
-    cursors: { MAP: map.cursor, BATTLE: battle.menuCursor, LEVELUP: game.levelUp.cursor, LOOT: game.loot.cursor, CARD: 0, GEAR: game.gear.cursor, PICK: game.pick.cursor, EVENT: game.event.cursor },
+    cursors: { MAP: map.cursor, BATTLE: battle.menuCursor, LEVELUP: game.levelUp.cursor, LOOT: game.loot.cursor, CARD: 0, GEAR: game.gear.cursor, PICK: game.pick.cursor, EVENT: game.event.cursor,
+      THRESHOLD: game.threshold.cursor, PACT: game.pact.cursor },
     battlePhase: battle.phase, battleText: battle.text, intent: battle.state?.intent ?? null, actions: heroActions(game.hero), offers: game.loot.offers, card: game.card.lines,
     map: map.stages, curStage: map.curStage, reachable: map.reachable,
     pick: { title: game.pick.title, rows: game.pick.rows.map((r) => r.name) },
     event: { id: game.event.def.id, title: game.event.def.title, options: game.event.def.options.map((o) => o.label) },
+    descent: { won: game.won, banked: game.banked, bosses: game.bosses, descentClears: game.descentClears, plan: game.plan },
+    pacts: game.pact.offers,
   };
 }
 
@@ -36,7 +39,8 @@ const draw = (): void => { render(g); };
 const dev = import.meta.env.DEV ? installDevHook({
   scenes: app.scenes, setRng: (source) => { installRng(g, source, true); }, tick, render: draw, resetEdge: () => { resetCursorEdge(g); },
   syncReveal: () => { syncReveal(g); },
-  startRun: (hero, act, clears) => { startRun(g, hero, act, clears); },
+  startRun: (hero, n, clears) => { startRun(g, hero, n, clears); },
+  plan: () => g.plan,
   selectNode: (node) => { selectNode(g, node); },
   nextNodes: () => g.map.reachable.map((i) => at(stageAt(g, g.map.curStage + 1), i)),
   bossNode: () => at(stageAt(g, g.map.stages.length - 1), 0),

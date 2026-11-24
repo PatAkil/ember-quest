@@ -4,6 +4,7 @@ import { foeRules } from './rules-foe.mjs';
 import { itemRules } from './rules-items.mjs';
 import { verbRules } from './rules-verbs.mjs';
 import { eventRules } from './rules-events.mjs';
+import { descentRules } from './rules-descent.mjs';
 
 const MAP_SEEDS = 5000;
 const RNG_DRAWS = 1000;
@@ -206,7 +207,7 @@ function rollAll(sim, makeHero, check) {
     const hero = makeHero();
     const source = SOURCES[n % SOURCES.length];
     const act = Math.floor(n / SOURCES.length) % 4;
-    check(hero, sim.rollLoot(source, act, hero, rng), `${source} act ${act}`);
+    check(hero, sim.rollLoot(source, { n: act, plan: sim.storyPlan()[act] }, hero, rng), `${source} act ${act}`);
   }
 }
 
@@ -275,6 +276,7 @@ const GROUPS = [
   ['verbs', verbRules],
   ['items', itemRules],
   ['events', eventRules],
+  ['descent', descentRules],
 ];
 
 await withSim((sim) => {

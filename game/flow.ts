@@ -1,18 +1,24 @@
-import { BIOMES, ENEMIES, BOSS_ENTRY_HEAL } from './data';
+import { ENEMIES, BOSS_ENTRY_HEAL } from './data';
+import { ACTS_PER_DEPTH } from './types';
 import type { EnemyKind, Hero, LootSource } from './types';
-import { createHero, createSeededRng, fullHeal, grantClear, healFraction, refillPotions, takePendingBurn } from './sim';
+import {
+  createHero, createSeededRng, depthOf, fullHeal, gloryBonus, grantClear, healFraction, isLastActOfDepth, offerPacts, planDepth, planOf,
+  refillPotions, scoreAfterDeath, scoreOf, takePendingBurn,
+} from './sim';
 import { at, must } from './lookup';
 import { resetFx } from './fx';
 import { clearPops } from './pops';
 import { generateMap } from './mapgen';
 import { biome, biomeLook, installRng, pickOne, resetCursorEdge, stageAt } from './state';
-import type { Game, MapNode, RoomType } from './state';
+import type { Game, MapNode, RoomType, ThresholdChoice } from './state';
 import { storeBest } from './storage';
 import { startBattle } from './screens/battle';
 import { showCard } from './screens/card';
 import { startLevelUp } from './screens/levelup';
 import { startLoot } from './screens/loot';
 import { startEvent } from './screens/event';
+import { startPact } from './screens/pact';
+import { startThreshold } from './screens/threshold';
 
 function advanceStage(g: Game): void {
   const node = g.map.pendingNode;
@@ -27,13 +33,14 @@ function advanceStage(g: Game): void {
 
 function onClear(g: Game, kind: EnemyKind): number {
   g.clears++;
-  g.score = g.clears * 100;
+  if (kind === 'BOSS') {g.bosses++;}
+  g.score = scoreOf(g);
   g.app.runtime.scoreChanged(g.score);
   return grantClear(g.hero, kind).sp;
 }
 
 function enterAct(g: Game): void {
-  g.map.stages = generateMap(g.rng, biome(g));
+  g.map.stages = generateMap(g.rng, g.plan);
   g.map.pendingNode = null;
   g.map.curStage = -1;
   g.map.reachable = stageAt(g, 0).map((_, i) => i);
@@ -43,13 +50,44 @@ function enterAct(g: Game): void {
   resetCursorEdge(g);
 }
 
-function onActCleared(g: Game): void {
-  if (g.actIndex >= BIOMES.length - 1) { g.subScene = 'BATTLE'; g.app.scenes.to('WIN'); return; }
-  g.actIndex++;
+const freshStage = (g: Game, next: () => void) => (): void => { clearPops(g); next(); };
+
+function advanceAct(g: Game): void {
+  g.n++;
+  g.plan = planOf(g.depthPlan, g.n);
   showCard(g, [`${biome(g).name} AWAITS...`, 'THE DESCENT CONTINUES'], () => { enterAct(g); });
 }
 
-const freshStage = (g: Game, next: () => void) => (): void => { clearPops(g); next(); };
+function enterDepth(g: Game): void {
+  g.n++;
+  g.depthPlan = planDepth(depthOf(g.n), g.rng);
+  g.plan = planOf(g.depthPlan, g.n);
+  const offers = offerPacts(g.hero, g.rng);
+  const card = (): void => { showCard(g, [`DEPTH ${String(depthOf(g.n))}`, `${biome(g).name} AWAITS...`], () => { enterAct(g); }); };
+  if (offers.length === 0) { card(); return; }
+  startPact(g, offers, freshStage(g, card));
+}
+
+function ascend(g: Game): void {
+  g.score += gloryBonus(depthOf(g.n));
+  g.app.runtime.scoreChanged(g.score);
+  g.subScene = 'BATTLE';
+  g.app.scenes.to('WIN');
+}
+
+function descend(g: Game): void {
+  g.won = true;
+  g.banked = g.score;
+  g.descentClears ??= g.clears;
+  enterDepth(g);
+}
+
+const THRESHOLD_PATH: Record<ThresholdChoice, (g: Game) => void> = { ASCEND: ascend, DESCEND: descend };
+
+function onActCleared(g: Game): void {
+  if (isLastActOfDepth(g.n)) { startThreshold(g, (choice) => { THRESHOLD_PATH[choice](g); }); return; }
+  advanceAct(g);
+}
 
 function levelThenLoot(g: Game, sp: number, source: LootSource, done: () => void): void {
   clearPops(g);
@@ -57,22 +95,22 @@ function levelThenLoot(g: Game, sp: number, source: LootSource, done: () => void
 }
 
 function ignitePendingBurn(g: Game): void {
-  const burn = takePendingBurn(g.hero, g.actIndex);
+  const burn = takePendingBurn(g.hero, g.n);
   if (burn) {g.hero.burn = burn;}
 }
 
 function fightRoom(g: Game, node: MapNode, kind: 'NORMAL' | 'ELITE'): void {
-  const b = biome(g);
-  const pool = kind === 'NORMAL' ? b.normals : b.elites;
+  const { plan } = g;
+  const pool = kind === 'NORMAL' ? plan.normals : plan.elites;
   const source: LootSource = kind === 'NORMAL' ? 'FIGHT' : 'ELITE';
   startBattle(g, node.enemyId ?? pickOne(g.rng, pool), () => {
     levelThenLoot(g, onClear(g, kind), source, () => { advanceStage(g); });
-  });
+  }, node.affixes ?? []);
   ignitePendingBurn(g);
 }
 
 function bossRoom(g: Game, node: MapNode): void {
-  const b = biome(g);
+  const b = g.plan;
   node.cleared = true;
   healFraction(g.hero, BOSS_ENTRY_HEAL);
   const afterVictory = (sp: number) => (): void => { levelThenLoot(g, sp, 'BOSS', () => { onActCleared(g); }); };
@@ -116,10 +154,20 @@ function seedRun(g: Game): void {
   installRng(g, createSeededRng(Math.floor(Math.random() * SEED_SPACE)), false);
 }
 
-export function startRun(g: Game, hero: Hero = createHero(), act = 0, clears = 0): void {
+function placeRun(g: Game, n: number, clears: number): void {
+  g.n = n;
+  g.clears = clears; g.bosses = 0; g.score = scoreOf(g);
+  g.depthPlan = planDepth(depthOf(n), g.rng);
+  g.plan = planOf(g.depthPlan, n);
+  g.won = n >= ACTS_PER_DEPTH;
+  g.banked = g.won ? g.score : 0;
+  g.descentClears = g.won ? clears : null;
+}
+
+export function startRun(g: Game, hero: Hero = createHero(), n = 0, clears = 0): void {
   seedRun(g);
   g.hero = hero;
-  g.clears = clears; g.score = clears * 100; g.actIndex = act;
+  placeRun(g, n, clears);
   g.dying = false; g.heroDown = false;
   g.battle.enemy = null; g.battle.state = null;
   clearPops(g);
@@ -132,6 +180,10 @@ export function startPlaying(g: Game): void {
   g.app.scenes.to('PLAYING');
 }
 
+function settleDeath(g: Game): void {
+  g.score = scoreAfterDeath(g);
+}
+
 function saveBest(g: Game): void {
   g.beatBest = g.score > g.best;
   if (g.beatBest) { g.best = g.score; storeBest(g.best); }
@@ -142,6 +194,6 @@ export function wireScenes(g: Game): void {
   scenes.onEnter('TITLE', () => { runtime.stateChanged('TITLE'); });
   scenes.onEnter('PLAYING', () => { runtime.stateChanged('PLAYING'); });
   scenes.onEnter('PAUSED', () => { runtime.stateChanged('PAUSED'); });
-  scenes.onEnter('GAME_OVER', () => { saveBest(g); runtime.stateChanged('GAME_OVER'); runtime.gameOver({ score: g.score, won: false }); });
+  scenes.onEnter('GAME_OVER', () => { settleDeath(g); saveBest(g); runtime.stateChanged('GAME_OVER'); runtime.gameOver({ score: g.score, won: g.won }); });
   scenes.onEnter('WIN', () => { saveBest(g); runtime.stateChanged('WIN'); runtime.gameOver({ score: g.score, won: true }); });
 }

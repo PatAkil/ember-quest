@@ -1,9 +1,9 @@
 import { PICO8 } from '../../engine';
-import type { EnemyActResult, EnemyInstance, HeroAction, HeroActResult, HeroCommand, TurnStart } from '../types';
+import type { AffixId, EnemyActResult, EnemyInstance, HeroAction, HeroActResult, HeroCommand, TurnStart } from '../types';
 import { SPELLS } from '../data';
-import { canAfford, createBattle, enemyAct, heroAct, isSpell, spawnEnemy, startTurn } from '../sim';
+import { canAfford, createBattle, enemyAct, heroAct, isSpell, spawnFoe, startTurn } from '../sim';
 import { BRACE_DUR, bannerBlocks, cue, dismissBanner, fadeProgress, flushFx, resetFx, skipToImpact, updateFx } from '../fx';
-import { biome, resetCursorEdge } from '../state';
+import { biome, foeScale, resetCursorEdge } from '../state';
 import type { Game } from '../state';
 import { C_ACCENT, C_DIM, C_DMG_TAKEN, C_HP, C_LOG_HURT, C_MP, C_TEXT, heroPos } from '../theme';
 import { MOTES_FLIGHT, deathFx, lastHitDelay, defeatFx, entranceFx, heroImpact, heroWindup, popHero, prepareFx, regenAura } from './battle-fx';
@@ -13,8 +13,8 @@ import { fxBreak, fxBurnTick, fxBurst, fxGuard, fxPhase, fxPotion, fxResist, fxR
 import { clampMenuCursor, menuChoice } from './battle-menu';
 import { clearPops, pushPop, scoreSpot } from '../pops';
 
-export function startBattle(g: Game, id: string, onWin: () => void): void {
-  const enemy = spawnEnemy(id, g.clears, g.actIndex);
+export function startBattle(g: Game, id: string, onWin: () => void, affixes: readonly AffixId[] = []): void {
+  const enemy = spawnFoe(id, { ...foeScale(g), hero: g.hero, affixes });
   const { magicCursor } = g.battle;
   g.battle = {
     enemy, state: createBattle(enemy), onWon: onWin,

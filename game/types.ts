@@ -109,6 +109,14 @@ export interface SpellDef {
 }
 
 export type EnemyKind = 'NORMAL' | 'ELITE' | 'BOSS';
+export type AffixId = 'VAMPIRIC' | 'ARMORED' | 'WARDED' | 'THORNED' | 'SWIFT' | 'SEARING';
+export const AFFIX_IDS: readonly AffixId[] = ['VAMPIRIC', 'ARMORED', 'WARDED', 'THORNED', 'SWIFT', 'SEARING'];
+export const AFFIX_MAX = 3;
+export const AFFIX_RESIST = 20;
+export const AFFIX_LIFESTEAL = 0.3;
+export const AFFIX_THORNS = 0.2;
+export const AFFIX_EVADE = 0.15;
+export interface FoeScale { n: number; clears: number; descentClears: number | null }
 export interface EnemyDef {
   id: string;
   name: string;
@@ -131,7 +139,7 @@ export interface EnemyInstance {
   def: EnemyDef;
   hp: number; maxHp: number; atk: number;
   resPhys: number; resMagic: number;
-  affixes: string[];
+  affixes: AffixId[];
   burn: Burn | null;
   wardTurns: number;
   phase: 1 | 2;
@@ -163,6 +171,7 @@ export interface Hero {
   burn: Burn | null;
   pendingBurn: number;
   bonusMaxHp: number;
+  pacts: PactId[];
 }
 
 export const POTIONS_MAX = 2;
@@ -247,3 +256,21 @@ export interface TurnStart {
 }
 
 export type Rng = () => number;
+
+export const ACTS_PER_DEPTH = 4;
+export const DESCENT_GROWTH = 1.08;
+export const SCORE_PER_CLEAR = 100;
+export const SCORE_PER_BOSS = 500;
+export const GLORY_PER_DEPTH = 1000;
+export const HOLLOW_HP_FLOOR = 2;
+
+export type PactId = 'BRITTLE' | 'TITHE' | 'HEX' | 'IRON' | 'MISER' | 'STORM' | 'ASH' | 'HUNTER';
+export const PACT_IDS: readonly PactId[] = ['BRITTLE', 'TITHE', 'HEX', 'IRON', 'MISER', 'STORM', 'ASH', 'HUNTER'];
+export const PACT_OFFERS = 3;
+export interface PactMod {
+  maxHpMult?: number; dmgMult?: number; clearHealMult?: number; spPerClear?: number;
+  foeAffix?: number; rarityShift?: number; foeAtkMult?: number; spPerBoss?: number;
+  fightDrops?: number; extraCard?: number; attackMult?: number; burstGainMult?: number;
+  restHealMult?: number; restUpgrade?: number; eliteHpMult?: number; eliteSp?: number; eliteExtraCard?: number;
+}
+export interface PactDef { id: PactId; name: string; curse: string; boon: string; mods: PactMod }

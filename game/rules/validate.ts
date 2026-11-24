@@ -1,8 +1,9 @@
 import type { Biome, Element, EnemyDef, EnemyKind, Item, ItemEffect, LootSource, MoveId, SpellId } from '../types';
 import { ITEMS } from './items';
-import { ENEMIES } from './enemies';
+import { DESCENT_ONLY, ENEMIES } from './enemies';
 import { ACT_MULT, BIOMES, LOOT_COUNT, LOOT_WEIGHTS, SPELL_ORDER, SPELLS } from './world';
 import { validateEvents } from './events';
+import { validatePacts } from './pacts';
 
 const EFFECT_KINDS: Record<ItemEffect['kind'], true> = {
   NONE: true, HEX_STRIKE: true, RAMP: true, TWIN_STRIKE: true, SPELL_TWICE: true,
@@ -156,7 +157,7 @@ const ENEMY_RULES: Rule<EnemyDef>[] = [
   [(e) => e.moves.length === 0, (e) => `${e.id}: empty move cycle`],
   [(e) => windupBroken(e.moves), (e) => `${e.id}: every WINDUP must be followed by HEAVY and every HEAVY preceded by WINDUP`],
   [(e) => extraMoves(e.moves) > EXTRA_MOVES[e.kind], (e) => `${e.id}: too many distinct moves for a ${e.kind}`],
-  [(e) => e.kind === 'BOSS' && !e.phase2, (e) => `${e.id}: a BOSS needs a phase2`],
+  [(e) => e.kind === 'BOSS' && !e.phase2 && !DESCENT_ONLY.includes(e.id), (e) => `${e.id}: a BOSS needs a phase2`],
   [(e) => e.kind !== 'BOSS' && !!e.phase2, (e) => `${e.id}: only a BOSS has a phase2`],
 ];
 
@@ -213,7 +214,7 @@ function validateBiomes(bad: string[], signatureOf: Map<string, string>): void {
   const seen = { enemies: new Set<string>(), scrolls: new Set<string>() };
   BIOMES.forEach((b, act) => { validateBiome({ b, act, signatureOf }, seen, bad); });
   for (const id of Object.keys(ENEMIES)) {
-    if (!seen.enemies.has(id)) {bad.push(`enemy in no biome: ${id}`);}
+    if (!seen.enemies.has(id) && !DESCENT_ONLY.includes(id)) {bad.push(`enemy in no biome: ${id}`);}
   }
 }
 
@@ -243,5 +244,6 @@ export function validateData(): string[] {
   validateBiomes(bad, signatureOf);
   validateTables(bad);
   bad.push(...validateEvents());
+  bad.push(...validatePacts());
   return bad;
 }

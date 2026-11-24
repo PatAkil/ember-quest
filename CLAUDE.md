@@ -17,8 +17,10 @@ ember-quest/
 │   ├── data.ts               # content import path: re-exports game/rules/* — headless
 │   ├── rules/                # the content itself — headless
 │   │   ├── items.ts          #   ITEMS
-│   │   ├── enemies.ts        #   ENEMIES
+│   │   ├── enemies.ts        #   ENEMIES (incl. THE HOLLOW, descent-only), HOLLOW_ID, DESCENT_ONLY
 │   │   ├── world.ts          #   SPELLS, SPELL_ORDER, BIOMES, ACT_MULT, LOOT_WEIGHTS/COUNT, heal constants, rarity colours
+│   │   ├── events.ts         #   EVENTS, the event effect vocabulary, validateEvents
+│   │   ├── pacts.ts          #   PACTS (curse, boon, PactMod values), validatePacts
 │   │   └── validate.ts       #   validateData (never imports data.ts)
 │   ├── sim.ts                # barrel: the one import path for rules — headless
 │   ├── sim/                  # pure rules + balance policies, one concern per file — headless
@@ -41,11 +43,16 @@ ember-quest/
 │   │   ├── policies.ts       #   POLICIES (random, balanced, glass, tank, routing archetypes)
 │   │   ├── policy-battle.ts  #   how the policies fight (damageAct, expected damage)
 │   │   ├── policy-choices.ts #   DEFAULT_CHOICES: the shared pack/upgrade/prepare defaults every policy spreads
-│   │   └── run.ts            #   simulateRun, RunResult, Probe
+│   │   ├── descent.ts        #   the stage counter n: depthOf, actInDepth, actMult, ActPlan, planDepth, planOf
+│   │   ├── affixes.ts        #   enemy affixes: ARMORED/WARDED resists, VAMPIRIC/THORNED/SWIFT/SEARING values
+│   │   ├── hollow.ts         #   THE HOLLOW (hollowOf) and spawnFoe, the one spawn path for game and simulator
+│   │   ├── pacts.ts          #   pactMods (folded PactMod totals), offerPacts, takePact
+│   │   ├── score.ts          #   scoreOf, gloryBonus, scoreAfterDeath
+│   │   └── run.ts            #   simulateRun (options.descend, off by default), RunResult, Probe
 │   ├── main.ts               # wiring only: app, game state, scene hooks, dev hook, loop
 │   ├── app.ts                # creates the engine objects (canvas, input, scenes, particles, juice, audio, CRT, runtime)
 │   ├── state.ts              # the Game type + createGame(): one object `g` with per-screen slices
-│   ├── flow.ts               # run flow: room selection, stage advance, clears, act change, startRun, scene hooks
+│   ├── flow.ts               # run flow: room selection, stage advance, clears, act change, THRESHOLD (ascend/descend), depth entry + PACT, startRun, scene hooks
 │   ├── frame.ts              # update/render dispatch tables per scene and sub-scene
 │   ├── fx-state.ts           # battle-fx data: actors, moves, tints, shots, cues, lagging meters, banner, screen-reveal state
 │   ├── fx.ts                 # battle-fx clock: eased actor poses, cue queue (skip to impact), meters, boss banner timing
@@ -57,7 +64,7 @@ ember-quest/
 │   ├── pops.ts               # floating damage/score pops
 │   ├── storage.ts            # best score in localStorage
 │   ├── lookup.ts             # at, pickOneIndex (re-exported from sim), must, noop — guarded indexed access
-│   ├── screens/              # one update + one view per screen: battle/battle-view, map/map-view, loot/loot-view, levelup, card, status (map status panel), gear/gear-view (GEAR: worn slots + pack, B on the map), pick/pick-view (PICK: the shared chooser, e.g. UPGRADE WHICH?), title (title, pause, endings)
+│   ├── screens/              # one update + one view per screen: battle/battle-view, map/map-view, loot/loot-view, levelup, card, status (map status panel), gear/gear-view (GEAR: worn slots + pack, B on the map), pick/pick-view (PICK: the shared chooser, e.g. UPGRADE WHICH?), threshold/threshold-view (THRESHOLD: ASCEND or DESCEND), pact/pact-view (PACT: one of up to three pacts), title (title, pause, endings)
 │   │   ├── battle-fx.ts      #   choreography of a turn: wind-ups, impacts, pops, regen aura, defeat, entrance, death
 │   │   ├── battle-fx-view.ts #   draws the shots (orbs, bolts, slashes, blooms …) and the boss/elite banner strip
 │   │   ├── battle-fx-verbs.ts #  the beat of each battle verb: guard, parry, break, burst, potion, burn tick, phase, weak
@@ -115,7 +122,7 @@ ember-quest/
 - **Look before you report.** `npm run look -- --scene battle --act 2 --seed 7` prints one
   JSON line (`ok`, the game `state`, console/page `errors`, the screenshot path) in under
   a second; read the state first and the screenshot whenever the look changed. Scenes:
-  `title map battle levelup loot card paused gameover win gear pick drop battle-heavy battle-magic battle-ward battle-phase event`; acts 1–4. Claude may say what
+  `title map battle levelup loot card paused gameover win gear pick drop battle-heavy battle-magic battle-ward battle-phase event threshold pact`; acts 1–4, depths 1–10 (`--depth`). Claude may say what
   it saw; the owner remains the playtester for feel — report "builds, boots clean,
   ready to play at <URL>", never "playtested".
 - **Done means**: `npm run check` and `npm run lint` after every edit (or `npx eslint
@@ -155,7 +162,7 @@ ember-quest/
 | Command | What it does |
 |---|---|
 | `npm run setup` | Browser + dev server, idempotent; prints `eyes: ready - … \| chromium /tmp/ember-chromium \| dev <url>`; marker `/tmp/ember-eyes.json` (`url` is the public exposed-port URL when `JBCENTRAL_EXPOSED_PORT_URL_5173` is set, else `http://localhost:5173/`). `--force` redoes everything |
-| `npm run look -- [--scene S] [--act N] [--seed N] [--keys "Down,Space"] [--steps N] [--out file.png] [--no-shot]` | One JSON line `{"ok","state","errors","shot"}`; exit 1 on any console/page error or no canvas. With `--scene` or `--seed` the page runs in hold mode and each key is followed by `--steps` (default 30) fixed ticks. Keys: `Up Down Left Right Space B Esc Enter` (`B`/`X` = button B) or Playwright names (`ArrowDown`, `KeyZ`, `KeyX`, `KeyP`). Default shot: `$AIR_ARTIFACTS_DIR/look/<scene>-a<act>-s<seed>.png`, else `/tmp/ember-look/` |
+| `npm run look -- [--scene S] [--act N] [--depth D] [--seed N] [--keys "Down,Space"] [--steps N] [--out file.png] [--no-shot]` | One JSON line `{"ok","state","errors","shot"}`; exit 1 on any console/page error or no canvas. With `--scene` or `--seed` the page runs in hold mode and each key is followed by `--steps` (default 30) fixed ticks. Keys: `Up Down Left Right Space B Esc Enter` (`B`/`X` = button B) or Playwright names (`ArrowDown`, `KeyZ`, `KeyX`, `KeyP`). Default shot: `$AIR_ARTIFACTS_DIR/look/<scene>-a<act>-s<seed>.png` (`<scene>-d<depth>-a…` when `--depth` > 1), else `/tmp/ember-look/` |
 | `npm run verify` | eyes, lint, check, build, smoke, rules (map invariants over 5000 seeds, seeded-rng determinism, `validateData`), `sim:quick` (informational: balanced and random win rates), two at a time; one `PASS/FAIL/INFO` line per gate with its time, then `TOTAL`. About 10 s |
 | `npm run verify -- --full` | adds knip, jscpd, depcruise, `dist:no-hook` (no `__ember` in `dist/`), `look:all` (every scene), and the full sim. About 30 s |
 | `node scripts/oracle.mjs --save <file>` / `--check <file>` | 96 cases (12 scenes × 4 acts × still / after `Down,Space,Space,Down,Space`, seed 7): sha256 of the state JSON and of the exact screenshot. `--check` prints `ORACLE OK` or lists each differing case as `(state)` or `(pixels)`. Save before a refactor, check after. Needs the dev server; about 80 s |
@@ -169,12 +176,16 @@ target. `npx playwright install chromium` is blocked in this environment — nev
 the build, which `verify --full` proves). URL parameters: `?seed=<uint>` routes every
 random decision in the game through one seeded PRNG (absent → a real run draws a random
 seed at `startRun` and plays the same seeded generator, `createSeededRng`; the hook's rng,
-marked by `g.rngFromHook`, always wins); `?scene=<name>&act=<1..4>` boots straight into that screen with a
-deterministic fixture (seed defaults to 1); `&hold=1` also seeds `Math.random` (ambient,
+marked by `g.rngFromHook`, always wins); `?scene=<name>&act=<1..4>&depth=<1..10>` boots straight into that screen with a
+deterministic fixture (seed defaults to 1) at stage `n = 4(depth − 1) + act − 1`; below depth 1
+the fixture holds the depth plan, `won`, the banked score and one pact per depth entered;
+`threshold` stops on the THRESHOLD after the depth's last boss, `win` ascends from it, and `pact`
+descends into `depth` (from the depth above it); `&hold=1` also seeds `Math.random` (ambient,
 shake) and stops the rAF loop from ticking or drawing, so frames advance only through
 the hook — this is what makes screenshots pixel-identical. In the page:
-`window.__ember.state()` (JSON: scene, subScene, act, seed, cursor, hero, derived,
-enemy, clears, score, and the battle/loot/card/gear/pick/map slice of the current sub-scene),
+`window.__ember.state()` (JSON: scene, subScene, act (= actInDepth + 1), n, depth, actInDepth, seed, cursor,
+won, banked, bosses, biome, hero, derived, enemy, clears, score, and the
+battle/loot/card/gear/pick/event/threshold/pact/map slice of the current sub-scene),
 `step(n)` (n fixed ticks synchronously, one render, returns the state) and
 `press('A' | 'B' | 'PAUSE' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT')` (one edge press on the next tick).
 

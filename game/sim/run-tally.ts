@@ -1,9 +1,8 @@
-import { type Derived, type EnemyInstance, type EnemyKind, type Hero, type LootOffer, type Rng } from '../types';
-import { BIOMES } from '../data';
+import { type Derived, type EnemyInstance, type EnemyKind, type Hero, type LootOffer, type Rng, type SpellId } from '../types';
+import type { ActPlan } from './descent';
 import { equippedItems } from './gear';
 import { derive } from './hero';
 import type { Policy, RoomType } from './model';
-import { clamp } from './util';
 
 export interface RunResult {
   won: boolean;
@@ -96,6 +95,11 @@ export interface RunState {
   clears: number;
   probes: Probe[];
   tally: Tally;
+  n: number;
+  depthPlan: ActPlan[];
+  plan: ActPlan;
+  descentClears: number | null;
+  descend: boolean;
 }
 
 export interface Ending {
@@ -118,12 +122,9 @@ export function newTally(): Tally {
   };
 }
 
-export function bossPickKind(chosen: LootOffer | null, act: number): BossPick {
+export function bossPickKind(chosen: LootOffer | null, current: SpellId | undefined): BossPick {
   if (!chosen) {return 'NONE';}
-  if (chosen.kind === 'SCROLL') {
-    const current = BIOMES[clamp(act, 0, BIOMES.length - 1)]?.scroll;
-    return chosen.spell === current ? 'SCROLL' : 'MISSED_SCROLL';
-  }
+  if (chosen.kind === 'SCROLL') {return chosen.spell === current ? 'SCROLL' : 'MISSED_SCROLL';}
   if (chosen.kind === 'ITEM') {return chosen.item.bossOnly ? 'SIGNATURE' : 'ROLLED';}
   return 'UPGRADE';
 }

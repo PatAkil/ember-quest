@@ -6,7 +6,7 @@ import {
   resolveOverflow, resolveUpgrade, rollLoot, skipMend, upgradableTargets,
 } from '../sim';
 import type { AppliedOffer } from '../sim';
-import { dirEdge, dirEdgeX, resetCursorEdge, wrapCursor } from '../state';
+import { actRef, dirEdge, dirEdgeX, resetCursorEdge, wrapCursor } from '../state';
 import type { Game, PickRow } from '../state';
 import { ICON_SCROLL } from '../sprites';
 import { C_ACCENT, C_SCROLL, heroPos, rarityColor } from '../theme';
@@ -20,7 +20,7 @@ type UpgradeOffer = Extract<LootOffer, { kind: 'UPGRADE' }>;
 type TakenOffer = Exclude<LootOffer, { kind: 'UPGRADE_ANY' }>;
 
 export function startLoot(g: Game, source: LootSource, onDone: () => void): void {
-  const offers = rollLoot(source, g.actIndex, g.hero, g.rng);
+  const offers = rollLoot(source, actRef(g), g.hero, g.rng);
   g.loot = { offers, source, cursor: 0, stow: false, onDone };
   if (offers.length === 0) {
     if (source === 'FIGHT') { onDone(); return; }

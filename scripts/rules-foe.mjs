@@ -9,7 +9,7 @@ export const ENEMY_IDS = [
 
 export function fightOf(sim, id, cycleIndex = 0) {
   const hero = sim.createHero();
-  const enemy = sim.spawnEnemy(id, 0, 0);
+  const enemy = sim.spawnEnemy(id, { n: 0, clears: 0, descentClears: null });
   enemy.cycleIndex = cycleIndex;
   return { hero, enemy, battle: sim.createBattle(enemy) };
 }
@@ -104,14 +104,14 @@ function withMoves(def, moves, body) {
 }
 
 function validateCycles(sim) {
-  const goblin = sim.spawnEnemy('GOBLIN', 0, 0).def;
+  const goblin = sim.spawnEnemy('GOBLIN', { n: 0, clears: 0, descentClears: null }).def;
   const fails = (moves) => withMoves(goblin, moves, () => sim.validateData().some((m) => m.startsWith('GOBLIN')));
   assert.ok(fails(['STRIKE', 'WINDUP']), 'a WINDUP at the end passed');
   assert.ok(fails(['HEAVY', 'STRIKE']), 'a HEAVY without a WINDUP passed');
   assert.ok(fails(['STRIKE', 'WARD', 'MEND', 'SCORCH']), 'a NORMAL with 3 extra moves passed');
   assert.ok(fails([]), 'an empty cycle passed');
   assert.ok(!fails(['WINDUP', 'HEAVY', 'STRIKE']), 'a legal cycle failed');
-  const boss = sim.spawnEnemy('YETI', 0, 0).def;
+  const boss = sim.spawnEnemy('YETI', { n: 0, clears: 0, descentClears: null }).def;
   const phase2 = boss.phase2;
   boss.phase2 = { ...phase2, moves: ['HEAVY', 'STRIKE'] };
   const heavyFirst = sim.validateData().some((m) => m.startsWith('YETI'));

@@ -19,6 +19,10 @@ import { renderPick } from './screens/pick-view';
 import { updatePick } from './screens/pick';
 import { renderEvent } from './screens/event-view';
 import { updateEvent } from './screens/event';
+import { renderPact } from './screens/pact-view';
+import { updatePact } from './screens/pact';
+import { renderThreshold } from './screens/threshold-view';
+import { updateThreshold } from './screens/threshold';
 import { renderEndingOverlay, renderPausedOverlay, renderTitle } from './screens/title';
 
 type Scene = SceneMachine['current'];
@@ -32,6 +36,8 @@ const UPDATE_SUB: Record<SubScene, (g: Game, dt: number) => void> = {
   GEAR: updateGear,
   PICK: updatePick,
   EVENT: updateEvent,
+  THRESHOLD: updateThreshold,
+  PACT: updatePact,
 };
 
 const RENDER_SUB: Record<SubScene, (g: Game) => void> = {
@@ -43,6 +49,8 @@ const RENDER_SUB: Record<SubScene, (g: Game) => void> = {
   GEAR: renderGear,
   PICK: renderPick,
   EVENT: renderEvent,
+  THRESHOLD: renderThreshold,
+  PACT: renderPact,
 };
 
 function restartOnA(g: Game): void {

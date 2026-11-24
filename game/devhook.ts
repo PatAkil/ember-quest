@@ -1,25 +1,29 @@
 import type { SceneMachine } from '../engine';
-import { EMBER_MAX } from './types';
-import type { BattleState, Hero, Derived, EnemyInstance, EnemyKind, HeroAction, LootOffer, LootSource, MoveId, Rng, SpellId, StatKey } from './types';
-import { createHero, createSeededRng, grantClear, spendPoint, rollLoot, applyOffer, noteDeclinedScrolls, fullHeal, equip, stow, learnSpell } from './sim';
-import { BIOMES, ITEMS } from './data';
-import type { SeededRng } from './sim';
+import { ACTS_PER_DEPTH, EMBER_MAX } from './types';
+import type { BattleState, Hero, Derived, EnemyInstance, EnemyKind, HeroAction, LootOffer, LootSource, MoveId, PactId, Rng, SpellId, StatKey } from './types';
+import {
+  createHero, createSeededRng, grantClear, spendPoint, rollLoot, applyOffer, noteDeclinedScrolls, fullHeal, equip, stow, learnSpell, offerPacts, planOf, storyPlan, takePact,
+} from './sim';
+import { ITEMS } from './data';
+import type { ActPlan, SeededRng } from './sim';
 import type { BattleScreen, MapNode, RoomType, SubScene } from './state';
 import { at, must, noop } from './lookup';
 
 type Action = 'A' | 'B' | 'PAUSE' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
 type Fixture =
   | 'title' | 'map' | 'battle' | 'levelup' | 'loot' | 'card' | 'paused' | 'gameover' | 'win' | 'gear' | 'pick' | 'drop'
-  | 'battle-heavy' | 'battle-magic' | 'battle-ward' | 'battle-phase' | 'event';
+  | 'battle-heavy' | 'battle-magic' | 'battle-ward' | 'battle-phase' | 'event' | 'threshold' | 'pact';
 type DevNode = MapNode;
 
 interface DevView {
-  scene: string; subScene: SubScene; act: number; hero: Hero; derived: Derived; enemy: EnemyInstance | null;
+  scene: string; subScene: SubScene; act: number; n: number; depth: number; hero: Hero; derived: Derived; enemy: EnemyInstance | null;
   clears: number; score: number; dying: boolean; cursors: Record<SubScene, number>;
   battlePhase: string; battleText: string; intent: MoveId | null; actions: HeroAction[]; offers: LootOffer[]; card: string[];
   map: DevNode[][]; curStage: number; reachable: number[];
   pick: { title: string; rows: string[] };
   event: { id: string; title: string; options: string[] };
+  descent: { won: boolean; banked: number; bosses: number; descentClears: number | null; plan: ActPlan };
+  pacts: PactId[];
 }
 
 interface DevHost {
@@ -29,7 +33,8 @@ interface DevHost {
   render(): void;
   resetEdge(): void;
   syncReveal(): void;
-  startRun(hero: Hero, act: number, clears: number): void;
+  startRun(hero: Hero, n: number, clears: number): void;
+  plan(): ActPlan;
   selectNode(node: DevNode): void;
   nextNodes(): DevNode[];
   bossNode(): DevNode;
@@ -43,7 +48,7 @@ interface DevHost {
 
 const FIXTURES: readonly Fixture[] = [
   'title', 'map', 'battle', 'levelup', 'loot', 'card', 'paused', 'gameover', 'win', 'gear', 'pick', 'drop', 'battle-heavy', 'battle-magic',
-  'battle-ward', 'battle-phase', 'event',
+  'battle-ward', 'battle-phase', 'event', 'threshold', 'pact',
 ];
 const KEY: Record<Action, string> = {
   A: 'Space', B: 'KeyX', PAUSE: 'KeyP', UP: 'ArrowUp', DOWN: 'ArrowDown', LEFT: 'ArrowLeft', RIGHT: 'ArrowRight',
@@ -59,7 +64,7 @@ function spendAll(hero: Hero, start: number): number {
 }
 
 function takeLoot(hero: Hero, source: LootSource, act: number, rng: Rng): void {
-  const offers = rollLoot(source, act, hero, rng);
+  const offers = rollLoot(source, { n: act, plan: planOf(storyPlan(), act) }, hero, rng);
   const pick = offers.find((o) => o.kind === 'SCROLL') ?? offers.find((o) => o.kind === 'ITEM') ?? offers[0];
   if (pick) {applyOffer(hero, pick, rng);}
   noteDeclinedScrolls(hero, offers, pick ?? null);
@@ -118,13 +123,20 @@ function wanderer(hero: Hero): Hero {
   return hero;
 }
 
-function scoutedFoe(type: RoomType, act: number): string | undefined {
-  const b = at(BIOMES, act - 1);
-  if (type === 'FIGHT') {return b.normals[0];}
-  return type === 'ELITE' ? b.elites[0] : undefined;
+function pledged(hero: Hero, depth: number, rng: Rng): Hero {
+  for (let d = 2; d <= depth; d++) {
+    const [first] = offerPacts(hero, rng);
+    if (first) {takePact(hero, first);}
+  }
+  return hero;
 }
 
-interface Params { seed: number | null; fixture: Fixture | null; act: number }
+function scoutedFoe(type: RoomType, plan: ActPlan): string | undefined {
+  if (type === 'FIGHT') {return plan.normals[0];}
+  return type === 'ELITE' ? plan.elites[0] : undefined;
+}
+
+interface Params { seed: number | null; fixture: Fixture | null; n: number; depth: number }
 
 const isFixture = (raw: string): raw is Fixture => (FIXTURES as readonly string[]).includes(raw);
 
@@ -142,21 +154,26 @@ function parseSeed(q: URLSearchParams, fixture: Fixture | null): number | null {
   return fixture ? 1 : null;
 }
 
-function parseAct(q: URLSearchParams): number {
-  const a = Number.parseInt(q.get('act') ?? '1', 10);
-  return Number.isFinite(a) ? Math.min(4, Math.max(1, a)) : 1;
+const MAX_DEPTH = 10;
+
+function parseBounded(raw: string | null, max: number): number {
+  const v = Number.parseInt(raw ?? '1', 10);
+  return Number.isFinite(v) ? Math.min(max, Math.max(1, v)) : 1;
 }
 
 function parseParams(): Params {
   const q = new URLSearchParams(location.search);
   const fixture = parseFixture(q);
-  return { seed: parseSeed(q, fixture), fixture, act: parseAct(q) };
+  const depth = parseBounded(q.get('depth'), MAX_DEPTH);
+  const n = ACTS_PER_DEPTH * (depth - 1) + parseBounded(q.get('act'), ACTS_PER_DEPTH) - 1;
+  return { seed: parseSeed(q, fixture), fixture, n, depth };
 }
 
 function snapshot(v: DevView, seed: number | null): unknown {
   const sub = v.subScene;
   return JSON.parse(JSON.stringify({
-    scene: v.scene, subScene: sub, act: v.act, seed, cursor: v.cursors[sub],
+    scene: v.scene, subScene: sub, act: v.act, n: v.n, depth: v.depth, actInDepth: v.act - 1, seed, cursor: v.cursors[sub],
+    won: v.descent.won, banked: v.descent.banked, bosses: v.descent.bosses, biome: v.descent.plan.biomeIndex,
     hero: v.hero, derived: v.derived, enemy: v.enemy, clears: v.clears, score: v.score,
     battle: sub === 'BATTLE' ? { phase: v.battlePhase, text: v.battleText, intent: v.intent, actions: v.actions } : null,
     loot: sub === 'LOOT' ? v.offers : null,
@@ -164,6 +181,8 @@ function snapshot(v: DevView, seed: number | null): unknown {
     gear: sub === 'GEAR' ? { pack: v.hero.pack.length } : null,
     pick: sub === 'PICK' ? v.pick : null,
     event: sub === 'EVENT' ? v.event : null,
+    threshold: sub === 'THRESHOLD' ? { choices: ['ASCEND', 'DESCEND'] } : null,
+    pact: sub === 'PACT' ? { offers: v.pacts } : null,
     map: sub === 'MAP' ? { stage: v.curStage, reachable: v.reachable, stages: v.map.map((st) => st.map((n) => (n.cleared ? `${n.type}*` : n.type))) } : null,
   }));
 }
@@ -201,7 +220,7 @@ function ticksUntil(driver: Driver, done: () => boolean, max: number, withA = fa
   }
 }
 
-interface FixtureContext { host: DevHost; driver: Driver; rng: Rng; act: number }
+interface FixtureContext { host: DevHost; driver: Driver; rng: Rng; n: number; depth: number }
 
 type VerbFixture = 'battle-heavy' | 'battle-magic' | 'battle-ward' | 'battle-phase';
 interface Starts { fresh: () => Hero; begin: (hero?: Hero) => void; battle: (hero?: Hero) => void }
@@ -240,16 +259,16 @@ function verbFixtures(fx: FixtureContext, starts: Starts): Record<VerbFixture, (
 }
 
 function fixtureBuilders(fx: FixtureContext): Record<Fixture, () => void> {
-  const { host, driver, rng, act } = fx;
-  const fresh = (): Hero => (act > 1 ? veteran(act - 1, rng) : createHero());
+  const { host, driver, rng, n, depth } = fx;
+  const fresh = (): Hero => pledged(n > 0 ? veteran(n, rng) : createHero(), depth, rng);
   const begin = (hero?: Hero): void => {
-    host.startRun(hero ?? fresh(), act - 1, (act - 1) * ACT_CLEARS.length);
+    host.startRun(hero ?? fresh(), n, n * ACT_CLEARS.length);
     host.scenes.to('PLAYING');
   };
   const enter = (type: RoomType): void => {
     const nodes = host.nextNodes();
-    const node = nodes.find((n) => n.type === type) ?? at(nodes, 0);
-    if (node.type !== type) {node.enemyId = scoutedFoe(type, act);}
+    const node = nodes.find((m) => m.type === type) ?? at(nodes, 0);
+    if (node.type !== type) {node.enemyId = scoutedFoe(type, host.plan());}
     node.type = type;
     host.selectNode(node);
   };
@@ -265,12 +284,23 @@ function fixtureBuilders(fx: FixtureContext): Record<Fixture, () => void> {
     for (let i = 0; i < 500 && !host.view().dying && host.view().enemy; i++) {host.enemyTurn();}
     ticksUntil(driver, () => host.scenes.is('GAME_OVER'), 240);
   };
-  const winRun = (): void => {
-    host.startRun(veteran(3, rng), 3, 3 * ACT_CLEARS.length);
+  const killLastBoss = (cleared = depth): void => {
+    const lastAct = ACTS_PER_DEPTH * cleared - 1;
+    host.startRun(pledged(veteran(lastAct, rng), cleared, rng), lastAct, lastAct * ACT_CLEARS.length);
     host.scenes.to('PLAYING');
     host.selectNode(host.bossNode());
     host.winBattle();
+    ticksUntil(driver, () => host.view().subScene === 'THRESHOLD', 400, true);
+  };
+  const winRun = (): void => {
+    killLastBoss();
     ticksUntil(driver, () => host.scenes.is('WIN'), 400, true);
+  };
+  const pactRun = (): void => {
+    killLastBoss(Math.max(1, depth - 1));
+    host.syncReveal();
+    driver.press('DOWN'); driver.runTick(DT);
+    driver.press('A'); driver.runTick(DT);
   };
   return {
     title: noop,
@@ -287,6 +317,8 @@ function fixtureBuilders(fx: FixtureContext): Record<Fixture, () => void> {
     pick: () => { begin(laden()); enter('LOOT'); host.pickUpgrade(); },
     drop: () => { chest(laden()); host.syncReveal(); driver.press('A'); driver.runTick(DT); },
     event: () => { begin(wanderer(fresh())); enter('EVENT'); },
+    threshold: () => { killLastBoss(); },
+    pact: pactRun,
   };
 }
 
@@ -308,14 +340,14 @@ function preservingStorage(run: () => void): void {
 }
 
 export function installDevHook(host: DevHost): { update(dt: number): void; render(): void } {
-  const { seed, fixture, act } = parseParams();
+  const { seed, fixture, n, depth } = parseParams();
   const source = seed === null ? null : createSeededRng(seed);
   if (source) {host.setRng(source);}
   const rng = source?.next ?? null;
   let manual = HOLD;
   const driver = createDriver(host);
   if (fixture !== null && rng !== null) {
-    const build = fixtureBuilders({ host, driver, rng, act })[fixture];
+    const build = fixtureBuilders({ host, driver, rng, n, depth })[fixture];
     preservingStorage(build);
     host.syncReveal();
   }

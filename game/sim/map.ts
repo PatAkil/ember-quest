@@ -1,12 +1,12 @@
-import type { Rng } from '../types';
+import type { AffixId, Rng } from '../types';
 import type { RoomType } from './model';
 import { at, pickOneIndex } from './util';
 
 type StageRoom = Exclude<RoomType, 'BOSS'>;
 
-export interface MapNode { type: RoomType; links: number[]; enemyId?: string }
+export interface MapNode { type: RoomType; links: number[]; enemyId?: string; affixes?: AffixId[] }
 
-interface MapShape {
+export interface MapShape {
   stageSizes: readonly number[];
   weights: Record<StageRoom, number>;
 }

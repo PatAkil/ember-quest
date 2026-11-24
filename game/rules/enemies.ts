@@ -19,4 +19,8 @@ export const ENEMIES: Record<string, EnemyDef> = {
   ORACLE: { id: 'ORACLE', name: 'ORACLE', kind: 'NORMAL', atkType: 'MAGIC', hpBase: 36, hpPerClear: 5, atkBase: 3.8, atkPerClear: 0.26, def: 0, mdef: 25, mult: 1, trait: 'FARSEEING', moves: ['STRIKE', 'SCORCH', 'STRIKE', 'WARD'], weak: 'EARTH', resists: 'THUNDER' },
   PALADIN: { id: 'PALADIN', name: 'PALADIN', kind: 'ELITE', atkType: 'PHYSICAL', hpBase: 96, hpPerClear: 7, atkBase: 6.0, atkPerClear: 0.42, def: 25, mdef: 15, mult: 1, trait: 'BLESSED', moves: ['STRIKE', 'WARD', 'WINDUP', 'HEAVY', 'STRIKE'], weak: 'THUNDER', resists: 'FIRE' },
   SERAPH: { id: 'SERAPH', name: 'THE SERAPH', kind: 'BOSS', atkType: 'MAGIC', hpBase: 172, hpPerClear: 7, atkBase: 7.8, atkPerClear: 0.22, def: 15, mdef: 30, mult: 1.25, trait: 'DIVINE', moves: ['SCORCH', 'STRIKE', 'WARD', 'WINDUP', 'HEAVY', 'MEND'], phase2: { at: 0.5, moves: ['SCORCH', 'WINDUP', 'HEAVY', 'SCORCH', 'WINDUP', 'HEAVY'], banner: 'THE SERAPH ASCENDS', atkMult: 1.15 }, weak: 'THUNDER', resists: 'FIRE' },
+  HOLLOW: { id: 'HOLLOW', name: 'THE HOLLOW', kind: 'BOSS', atkType: 'PHYSICAL', hpBase: 200, hpPerClear: 0, atkBase: 9, atkPerClear: 0, def: 20, mdef: 20, mult: 1, trait: 'MIRRORED', moves: ['STRIKE', 'STRIKE', 'WINDUP', 'HEAVY'] },
 };
+
+export const HOLLOW_ID = 'HOLLOW';
+export const DESCENT_ONLY: readonly string[] = [HOLLOW_ID];

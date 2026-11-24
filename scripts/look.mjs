@@ -20,6 +20,7 @@ const { values: opts } = parseArgs({
   options: {
     scene: { type: 'string' },
     act: { type: 'string' },
+    depth: { type: 'string' },
     seed: { type: 'string' },
     keys: { type: 'string', default: '' },
     steps: { type: 'string', default: '30' },
@@ -28,7 +29,7 @@ const { values: opts } = parseArgs({
   },
 });
 
-const SCENES = ['title', 'map', 'battle', 'levelup', 'loot', 'card', 'paused', 'gameover', 'win', 'gear', 'pick', 'drop', 'battle-heavy', 'battle-magic', 'battle-ward', 'battle-phase', 'event'];
+const SCENES = ['title', 'map', 'battle', 'levelup', 'loot', 'card', 'paused', 'gameover', 'win', 'gear', 'pick', 'drop', 'battle-heavy', 'battle-magic', 'battle-ward', 'battle-phase', 'event', 'threshold', 'pact'];
 if (opts.scene !== undefined && !SCENES.includes(opts.scene)) {
   console.log(JSON.stringify({ ok: false, state: null, errors: [`unknown --scene "${opts.scene}" (known: ${SCENES.join(', ')})`], shot: null }));
   process.exit(1);
@@ -39,7 +40,7 @@ const keys = opts.keys.split(',').map((k) => k.trim()).filter(Boolean).map((k) =
 
 function pageUrl() {
   const url = new URL(BASE);
-  for (const name of ['seed', 'scene', 'act']) {
+  for (const name of ['seed', 'scene', 'act', 'depth']) {
     if (opts[name] !== undefined) {
       url.searchParams.set(name, opts[name]);
     }
@@ -54,7 +55,8 @@ function shotPath() {
   }
   const scene = opts.scene ?? 'title';
   const seed = opts.seed ?? (opts.scene ? '1' : 'r');
-  const name = `${scene}-a${opts.act ?? 1}-s${seed}.png`;
+  const depth = opts.depth && opts.depth !== '1' ? `-d${opts.depth}` : '';
+  const name = `${scene}${depth}-a${opts.act ?? 1}-s${seed}.png`;
   const dir = process.env.AIR_ARTIFACTS_DIR ? join(process.env.AIR_ARTIFACTS_DIR, 'look') : '/tmp/ember-look';
   return join(dir, name);
 }

@@ -36,7 +36,7 @@ export {
 } from './sim/describe';
 export { applyOffer, ensureStarterWeapon, noteDeclinedScrolls, resolveOverflow, resolveUpgrade, rollLoot, type AppliedOffer, type OfferChoice } from './sim/loot';
 export { discard, ownedIds, packSize, stow, swapIn, unequip, upgradableTargets } from './sim/pack';
-export { createBattle, heroAct, spawnEnemy } from './sim/combat';
+export { clearsTerm, createBattle, heroAct, spawnEnemy } from './sim/combat';
 export { enemyAct } from './sim/enemy-turn';
 export { resistOf, startTurn } from './sim/status';
 export { elementMult } from './sim/element';
@@ -46,8 +46,27 @@ export type { Policy, RoomType } from './sim/model';
 export { POLICIES, type PolicyName } from './sim/policies';
 export { generateMap, MAP_SHAPE, type FoePools } from './sim/map';
 export { at, createSeededRng, pickOneIndex, type SeededRng } from './sim/util';
-export { simulateRun, type BossPick, type Probe, type RunResult } from './sim/run';
-export { ITEMS, validateData } from './data';
+export { SIM_MAX_N, simulateRun, type BossPick, type Probe, type RunResult, type SimOptions } from './sim/run';
+export {
+  actInDepth,
+  actMult,
+  affixCountFor,
+  depthOf,
+  firstActOf,
+  isLastActOfDepth,
+  planDepth,
+  planOf,
+  storyAct,
+  storyPlan,
+  type ActPlan,
+  type ActRef,
+} from './sim/descent';
+export { affixResists, searingStrike, swiftEvades, thornsDamage, vampiricHeal } from './sim/affixes';
+export { hollowOf, spawnFoe, type SpawnContext } from './sim/hollow';
+export { neutralMods, offerPacts, pactMods, takePact, type PactTotals } from './sim/pacts';
+export { gloryBonus, scoreAfterDeath, scoreOf } from './sim/score';
+export { ACT_MULT, BIOMES, ITEMS, PACTS, validateData, validatePacts } from './data';
+export { AFFIX_IDS, AFFIX_MAX } from './types';
 export { validateEvents } from './data';
 export {
   appliedWords,

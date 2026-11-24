@@ -177,7 +177,7 @@ function offerSpread(sim) {
   const seen = new Set();
   const rng = seeded(sim, 11);
   for (let i = 0; i < OFFER_ROLLS; i++) {
-    const offers = sim.rollLoot(SOURCES[i % SOURCES.length], i % 4, sim.createHero(), rng);
+    const offers = sim.rollLoot(SOURCES[i % SOURCES.length], { n: i % 4, plan: sim.storyPlan()[i % 4] }, sim.createHero(), rng);
     for (const o of offers) {if (o.kind === 'ITEM') {seen.add(o.item.id);}}
   }
   const missing = sim.ITEMS.filter((it) => !it.bossOnly && !seen.has(it.id)).map((it) => it.id);

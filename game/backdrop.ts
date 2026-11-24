@@ -131,7 +131,7 @@ function templeBackdrop(l: Layer): void {
 const BACKDROPS: readonly ((l: Layer) => void)[] = [cryptBackdrop, tundraBackdrop, desertBackdrop];
 
 export function renderBiomeBackdrop(g: Game, dim = 1, showSun = true): void {
-  const draw = BACKDROPS[g.actIndex] ?? templeBackdrop;
+  const draw = BACKDROPS[g.plan.biomeIndex] ?? templeBackdrop;
   const ctx = g.app.pc.ctx;
   draw({ ctx, clock: g.clock, dim, showSun });
   ctx.globalAlpha = 1;

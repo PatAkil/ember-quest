@@ -1,5 +1,5 @@
-import type { Biome, Rng } from '../types';
-import { BIOMES } from '../data';
+import type { Rng } from '../types';
+import { actInDepth, depthOf, isLastActOfDepth, planDepth, planOf } from './descent';
 import { createHero } from './hero';
 import { generateMap, type MapNode } from './map';
 import type { Policy, RoomType } from './model';
@@ -9,6 +9,10 @@ import { finish, newTally, type Ending, type RunResult, type RunState } from './
 import { clamp } from './util';
 
 export type { BossPick, Probe, RunResult } from './run-tally';
+
+export const SIM_MAX_N = 40;
+
+export interface SimOptions { descend?: boolean }
 
 function routeIndex(policy: Policy, offered: RoomType[]): number {
   return clamp(Math.floor(policy.route(offered)), 0, offered.length - 1);
@@ -20,8 +24,9 @@ function routeNext(node: MapNode, next: MapNode[], policy: Policy): MapNode | un
   return options[routeIndex(policy, options.map((n) => n.type))];
 }
 
-function playMap(run: RunState, act: number, biome: Biome): Ending | null {
-  const stages = generateMap(run.rng, {}, biome);
+function playMap(run: RunState): Ending | null {
+  const { plan } = run;
+  const stages = generateMap(run.rng, { stageSizes: plan.stageSizes, weights: plan.weights }, plan);
   const rooms = stages.length - 1;
   const entry = stages[0] ?? [];
   let node = entry[routeIndex(run.policy, entry.map((n) => n.type))];
@@ -29,21 +34,38 @@ function playMap(run: RunState, act: number, biome: Biome): Ending | null {
     const current: MapNode = node;
     const next = r + 1 < rooms ? stages[r + 1] : undefined;
     node = next ? routeNext(current, next, run.policy) : undefined;
-    const ending = playRoom(run, { act, biome, node: current });
+    const ending = playRoom(run, current);
     if (ending) {return ending;}
   }
   return null;
 }
 
-function playRun(run: RunState): RunResult {
-  for (const [act, biome] of BIOMES.entries()) {
-    const ending = playMap(run, act, biome) ?? bossRoom(run, act, biome);
-    if (ending) {return finish(run, ending);}
+function nextAct(run: RunState): void {
+  run.n += 1;
+  if (actInDepth(run.n) === 0) {
+    run.descentClears ??= run.clears;
+    run.depthPlan = planDepth(depthOf(run.n), run.rng);
   }
-  return finish(run, { won: true, actReached: Math.max(0, BIOMES.length - 1), deathBy: '', deathKind: '' });
+  run.plan = planOf(run.depthPlan, run.n);
 }
 
-export function simulateRun(policy: Policy, rng: Rng): RunResult {
+const keepsGoing = (run: RunState): boolean => !isLastActOfDepth(run.n) || (run.descend && run.n + 1 < SIM_MAX_N);
+
+function playRun(run: RunState): RunResult {
+  for (;;) {
+    const ending = playMap(run) ?? bossRoom(run);
+    if (ending) {return finish(run, ending);}
+    if (!keepsGoing(run)) {return finish(run, { won: true, actReached: run.n, deathBy: '', deathKind: '' });}
+    nextAct(run);
+  }
+}
+
+export function simulateRun(policy: Policy, rng: Rng, options: SimOptions = {}): RunResult {
   const hero = createHero();
-  return withPolicyContext(rng, hero, () => playRun({ hero, policy, rng, clears: 0, probes: [], tally: newTally() }));
+  const depthPlan = planDepth(1, rng);
+  const run: RunState = {
+    hero, policy, rng, clears: 0, probes: [], tally: newTally(),
+    n: 0, depthPlan, plan: planOf(depthPlan, 0), descentClears: null, descend: options.descend ?? false,
+  };
+  return withPolicyContext(rng, hero, () => playRun(run));
 }

@@ -14,7 +14,8 @@ import {
   type SpellId,
   type UpgradeTarget,
 } from '../types';
-import { BIOMES, ITEMS, LOOT_COUNT, LOOT_WEIGHTS, SPELLS } from '../data';
+import { ITEMS, LOOT_COUNT, LOOT_WEIGHTS, SPELLS } from '../data';
+import type { ActRef } from './descent';
 import { maxLevelFor } from './gear';
 import { clampVitals, equip, learnSpell } from './hero';
 import { ownedIds, packSize, stow, targetOwned, upgradableTargets } from './pack';
@@ -139,10 +140,10 @@ export function ensureStarterWeapon(offers: LootOffer[], hero: Hero, act: number
   offers[lastItem] = { kind: 'ITEM', item: pick(starters, rng) };
 }
 
-export function rollLoot(source: LootSource, act: number, hero: Hero, rng: Rng): LootOffer[] {
+export function rollLoot(source: LootSource, ref: ActRef, hero: Hero, rng: Rng): LootOffer[] {
   if (source === 'FIGHT' && fightIsDry(hero, rng)) {return [];}
-  const offers = source === 'BOSS' ? rollBossLoot(act, hero, rng) : rollRoomLoot(source, act, hero, rng);
-  ensureStarterWeapon(offers, hero, act, rng);
+  const offers = source === 'BOSS' ? rollBossLoot(ref, hero, rng) : rollRoomLoot(source, ref.n, hero, rng);
+  ensureStarterWeapon(offers, hero, ref.n, rng);
   return offers.slice(0, MAX_OFFERS);
 }
 
@@ -168,12 +169,11 @@ function oldestMissedScroll(hero: Hero, except: SpellId | null): SpellId | undef
   return hero.missedScrolls.find((sp) => sp !== except && !hero.baseSpells.includes(sp));
 }
 
-function rollBossLoot(act: number, hero: Hero, rng: Rng): LootOffer[] {
-  const biome = BIOMES[clamp(act, 0, BIOMES.length - 1)];
+function rollBossLoot({ n: act, plan }: ActRef, hero: Hero, rng: Rng): LootOffer[] {
   const offers: LootOffer[] = [];
-  const scroll = biome?.scroll;
+  const { scroll } = plan;
   if (scroll && !hero.baseSpells.includes(scroll)) {offers.push({ kind: 'SCROLL', spell: scroll });}
-  const signature = biome ? signatureFor(biome.boss, hero) : undefined;
+  const signature = signatureFor(plan.boss, hero);
   if (signature) {offers.push({ kind: 'ITEM', item: signature });}
   const missed = oldestMissedScroll(hero, scroll ?? null);
   if (missed) {offers.push({ kind: 'SCROLL', spell: missed });}

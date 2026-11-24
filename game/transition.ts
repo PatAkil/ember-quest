@@ -6,7 +6,7 @@ import { C_PANEL, H, W } from './theme';
 type Ctx = CanvasRenderingContext2D;
 
 const OVERSCAN = 16;
-const SHAPE_FOR: Record<SubScene, RevealShape> = { MAP: 'WIPE', BATTLE: 'BLINDS', LEVELUP: 'WIPE', LOOT: 'WIPE', CARD: 'WIPE', GEAR: 'WIPE', PICK: 'WIPE', EVENT: 'WIPE' };
+const SHAPE_FOR: Record<SubScene, RevealShape> = { MAP: 'WIPE', BATTLE: 'BLINDS', LEVELUP: 'WIPE', LOOT: 'WIPE', CARD: 'WIPE', GEAR: 'WIPE', PICK: 'WIPE', EVENT: 'WIPE', THRESHOLD: 'WIPE', PACT: 'WIPE' };
 const DURATION: Record<RevealShape, number> = { BLINDS: 0.2, WIPE: 0.16 };
 
 export function trackReveal(g: Game, dt: number): void {

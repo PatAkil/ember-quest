@@ -145,7 +145,7 @@ function emberRules(sim) {
   sim.heroAct(f.hero, f.battle, 'MEND', seeded(sim, 1));
   sim.heroAct(f.hero, f.battle, 'GUARD', seeded(sim, 1));
   assert.equal(f.hero.ember, 12, 'healing and guarding give no ember');
-  sim.createBattle(sim.spawnEnemy('GOBLIN', 0, 0));
+  sim.createBattle(sim.spawnEnemy('GOBLIN', { n: 0, clears: 0, descentClears: null }));
   assert.equal(f.hero.ember, 12, 'ember carries between fights');
 }
 

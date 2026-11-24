@@ -43,6 +43,7 @@ export function createHero(): Hero {
     burn: null,
     pendingBurn: 0,
     bonusMaxHp: 0,
+    pacts: [],
   };
 }
 

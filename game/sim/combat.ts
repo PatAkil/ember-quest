@@ -1,8 +1,10 @@
 import {
+  type AffixId,
   type BattleState,
   type DamageKind,
   type Derived,
   type EnemyInstance,
+  type FoeScale,
   type Hero,
   type HeroAction,
   type HeroActResult,
@@ -11,30 +13,35 @@ import {
   type SpellDef,
   type SpellId,
 } from '../types';
-import { ACT_MULT, ENEMIES, SPELLS } from '../data';
+import { ENEMIES, SPELLS } from '../data';
+import { affixResists } from './affixes';
 import { commandAct, heroResult, isCommand, settleBreak } from './commands';
 import { elementMult } from './element';
 import { gainEmber } from './burst';
+import { actMult } from './descent';
 import { nextIntent } from './enemy-turn';
 import { findEffect } from './gear';
 import { derive, isGuardAction, spellCost } from './hero';
 import { burnChance, gearPower, heroElement, riposteMult } from './power';
 import { applyBurn, resistOf, tickWard } from './status';
-import { clamp, jitter, type EffectOf } from './util';
+import { jitter, type EffectOf } from './util';
 
 type Scope = 'ATTACK' | 'SPELL';
 type StrikeAction = 'ATTACK' | SpellId;
 
-export function spawnEnemy(id: string, clears: number, act: number): EnemyInstance {
+export const clearsTerm = (scale: FoeScale): number => scale.descentClears ?? scale.clears;
+
+export function spawnEnemy(id: string, scale: FoeScale, affixes: readonly AffixId[] = []): EnemyInstance {
   const def = ENEMIES[id];
   if (!def) {throw new Error(`unknown enemy: ${id}`);}
-  const m = ACT_MULT[clamp(act, 0, ACT_MULT.length - 1)] ?? 1;
+  const m = actMult(scale.n);
+  const clears = clearsTerm(scale);
   const hp = Math.max(1, Math.round((def.hpBase + def.hpPerClear * clears) * m * def.mult));
   const atk = Math.max(1, Math.round((def.atkBase + def.atkPerClear * clears) * m * def.mult));
   return {
     def, hp, maxHp: hp, atk,
-    resPhys: def.def, resMagic: def.mdef,
-    affixes: [], burn: null, wardTurns: 0, phase: 1, cycleIndex: 0, mended: false, staggered: false,
+    ...affixResists(def, affixes),
+    affixes: [...affixes], burn: null, wardTurns: 0, phase: 1, cycleIndex: 0, mended: false, staggered: false,
   };
 }
 
