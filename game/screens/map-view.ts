@@ -1,7 +1,6 @@
 import { PICO8 } from '../../engine';
 import { HERO_PIP, ROOM_ART } from '../sprites';
 import type { RoomArt } from '../sprites';
-import { STAGE_SIZES } from '../mapgen';
 import { stageAt } from '../state';
 import type { Game, MapNode, RoomType } from '../state';
 import { C_ACCENT, C_DIM, C_FAINT, C_TEXT } from '../theme';
@@ -12,7 +11,6 @@ import { drawIconIn, drawMedallion, drawRing, squareAt } from './plate';
 const ART: Record<RoomType, RoomArt> = ROOM_ART;
 const NODE_X0 = 31;
 const BOSS_X = 223;
-const NODE_DX = (BOSS_X - NODE_X0) / STAGE_SIZES.length;
 const MAP_MID_Y = 63;
 const NODE_SPREAD = 24;
 const PLATE = 15;
@@ -25,9 +23,10 @@ const C_CASING = PICO8[0];
 const CASING_OFFSETS: readonly Point[] = [{ x: -1, y: 0 }, { x: 1, y: 0 }, { x: 0, y: -1 }, { x: 0, y: 1 }];
 
 const MAP_START: Point = { x: 15, y: MAP_MID_Y };
-const nodeX = (stage: number): number => NODE_X0 + stage * NODE_DX;
+const nodeDx = (g: Game): number => (BOSS_X - NODE_X0) / Math.max(1, g.map.stages.length - 1);
+const nodeX = (g: Game, stage: number): number => Math.round(NODE_X0 + stage * nodeDx(g));
 const nodeY = (slot: number, count: number): number => MAP_MID_Y - ((count - 1) * NODE_SPREAD) / 2 + slot * NODE_SPREAD;
-const nodeCentre = (g: Game, node: MapNode): Point => ({ x: nodeX(node.stage), y: nodeY(node.slot, stageAt(g, node.stage).length) });
+const nodeCentre = (g: Game, node: MapNode): Point => ({ x: nodeX(g, node.stage), y: nodeY(node.slot, stageAt(g, node.stage).length) });
 
 type NodeState = 'CURSOR' | 'OPEN' | 'WALKED' | 'PASSED' | 'AHEAD';
 type Variant = 'icon' | 'faint' | 'spent';
@@ -44,7 +43,7 @@ function nodeState(g: Game, node: MapNode): NodeState {
 const cursorBeat = (g: Game): boolean => accentHz(g.clock, 2, 0.5);
 
 const LOOKS: Record<Exclude<NodeState, 'CURSOR'>, NodeLook> = {
-  OPEN: { ring: C_TEXT, variant: 'icon' },
+  OPEN: { ring: C_DIM, variant: 'icon' },
   WALKED: { ring: C_ACCENT, variant: 'faint' },
   PASSED: { ring: C_ROUTE_PAST, variant: 'spent' },
   AHEAD: { ring: C_FAINT, variant: 'icon' },
@@ -59,10 +58,13 @@ const openBeat = (g: Game): boolean => accentHz(g.clock, 1, 0.5);
 
 function drawNodeRings(g: Game, c: Point, state: NodeState, ring: string): void {
   const ctx = g.app.pc.ctx;
-  if (state !== 'CURSOR' && state !== 'OPEN') {return;}
+  if (state === 'OPEN') {
+    if (openBeat(g)) {drawRing(ctx, squareAt(c, PLATE - 2), OPEN_HALO);}
+    return;
+  }
+  if (state !== 'CURSOR') {return;}
   drawRing(ctx, squareAt(c, PLATE - 2), ring);
-  if (state === 'CURSOR') {drawRing(ctx, squareAt(c, HALO), cursorBeat(g) ? C_ACCENT : CURSOR_HALO_LOW);}
-  else {drawRing(ctx, squareAt(c, HALO), openBeat(g) ? C_DIM : OPEN_HALO);}
+  drawRing(ctx, squareAt(c, HALO), cursorBeat(g) ? C_ACCENT : CURSOR_HALO_LOW);
 }
 
 function drawNode(g: Game, node: MapNode): void {
@@ -153,6 +155,7 @@ export function drawEdges(g: Game): void {
 }
 
 const heroBob = (g: Game): number => (accentHz(g.clock, 1.5, 0.5) ? 1 : 0);
+
 
 export function drawHeroMarker(g: Game): void {
   const here = g.map.stages.flat().find((n) => n.cleared && n.stage === g.map.curStage);

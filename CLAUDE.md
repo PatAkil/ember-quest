@@ -13,51 +13,119 @@ ember-quest/
 ├── STYLE.md                  # the visual style card — read FIRST for any look work
 ├── HANDOVER.md               # where the work stands between cloud tasks
 ├── game/
-│   ├── types.ts              # shared types + tuning constants (caps, SP gains, drop rates) — headless
-│   ├── data.ts               # ITEMS, SPELLS, ENEMIES, BIOMES, ACT_MULT, validateData — headless
+│   ├── types.ts              # shared types + tuning constants (caps, SP gains, drop rates, TurnResult) — headless
+│   ├── data.ts               # content import path: re-exports game/rules/* — headless
+│   ├── rules/                # the content itself — headless
+│   │   ├── items.ts          #   ITEMS
+│   │   ├── enemies.ts        #   ENEMIES (incl. THE HOLLOW, descent-only), HOLLOW_ID, DESCENT_ONLY
+│   │   ├── world.ts          #   SPELLS, SPELL_ORDER, BIOMES, ACT_MULT, LOOT_WEIGHTS/COUNT, heal constants, rarity colours
+│   │   ├── events.ts         #   EVENTS, the event effect vocabulary, validateEvents
+│   │   ├── pacts.ts          #   PACTS (curse, boon, PactMod values), validatePacts
+│   │   └── validate.ts       #   validateData (never imports data.ts)
 │   ├── sim.ts                # barrel: the one import path for rules — headless
 │   ├── sim/                  # pure rules + balance policies, one concern per file — headless
-│   │   ├── util.ts           #   clamp, rng picks, the exhaustive ItemEffect table helper
+│   │   ├── util.ts           #   clamp, at, rng picks, createSeededRng (mulberry32 + state), the ItemEffect table helper
 │   │   ├── gear.ts           #   item levels, upgrades, effective mods/effects/blurbs
-│   │   ├── hero.ts           #   createHero, derive, skill points, heals, equip, spells
+│   │   ├── hero.ts           #   createHero, derive, skill points, heals, equip, spells, takePact
 │   │   ├── ghost.ts          #   derived stats of a hypothetical equip (compare previews)
-│   │   ├── describe.ts       #   item / offer / compare text for the screens
-│   │   ├── loot.ts           #   rollLoot, applyOffer, missed scrolls
-│   │   ├── combat.ts         #   spawnEnemy, turns, damage, effects in battle
-│   │   ├── map.ts            #   the simulator's map topology (buildMap)
-│   │   ├── model.ts          #   Policy, RoomType
+│   │   ├── describe.ts       #   item / offer / compare text for the screens, compareFull, awakenPreview (`AT +2: …`)
+│   │   ├── loot.ts           #   rollLoot, applyOffer, resolveUpgrade, missed scrolls
+│   │   ├── pack.ts           #   the 4-item pack: stow, discard, swapIn, unequip, ownedIds, upgradableTargets
+│   │   ├── combat.ts         #   spawnEnemy, createBattle, heroAct (ATTACK + spells; the hero's BURN tick after the action), damage
+│   │   ├── commands.ts       #   GUARD, POTION, BURST and the BREAK settle
+│   │   ├── enemy-turn.ts     #   enemyAct: moves, intent, cycle, phase switch, soft enrage (ENRAGE_LINE), the foe's BURN tick
+│   │   ├── turn.ts           #   resolveTurn (turn start → hero → foe, one TurnResult) and the per-turn rng streams (turnRng)
+│   │   ├── status.ts         #   startTurn (regen, BLOOD), BURN, WARD, heroFalls, pendingTick, canAfford, canDrinkPotion
+│   │   ├── power.ts          #   gear power in battle: heroElement, riposteMult, punishes, desperate, burnWarded
+│   │   ├── element.ts        #   elementMult (weakness / resistance)
+│   │   ├── stack.ts          #   how stacked item effects fold (RAMP, SPELL_TWICE, TWIN_STRIKE, HEX_STRIKE, FIRST_STRIKE, DRAIN, MP_ON_HIT, EXECUTE, REFLECT)
+│   │   ├── burst.ts          #   ember gain, canBurst, the burst blow
+│   │   ├── preview.ts        #   the facts the battle preview shows: strikeFacts, guardFacts, breakFacts, preBlowFate, healPreview
+│   │   ├── rehearse.ts       #   replays a hero action on a copy with scripted rolls (play, planAt, worstRolls) for the previews
+│   │   ├── map.ts            #   the one map generator, generateMap(rng, shape?) — game and simulator
+│   │   ├── model.ts          #   Policy (incl. stowOrEquip, dropWhich, upgradeTarget, prepare), RoomType (with BOSS)
 │   │   ├── scoring.ts        #   how policies value a loot offer
-│   │   ├── policies.ts       #   POLICIES (random, balanced, glass, tank, routing archetypes)
-│   │   └── run.ts            #   simulateRun, RunResult, Probe
-│   ├── main.ts               # wiring only: app, game state, scene hooks, dev hook, loop
+│   │   ├── policies.ts       #   POLICIES (random, balanced, glass, tank, naive, routing archetypes)
+│   │   ├── policy-battle.ts  #   how the policies fight (battleAct, expected damage)
+│   │   ├── policy-choices.ts #   DEFAULT_CHOICES: the shared pack/upgrade/prepare defaults every policy spreads
+│   │   ├── descent.ts        #   the stage counter n: depthOf, actInDepth, actMult, ActPlan, planDepth, planOf
+│   │   ├── descent-loot.ts   #   descent loot rows and weights
+│   │   ├── affixes.ts        #   enemy affixes: ARMORED/WARDED resists, VAMPIRIC/THORNED/SWIFT/SEARING values
+│   │   ├── hollow.ts         #   THE HOLLOW (hollowOf) and spawnFoe, the one spawn path for game and simulator
+│   │   ├── pacts.ts          #   pactMods (folded PactMod totals), offerPacts, pactDamage, lootCards, swallowedCards
+│   │   ├── events.ts         #   pickEvent, event costs and effects, rollEventItem
+│   │   ├── rest.ts           #   restHero (REST, the ASH upgrade)
+│   │   ├── score.ts          #   scoreOf, gloryBonus, scoreAfterDeath
+│   │   ├── save.ts           #   SavedRun: saveRun, loadRun (null on anything wrong, never throws), toSaved/fromSaved, describeSave
+│   │   ├── save-read.ts      #   the saved shape, SAVE_VERSION + hero / counters / depth-plan readers
+│   │   ├── save-map.ts       #   map and step readers
+│   │   ├── save-battle.ts    #   the saved fight (foe + battle state), REWARD step (with `earned`), event id readers
+│   │   ├── save-sanity.ts    #   saneSave: cross-field checks and repairs after reading
+│   │   ├── save-check.ts     #   the small validators the readers share
+│   │   ├── run-battle.ts     #   runBattle: one simulated fight through resolveTurn
+│   │   ├── run-rooms.ts      #   the simulator's rooms (playRoom, bossRoom)
+│   │   ├── run-tally.ts      #   RunResult, verb / event / boss tallies
+│   │   └── run.ts            #   simulateRun (options.descend, off by default), Probe
+│   ├── main.ts               # wiring only: app, game state, scene hooks, dev hook, storage watch, loop
 │   ├── app.ts                # creates the engine objects (canvas, input, scenes, particles, juice, audio, CRT, runtime)
-│   ├── state.ts              # the Game type + createGame(): one object `g` with per-screen slices
-│   ├── flow.ts               # run flow: room selection, stage advance, clears, act change, startRun, scene hooks
+│   ├── state.ts              # the Game type + createGame(): one object `g` with per-screen slices; armA/takeA, dirEdge, CommittedTurn
+│   ├── flow.ts               # run flow: room selection, stage advance, clears, act change, loot exits (settle, then card), THRESHOLD, depth entry + PACT, startRun, abandonRun, scene hooks
+│   ├── persist.ts            # every save point: persist (owner check + write counter), persistBattle/Reward/Event, settleRoom, forgetRun
+│   ├── resume.ts             # CONTINUE: loadResume, continueIfCurrent (re-reads storage), continueRun, the `storage` event watch
 │   ├── frame.ts              # update/render dispatch tables per scene and sub-scene
 │   ├── fx-state.ts           # battle-fx data: actors, moves, tints, shots, cues, lagging meters, banner, screen-reveal state
 │   ├── fx.ts                 # battle-fx clock: eased actor poses, cue queue (skip to impact), meters, boss banner timing
 │   ├── transition.ts         # screen reveal between sub-scenes (blinds into battle, wipe elsewhere)
-│   ├── mapgen.ts             # the map the screens play (generateMap)
+│   ├── mapgen.ts             # adapter: the shared map + stage/slot/cleared for the screens
 │   ├── theme.ts              # colours, biome looks, layout constants
 │   ├── backdrop.ts           # biome backdrops, floor, actors, battle tableau
 │   ├── widgets.ts            # bars, lines, fitted/wrapped text, blinkHz/accentHz, item icons
 │   ├── pops.ts               # floating damage/score pops
-│   ├── storage.ts            # best score in localStorage
-│   ├── lookup.ts             # at, must, noop — guarded indexed access
-│   ├── screens/              # one update + one view per screen: battle/battle-view, map/map-view, loot/loot-view, levelup, card, status (map status panel), title (title, pause, endings)
+│   ├── storage.ts            # localStorage: best (`retrovibe.ember-quest.best.v2`), the run (`retrovibe.ember-quest.run.v1`) and its stamp (`retrovibe.ember-quest.run.stamp`: run id + write counter)
+│   ├── lookup.ts             # at, pickOneIndex (re-exported from sim), must, noop — guarded indexed access
+│   ├── screens/              # one update + one view per screen
+│   │   ├── battle.ts         #   the battle update: commit the turn, the queue, hero/foe beats, death, skip-to-impact
+│   │   ├── battle-commit.ts  #   commitTurn (resolveTurn on a shadow copy, save, restore), mirrorRng, adoptTurn
+│   │   ├── battle-view.ts    #   plates, bars, ember bar, intent row, the band
+│   │   ├── battle-menu.ts    #   the command / spell grids: cursor, choice, refusals
+│   │   ├── battle-menu-view.ts # the band while choosing: intent hint, grid, WEAK notes, preview column
+│   │   ├── battle-preview.ts #   intent looks and hints, the per-command preview lines (break, burn, ember, weakness)
+│   │   ├── battle-tags.ts    #   the tag strips under the plates (WEAK, ENRAGED, affixes, WARD, BURN n Xt, EMBER n% …)
+│   │   ├── battle-auras.ts   #   state-driven auras (guard arc, heavy pulse, ward ring, burn motes, stagger)
+│   │   ├── battle-death.ts   #   the death record for the ending (killer, move, last log lines)
 │   │   ├── battle-fx.ts      #   choreography of a turn: wind-ups, impacts, pops, regen aura, defeat, entrance, death
+│   │   ├── battle-fx-enemy.ts #  the foe's wind-up, impact and the revive beat
+│   │   ├── battle-fx-verbs.ts #  the beat of each battle verb: guard, parry, break, burst, potion, burn tick, phase, weak
+│   │   ├── battle-fx-affix.ts #  SWIFT, THORNED, VAMPIRIC beats
 │   │   ├── battle-fx-view.ts #   draws the shots (orbs, bolts, slashes, blooms …) and the boss/elite banner strip
+│   │   ├── battle-fx-shapes.ts # shot drawing primitives
 │   │   ├── battle-reach.ts   #   lunge distances and contact points between the knight and the foe
-│   │   ├── map-view.ts       #   map nodes with room icons, edges and lit path, hero marker
+│   │   ├── map.ts, map-view.ts #  MAP: cursor, readout (REST at full strength), lost-save notice; nodes, edges, hero marker
+│   │   ├── status.ts         #   the map status panel
+│   │   ├── levelup.ts        #   LEVEL UP (update + view)
+│   │   ├── loot.ts, loot-view.ts # loot offers, the result cards (persisted before they show), the upgrade picker
+│   │   ├── compare-view.ts   #   the item card and the compare card (GAIN / AT +2 line)
+│   │   ├── card.ts           #   text and item cards
+│   │   ├── gear.ts, gear-view.ts # GEAR: worn slots + pack, B on the map; saved on every swap
+│   │   ├── pick.ts, pick-view.ts # PICK: the shared chooser (UPGRADE WHICH?, DROP WHICH?, GIVE UP WHICH?)
+│   │   ├── event.ts, event-view.ts # EVENT rooms
+│   │   ├── threshold.ts, threshold-view.ts, threshold-gate.ts # THRESHOLD: no preselected row, ASCEND or DESCEND, the abyss gate
+│   │   ├── pact.ts, pact-view.ts # PACT: one of up to three pacts
+│   │   ├── title.ts          #   title + CONTINUE / NEW RUN, the THAT RUN HAS ENDED notice
+│   │   ├── pause.ts          #   PAUSED: RESUME / ABANDON RUN
+│   │   ├── menu.ts           #   the shared two-row menu and its `> NO   YES` confirm
+│   │   ├── ending.ts, ending-recap.ts, ending-tips.ts # GAME OVER / WIN overlays, the run summary rows, the NEXT TIME tip
 │   │   └── plate.ts          #   rarity rings, medallions and centred icons shared by loot and card
 │   ├── sprites.ts            # single entry point: re-exports game/sprites/*, adds enemyAnim(id)
 │   ├── sprites/              # helpers, hero, icons, and one file per biome (crypt, tundra, desert, temple)
-│   └── devhook.ts            # dev-only seeded hook (?seed, ?scene, &act, &hold, window.__ember)
+│   └── devhook.ts            # dev-only seeded hook (?seed, ?scene, &act, &depth, &hold, window.__ember)
 ├── engine/                   # this game's OWN copy of the Retrovibe engine — editable
 ├── scripts/
 │   ├── setup-eyes.mjs        # npm run setup — browser + dev server, idempotent
 │   ├── look.mjs              # npm run look — state JSON + errors + one screenshot
 │   ├── verify.mjs            # npm run verify — every gate, one line each
+│   ├── rules.mjs             # npm run rules — node:assert invariants against the rules bundle
+│   ├── rules-*.mjs           #   its suites: affixes, descent, events, foe, guards, items, pacts, replay, save, verbs
 │   ├── oracle.mjs            # behaviour-preservation proof for refactors
 │   ├── oracle-comment.mjs    # CI: turns the PR-vs-base oracle into one sticky PR comment
 │   ├── agent-feedback.mjs    # the hook entry: per-edit check, end-of-turn gate, pre-commit gate (npm run gate)
@@ -67,7 +135,9 @@ ember-quest/
 ├── tools/eslint-no-comments.mjs   # the local no-comments lint rule
 ├── eslint.config.mjs, knip.config.js, .jscpd.json, .dependency-cruiser.cjs   # the lint suite
 ├── sim/run.mjs               # balance simulator runner (npm run sim)
-├── smoke.mjs                 # headless boot gate (npm run smoke)
+├── sim/bundle.mjs            # esbuild bundling of game/sim.ts, shared by sim/run.mjs and scripts/rules.mjs
+├── sim/*-report.mjs          # the simulator's report sections: descent, items
+├── smoke.mjs                 # headless boot gate (npm run smoke): boot, then a seeded fight won while hurt (no drift, no page error)
 ├── index.html                # arcade shell; game mounts into #screen
 ├── .github/workflows/pages.yml   # PR = full gates + pixel report (a PR comment with before/after shots; images live on the `oracle-screens` branch); push to main = gates, then deploy
 └── .claude/                  # settings.json (the hooks below), ten skills, agents/game-writer.md
@@ -76,7 +146,7 @@ ember-quest/
 ## Conventions
 
 - **Commands run at the repo root**: `dev` (Vite, port 5173, strictPort), `check`
-  (`tsc --noEmit`), `lint`, `lint:full`, `build`, `smoke`, `sim`, `sim:quick`,
+  (`tsc --noEmit`), `lint`, `lint:full`, `build`, `smoke`, `rules`, `sim`, `sim:quick`,
   `setup`, `look`, `verify`, `gate` (verify + remember the green tree), `browse`
   (agent-browser).
 - **Eyes first.** A SessionStart hook in `.claude/settings.json` runs `npm run setup`
@@ -97,7 +167,7 @@ ember-quest/
 - **Look before you report.** `npm run look -- --scene battle --act 2 --seed 7` prints one
   JSON line (`ok`, the game `state`, console/page `errors`, the screenshot path) in under
   a second; read the state first and the screenshot whenever the look changed. Scenes:
-  `title map battle levelup loot card paused gameover win`; acts 1–4. Claude may say what
+  `title map battle levelup loot card paused gameover win gear pick drop battle-heavy battle-magic battle-ward battle-phase event threshold pact battle-hollow map-long battle-affix title-continue paused-abandon`; acts 1–4, depths 1–10 (`--depth`). Claude may say what
   it saw; the owner remains the playtester for feel — report "builds, boots clean,
   ready to play at <URL>", never "playtested".
 - **Done means**: `npm run check` and `npm run lint` after every edit (or `npx eslint
@@ -114,7 +184,7 @@ ember-quest/
   configured). Message = what changed for the player. `git add -A` is fine here: the
   repo is the game.
 - **Push = release.** Only through **releasing-the-game**, only after the gates.
-- **Headless boundary**: `game/types.ts`, `game/data.ts`, `game/sim.ts` and `game/sim/*`
+- **Headless boundary**: `game/types.ts`, `game/data.ts`, `game/rules/*`, `game/sim.ts` and `game/sim/*`
   never import the engine, presentation modules or the DOM, and never call
   `Math.random` (rules take an injected `rng`). Rules live in `game/sim/`; presentation
   imports them only through the barrel `game/sim.ts`. Lint and dependency-cruiser both
@@ -137,10 +207,10 @@ ember-quest/
 | Command | What it does |
 |---|---|
 | `npm run setup` | Browser + dev server, idempotent; prints `eyes: ready - … \| chromium /tmp/ember-chromium \| dev <url>`; marker `/tmp/ember-eyes.json` (`url` is the public exposed-port URL when `JBCENTRAL_EXPOSED_PORT_URL_5173` is set, else `http://localhost:5173/`). `--force` redoes everything |
-| `npm run look -- [--scene S] [--act N] [--seed N] [--keys "Down,Space"] [--steps N] [--out file.png] [--no-shot]` | One JSON line `{"ok","state","errors","shot"}`; exit 1 on any console/page error or no canvas. With `--scene` or `--seed` the page runs in hold mode and each key is followed by `--steps` (default 30) fixed ticks. Keys: `Up Down Left Right Space Esc Enter` or Playwright names (`ArrowDown`, `KeyZ`, `KeyP`). Default shot: `$AIR_ARTIFACTS_DIR/look/<scene>-a<act>-s<seed>.png`, else `/tmp/ember-look/` |
-| `npm run verify` | eyes, lint, check, build, smoke, `sim:quick` (informational: balanced and random win rates), two at a time; one `PASS/FAIL/INFO` line per gate with its time, then `TOTAL`. About 10 s |
+| `npm run look -- [--scene S] [--act N] [--depth D] [--seed N] [--keys "Down,Space"] [--steps N] [--out file.png] [--no-shot]` | One JSON line `{"ok","state","errors","shot"}`; exit 1 on any console/page error or no canvas. With `--scene` or `--seed` the page runs in hold mode and each key is followed by `--steps` (default 30) fixed ticks. Keys: `Up Down Left Right Space B Esc Enter` (`B`/`X` = button B) or Playwright names (`ArrowDown`, `KeyZ`, `KeyX`, `KeyP`). Without `--keys`, a `--scene` that lands on another screen than the one `look` expects for it is an error; `look` expects the screen the scene is named after, except `pact` at depth 10 (every pact is already sworn), which it expects to land on the depth card. Default shot: `$AIR_ARTIFACTS_DIR/look/<scene>-a<act>-s<seed>.png` (`<scene>-d<depth>-a…` when `--depth` > 1), else `/tmp/ember-look/` |
+| `npm run verify` | eyes, lint, check, build, smoke (boot + one seeded fight to the kill and LEVEL UP, failing on any page error or replay drift), rules (map invariants over 5000 seeds, seeded-rng determinism, `validateData`), `sim:quick` (informational: balanced and random win rates), two at a time; one `PASS/FAIL/INFO` line per gate with its time, then `TOTAL`. About 10 s |
 | `npm run verify -- --full` | adds knip, jscpd, depcruise, `dist:no-hook` (no `__ember` in `dist/`), `look:all` (every scene), and the full sim. About 30 s |
-| `node scripts/oracle.mjs --save <file>` / `--check <file>` | 72 cases (9 scenes × 4 acts × still / after `Down,Space,Space,Down,Space`, seed 7): sha256 of the state JSON and of the exact screenshot. `--check` prints `ORACLE OK` or lists each differing case as `(state)` or `(pixels)`. Save before a refactor, check after. Needs the dev server; about 80 s |
+| `node scripts/oracle.mjs --save <file>` / `--check <file>` | 192 cases: the 24 scenes of its `SCENES` list (the same list `look` accepts: `title map battle levelup loot card paused gameover win gear pick drop battle-heavy battle-magic battle-ward battle-phase event threshold pact battle-hollow map-long battle-affix title-continue paused-abandon`) × acts 1–4 × still / after `Down,Space,Space,Down,Space`, seed 7, depth 1 (the oracle passes no `--depth`): sha256 of the state JSON and of the exact screenshot. `--check` prints `ORACLE OK` or lists each differing case as `(state)` or `(pixels)`. Save before a refactor, check after. Needs the dev server; roughly a second per case. The battle cases change whenever turn choreography or turn rules change |
 | `npm run browse -- <command>` (or `npx agent-browser`) | Free-form interactive exploration (`open <url>`, `press Space`, `screenshot <file>`, `errors`, `eval <js>`, `close`). Export `AGENT_BROWSER_EXECUTABLE_PATH=/tmp/ember-chromium` first (setup writes it into `CLAUDE_ENV_FILE` when the harness provides one) |
 
 `smoke.mjs`, `look.mjs` and `oracle.mjs` use `/tmp/ember-chromium` automatically when
@@ -149,15 +219,22 @@ target. `npx playwright install chromium` is blocked in this environment — nev
 
 **Dev hook** (`game/devhook.ts`, installed only when `import.meta.env.DEV`; absent from
 the build, which `verify --full` proves). URL parameters: `?seed=<uint>` routes every
-random decision in the game through one seeded PRNG (absent → `Math.random`, exactly as
-shipped); `?scene=<name>&act=<1..4>` boots straight into that screen with a
-deterministic fixture (seed defaults to 1); `&hold=1` also seeds `Math.random` (ambient,
+random decision in the game through one seeded PRNG (absent → a real run draws a random
+seed at `startRun` and plays the same seeded generator, `createSeededRng`; the hook's rng,
+marked by `g.rngFromHook`, always wins); `?scene=<name>&act=<1..4>&depth=<1..10>` boots straight into that screen with a
+deterministic fixture (seed defaults to 1) at stage `n = 4(depth − 1) + act − 1`; below depth 1
+the fixture holds the depth plan, `won`, the banked score and one pact per depth entered;
+`threshold` stops on the THRESHOLD after the depth's last boss, `win` ascends from it, and `pact`
+descends into `depth` (from the depth above it; pact fixtures exist for depths 2–9 — at depth 10 every pact is already sworn, so it stops on the depth card, which `look` then expects); `battle-hollow` fights THE HOLLOW as the act's
+boss, `map-long` regenerates the act's map with 8 stages, `battle-affix` gives the foe THORNED,
+VAMPIRIC and SWIFT, `title-continue` shows the title with an in-memory save of that stage (never localStorage), `paused-abandon` stops on `REALLY ABANDON?`; the hook never loads, writes or deletes the player's saved run; `&hold=1` also seeds `Math.random` (ambient,
 shake) and stops the rAF loop from ticking or drawing, so frames advance only through
 the hook — this is what makes screenshots pixel-identical. In the page:
-`window.__ember.state()` (JSON: scene, subScene, act, seed, cursor, hero, derived,
-enemy, clears, score, and the battle/loot/card/map slice of the current sub-scene),
+`window.__ember.state()` (JSON: scene, subScene, act (= actInDepth + 1), n, depth, actInDepth, seed, cursor,
+won, banked, bosses, biome, hero, derived, enemy, clears, score, and the
+battle/loot/card/gear/pick/event/threshold/pact/map slice of the current sub-scene, plus `menu` — `{cursor, confirm, yes}` while PAUSED, with `resume` (the CONTINUE line) on a TITLE that offers a save — and `save` — `{lost, notice}`: whether this tab stopped saving because another tab owns the run, and the title's last notice (`THAT RUN HAS ENDED`)),
 `step(n)` (n fixed ticks synchronously, one render, returns the state) and
-`press('A' | 'PAUSE' | 'UP' | 'DOWN')` (one edge press on the next tick).
+`press('A' | 'B' | 'PAUSE' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT')` (one edge press on the next tick).
 
 ## Automatic feedback (hooks)
 
@@ -271,12 +348,12 @@ a zero or negative size draws nothing.
 | Module | Key exports | Purpose |
 |---|---|---|
 | loop.ts | `createLoop({update, render}, {step?, maxFrame?})` → `.start()/.stop()/.running` | Fixed-timestep accumulator (`step` 1/60 s); frame-delta clamp `maxFrame` 0.25 s; throws `RangeError` when either is not a positive finite number. Pauses on blur / hidden tab (keeps calling `render(0)`), resets the clock on focus |
-| input.ts | `createInput(actions, {onFirstKey, target})`, `controlHints(input)`, `BUTTON_KEY`; types `Input`, `InputOptions`, `ButtonName`, `ActionDecl` | Arrows/WASD → `input.dir`; buttons A = Space/Z, B = X/C, PAUSE = P/Esc (dedicated, aliased — down while ≥1 alias down); `pressed/held/released`, `endFrame()` per tick, `actions`, `dispose()`; labels declared in code |
-| scenes.ts | `createScenes(initial = 'TITLE', {onIllegal})` → `.current/.is/.to/.onEnter`; type `SceneMachine` | Enforced machine `TITLE → PLAYING ⇄ PAUSED → (GAME_OVER \| WIN) → restart`; `PLAYING → PLAYING` and `PAUSED → TITLE` allowed. `to()` returns `false` on an illegal move and calls `onIllegal(from, to)` if given — it never writes to the console |
+| input.ts | `createInput(actions, {onFirstKey, target})`, `controlHints(input, only?)`, `BUTTON_KEY`; types `Input`, `InputOptions`, `ButtonName`, `ActionDecl` | Arrows/WASD → `input.dir`; `pressedDir()` → `{x, y}` of direction keys pressed since the last `endFrame()` (latched like `pressed`, so a tap released before the tick still counts; key repeat ignored); buttons A = Space/Z, B = X/C, PAUSE = P/Esc (dedicated, aliased — down while ≥1 alias down); `pressed/held/released`, `endFrame()` per tick, `actions`, `dispose()`; labels declared in code; `controlHints` lists every declared action, or only the buttons in `only` (a screen shows just what works there) |
+| scenes.ts | `createScenes(initial = 'TITLE', {onIllegal})` → `.current/.is/.to/.onEnter`; type `SceneMachine` | Enforced machine `TITLE → PLAYING ⇄ PAUSED → (GAME_OVER \| WIN) → restart`; `PLAYING → PLAYING`, `PAUSED → TITLE` and `PAUSED → GAME_OVER` (abandoning from the pause menu) allowed. `to()` returns `false` on an illegal move and calls `onIllegal(from, to)` if given — it never writes to the console |
 | canvas.ts | `createPixelCanvas({width, height, scale = 3, parent})` → `{canvas, ctx, width, height, scale, resize(scale), clear(color)}`; `fitDisplay(logical, area, maxBacking = 6)` → `{backing, display}`; `autoFit(pc, available, maxBacking = 6)` → detach; types `PixelCanvas`, `FitArea`, `DisplayFit` | Pixel-scaled canvas, smoothing off, scale baked into the transform; throws when `parent` is `null`, and a `RangeError` when a scale is not a positive integer (no silent flooring). `width/height` stay logical; `resize` re-creates the backing store at `width*scale × height*scale` and re-applies transform + smoothing — call it outside a frame. `fitDisplay` picks the displayed size in CSS px per logical px for `area` (no devicePixelRatio): the largest whole number down to 1, the backing equal to it up to `maxBacking`; above the cap a whole-number CSS enlargement of a backing in `[ceil(cap/2), cap]` (largest product, then largest backing: 13 → 6×2, 8 → 4×2, 7 → 6×1); below 1 (area under the logical size) backing 1 and a fractional CSS shrink so nothing clips. `autoFit` applies it now and on every window `resize` (backing via `resize`, display via the canvas's CSS width/height); detach removes the listener and the CSS size |
 | sprite.ts | `makeSprite(rows, map, {outline, flipX})`, `flipSprite`, `rotateSprite(sprite, radians)`, `drawSprite(ctx, sprite, {x, y}, px \| {px, tint, tintKeep, dissolve, fringe, fall, seed} = 1)`; types `Sprite`, `SpriteMap`, `SpriteDrawOptions` | ASCII-art sprites; `.`/space/unmapped chars are transparent. `outline` bakes a 1-cell keyline (sprite grows 1 cell per side — use the inner size for hitboxes). `rotateSprite` returns a new nearest-neighbour rotated sprite on a grown canvas. `drawSprite` takes a number (cell size) or `SpriteDrawOptions`: `px` cell size (1), `tint` one colour for every cell (hit flash), `tintKeep` a colour whose cells keep their own ink while tinted (the black keyline), `dissolve` 0..1 eats cells in a seeded order, top rows first, the last quarter of each cell's life drawn in `fringe` and dropped up to `fall` cells (eased), `seed` the dissolve pattern |
 | anim.ts | `frameIndex(time, fps, count)`, `blink(time, period = 0.9, onRatio = 0.6)` → 1/0, `pulse(time, period = 1.2)` → 0..1 | Clock-driven animation helpers |
-| font.ts | (internal) | 3×5 bitmap font, M and W 5 wide |
+| font.ts | (internal) | 3×5 bitmap font, M and W 5 wide, `~` (approximate) and `→` 4 wide |
 | text.ts | `drawText(ctx, text, {x, y}, opts)`, `drawTextCentered(ctx, text, {width, y}, opts)`, `textWidth(text, scale = 1, spacing = 1)`, `drawLogo(ctx, text, {width, y}, {color, shade, shadow, scale = 3, spacing, shadowOffset = 1})`; type `TextOptions` | Proportional bitmap text, uppercased. `TextOptions`: `color`, `scale`, `spacing`, `shadow`/`outline` (bool or color; outline drawn only at `scale >= 3`, degrades to a shadow below). `drawTextCentered` asks for an outline by default at `scale >= 2` unless `shadow` is given. `drawLogo` is a two-tone lit-from-above wordmark; `color` is REQUIRED (it throws), from the palette |
 | fills.ts | `fillBands(ctx, rect, colors)`, `fillDither(ctx, rect, {colorA, colorB, pattern})`, `drawBevel(ctx, rect, {fill, light, dark})`, `drawFrame(ctx, rect, {color, thickness = 1})` | Horizontal bands; 4×4 ordered dither (`'checker'` 50 %, the default, or `'sparse'` 25 %; cached per context); slab with light top/left and dark bottom/right; hollow border |
 | palette.ts | `PICO8`, `GAMEBOY`, `DUSK`, `NEON`, `SUNSET`, `OCEAN`, `PALETTES`, `swapPalette`, `contrast`; type `Palette` | Curated palettes as fixed-length tuples (16 / 4 / 8 / 8 / 8 / 8), so `PICO8[7]` is a `string`; anything typed `Palette` (`readonly string[]`, e.g. a `swapPalette` result) indexes to `string \| undefined`. `contrast(a, b)` legality: actors ≥3:1 vs static surfaces, ≥4.5:1 authored on any non-black ground (the CRT lift eats ~1.4×); ambient 1.8–2.5:1 band |

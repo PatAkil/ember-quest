@@ -1,13 +1,20 @@
 import { PICO8 } from '../engine';
 import type { RevealShape } from './fx-state';
+import { DECIDE_BEAT, armA } from './state';
 import type { Game, SubScene } from './state';
 import { C_PANEL, H, W } from './theme';
 
 type Ctx = CanvasRenderingContext2D;
 
 const OVERSCAN = 16;
-const SHAPE_FOR: Record<SubScene, RevealShape> = { MAP: 'WIPE', BATTLE: 'BLINDS', LEVELUP: 'WIPE', LOOT: 'WIPE', CARD: 'WIPE' };
+const SHAPE_FOR: Record<SubScene, RevealShape> = { MAP: 'WIPE', BATTLE: 'BLINDS', LEVELUP: 'WIPE', LOOT: 'WIPE', CARD: 'WIPE', GEAR: 'WIPE', PICK: 'WIPE', EVENT: 'WIPE', THRESHOLD: 'WIPE', PACT: 'WIPE' };
 const DURATION: Record<RevealShape, number> = { BLINDS: 0.2, WIPE: 0.16 };
+
+export const decisionHold = (sub: SubScene): number => DURATION[SHAPE_FOR[sub]] + DECIDE_BEAT;
+
+export function armDecision(g: Game): void {
+  armA(g, decisionHold(g.subScene));
+}
 
 export function trackReveal(g: Game, dt: number): void {
   const r = g.reveal;
@@ -48,7 +55,7 @@ function drawWipe(ctx: Ctx, u: number): void {
 
 const DRAW: Record<RevealShape, (ctx: Ctx, u: number) => void> = { BLINDS: drawBlinds, WIPE: drawWipe };
 
-export const revealActive = (g: Game): boolean => g.reveal.t < g.reveal.dur;
+const revealActive = (g: Game): boolean => g.reveal.t < g.reveal.dur;
 
 export function syncReveal(g: Game): void {
   g.reveal.last = g.subScene;

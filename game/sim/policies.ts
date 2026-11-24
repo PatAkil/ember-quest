@@ -3,18 +3,19 @@ import {
   CAP_DEF,
   CAP_MDEF,
   STAT_KEYS,
-  type BattleState,
   type Derived,
   type Hero,
-  type HeroAction,
+  type PactId,
   type Rng,
   type StatKey,
 } from '../types';
-import { SPELLS } from '../data';
-import { swingFor } from './combat';
-import { canAfford, derive, spellCost } from './hero';
+import { derive } from './hero';
+import { canAfford } from './status';
 import type { Policy, RoomType } from './model';
-import { bestPick, P_BALANCED, P_DEFENCE, P_OFFENCE } from './scoring';
+import { swapIn } from './pack';
+import { battleAct } from './policy-battle';
+import { choicesFor, randomEventChoice, type PolicyChoices } from './policy-choices';
+import { bestPick, P_BALANCED, P_DEFENCE, P_OFFENCE, type ItemBonus } from './scoring';
 import { pickOr } from './util';
 
 const context: { rng: Rng; hero: Hero | null } = { rng: () => 0.5, hero: null };
@@ -30,51 +31,6 @@ export function withPolicyContext<T>(rng: Rng, hero: Hero, body: () => T): T {
     context.hero = previous.hero;
   }
 }
-
-function expectedDamage(hero: Hero, d: Derived, battle: BattleState, action: HeroAction): number {
-  if (action !== 'ATTACK' && SPELLS[action].heal !== undefined) {return 0;}
-  const swing = swingFor(hero, d, action);
-  const resist = swing.kind === 'PHYSICAL' ? battle.enemy.def.def : battle.enemy.def.mdef;
-  const critFactor = 1 + (d.crit / 100) * (d.critMult - 1);
-  let sum = 0;
-  for (const m of swing.mults) {sum += swing.base * m;}
-  return Math.max(0, sum * critFactor * (1 - resist / 100));
-}
-
-const isMend = (a: HeroAction) => a !== 'ATTACK' && SPELLS[a].heal !== undefined;
-
-const actionCost = (hero: Hero, a: HeroAction) => (a === 'ATTACK' ? 0 : spellCost(hero, a));
-
-interface Fight { hero: Hero; d: Derived; battle: BattleState }
-
-function hardestHit({ hero, d, battle }: Fight, affordable: HeroAction[], reserve: number): HeroAction {
-  let best: HeroAction = 'ATTACK';
-  let bestDmg = expectedDamage(hero, d, battle, 'ATTACK');
-  let bestCost = 0;
-  for (const a of affordable) {
-    if (a === 'ATTACK') {continue;}
-    const dmg = expectedDamage(hero, d, battle, a);
-    if (dmg <= 0) {continue;}
-    const cost = spellCost(hero, a);
-    if (hero.mp - cost < reserve && dmg < battle.enemy.hp) {continue;}
-    if (dmg > bestDmg + 1e-9 || (dmg > bestDmg - 1e-9 && cost < bestCost)) {
-      bestDmg = dmg;
-      best = a;
-      bestCost = cost;
-    }
-  }
-  return best;
-}
-
-const damageAct = (mendBelow: number): Policy['act'] => (hero, d, battle, actions) => {
-  const affordable = actions.filter((a) => canAfford(hero, a));
-  const mend = affordable.find(isMend);
-  const hpFrac = hero.hp / Math.max(1, d.maxHp);
-  if (mend && hpFrac < mendBelow) {return mend;}
-  const mendId = actions.find(isMend);
-  const reserve = mendId && hpFrac < 0.6 ? actionCost(hero, mendId) : 0;
-  return hardestHit({ hero, d, battle }, affordable, reserve);
-};
 
 function atCap(d: Derived, stat: StatKey): boolean {
   if (stat === 'DEF') {return d.def >= CAP_DEF;}
@@ -135,7 +91,32 @@ function chestHungryRoute(types: RoomType[]): number {
 const BALANCED_ALLOCATE = (hero: Hero, d: Derived): StatKey =>
   cycleAllocate(hero, d, [primaryStat(d), 'HP', 'DEF', 'MDEF'], 'HP');
 
+const randomIndex = (length: number): number => Math.floor(context.rng() * Math.max(1, length));
+
+const RANDOM_CHOICES: PolicyChoices & Pick<Policy, 'pactChoice'> = {
+  stowOrEquip: () => (context.rng() < 0.5 ? 'STOW' : 'EQUIP'),
+  dropWhich: (hero) => randomIndex(hero.pack.length + 1),
+  upgradeTarget: (_hero, targets) => randomIndex(targets.length),
+  prepare: (hero) => {
+    if (hero.pack.length > 0 && context.rng() < 0.5) {swapIn(hero, randomIndex(hero.pack.length));}
+  },
+  eventChoice: (hero, event) => randomEventChoice(hero, event, context.rng),
+  pactChoice: (_hero, offers) => randomIndex(offers.length),
+};
+
+const preferPacts = (order: readonly PactId[]) => (_hero: Hero, offers: readonly PactId[]): number => {
+  const ranked = offers.map((id) => order.indexOf(id));
+  return ranked.indexOf(Math.min(...ranked.map((r) => (r < 0 ? order.length : r))));
+};
+
+const STEADY_PACTS = preferPacts(['IRON', 'TITHE', 'HUNTER', 'MISER', 'ASH', 'HEX', 'STORM', 'BRITTLE']);
+
+const GLASS_BONUS: ItemBonus = (i) => (i.slot === 'WEAPON' && i.weaponKind === 'MAGIC' ? 8 : 0);
+const TANK_BONUS: ItemBonus = (i) => (i.slot === 'WEAPON' && i.weaponKind !== 'MAGIC' ? 6 : 0);
+const BALANCED_CHOICES = { ...choicesFor(P_BALANCED), pactChoice: STEADY_PACTS };
+
 const randomPolicy: Policy = {
+  ...RANDOM_CHOICES,
   allocate: () => pickOr(STAT_KEYS, context.rng, 'HP'),
   pick: (_hero, offered) =>
     offered.length === 0 || context.rng() < 0.2 ? null : pickOr(offered, context.rng, null),
@@ -145,46 +126,58 @@ const randomPolicy: Policy = {
 };
 
 export type PolicyName =
-  | 'random' | 'balanced' | 'glass' | 'tank' | 'eliteHungry' | 'chestHungry';
+  | 'random' | 'balanced' | 'naive' | 'glass' | 'tank' | 'eliteHungry' | 'chestHungry';
 
 export const POLICIES: Record<PolicyName, Policy> = {
   random: randomPolicy,
   balanced: {
+    ...BALANCED_CHOICES,
     allocate: BALANCED_ALLOCATE,
     pick: (hero, offered) => bestPick(hero, offered, P_BALANCED),
-    act: damageAct(0.35),
-    route: (types) => routeWithRest(types, 0.5, ['ELITE', 'LOOT', 'FIGHT', 'REST']),
+    act: battleAct({ mendBelow: 0.35, verbs: true }),
+    route: (types) => routeWithRest(types, 0.5, ['ELITE', 'LOOT', 'EVENT', 'FIGHT', 'REST']),
+  },
+  naive: {
+    ...BALANCED_CHOICES,
+    allocate: BALANCED_ALLOCATE,
+    pick: (hero, offered) => bestPick(hero, offered, P_BALANCED),
+    act: battleAct({ mendBelow: 0.35, verbs: false }),
+    route: (types) => routeWithRest(types, 0.5, ['ELITE', 'LOOT', 'EVENT', 'FIGHT', 'REST']),
   },
   glass: {
+    ...choicesFor(P_OFFENCE, GLASS_BONUS),
+    pactChoice: preferPacts(['BRITTLE', 'STORM', 'TITHE', 'HEX', 'MISER', 'IRON', 'HUNTER', 'ASH']),
     allocate: (hero, d) => cycleAllocate(hero, d, [primaryStat(d), 'CRIT', primaryStat(d), 'HP'], primaryStat(d)),
-    pick: (hero, offered) =>
-      bestPick(hero, offered, P_OFFENCE, (i) =>
-        i.slot === 'WEAPON' && i.weaponKind === 'MAGIC' ? 8 : 0),
-    act: damageAct(0.35),
-    route: (types) => routeWithRest(types, 0.45, ['ELITE', 'LOOT', 'FIGHT', 'REST']),
+    pick: (hero, offered) => bestPick(hero, offered, P_OFFENCE, GLASS_BONUS),
+    act: battleAct({ mendBelow: 0.35, verbs: true }),
+    route: (types) => routeWithRest(types, 0.45, ['ELITE', 'LOOT', 'EVENT', 'FIGHT', 'REST']),
   },
   tank: {
+    ...choicesFor(P_DEFENCE, TANK_BONUS),
+    pactChoice: preferPacts(['IRON', 'ASH', 'TITHE', 'MISER', 'HUNTER', 'HEX', 'STORM', 'BRITTLE']),
     allocate: (hero, d) => cycleAllocate(hero, d, ['HP', 'DEF', 'ATK', 'MDEF'], 'HP'),
-    pick: (hero, offered) =>
-      bestPick(hero, offered, P_DEFENCE, (i) =>
-        i.slot === 'WEAPON' && i.weaponKind !== 'MAGIC' ? 6 : 0),
-    act: damageAct(0.5),
-    route: (types) => routeWithRest(types, 0.55, ['ELITE', 'LOOT', 'FIGHT', 'REST']),
+    pick: (hero, offered) => bestPick(hero, offered, P_DEFENCE, TANK_BONUS),
+    act: battleAct({ mendBelow: 0.5, verbs: true }),
+    route: (types) => routeWithRest(types, 0.55, ['ELITE', 'LOOT', 'EVENT', 'FIGHT', 'REST']),
   },
   eliteHungry: {
+    ...BALANCED_CHOICES,
+    pactChoice: preferPacts(['HUNTER', 'HEX', 'IRON', 'TITHE', 'MISER', 'ASH', 'STORM', 'BRITTLE']),
     allocate: BALANCED_ALLOCATE,
     pick: (hero, offered) => bestPick(hero, offered, P_BALANCED),
-    act: damageAct(0.35),
+    act: battleAct({ mendBelow: 0.35, verbs: true }),
     route: (types) => {
       const elite = types.indexOf('ELITE');
       if (elite >= 0) {return elite;}
-      return routeWithRest(types, 0.5, ['LOOT', 'FIGHT', 'REST']);
+      return routeWithRest(types, 0.5, ['LOOT', 'EVENT', 'FIGHT', 'REST']);
     },
   },
   chestHungry: {
+    ...BALANCED_CHOICES,
+    pactChoice: preferPacts(['MISER', 'TITHE', 'IRON', 'ASH', 'HUNTER', 'HEX', 'STORM', 'BRITTLE']),
     allocate: BALANCED_ALLOCATE,
     pick: (hero, offered) => bestPick(hero, offered, P_BALANCED),
-    act: damageAct(0.35),
+    act: battleAct({ mendBelow: 0.35, verbs: true }),
     route: chestHungryRoute,
   },
 };

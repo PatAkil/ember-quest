@@ -2,6 +2,7 @@ import { CRYPT_FRAMES } from './sprites/crypt';
 import { TUNDRA_FRAMES } from './sprites/tundra';
 import { DESERT_FRAMES } from './sprites/desert';
 import { TEMPLE_FRAMES } from './sprites/temple';
+import { hollowFrames } from './sprites/hero';
 import type { Anim } from './sprites/helpers';
 
 export type { Anim } from './sprites/helpers';
@@ -13,7 +14,7 @@ export {
 } from './sprites/icons';
 export type { RoomArt } from './sprites/icons';
 
-export const ENEMY_FRAMES = { ...CRYPT_FRAMES, ...TUNDRA_FRAMES, ...DESERT_FRAMES, ...TEMPLE_FRAMES };
+export const ENEMY_FRAMES = { ...CRYPT_FRAMES, ...TUNDRA_FRAMES, ...DESERT_FRAMES, ...TEMPLE_FRAMES, HOLLOW: hollowFrames };
 
 const BY_ID: Readonly<Partial<Record<string, Anim>>> = ENEMY_FRAMES;
 

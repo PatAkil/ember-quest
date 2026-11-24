@@ -4,6 +4,9 @@ import {
   CAP_DEF,
   CAP_DODGE,
   CAP_MDEF,
+  ACT_POTIONS,
+  CAP_STAT,
+  POTIONS_MAX,
   SLOTS,
   SP_GAIN,
   SP_PER_KIND,
@@ -11,13 +14,17 @@ import {
   type EnemyKind,
   type Hero,
   type HeroAction,
+  type HeroCommand,
   type Item,
+  type OwnedItem,
+  type PactId,
   type SpellId,
   type StatKey,
   type StatMods,
 } from '../types';
 import { CLEAR_HEAL, SKIP_MEND, SPELLS, SPELL_ORDER } from '../data';
 import { allEffects, effectiveEffect, effectiveMods, itemLevel } from './gear';
+import { pactMods, swallowedCards, type PactTotals } from './pacts';
 import { clamp } from './util';
 
 export function createHero(): Hero {
@@ -28,17 +35,24 @@ export function createHero(): Hero {
     alloc: { HP: 0, MP: 0, ATK: 0, MAG: 0, DEF: 0, MDEF: 0, CRIT: 0 },
     equipment: {},
     levels: {},
+    pack: [],
     baseSpells: ['FIREBALL'],
     revived: false,
     revivedTwice: false,
     dryFights: 0,
     missedScrolls: [],
+    potions: POTIONS_MAX,
+    ember: 0,
+    burn: null,
+    pendingBurn: 0,
+    bonusMaxHp: 0,
+    pacts: [],
   };
 }
 
 function baseDerived(hero: Hero): Derived {
   return {
-    maxHp: BASE.hp + SP_GAIN.HP * hero.alloc.HP,
+    maxHp: BASE.hp + SP_GAIN.HP * hero.alloc.HP + hero.bonusMaxHp,
     maxMp: BASE.mp + SP_GAIN.MP * hero.alloc.MP,
     atk: BASE.atk + SP_GAIN.ATK * hero.alloc.ATK,
     mag: BASE.mag + SP_GAIN.MAG * hero.alloc.MAG,
@@ -69,7 +83,8 @@ function addEdgeMods(d: Derived, m: StatMods): void {
   d.mpRegen += m.mpRegen ?? 0;
 }
 
-function finalizeDerived(d: Derived, glass: number): Derived {
+function finalizeDerived(d: Derived, glass: number, hpMult: number): Derived {
+  if (hpMult !== 1) {d.maxHp = Math.round(d.maxHp * hpMult);}
   if (glass > 0) {d.maxHp = Math.round(d.maxHp * Math.max(0.1, 1 - glass));}
   d.maxHp = Math.max(1, Math.round(d.maxHp));
   d.maxMp = Math.max(0, Math.round(d.maxMp));
@@ -98,7 +113,7 @@ export function derive(hero: Hero): Derived {
     const eff = effectiveEffect(item, level);
     if (eff.kind === 'GLASS') {glass += eff.maxHpFraction;}
   }
-  return finalizeDerived(d, glass);
+  return finalizeDerived(d, glass, pactMods(hero).maxHpMult);
 }
 
 export function knownSpells(hero: Hero): SpellId[] {
@@ -111,6 +126,8 @@ export function heroActions(hero: Hero): HeroAction[] {
   return ['ATTACK', ...knownSpells(hero)];
 }
 
+export const battleActions = (hero: Hero): HeroAction[] => [...heroActions(hero), 'GUARD', 'BURST', 'POTION'];
+
 export function spellCost(hero: Hero, spell: SpellId): number {
   const base = SPELLS[spell].cost;
   let discount = 0;
@@ -121,10 +138,13 @@ export function spellCost(hero: Hero, spell: SpellId): number {
   return Math.max(1, Math.round(base - discount));
 }
 
-export function canAfford(hero: Hero, action: HeroAction): boolean {
-  if (action === 'ATTACK') {return true;}
-  return hero.mp >= spellCost(hero, action);
-}
+const COMMANDS: readonly HeroAction[] = ['ATTACK', 'GUARD', 'BURST', 'POTION'] satisfies readonly HeroCommand[];
+
+export const isSpell = (action: HeroAction): action is SpellId => !COMMANDS.includes(action);
+
+export const isGuardAction = (action: HeroAction): boolean => action === 'GUARD' || (isSpell(action) && SPELLS[action].guard !== undefined);
+
+export const refillPotions = (hero: Hero): void => { hero.potions = POTIONS_MAX; };
 
 export function clampVitals(hero: Hero, minHp: number): void {
   const d = derive(hero);
@@ -132,8 +152,13 @@ export function clampVitals(hero: Hero, minHp: number): void {
   hero.mp = clamp(hero.mp, 0, d.maxMp);
 }
 
+function statCapped(hero: Hero, stat: StatKey): boolean {
+  const cap = CAP_STAT[stat];
+  return cap !== undefined && derive(hero)[cap.field] >= cap.max;
+}
+
 export function spendPoint(hero: Hero, stat: StatKey): boolean {
-  if (hero.sp <= 0) {return false;}
+  if (hero.sp <= 0 || statCapped(hero, stat)) {return false;}
   hero.sp -= 1;
   hero.alloc[stat] += 1;
   if (stat === 'HP') {hero.hp += SP_GAIN.HP;}
@@ -155,25 +180,49 @@ export function fullHeal(hero: Hero): void {
   const d = derive(hero);
   hero.hp = d.maxHp;
   hero.mp = d.maxMp;
+  hero.burn = null;
 }
 
+const KIND_SP: Record<EnemyKind, (mods: PactTotals) => number> = {
+  NORMAL: () => 0,
+  ELITE: (mods) => mods.eliteSp,
+  BOSS: (mods) => mods.spPerBoss,
+};
+
 export function grantClear(hero: Hero, kind: EnemyKind): { sp: number; hp: number; mp: number } {
-  const sp = SP_PER_KIND[kind];
+  const mods = pactMods(hero);
+  const sp = SP_PER_KIND[kind] + mods.spPerClear + KIND_SP[kind](mods) + swallowedCards(kind, mods);
   hero.sp += sp;
-  const healed = healFraction(hero, CLEAR_HEAL);
+  hero.burn = null;
+  const healed = healFraction(hero, CLEAR_HEAL * mods.clearHealMult);
   return { sp, hp: healed.hp, mp: healed.mp };
+}
+
+export function enterActRecovery(hero: Hero): number {
+  const before = hero.potions;
+  hero.potions = Math.min(POTIONS_MAX, hero.potions + ACT_POTIONS);
+  return hero.potions - before;
+}
+
+export function takePact(hero: Hero, id: PactId): void {
+  if (hero.pacts.includes(id)) {return;}
+  const before = derive(hero).maxHp;
+  hero.pacts.push(id);
+  hero.hp += Math.max(0, derive(hero).maxHp - before);
+  clampVitals(hero, 1);
 }
 
 export function learnSpell(hero: Hero, spell: SpellId): void {
   if (!hero.baseSpells.includes(spell)) {hero.baseSpells.push(spell);}
 }
 
-export function equip(hero: Hero, item: Item): Item | undefined {
+export function equip(hero: Hero, item: Item, level = 0): OwnedItem | undefined {
   const previous = hero.equipment[item.slot];
+  const replaced = previous ? { item: previous, level: itemLevel(hero, item.slot) } : undefined;
   hero.equipment[item.slot] = item;
-  hero.levels[item.slot] = 0;
+  hero.levels[item.slot] = level;
   clampVitals(hero, 1);
-  return previous;
+  return replaced;
 }
 
 export function skipMend(hero: Hero): { hp: number; mp: number } {

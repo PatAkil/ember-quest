@@ -1,6 +1,6 @@
 import { BUTTON_KEY, PICO8, SAFE_MARGIN, dimScene, drawFrame, drawText, drawTextCentered, textWidth } from '../../engine';
 import { renderTableau } from '../backdrop';
-import { resetCursorEdge } from '../state';
+import { armA, resetCursorEdge, takeA } from '../state';
 import type { CardScreen, Game } from '../state';
 import { BAND_Y, C_ACCENT, C_BG, C_BORDER, C_DIM, C_SEL_BAR, C_TEXT, H, W } from '../theme';
 import { blinkHz, drawCommandBand, wrap2 } from '../widgets';
@@ -24,13 +24,14 @@ export function showCard(g: Game, lines: string[], onDone: () => void, art?: Car
   g.card = art ? { lines, onDone, art } : { lines, onDone };
   g.subScene = 'CARD';
   resetCursorEdge(g);
+  armA(g);
 }
 
 export function updateCard(g: Game): void {
-  if (g.app.input.pressed('A')) { g.app.audio.play('blip'); g.card.onDone(); }
+  if (takeA(g)) { g.app.audio.play('blip'); g.card.onDone(); }
 }
 
-function drawCardFrame(ctx: CanvasRenderingContext2D, card: Rect): void {
+export function drawCardFrame(ctx: CanvasRenderingContext2D, card: Rect): void {
   ctx.fillStyle = C_BG; ctx.fillRect(card.x, card.y, card.w, card.h);
   drawFrame(ctx, card, { color: C_BORDER, thickness: 1 });
   drawFrame(ctx, { x: card.x + 2, y: card.y + 2, w: card.w - 4, h: card.h - 4 }, { color: C_SEL_BAR, thickness: 1 });

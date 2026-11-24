@@ -57,7 +57,7 @@ jobs:
             sim=$(grep -E '^INFO +sim:full ' "$log" | sed -E 's/^INFO +sim:full +[0-9.]+s +//')
             echo "Simulator win rates (full run, informational): ${sim:-not reported}"
             echo
-            echo "Screenshots of all nine screens: the \`look-screens\` artifact of this run."
+            echo "Screenshots of every scene: the \`look-screens\` artifact of this run."
             if grep -q '^FAIL  ' "$log"; then
               echo
               echo '<details open><summary>verify output</summary>'
@@ -134,7 +134,7 @@ jobs:
           {
             echo "## Pixel oracle: PR head vs base ${{ steps.base.outputs.sha }}"
             echo
-            echo "Seeded state and pixel hashes of 9 screens x 4 acts x 2 input runs, both sides rendered on this runner. Informational: a PR that changes visuals or rules is expected to differ."
+            echo "Seeded state and pixel hashes of every oracle scene, act and input run, both sides rendered on this runner. Informational: a PR that changes visuals or rules is expected to differ."
             echo
             echo '```'
             cat /tmp/oracle/report.txt

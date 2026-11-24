@@ -89,14 +89,14 @@ export const ICON_EMPTY = makeSprite([
 ], { F: PICO8[13] });
 
 export const HERO_PIP = keyed([
-  '..WWW..',
-  '...W...',
-  '.RRRRR.',
-  'RRRRRRD',
-  'RYYYYYD',
-  'RRRRRRD',
-  '.RRDDD.',
-], { W: PICO8[7], R: PICO8[8], Y: PICO8[10], D: PICO8[2] });
+  '...R...',
+  '..RRR..',
+  '.SSSSS.',
+  'SWWWWWS',
+  'SkkkkkS',
+  'SWSkSWS',
+  '.SSSSS.',
+], { R: PICO8[8], S: PICO8[6], W: PICO8[7] });
 
 interface RoomRows { rows: string[]; map: SpriteMap; hue: string }
 
@@ -116,6 +116,10 @@ const ROOM_ROWS = {
   LOOT: {
     rows: ['..BBBBB..', '.BWBBBBB.', 'BBBBBBBBB', 'BTBBBBBTB', 'TTTTWTTTT', 'BTBBkBBTB', 'BTBBBBBTB', 'STSSSSSTS', 'STSSSSSTS'],
     map: { B: PICO8[12], S: PICO8[13], T: PICO8[10], W: PICO8[7] }, hue: PICO8[12],
+  },
+  EVENT: {
+    rows: ['..GGGGG..', '.GW...GGD', '.GD...GGD', '.....GGD.', '....GGD..', '....GD...', '.........', '....GW...', '....GD...'],
+    map: { G: PICO8[11], W: PICO8[7], D: PICO8[3] }, hue: PICO8[11],
   },
   BOSS: {
     rows: ['P...Y...P', 'P..PPP..P', 'PP.PPP.PP', '.PPPPPPP.', '.PPPPPPP.', '.YPCPCPY.', '.PPPPPPP.', '.DDDDDDD.', '.........'],
@@ -142,5 +146,6 @@ export const ROOM_ART: Record<RoomKind, RoomArt> = {
   ELITE: roomArt(ROOM_ROWS.ELITE),
   REST: roomArt(ROOM_ROWS.REST),
   LOOT: roomArt(ROOM_ROWS.LOOT),
+  EVENT: roomArt(ROOM_ROWS.EVENT),
   BOSS: roomArt(ROOM_ROWS.BOSS),
 };

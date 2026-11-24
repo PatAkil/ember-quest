@@ -1,22 +1,27 @@
 import { PICO8, SAFE_MARGIN, drawPanel, drawText, drawTextCentered, textWidth } from '../../engine';
-import { SPELLS } from '../data';
-import type { DamageKind, Derived, Hero, HeroAction, SpellId } from '../types';
-import { canAfford, derive, heroActions, spellCost } from '../sim';
+import { EMBER_MAX } from '../types';
+import type { BattleState, Derived, EnemyInstance } from '../types';
+import { derive, resistOf } from '../sim';
 import { renderTableau } from '../backdrop';
 import { drawPops } from '../pops';
 import type { Game } from '../state';
-import { BAND_Y, C_ACCENT, C_BORDER, C_DIM, C_FAINT, C_HP, C_HP_LOW, C_MP, C_PANEL, C_SEL_BAR, C_TEXT, C_WARN, H, HUD_BOTTOM, W } from '../theme';
-import { drawCommandBand, drawGauge, pct, wrap2 } from '../widgets';
+import { BAND_Y, C_ACCENT, C_BORDER, C_DIM, C_EMBER, C_HP, C_HP_LOW, C_MP, C_PANEL, C_TEXT, C_WARD, H, HUD_BOTTOM, W } from '../theme';
+import { accentHz, drawCommandBand, drawGauge, pct, wrap2 } from '../widgets';
 import { bannerBlocks, meter } from '../fx';
 import type { MeterId } from '../fx-state';
-import { KIND_TAG, hasHex, magicWeapon } from './battle-fx';
+import { KIND_TAG } from './battle-fx';
 import { drawBanner, drawBattleFx } from './battle-fx-view';
+import { renderActionMenu } from './battle-menu-view';
+import { intentLook } from './battle-preview';
+import { drawAuras } from './battle-auras';
+import { drawTags } from './battle-tags';
+import type { PlateBox } from './battle-tags';
 
 type Ctx = CanvasRenderingContext2D;
 
 const hpColor = (frac: number): string => (frac < 0.25 ? C_HP_LOW : C_HP);
 
-interface Box { x: number; y: number; w: number; h: number }
+type Box = PlateBox;
 
 const PLATE_W = 96;
 const PLATE_PAD = 4;
@@ -67,6 +72,48 @@ function drawStatLine(ctx: Ctx, plate: Box, d: Derived): void {
   }
 }
 
+const EMBER_Y = HUD_BOTTOM + 1;
+
+const FLAME_W = 3;
+
+function drawFlame(ctx: Ctx, at: { x: number; y: number }, full: boolean): void {
+  ctx.fillStyle = full ? PICO8[7] : PICO8[10];
+  ctx.fillRect(at.x + 1, at.y - 1, 1, 2);
+  ctx.fillStyle = full ? C_ACCENT : C_EMBER;
+  ctx.fillRect(at.x, at.y, 1, 2); ctx.fillRect(at.x + 2, at.y, 1, 2); ctx.fillRect(at.x + 1, at.y + 1, 1, 1);
+  ctx.fillStyle = PICO8[8]; ctx.fillRect(at.x + 1, at.y + 2, 1, 1);
+}
+
+function drawEmberBar(g: Game, plate: Box): void {
+  const ctx = g.app.pc.ctx;
+  const m = meter(g, 'heroEmber');
+  const left = innerLeft(plate);
+  const x = left + FLAME_W + 2;
+  const w = innerRight(plate) - x;
+  const y = EMBER_Y;
+  const full = g.hero.ember >= EMBER_MAX;
+  ctx.fillStyle = PICO8[0]; ctx.fillRect(left - 1, y - 1, innerRight(plate) - left + 2, 4);
+  drawFlame(ctx, { x: left, y }, full);
+  ctx.fillStyle = PICO8[5]; ctx.fillRect(x, y, w, 2);
+  const ghost = Math.round(w * Math.min(1, m.ghost / EMBER_MAX));
+  ctx.fillStyle = PICO8[7]; ctx.fillRect(x, y, ghost, 2);
+  ctx.fillStyle = full ? C_ACCENT : C_EMBER;
+  ctx.fillRect(x, y, Math.round(w * Math.min(1, m.shown / EMBER_MAX)), 2);
+  if (full) {drawGlint(ctx, { x, w, y }, g.clock);}
+}
+
+const GLINT_PERIOD = 1.2;
+const GLINT_W = 8;
+
+function drawGlint(ctx: Ctx, bar: { x: number; w: number; y: number }, clock: number): void {
+  const u = (clock % GLINT_PERIOD) / GLINT_PERIOD;
+  const gx = Math.round(bar.x - GLINT_W + u * (bar.w + GLINT_W));
+  const left = Math.max(bar.x, gx);
+  const right = Math.min(bar.x + bar.w, gx + GLINT_W);
+  if (right <= left) {return;}
+  ctx.fillStyle = PICO8[7]; ctx.fillRect(left, bar.y, right - left, 2);
+}
+
 function renderHeroHud(g: Game, d: Derived): void {
   const { pc } = g.app;
   const ctx = pc.ctx;
@@ -74,20 +121,29 @@ function renderHeroHud(g: Game, d: Derived): void {
   drawStatLine(ctx, HERO_PLATE, d);
   drawBarRow(g, HERO_PLATE, ROW_B, { label: 'HP', id: 'heroHp', max: d.maxHp });
   drawBarRow(g, HERO_PLATE, ROW_C, { label: 'MP', id: 'heroMp', max: d.maxMp, color: C_MP });
-  const stacks = g.battle.state?.rampStacks ?? 0;
-  if (stacks > 0) {drawRampTag(ctx, stacks);}
+  drawEmberBar(g, HERO_PLATE);
 }
 
-function drawRampTag(ctx: Ctx, stacks: number): void {
-  const text = `RAMP ${stacks}`;
-  const at = { x: innerLeft(HERO_PLATE), y: HUD_BOTTOM + 3 };
-  ctx.fillStyle = PICO8[0]; ctx.fillRect(at.x - 2, at.y - 2, textWidth(text, 1) + 4, 9);
-  drawText(ctx, text, at, { color: C_WARN });
+function resistTexts(e: EnemyInstance): string[] {
+  const phys = resistOf(e, 'PHYSICAL');
+  const mag = resistOf(e, 'MAGIC');
+  if (phys === 0 && mag === 0) {return [];}
+  if (phys === mag) {return [`RES ALL ${phys}%`, `ALL ${phys}%`];}
+  return phys > mag ? [`RES PHYS ${phys}%`, `PHYS ${phys}%`] : [`RES MAG ${mag}%`, `MAG ${mag}%`];
 }
 
-function resistText(def: { def: number; mdef: number }): string {
-  if (def.def < def.mdef) {return `RES MAG ${def.mdef}%`;}
-  return def.def > 0 ? `RES PHYS ${def.def}%` : '';
+const INTENT_GAP = 6;
+
+function drawIntentRow(g: Game, e: EnemyInstance, state: BattleState): void {
+  const ctx = g.app.pc.ctx;
+  const plate = ENEMY_PLATE;
+  const y = plate.y + ROW_C;
+  const look = intentLook(e, state);
+  const color = look.hot && accentHz(g.clock, 2, 0.5) ? C_TEXT : look.color;
+  drawText(ctx, look.short, { x: innerLeft(plate), y }, { color });
+  const room = innerRight(plate) - innerLeft(plate) - textWidth(look.short, 1) - INTENT_GAP;
+  const res = resistTexts(e).find((t) => textWidth(t, 1) <= room);
+  if (res) {drawText(ctx, res, { x: innerRight(plate) - textWidth(res, 1), y }, { color: e.wardTurns > 0 ? C_WARD : C_DIM });}
 }
 
 function renderEnemyHud(g: Game): void {
@@ -101,10 +157,8 @@ function renderEnemyHud(g: Game): void {
   const tag = KIND_TAG[e.def.kind];
   if (tag) {drawText(ctx, tag, { x: innerRight(plate) - textWidth(tag, 1), y: plate.y + ROW_A }, { color: C_ACCENT });}
   drawBarRow(g, plate, ROW_B, { label: 'HP', id: 'enemyHp', max: e.maxHp });
-  const physical = e.def.atkType === 'PHYSICAL';
-  drawText(ctx, physical ? 'STRIKES' : 'HEXES', { x: innerLeft(plate), y: plate.y + ROW_C }, { color: physical ? C_WARN : PICO8[14] });
-  const res = resistText(e.def);
-  if (res) {drawText(ctx, res, { x: innerRight(plate) - textWidth(res, 1), y: plate.y + ROW_C }, { color: C_DIM });}
+  const state = g.battle.state;
+  if (state) {drawIntentRow(g, e, state);}
 }
 
 function renderScore(g: Game): void {
@@ -116,94 +170,8 @@ function renderScore(g: Game): void {
   drawText(ctx, value, { x: centred(value), y: SAFE_MARGIN + ROW_B }, { color: C_TEXT, shadow: true });
 }
 
-function actionKind(hero: Hero, a: HeroAction): DamageKind {
-  const hex = hasHex(hero);
-  if (a === 'ATTACK') {return hex || magicWeapon(hero) ? 'MAGIC' : 'PHYSICAL';}
-  return hex && a === 'SLASH' ? 'MAGIC' : SPELLS[a].kind;
-}
-
-interface SpellInfo { info: string; short: string; isHeal: boolean }
-
-function spellInfo(a: SpellId): SpellInfo {
-  const s = SPELLS[a];
-  if (s.heal !== undefined) {
-    const heal = `HEAL ${Math.round(s.heal * 100)}%`;
-    return { info: heal, short: heal, isHeal: true };
-  }
-  const mult = `x${s.mult.toFixed(1)}${s.hits > 1 ? `x${s.hits}` : ''}`;
-  return { info: `${s.scale} ${mult}`, short: mult, isHeal: false };
-}
-
-const attackInfo = (hero: Hero): SpellInfo => ({ info: magicWeapon(hero) ? 'MAG x1.0' : 'ATK x1.0', short: 'x1.0', isHeal: false });
-
-interface ActionInfo { text: string; short: string; tiny: string; warn: boolean }
-
-function actionInfo(g: Game, a: HeroAction): ActionInfo {
-  const hero = g.hero;
-  const kind = actionKind(hero, a);
-  const enemy = g.battle.enemy;
-  const res = enemy ? (kind === 'PHYSICAL' ? enemy.def.def : enemy.def.mdef) : 0;
-  const { info, short, isHeal } = a === 'ATTACK' ? attackInfo(hero) : spellInfo(a);
-  const tag = !isHeal && res >= 20 ? ` -${res}%` : '';
-  return { text: info + tag, short: short + tag, tiny: short, warn: tag !== '' };
-}
-
-function actionLabel(hero: Hero, a: HeroAction): string {
-  const cost = a === 'ATTACK' ? 0 : spellCost(hero, a);
-  const name = a === 'ATTACK' ? 'ATTACK' : SPELLS[a].name;
-  return cost > 0 ? `${name} ${cost}MP` : `${name} FREE`;
-}
-
-const ROW_GAP = 7;
-const INFO_PAD = 9;
-const BAR_INSET = 3;
-
-type InfoFit = 'text' | 'short' | 'tiny';
-const INFO_FITS: readonly InfoFit[] = ['text', 'short', 'tiny'];
-
-interface MenuCell { x0: number; y: number; colW: number; sel: boolean; fit: InfoFit }
-
-const rowLabel = (hero: Hero, a: HeroAction, sel: boolean): string => (sel ? '> ' : '  ') + actionLabel(hero, a);
-
-function overflows(g: Game, a: HeroAction, colW: number, fit: InfoFit): boolean {
-  const room = Math.round(colW) - 5 - INFO_PAD - textWidth(rowLabel(g.hero, a, true), 1) - ROW_GAP;
-  return textWidth(actionInfo(g, a)[fit], 1) > room;
-}
-
-function drawActionRow(g: Game, a: HeroAction, cell: MenuCell): void {
-  const ctx = g.app.pc.ctx;
-  const { x0, y, colW, sel, fit } = cell;
-  const afford = canAfford(g.hero, a);
-  if (sel) { ctx.fillStyle = C_SEL_BAR; ctx.fillRect(x0 + BAR_INSET, y - 2, Math.round(colW) - 2 * BAR_INSET, 9); }
-  const labelColor = sel ? C_ACCENT : afford ? C_TEXT : C_FAINT;
-  const label = rowLabel(g.hero, a, sel);
-  drawText(ctx, label, { x: x0 + 5, y }, { color: labelColor, shadow: sel });
-  const info = actionInfo(g, a);
-  const text = info[fit];
-  const infoColor = info.warn ? C_WARN : sel ? C_TEXT : C_DIM;
-  drawText(ctx, text, { x: x0 + Math.round(colW) - INFO_PAD - textWidth(text, 1), y }, { color: infoColor });
-}
-
-const ROW_PITCH = 9;
 const BAND_BOTTOM = H - SAFE_MARGIN;
 const LOG_ROOM = BAND_BOTTOM - BAND_Y - 1;
-
-function renderActionMenu(g: Game): void {
-  const ctx = g.app.pc.ctx;
-  const actions = heroActions(g.hero);
-  const cols = Math.ceil(actions.length / 3);
-  const colW = (W - 2 * SAFE_MARGIN) / cols;
-  ctx.fillStyle = PICO8[5];
-  for (let c = 1; c < cols; c++) { ctx.fillRect(Math.round(SAFE_MARGIN + c * colW), BAND_Y + 4, 1, BAND_BOTTOM - BAND_Y - 4); }
-  const fit = INFO_FITS.find((f) => !actions.some((a) => overflows(g, a, colW, f))) ?? 'tiny';
-  const rows = Math.min(3, actions.length);
-  const top = BAND_Y + 1 + Math.round((LOG_ROOM - (rows * ROW_PITCH - 4)) / 2);
-  actions.forEach((a, i) => {
-    const x0 = Math.round(SAFE_MARGIN + Math.floor(i / 3) * colW);
-    drawActionRow(g, a, { x0, y: top + (i % 3) * ROW_PITCH, colW, sel: i === g.battle.menuCursor, fit });
-  });
-}
-
 const LOG_MAX_W = W - 2 * SAFE_MARGIN - 8;
 
 function logLayout(text: string): { lines: string[]; scale: number } {
@@ -232,10 +200,12 @@ const endingShown = (g: Game): boolean => g.app.scenes.is('GAME_OVER') || g.app.
 export function renderBattle(g: Game): void {
   renderTableau(g, true);
   if (endingShown(g)) {return;}
+  drawAuras(g);
   drawBattleFx(g);
   const d = derive(g.hero);
   renderEnemyHud(g);
   renderHeroHud(g, d);
+  drawTags(g, { hero: HERO_PLATE, enemy: ENEMY_PLATE, pad: PLATE_PAD });
   renderScore(g);
   drawCommandBand(g.app.pc.ctx);
   drawBandContent(g);

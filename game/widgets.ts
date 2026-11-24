@@ -2,7 +2,9 @@ import { PICO8, blink, drawFrame, drawText, textWidth } from '../engine';
 import type { Sprite } from '../engine';
 import { ICON_SWORD, ICON_WAND, ICON_ARMOR, ICON_NECKLACE, ICON_CHALICE, ICON_BOOTS, ICON_TOME } from './sprites';
 import type { Item, Slot } from './types';
-import { BAND_Y, C_BORDER, C_PANEL, H, W } from './theme';
+import { BAND_Y, C_BORDER, C_DIM, C_FAINT, C_PANEL, H, W } from './theme';
+import { decisionReady } from './state';
+import type { Game } from './state';
 import type { Point } from './theme';
 
 interface Box { x: number; y: number; w: number; h: number }
@@ -80,9 +82,16 @@ export function wrap2(text: string, maxW: number, scale = 1): [string] | [string
   return [words.slice(0, split).join(' '), words.slice(split).join(' ')];
 }
 
+export const awakenWords = (raw: string): string => (raw ? `AWAKENS ${raw}` : '');
+
 export const pct = (n: number): string => `${Math.round(n)}%`;
 
 export const blinkHz = (clock: number, hz: number): boolean => blink(clock, 1 / hz, 0.5) === 1;
+
+export const decisionPromptColor = (g: Game, lit: string): string => {
+  if (!decisionReady(g)) {return C_FAINT;}
+  return blinkHz(g.clock, 1.2) ? lit : C_DIM;
+};
 export const accentHz = (clock: number, hz: number, duty = 0.2): boolean => blink(clock, 1 / hz, duty) === 1;
 
 const SLOT_ICON: Record<Slot, Sprite> = { WEAPON: ICON_SWORD, ARMOR: ICON_ARMOR, NECKLACE: ICON_NECKLACE, BOOTS: ICON_BOOTS, CHALICE: ICON_CHALICE, TOME: ICON_TOME };

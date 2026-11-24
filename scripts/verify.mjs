@@ -7,7 +7,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(ROOT, 'node_modules', '.bin');
 const FULL = process.argv.includes('--full');
 const SLOTS = 2;
-const SCENES = ['title', 'map', 'battle', 'levelup', 'loot', 'card', 'paused', 'gameover', 'win'];
+const SCENES = ['title', 'map', 'battle', 'levelup', 'loot', 'card', 'paused', 'gameover', 'win', 'gear', 'pick', 'drop', 'battle-heavy', 'battle-magic', 'battle-ward', 'battle-phase', 'event', 'threshold', 'pact', 'battle-hollow', 'map-long', 'battle-affix', 'title-continue', 'paused-abandon'];
 
 function run(cmd, args) {
   return new Promise((resolve) => {
@@ -26,6 +26,12 @@ const script = (file, ...args) => () => run(process.execPath, [join(ROOT, file),
 function simRates(out) {
   const rates = [...out.matchAll(/^(\S+)\s+win\s+(\d+)%/gm)].map((m) => `${m[1]} ${m[2]}%`);
   return rates.length ? rates.join(', ') : 'no win rates parsed';
+}
+
+function rulesNote(out) {
+  const groups = [...out.matchAll(/^(PASS|FAIL)\s+(\S+)/gm)];
+  const passed = groups.filter((m) => m[1] === 'PASS').length;
+  return groups.length ? `${passed}/${groups.length} groups` : '';
 }
 
 async function lookAll() {
@@ -67,6 +73,7 @@ function gates() {
     { name: 'check', exec: tool('tsc', '--noEmit') },
     { name: 'build', exec: tool('vite', 'build', '--logLevel', 'warn') },
     { name: 'smoke', after: ['eyes'], exec: script('smoke.mjs') },
+    { name: 'rules', light: true, exec: script('scripts/rules.mjs'), note: rulesNote },
     { name: 'sim:quick', info: true, exec: script('sim/run.mjs', '--runs', '500', '--policy', 'balanced,random'), note: simRates },
   ];
   if (!FULL) {

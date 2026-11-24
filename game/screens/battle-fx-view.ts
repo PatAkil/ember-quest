@@ -5,32 +5,12 @@ import type { Game } from '../state';
 import { BAND_Y, C_PANEL, C_TEXT, FLOOR_Y, H, W } from '../theme';
 import type { Point } from '../theme';
 import { drawLine } from '../widgets';
-
-type Ctx = CanvasRenderingContext2D;
-interface Frame { ctx: Ctx; s: Shot; u: number; t: number }
-
-const lerp = (a: number, b: number, u: number): number => a + (b - a) * u;
+import { blob, dot, drawBeam, drawFlask, drawShield, hash, lerp } from './battle-fx-shapes';
+import type { Ctx, Frame } from './battle-fx-shapes';
 
 function along(s: Shot, u: number, arc = 0): Point {
   return { x: lerp(s.from.x, s.to.x, u), y: lerp(s.from.y, s.to.y, u) - arc * Math.sin(Math.PI * u) };
 }
-
-function dot(ctx: Ctx, p: Point, size: number, color: string): void {
-  ctx.fillStyle = color;
-  ctx.fillRect(Math.round(p.x - size / 2), Math.round(p.y - size / 2), size, size);
-}
-
-function blob(ctx: Ctx, p: Point, r: number, color: string): void {
-  const x = Math.round(p.x); const y = Math.round(p.y);
-  ctx.fillStyle = color;
-  ctx.fillRect(x - r, y - r + 1, 2 * r + 1, 2 * r - 1);
-  ctx.fillRect(x - r + 1, y - r, 2 * r - 1, 2 * r + 1);
-}
-
-const hash = (a: number, b: number): number => {
-  const h = Math.imul(a * 73856093 ^ b * 19349663, 0x85ebca6b) >>> 0;
-  return (h % 1000) / 1000;
-};
 
 const travel = (u: number): number => 0.35 * u + 0.65 * u * u;
 
@@ -259,6 +239,7 @@ function drawCharge(f: Frame): void {
 const SHOT_DRAW: Record<ShotKind, (f: Frame) => void> = {
   ORB: drawOrb, HEX: drawHex, WAVE: drawWave, BOLT: drawBolt, SKYBOLT: drawSkybolt, MOTES: drawMotes,
   RISE: drawRise, RING: drawRing, SLASH: drawSlash, DUST: drawDust, CHARGE: drawCharge, ARC: drawArc, BLOOM: drawBloom,
+  BEAM: drawBeam, FLASK: drawFlask, SHIELD: drawShield,
 };
 
 const STRIP_Y = Math.round((BAND_Y + 1 + H - SAFE_MARGIN) / 2);

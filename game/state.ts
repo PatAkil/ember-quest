@@ -1,18 +1,21 @@
-import type { BattleState, EnemyInstance, Hero, LootOffer, LootSource, Rng } from './types';
-import { BIOMES } from './data';
-import { createHero } from './sim';
+import type { AffixId, BattleState, EnemyInstance, FoeScale, Hero, LootOffer, LootSource, PactId, Rng, TurnResult } from './types';
+import { BIOMES, EVENTS } from './data';
+import type { EventDef } from './data';
+import { createHero, createSeededRng, planOf, storyPlan } from './sim';
+import type { ActPlan, ActRef, RoomType, SavedRun, SeededRng } from './sim';
 import type { Sprite } from '../engine';
 import type { App } from './app';
 import { BIOME_LOOK, C_TEXT } from './theme';
 import type { BiomeLook } from './theme';
 import { loadBest } from './storage';
-import { at, noop } from './lookup';
+import type { BestRecord, RunStamp } from './storage';
+import { at, noop, pickOneIndex } from './lookup';
 import { createFx, createReveal } from './fx-state';
 import type { FxState, Reveal } from './fx-state';
 
-export type SubScene = 'MAP' | 'BATTLE' | 'LEVELUP' | 'LOOT' | 'CARD';
-export type RoomType = 'FIGHT' | 'ELITE' | 'REST' | 'LOOT' | 'BOSS';
-export interface MapNode { type: RoomType; stage: number; slot: number; links: number[]; cleared: boolean }
+export type SubScene = 'MAP' | 'BATTLE' | 'LEVELUP' | 'LOOT' | 'CARD' | 'GEAR' | 'PICK' | 'EVENT' | 'THRESHOLD' | 'PACT';
+export type { RoomType } from './sim';
+export interface MapNode { type: RoomType; stage: number; slot: number; links: number[]; cleared: boolean; enemyId?: string; affixes?: AffixId[] }
 
 export interface Pop { x: number; y: number; life: number; text: string; color: string; scale: number }
 
@@ -25,39 +28,84 @@ export interface MapState {
 }
 
 type BattlePhase = 'MENU' | 'QUEUE';
+export type BattleMenu = 'TOP' | 'MAGIC';
 type Outcome = 'NONE' | 'WON' | 'LOST';
 interface QueueStep { hold: number; run: () => void }
+export interface TurnLedger { hero: Hero; enemy: EnemyInstance; state: BattleState; clears: number; bosses: number; score: number; rng: number }
+export interface CommittedTurn { result: TurnResult; after: TurnLedger; print: string }
+export interface BattleWin { kill: () => void; done: () => void }
 export interface BattleScreen {
   enemy: EnemyInstance | null;
   state: BattleState | null;
   phase: BattlePhase;
   menuCursor: number;
+  menu: BattleMenu;
+  topCursor: number;
+  magicCursor: number;
+  magicPage: number;
   outcome: Outcome;
+  onKill: () => void;
   onWon: () => void;
   queue: QueueStep[];
   timer: number;
   text: string;
   color: string;
   bufferedA: boolean;
+  committed: CommittedTurn | null;
 }
 
 export interface CardScreen { lines: string[]; onDone: () => void; art?: { icon: Sprite; color: string } }
 export interface LevelUpScreen { cursor: number; earned: number; onDone: () => void }
-export interface LootScreen { offers: LootOffer[]; cursor: number; source: LootSource; onDone: () => void }
+export interface LootScreen { offers: LootOffer[]; cursor: number; source: LootSource; stow: boolean; gift?: boolean; ash?: boolean; onDone: () => void; settle: () => void }
+export type DeathCause = 'BLOW' | 'BURN' | 'THORNS' | '';
+export type UsedVerb = 'MAGIC' | 'GUARD' | 'BURST' | 'POTION' | 'ATTACK';
+export interface DeathRecord { killerId: string; killerName: string; elite: boolean; move: string; damage: number; lastLines: string[]; cause: DeathCause; guarded: boolean; used: UsedVerb[]; resumed: boolean }
+export const emptyDeath = (): DeathRecord => ({ killerId: '', killerName: '', elite: false, move: '', damage: 0, lastLines: [], cause: '', guarded: false, used: [], resumed: false });
+export interface GearScreen { cursor: number; refusedAt: number }
+export interface PickRow { icon?: Sprite; name: string; color: string; note: string; detail: string[]; aside?: string }
+export interface EventScreen { def: EventDef; cursor: number; refusedAt: number; onDone: () => void }
+export type ThresholdChoice = 'ASCEND' | 'DESCEND';
+export interface ThresholdScreen { cursor: number; openedAt: number; refusedAt: number; choose: (choice: ThresholdChoice) => void }
+export interface PactScreen { offers: PactId[]; cursor: number; openedAt: number; refusedAt: number; onDone: () => void }
+export interface MenuScreen { cursor: number; confirm: boolean; yes: boolean }
+export interface Notice { text: string; at: number }
+export interface PickScreen { title: string; rows: PickRow[]; cursor: number; locked?: boolean; onPick: (i: number) => void; onCancel: () => void }
+
+interface AGate { openedAt: number; released: boolean; hold: number }
 
 export interface Game {
   app: App;
+  rngSource: SeededRng;
   rng: Rng;
+  rngFromHook: boolean;
   clock: number;
   hero: Hero;
   clears: number;
   score: number;
-  actIndex: number;
+  bosses: number;
+  n: number;
+  depthPlan: ActPlan[];
+  plan: ActPlan;
+  scenery: ActRef | null;
+  won: boolean;
+  banked: number;
+  descentClears: number | null;
+  resume: SavedRun | null;
+  resumeStamp: RunStamp | null;
+  saveStamp: RunStamp | null;
+  saveLost: boolean;
+  notice: Notice | null;
+  abandoned: boolean;
   subScene: SubScene;
   prevDirY: number;
-  best: number;
+  prevDirX: number;
+  aGate: AGate;
+  endedAt: number;
+  roomSeed: number;
+  best: BestRecord;
   beatBest: boolean;
   deathBiome: string;
+  death: DeathRecord;
   dying: boolean;
   heroDown: boolean;
   pops: Pop[];
@@ -68,22 +116,51 @@ export interface Game {
   card: CardScreen;
   levelUp: LevelUpScreen;
   loot: LootScreen;
+  gear: GearScreen;
+  pick: PickScreen;
+  event: EventScreen;
+  threshold: ThresholdScreen;
+  pact: PactScreen;
+  title: MenuScreen;
+  pause: MenuScreen;
 }
 
 export function createGame(app: App): Game {
+  const rngSource = createSeededRng(0);
+  const depthPlan = storyPlan();
   return {
     app,
-    rng: Math.random,
+    rngSource,
+    rng: rngSource.next,
+    rngFromHook: false,
     clock: 0,
     hero: createHero(),
     clears: 0,
     score: 0,
-    actIndex: 0,
+    bosses: 0,
+    n: 0,
+    depthPlan,
+    plan: planOf(depthPlan, 0),
+    scenery: null,
+    won: false,
+    banked: 0,
+    descentClears: null,
+    resume: null,
+    resumeStamp: null,
+    saveStamp: null,
+    saveLost: false,
+    notice: null,
+    abandoned: false,
     subScene: 'MAP',
     prevDirY: 0,
+    prevDirX: 0,
+    aGate: { openedAt: 0, released: true, hold: 0 },
+    endedAt: 0,
+    roomSeed: 0,
     best: loadBest(),
     beatBest: false,
     deathBiome: '',
+    death: emptyDeath(),
     dying: false,
     heroDown: false,
     pops: [],
@@ -91,34 +168,85 @@ export function createGame(app: App): Game {
     reveal: createReveal(),
     map: { stages: [], curStage: -1, reachable: [0, 1], cursor: 0, pendingNode: null },
     battle: {
-      enemy: null, state: null, phase: 'MENU', menuCursor: 0, outcome: 'NONE', onWon: noop,
-      queue: [], timer: 0, text: '', color: C_TEXT, bufferedA: false,
+      enemy: null, state: null, phase: 'MENU', menuCursor: 0, menu: 'TOP', topCursor: 0, magicCursor: 0, magicPage: 0, outcome: 'NONE', onKill: noop, onWon: noop,
+      queue: [], timer: 0, text: '', color: C_TEXT, bufferedA: false, committed: null,
     },
     card: { lines: [], onDone: noop },
     levelUp: { cursor: 0, earned: 0, onDone: noop },
-    loot: { offers: [], cursor: 0, source: 'FIGHT', onDone: noop },
+    loot: { offers: [], cursor: 0, source: 'FIGHT', stow: false, onDone: noop, settle: noop },
+    gear: { cursor: 0, refusedAt: -1 },
+    pick: { title: '', rows: [], cursor: 0, onPick: noop, onCancel: noop },
+    event: { def: at(EVENTS, 0), cursor: 0, refusedAt: -1, onDone: noop },
+    threshold: { cursor: 0, openedAt: 0, refusedAt: -1, choose: noop },
+    pact: { offers: [], cursor: 0, openedAt: 0, refusedAt: -1, onDone: noop },
+    title: { cursor: 0, confirm: false, yes: false },
+    pause: { cursor: 0, confirm: false, yes: false },
   };
 }
 
-export const biome = (g: Game) => at(BIOMES, g.actIndex);
-export const biomeLook = (g: Game): BiomeLook => at(BIOME_LOOK, g.actIndex);
+export const shownAct = (g: Game): ActRef => g.scenery ?? { n: g.n, plan: g.plan };
+export const biome = (g: Game) => at(BIOMES, shownAct(g).plan.biomeIndex);
+export const biomeLook = (g: Game): BiomeLook => at(BIOME_LOOK, shownAct(g).plan.biomeIndex);
+export const actRef = (g: Game): ActRef => ({ n: g.n, plan: g.plan });
+export const foeScale = (g: Game): FoeScale & { plan: ActPlan } => ({ n: g.n, clears: g.clears, descentClears: g.descentClears, plan: g.plan });
 
 export function resetCursorEdge(g: Game): void {
   g.prevDirY = g.app.input.dir.y;
+  g.prevDirX = g.app.input.dir.x;
 }
 
 export function dirEdge(g: Game): number {
-  const dy = g.app.input.dir.y;
-  const edge = dy !== 0 && g.prevDirY === 0 ? dy : 0;
+  const { input } = g.app;
+  const dy = input.dir.y;
+  const tapped = input.pressedDir().y;
+  const edge = tapped !== 0 ? tapped : (dy !== 0 && g.prevDirY === 0 ? dy : 0);
   g.prevDirY = dy;
   return edge;
 }
+
+export function dirEdgeX(g: Game): number {
+  const { input } = g.app;
+  const dx = input.dir.x;
+  const tapped = input.pressedDir().x;
+  const edge = tapped !== 0 ? tapped : (dx !== 0 && g.prevDirX === 0 ? dx : 0);
+  g.prevDirX = dx;
+  return edge;
+}
+
+export const DECIDE_BEAT = 0.15;
+
+export function armA(g: Game, hold = 0): void {
+  g.aGate = { openedAt: g.clock, released: !g.app.input.held('A'), hold };
+}
+
+export function decisionReady(g: Game): boolean {
+  const gate = g.aGate;
+  if (gate.hold <= 0) {return true;}
+  return g.reveal.t >= g.reveal.dur && g.clock - gate.openedAt >= gate.hold;
+}
+
+export function takeA(g: Game): boolean {
+  const { input } = g.app;
+  const gate = g.aGate;
+  if (!gate.released && (!input.held('A') || input.released('A'))) {gate.released = true;}
+  return gate.released && g.clock > gate.openedAt && decisionReady(g) && input.pressed('A');
+}
+
+export interface Arming { openedAt: number; delay: number }
+
+export const armed = (g: Game, arming: Arming): boolean => g.clock - arming.openedAt >= arming.delay;
 
 export function wrapCursor(cursor: number, dy: number, n: number): number {
   return (cursor + dy + n) % n;
 }
 
-export const pickOne = <T,>(rng: Rng, items: readonly T[]): T => at(items, Math.floor(rng() * items.length));
+export const pickOne = <T,>(rng: Rng, items: readonly T[]): T => at(items, pickOneIndex(rng, items.length));
+
+export function installRng(g: Game, source: SeededRng, fromHook: boolean): void {
+  g.rngSource = source;
+  g.rng = source.next;
+  g.rngFromHook = fromHook;
+}
 
 export function stageAt(g: Game, stage: number): MapNode[] {
   return at(g.map.stages, stage);

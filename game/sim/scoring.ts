@@ -1,11 +1,14 @@
-import type { Derived, Hero, Item, LootOffer, Rarity, SpellId } from '../types';
+import type { Derived, Element, EnemyDef, Hero, Item, LootOffer, OwnedItem, Rarity, SpellId, UpgradeTarget } from '../types';
 import { SPELLS } from '../data';
-import { effectiveEffect, itemLevel } from './gear';
+import { effectiveEffect, findEffect, itemLevel } from './gear';
 import { D_FIELDS, D_WEIGHT, deriveGhost, deriveWith, type DField } from './ghost';
 import { derive, knownSpells } from './hero';
+import { resolveUpgrade } from './loot';
+import { upgradableTargets } from './pack';
+import { reviveSpent } from './status';
 import { onEffect, type EffectTable } from './util';
 
-type Profile = Record<DField, number>;
+export type Profile = Record<DField, number>;
 
 export const P_BALANCED: Profile = { ...D_WEIGHT };
 
@@ -18,6 +21,8 @@ export const P_DEFENCE: Profile = {
   maxHp: 1.1, maxMp: 0.6, atk: 1.4, mag: 1.4, def: 3.2, mdef: 3.2,
   crit: 1.0, critMult: 8, dodge: 3.0, hpRegen: 4, mpRegen: 2,
 };
+
+export type ItemBonus = (i: Item) => number;
 
 const RARITY_BONUS: Record<Rarity, number> = { COMMON: 0, RARE: 1.5, EPIC: 4, LEGENDARY: 7 };
 
@@ -39,9 +44,39 @@ const EFFECT_VALUE: EffectTable<number> = {
   EXECUTE: (e) => e.bonus * 16,
   FIRST_STRIKE: (e) => (e.mult - 1) * 8,
   GRANT_SPELL: (e) => 8 + (e.discount ?? 0) * 2,
+  GUARD_COUNTER: (e) => e.fraction * 6,
+  GUARD_MANA: (e) => e.amount * 1,
+  PARRY_POWER: (e) => (e.mult - 1.5) * 6,
+  PUNISH_WINDUP: (e) => (e.mult - 1) * 6,
+  BURST_GAIN: (e) => (e.mult - 1) * 8,
+  BURST_POWER: (e) => (e.mult - 1) * 8,
+  IMBUE: () => 3,
+  ELEMENT_BOOST: (e) => (e.mult - 1) * 10,
+  BURN_ON_HIT: (e) => e.chance * 10,
+  BURN_WARD: () => 2,
+  LOW_HP_POWER: (e) => (e.mult - 1) * 5,
 };
 
-const effectValue = (item: Item, level: number) => onEffect(EFFECT_VALUE, effectiveEffect(item, level));
+const OFF_ELEMENT = 0.2;
+
+function heroElements(hero: Hero): Set<Element> {
+  const out = new Set<Element>();
+  for (const id of knownSpells(hero)) {
+    const element = SPELLS[id].element;
+    if (element) {out.add(element);}
+  }
+  const imbue = findEffect(hero, 'IMBUE');
+  if (imbue) {out.add(imbue.element);}
+  return out;
+}
+
+function effectValue(hero: Hero, item: Item, level: number): number {
+  if (reviveSpent(hero, item, level)) {return 0;}
+  const eff = effectiveEffect(item, level);
+  const value = onEffect(EFFECT_VALUE, eff);
+  if (eff.kind !== 'ELEMENT_BOOST' || heroElements(hero).has(eff.element)) {return value;}
+  return value * OFF_ELEMENT;
+}
 
 function statGain(before: Derived, after: Derived, profile: Profile): number {
   let score = 0;
@@ -51,26 +86,35 @@ function statGain(before: Derived, after: Derived, profile: Profile): number {
 
 function scoreItem(hero: Hero, item: Item, profile: Profile): number {
   let score = statGain(derive(hero), deriveWith(hero, item), profile);
-  score += effectValue(item, 0);
+  score += effectValue(hero, item, 0);
   const current = hero.equipment[item.slot];
-  if (current) {score -= effectValue(current, itemLevel(hero, item.slot));}
+  if (current) {score -= effectValue(hero, current, itemLevel(hero, item.slot));}
   return score;
 }
 
 function scoreUpgrade(hero: Hero, offer: Extract<LootOffer, { kind: 'UPGRADE' }>, profile: Profile): number {
   const from = Math.max(0, offer.toLevel - 1);
-  const before = deriveGhost(hero, offer.slot, offer.item, from);
-  const after = deriveGhost(hero, offer.slot, offer.item, offer.toLevel);
+  const before = deriveGhost(hero, offer.item.slot, offer.item, from);
+  const after = deriveGhost(hero, offer.item.slot, offer.item, offer.toLevel);
   let score = statGain(before, after, profile);
-  score += effectValue(offer.item, offer.toLevel);
-  score -= effectValue(offer.item, from);
+  score += effectValue(hero, offer.item, offer.toLevel);
+  score -= effectValue(hero, offer.item, from);
   score += RARITY_BONUS[offer.item.rarity] * 0.8;
   return score;
 }
 
+function scoreAnyUpgrade(hero: Hero, profile: Profile): number {
+  let best = 0;
+  for (const target of upgradableTargets(hero)) {
+    const offer = resolveUpgrade(hero, target);
+    if (offer) {best = Math.max(best, scoreUpgrade(hero, offer, profile));}
+  }
+  return best;
+}
+
 const SCROLL_BASE: Record<SpellId, number> = {
-  FIREBALL: 0, WATER: 22, SLASH: 24, THUNDER: 34,
-  TWINBOLT: 0, LEECH: 0, QUAKE: 0, MEND: 0,
+  FIREBALL: 0, WATER: 22, SLASH: 24, THUNDER: 28,
+  TWINBOLT: 0, LEECH: 0, QUAKE: 0, MEND: 0, EMBERS: 0, TREMOR: 0, AEGIS: 0,
 };
 
 const SCROLL_DAMAGE_WEIGHT = 2.0;
@@ -91,11 +135,11 @@ function scoreScroll(hero: Hero, spell: SpellId): number {
   return SCROLL_BASE[spell] + delta * SCROLL_DAMAGE_WEIGHT;
 }
 
-type ItemBonus = (i: Item) => number;
 
 function scoreOffer(hero: Hero, offer: LootOffer, profile: Profile, bonus?: ItemBonus): number {
   if (offer.kind === 'SCROLL') {return scoreScroll(hero, offer.spell);}
   if (offer.kind === 'UPGRADE') {return scoreUpgrade(hero, offer, profile);}
+  if (offer.kind === 'UPGRADE_ANY') {return scoreAnyUpgrade(hero, profile);}
   return scoreItem(hero, offer.item, profile)
     + RARITY_BONUS[offer.item.rarity]
     + (bonus ? bonus(offer.item) : 0);
@@ -112,4 +156,23 @@ export function bestPick(hero: Hero, offered: LootOffer[], profile: Profile, bon
     }
   }
   return best;
+}
+
+export function ownedScore(hero: Hero, owned: OwnedItem, profile: Profile, bonus?: ItemBonus): number {
+  const { item, level } = owned;
+  const bare = deriveGhost(hero, item.slot, undefined, 0);
+  const worn = deriveGhost(hero, item.slot, item, level);
+  return statGain(bare, worn, profile) + effectValue(hero, item, level) + (bonus ? bonus(item) : 0);
+}
+
+export function upgradeGain(hero: Hero, target: UpgradeTarget, profile: Profile): number {
+  const offer = resolveUpgrade(hero, target);
+  return offer ? scoreUpgrade(hero, offer, profile) : -Infinity;
+}
+
+const GUARD_WEIGHT = 2;
+
+export function foeProfile(profile: Profile, foe: EnemyDef): Profile {
+  if (foe.atkType === 'MAGIC') {return { ...profile, mdef: profile.mdef * GUARD_WEIGHT };}
+  return { ...profile, def: profile.def * GUARD_WEIGHT };
 }
