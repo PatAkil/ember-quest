@@ -1,12 +1,15 @@
-import type { Biome, EnemyDef, EnemyKind, Item, ItemEffect, LootSource, MoveId, SpellId } from '../types';
+import type { Biome, Element, EnemyDef, EnemyKind, Item, ItemEffect, LootSource, MoveId, SpellId } from '../types';
 import { ITEMS } from './items';
 import { ENEMIES } from './enemies';
 import { ACT_MULT, BIOMES, LOOT_COUNT, LOOT_WEIGHTS, SPELL_ORDER, SPELLS } from './world';
+import { validateEvents } from './events';
 
 const EFFECT_KINDS: Record<ItemEffect['kind'], true> = {
   NONE: true, HEX_STRIKE: true, RAMP: true, TWIN_STRIKE: true, SPELL_TWICE: true,
   CHEAPER_SPELLS: true, DRAIN: true, REFLECT: true, REVIVE: true, MP_ON_HIT: true,
   GLASS: true, BLOOD: true, EXECUTE: true, FIRST_STRIKE: true, GRANT_SPELL: true,
+  GUARD_COUNTER: true, GUARD_MANA: true, PARRY_POWER: true, PUNISH_WINDUP: true, BURST_GAIN: true,
+  BURST_POWER: true, IMBUE: true, ELEMENT_BOOST: true, BURN_ON_HIT: true, BURN_WARD: true, LOW_HP_POWER: true,
 };
 
 type Rule<T> = [fails: (x: T) => boolean, message: (x: T) => string];
@@ -25,7 +28,8 @@ const ITEM_RULES: Rule<Item>[] = [
   [(it) => it.blurb.length > 30, (it) => `${it.id}: blurb ${it.blurb.length} chars`],
   [(it) => it.blurb !== it.blurb.toUpperCase(), (it) => `${it.id}: blurb not uppercase`],
   [(it) => it.rarity !== 'COMMON' && it.effect.kind === 'NONE', (it) => `${it.id}: non-common with no effect`],
-  [(it) => it.rarity === 'COMMON' && it.effect.kind !== 'NONE', (it) => `${it.id}: common with an effect`],
+  [(it) => it.rarity === 'COMMON' && it.effect.kind !== 'NONE' && it.effect.kind !== 'IMBUE', (it) => `${it.id}: common with an effect`],
+  [(it) => it.effect.kind === 'BURN_WARD' && !it.mods.mdef, (it) => `${it.id}: BURN_WARD needs MDEF on its item`],
   [(it) => it.slot === 'TOME' && it.effect.kind !== 'GRANT_SPELL', (it) => `${it.id}: tome must grant a spell`],
   [(it) => it.slot === 'WEAPON' && !it.weaponKind, (it) => `${it.id}: weapon needs a weaponKind`],
   [(it) => it.slot !== 'WEAPON' && !!it.weaponKind, (it) => `${it.id}: non-weapon with a weaponKind`],
@@ -78,9 +82,41 @@ function validateItems(bad: string[]): void {
     seen.add(it.id);
     validateItem(it, bad);
     usedKinds.add(it.effect.kind);
+    if (it.awaken?.effect) {usedKinds.add(it.awaken.effect.kind);}
   }
   for (const kind of Object.keys(EFFECT_KINDS)) {
     if (!usedKinds.has(kind)) {bad.push(`effect kind never used: ${kind}`);}
+  }
+}
+
+const ELEMENTS: Element[] = ['FIRE', 'WATER', 'THUNDER', 'EARTH'];
+const EARLY_ACT = 1;
+const MIN_ELEMENT_SOURCES = 2;
+
+function itemElement(eff: ItemEffect): Element | undefined {
+  if (eff.kind === 'IMBUE') {return eff.element;}
+  return eff.kind === 'GRANT_SPELL' ? SPELLS[eff.spell].element : undefined;
+}
+
+function earlyElementSources(): Element[] {
+  const sources: Element[] = [];
+  const early: (SpellId | undefined)[] = ['FIREBALL', ...BIOMES.slice(0, EARLY_ACT).map((b) => b.scroll)];
+  for (const spell of early) {
+    const element = spell ? SPELLS[spell].element : undefined;
+    if (element) {sources.push(element);}
+  }
+  for (const it of ITEMS) {
+    const element = (it.minAct ?? 0) <= EARLY_ACT ? itemElement(it.effect) : undefined;
+    if (element) {sources.push(element);}
+  }
+  return sources;
+}
+
+function validateElements(bad: string[]): void {
+  const sources = earlyElementSources();
+  for (const element of ELEMENTS) {
+    const n = sources.filter((e) => e === element).length;
+    if (n < MIN_ELEMENT_SOURCES) {bad.push(`${element}: ${n} hero source(s) by act 2, needs ${MIN_ELEMENT_SOURCES}`);}
   }
 }
 
@@ -201,9 +237,11 @@ function validateTables(bad: string[]): void {
 export function validateData(): string[] {
   const bad: string[] = [];
   validateItems(bad);
+  validateElements(bad);
   const signatureOf = validateSignatures(bad);
   validateSpellsAndEnemies(bad);
   validateBiomes(bad, signatureOf);
   validateTables(bad);
+  bad.push(...validateEvents());
   return bad;
 }

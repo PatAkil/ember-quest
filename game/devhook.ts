@@ -10,7 +10,7 @@ import { at, must, noop } from './lookup';
 type Action = 'A' | 'B' | 'PAUSE' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
 type Fixture =
   | 'title' | 'map' | 'battle' | 'levelup' | 'loot' | 'card' | 'paused' | 'gameover' | 'win' | 'gear' | 'pick' | 'drop'
-  | 'battle-heavy' | 'battle-magic' | 'battle-ward' | 'battle-phase';
+  | 'battle-heavy' | 'battle-magic' | 'battle-ward' | 'battle-phase' | 'event';
 type DevNode = MapNode;
 
 interface DevView {
@@ -19,6 +19,7 @@ interface DevView {
   battlePhase: string; battleText: string; intent: MoveId | null; actions: HeroAction[]; offers: LootOffer[]; card: string[];
   map: DevNode[][]; curStage: number; reachable: number[];
   pick: { title: string; rows: string[] };
+  event: { id: string; title: string; options: string[] };
 }
 
 interface DevHost {
@@ -42,7 +43,7 @@ interface DevHost {
 
 const FIXTURES: readonly Fixture[] = [
   'title', 'map', 'battle', 'levelup', 'loot', 'card', 'paused', 'gameover', 'win', 'gear', 'pick', 'drop', 'battle-heavy', 'battle-magic',
-  'battle-ward', 'battle-phase',
+  'battle-ward', 'battle-phase', 'event',
 ];
 const KEY: Record<Action, string> = {
   A: 'Space', B: 'KeyX', PAUSE: 'KeyP', UP: 'ArrowUp', DOWN: 'ArrowDown', LEFT: 'ArrowLeft', RIGHT: 'ArrowRight',
@@ -112,6 +113,11 @@ const kitted = (): Hero => outfit(KIT_WORN, KIT_PACK);
 const dressed = (): Hero => outfit([...KIT_WORN, ...KIT_REST], []);
 const laden = (): Hero => outfit([...KIT_WORN, ...KIT_REST], [...KIT_PACK, ...KIT_SPARE]);
 
+function wanderer(hero: Hero): Hero {
+  stow(hero, { item: itemById(at(KIT_SPARE, 0)[0]), level: 0 });
+  return hero;
+}
+
 function scoutedFoe(type: RoomType, act: number): string | undefined {
   const b = at(BIOMES, act - 1);
   if (type === 'FIGHT') {return b.normals[0];}
@@ -157,6 +163,7 @@ function snapshot(v: DevView, seed: number | null): unknown {
     card: sub === 'CARD' ? v.card : null,
     gear: sub === 'GEAR' ? { pack: v.hero.pack.length } : null,
     pick: sub === 'PICK' ? v.pick : null,
+    event: sub === 'EVENT' ? v.event : null,
     map: sub === 'MAP' ? { stage: v.curStage, reachable: v.reachable, stages: v.map.map((st) => st.map((n) => (n.cleared ? `${n.type}*` : n.type))) } : null,
   }));
 }
@@ -279,6 +286,7 @@ function fixtureBuilders(fx: FixtureContext): Record<Fixture, () => void> {
     gear: () => { begin(kitted()); host.openGear(); },
     pick: () => { begin(laden()); enter('LOOT'); host.pickUpgrade(); },
     drop: () => { chest(laden()); host.syncReveal(); driver.press('A'); driver.runTick(DT); },
+    event: () => { begin(wanderer(fresh())); enter('EVENT'); },
   };
 }
 

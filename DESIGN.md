@@ -11,10 +11,10 @@ permadeath. v2 replaces the tier-upgrade gear with **skill points** and a
 | File | Owns | May import |
 |---|---|---|
 | `game/types.ts` | shared types + tuning constants (caps, SP gains) | nothing |
-| `game/data.ts` | the content import path: re-exports `game/rules/*` (ITEMS, ENEMIES, SPELLS, BIOMES, LOOT_WEIGHTS, ACT_MULT, the heal constants, `validateData`) | `./rules/*` only |
-| `game/rules/*.ts` | the content itself: `items` (ITEMS), `enemies` (ENEMIES), `world` (SPELLS, SPELL_ORDER, BIOMES, ACT_MULT, LOOT_WEIGHTS, LOOT_COUNT, CLEAR_HEAL, BOSS_ENTRY_HEAL, SKIP_MEND, RARITY_COLOR_INDEX), `validate` (`validateData`; never imports `data.ts`) | `../types`, each other |
+| `game/data.ts` | the content import path: re-exports `game/rules/*` (ITEMS, ENEMIES, SPELLS, BIOMES, LOOT_WEIGHTS, ACT_MULT, the heal constants, `validateData`, EVENTS and their types) | `./rules/*` only |
+| `game/rules/*.ts` | the content itself: `items` (ITEMS), `enemies` (ENEMIES), `world` (SPELLS, SPELL_ORDER, BIOMES, ACT_MULT, LOOT_WEIGHTS, LOOT_COUNT, CLEAR_HEAL, BOSS_ENTRY_HEAL, SKIP_MEND, RARITY_COLOR_INDEX), `validate` (`validateData`; never imports `data.ts`), `events` (EVENTS, the effect vocabulary, `validateEvents`) | `../types`, each other |
 | `game/sim.ts` | the barrel: the only path presentation and the simulator use to reach the rules (also re-exports `validateData`, `generateMap`, `createSeededRng`, `at`) | `./sim/*`, `./data` |
-| `game/sim/*.ts` | pure rules, one concern per file: `util` (clamp, `at`, rng picks, `createSeededRng` — mulberry32 with readable state — and effect tables), `gear` (item levels, upgrades, effective mods/effects), `hero` (derived stats, skill points, heals, equip, spells), `ghost` (stats of a hypothetical equip), `describe` (item/offer/compare text, `compareFull`), `loot` (loot rolls, offers, scrolls, `resolveUpgrade`), `pack` (the pack: `stow`, `discard`, `swapIn`, `unequip`, `ownedIds`, `upgradableTargets`), `combat` (enemy scaling, battle creation, hero actions, damage), `commands` (GUARD, POTION, BURST, BREAK), `enemy-turn` (enemy moves, intent, phase), `status` (turn start, BURN, WARD, `heroFalls`), `element`, `burst`, `map` (**the one map generator**, `generateMap(rng, shape?)`, played by both the screens and the simulator), `model` (`Policy`, `RoomType` including `BOSS`), `scoring`, `policies`, `policy-battle` (how they fight) and `policy-choices` (how the archetypes decide; `DEFAULT_CHOICES` holds the shared pack/upgrade/prepare defaults), `run` (`simulateRun`) | `../types`, `../data`, each other |
+| `game/sim/*.ts` | pure rules, one concern per file: `util` (clamp, `at`, rng picks, `createSeededRng` — mulberry32 with readable state — and effect tables), `gear` (item levels, upgrades, effective mods/effects), `hero` (derived stats, skill points, heals, equip, spells), `ghost` (stats of a hypothetical equip), `describe` (item/offer/compare text, `compareFull`), `loot` (loot rolls, offers, scrolls, `resolveUpgrade`), `pack` (the pack: `stow`, `discard`, `swapIn`, `unequip`, `ownedIds`, `upgradableTargets`), `combat` (enemy scaling, battle creation, hero actions, damage), `commands` (GUARD, POTION, BURST, BREAK), `enemy-turn` (enemy moves, intent, phase), `status` (turn start, BURN, WARD, `heroFalls`), `element`, `burst`, `events` (event effects, enablement, `takePendingBurn`, preview words), `map` (**the one map generator**, `generateMap(rng, shape?)`, played by both the screens and the simulator), `model` (`Policy`, `RoomType` including `BOSS`), `scoring`, `policies`, `policy-battle` (how they fight) and `policy-choices` (how the archetypes decide; `DEFAULT_CHOICES` holds the shared pack/upgrade/prepare defaults), `run` (`simulateRun`) | `../types`, `../data`, each other |
 | `game/sprites.ts` + `game/sprites/*.ts` | hero/enemy/icon sprites: `helpers`, `hero`, `icons`, one file per biome; `sprites.ts` re-exports them and adds `enemyAnim(id)` | `../engine` only |
 | `game/main.ts` + `app`, `state`, `flow`, `frame`, `mapgen`, `theme`, `backdrop`, `widgets`, `pops`, `fx-state`, `fx`, `transition`, `storage`, `lookup`, `screens/*.ts` | presentation: `main.ts` only wires; `app` creates the engine objects and fits the canvas to the window; `state` holds the one `Game` object `g` with per-screen slices; `flow` runs the run (rooms, stages, clears, acts, scene hooks); `frame` dispatches update/render; `mapgen` adapts the shared headless map to the screens (adds `stage`, `slot`, `cleared`); the **fx / transition layer** presents what the rules decided and never decides anything — `fx-state` + `fx` hold the battle-fx clock (actor poses, timed cues, lagging meters, boss banner), `screens/battle-fx` choreographs a turn on it, `screens/battle-fx-verbs` gives each battle verb its beat, `screens/battle-fx-view` draws its shots and banner, `screens/battle-menu` holds the command menu, `screens/battle-tags` the tag strips under the plates, `screens/battle-reach` measures lunges, `transition` reveals each new sub-scene; `screens/` one update file and one view file per screen (`map-view`, `loot-view`, `battle-view`; `plate` holds the shared medallions) | everything |
 | `game/devhook.ts` | the dev-only seeded hook (`?seed`, `?scene`, `&act`, `&hold`, `window.__ember`), never in the build | `../engine` types, `./sim`, presentation types |
@@ -64,6 +64,7 @@ fights and elites, never from bosses (`UPGRADE_CHANCE`).
 | ELITE | always | 3 | the build accelerator: points + breadth, paid in HP and risk |
 | LOOT (chest) | always | 2 — an UPGRADE card first when possible | no fight, no points: depth for the build you already have |
 | BOSS | always | 3 — pick ONE: the act's **spell scroll**, the boss's **signature item**, one rolled EPIC+ | the run's biggest single decision |
+| EVENT | only through an `item` effect | 1 — a rolled item of the event's rarity (falls back to a lower rarity) | paid for up front (max HP, a burn); declining still mends 25 % |
 
 Rarity weights shift toward rare by act (`LOOT_WEIGHTS`). Items already
 equipped never re-roll; `minAct` gates the wildest items. The player may
@@ -80,9 +81,11 @@ chests at `MISSED_SCROLL_CHANCE` and the next boss table always carries it.
 Each boss also owns one **signature item** (`Item.bossOnly`) that never
 appears elsewhere — Dark Lord's crown, Yeti's hide, the Golem's fist.
 
-The map guarantees one elite, one rest and one chest per act. When it has to
+The map guarantees one elite, one rest, one chest and one event per act. When it has to
 invent a chest it places it beside the rest stop so "rest or loot" is a forced
-choice at least once; an invented rest or chest never replaces an elite.
+choice at least once; an invented rest or chest never replaces an elite. Room
+weights are FIGHT 46, ELITE 15, REST 14, LOOT 12, EVENT 13; see *EVENT rooms (M3)*
+for where an event may sit.
 
 Every run is seeded: `startRun` draws a random seed and plays it through
 `createSeededRng`, so the rng state is always readable (the dev hook's `?seed`
@@ -289,6 +292,55 @@ enemy's move, intent, cycle and phase), `status` (turn start, BURN, WARD, `heroF
   turn has no regen. Telemetry per run (`RunResult.verbs`): guards, parries, bursts,
   potions, break attempts/successes per tier, phase-2 switches, burn deaths; STALL deaths
   stay a `deathKind`.
+
+## v3 — EVENT rooms (M3)
+
+Content lives in `game/rules/events.ts` (`EVENTS`, `validateEvents()`, wired into
+`validateData`); rules in `game/sim/events.ts`; the screen in `screens/event.ts` +
+`event-view.ts`.
+
+- **Map.** `RoomType` has `EVENT` (`?`, green). Rolled at weight 13 of 100. After linking,
+  an EVENT that a REST links to becomes a FIGHT (no free heal-then-gamble), and when
+  stages 1–4 (0-based) hold no EVENT one is placed on a FIGHT there that no REST links
+  to (if none exists, on an ELITE / REST / LOOT that is not the act's only one).
+- **An event** is a title (≤ 20), one or two lines (≤ 30) and exactly two options
+  (label ≤ 24), each a list of effects: `hpPct` ± a fraction of max HP (a loss never
+  takes HP below 1), `maxHp` ± permanent max HP, `sp` +n points (opens LEVEL UP),
+  `item(rarity)` one rolled card on the loot screen, `upgradeAny` (opens `UPGRADE WHICH?`),
+  `burnNextFight`, `fullHeal`, `dropPackItem` (opens `GIVE UP WHICH?`), `potion` ±n
+  (clamped 0..2). An option has at most one screen-opening effect and it is last;
+  at least half the events price their boon in something lasting (max HP or a pack
+  item); at most half offer a do-nothing option.
+- **Permanent max HP** is `Hero.bonusMaxHp`, added to max HP in `derive` (a gain also
+  adds the HP; a loss clamps HP). **The burn** is `Hero.pendingBurn` (turns, 0 = none):
+  `takePendingBurn(hero, act)` turns it into BURN `round(3 × ACT_MULT[act])` per turn for
+  3 turns when the next fight (boss included) begins, once.
+- **Enablement** (`eventOptionBlocker`): `upgradeAny` needs an upgradable target
+  (`NOTHING TO UPGRADE`), `dropPackItem` a non-empty pack (`NO SPARE GEAR`), a potion cost
+  enough potions (`NO POTIONS`), an HP cost more than 1 HP (`TOO WEAK TO BLEED`), a max-HP
+  cost a max above it (`TOO FRAIL`). A dim option cannot be chosen.
+- **The cancel rule: nothing is paid until the choice is final.** An option whose last
+  effect opens a picker (`upgradeAny`, `dropPackItem`) opens it first; B returns to the
+  event's two options with nothing applied, and the option's other effects are paid
+  when a row is picked. Options ending in `sp` or `item` pay first and then open their
+  screen, which cannot be backed out of (LEVEL UP spends, the loot screen's KEEP mends).
+  A result card names what changed, then the map.
+- **Policies** choose with `eventChoice(hero, event)`: the archetypes score each enabled
+  option (HP-rich heroes trade HP, low-HP heroes heal, 1 SP ≈ 6 max HP, never drop the
+  only spare), `random` picks an enabled one at random; the routing archetypes rank
+  EVENT after LOOT. The run result tallies options taken per event (`events`).
+
+| Event | Option A | Option B |
+|---|---|---|
+| A BLEEDING ALTAR | GIVE BLOOD: −25 % HP, +2 SP | WALK ON |
+| A WANDERING SMITH | LEND HIM YOUR STRENGTH: −8 max HP, upgrade any | SELL HIM SCRAP: +2 potions, give up a pack item |
+| A CURSED IDOL | PRY IT OPEN: −10 max HP, an EPIC item | WALK ON |
+| A STILL POOL | BATHE: full heal, burn next fight | FILL A FLASK: +1 potion |
+| A WEARY PILGRIM | SHARE A POTION: −1 potion, +6 max HP | ASK FOR A BLESSING: +25 % HP |
+| THE EMBER SHRINE | BURN SPARE GEAR: full heal, +2 potions, give up a pack item | GRASP THE COAL: burn next fight, a RARE item |
+| A FALLEN KNIGHT | GIVE HIM SPARE GEAR: +8 max HP, +1 potion, give up a pack item | WALK ON |
+| THE BLOOD TITHE | PAY IN VIGOUR: −12 max HP, +2 SP | PAY IN BLOOD: −35 % HP, +1 SP |
+| A WEEPING STATUE | DRINK THE TEARS: +2 potions, burn next fight | WALK ON |
 
 ## Combat
 

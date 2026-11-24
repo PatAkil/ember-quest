@@ -9,8 +9,9 @@ import {
   type Rng,
   type StatKey,
 } from '../types';
-import { BOSS_ENTRY_HEAL } from '../data';
+import { BOSS_ENTRY_HEAL, type EventDef } from '../data';
 import { spawnEnemy } from './combat';
+import { applyEventCosts, eventOptionEnabled, pickEvent, rollEventItem, screenEffectOf, takePendingBurn, type ScreenEffect } from './events';
 import { derive, fullHeal, grantClear, healFraction, refillPotions, skipMend, spendPoint } from './hero';
 import { applyOffer, noteDeclinedScrolls, resolveOverflow, resolveUpgrade, rollLoot } from './loot';
 import type { MapNode } from './map';
@@ -19,6 +20,7 @@ import { upgradableTargets } from './pack';
 import { runBattle } from './run-battle';
 import {
   bossPickKind,
+  countEvent,
   countPick,
   countUpgradeTarget,
   probeOf,
@@ -90,6 +92,51 @@ function foeFor(node: MapNode, biome: Biome, rng: Rng): string {
   return isNonEmpty(ids) ? pick(ids, rng) : pick(biome.normals, rng);
 }
 
+function ignitePendingBurn(hero: Hero, act: number): void {
+  const burn = takePendingBurn(hero, act);
+  if (burn) {hero.burn = burn;}
+}
+
+function dropForEvent(run: RunState): void {
+  const { hero } = run;
+  const last = hero.pack.at(-1);
+  if (!last) {return;}
+  const wanted = Math.floor(run.policy.dropWhich({ ...hero, pack: hero.pack.slice(0, -1) }, last));
+  hero.pack.splice(clamp(wanted, 0, hero.pack.length - 1), 1);
+}
+
+function eventItem(run: RunState, rarity: Extract<ScreenEffect, { kind: 'item' }>['rarity'], act: number): void {
+  const item = rollEventItem(run.hero, rarity, act, run.rng);
+  if (!item) {return;}
+  const offer: LootOffer = { kind: 'ITEM', item };
+  if (run.policy.pick(run.hero, [offer], act) === offer) {takeOffer(run, offer);}
+  else {skipMend(run.hero);}
+}
+
+function eventScreen(run: RunState, screen: ScreenEffect, act: number): void {
+  if (screen.kind === 'sp') { run.hero.sp += screen.amount; spendAll(run.hero, run.policy); return; }
+  if (screen.kind === 'item') { eventItem(run, screen.rarity, act); return; }
+  if (screen.kind === 'upgradeAny') { takeOffer(run, { kind: 'UPGRADE_ANY' }); return; }
+  dropForEvent(run);
+}
+
+function chooseOption(run: RunState, event: EventDef): 0 | 1 {
+  const wanted = run.policy.eventChoice(run.hero, event);
+  const other = wanted === 0 ? 1 : 0;
+  return eventOptionEnabled(run.hero, event.options[wanted]) ? wanted : other;
+}
+
+function eventRoom(run: RunState, act: number): void {
+  const event = pickEvent(run.rng);
+  const choice = chooseOption(run, event);
+  countEvent(run.tally, event.id, choice);
+  const option = event.options[choice];
+  if (!eventOptionEnabled(run.hero, option)) {return;}
+  applyEventCosts(run.hero, option);
+  const screen = screenEffectOf(option);
+  if (screen) {eventScreen(run, screen, act);}
+}
+
 interface Room { act: number; biome: Biome; node: MapNode }
 
 function fightRoom(run: RunState, { act, biome, node }: Room): Ending | null {
@@ -102,6 +149,7 @@ function fightRoom(run: RunState, { act, biome, node }: Room): Ending | null {
   const enemyId = foeFor(node, biome, rng);
   const enemy = spawnEnemy(enemyId, run.clears, act);
   prepareFor(run, enemy.def);
+  ignitePendingBurn(hero, act);
   const outcome = runBattle({ hero, enemy, policy: run.policy, rng, verbs: tally.verbs });
   if (!outcome.won) {
     const deathKind = outcome.stalled ? 'STALL' : elite ? 'ELITE' : 'NORMAL';
@@ -127,6 +175,10 @@ export function playRoom(run: RunState, room: Room): Ending | null {
     offerLoot(run, 'LOOT', room.act);
     return null;
   }
+  if (type === 'EVENT') {
+    eventRoom(run, room.act);
+    return null;
+  }
   return fightRoom(run, room);
 }
 
@@ -135,6 +187,7 @@ export function bossRoom(run: RunState, act: number, biome: Biome): Ending | nul
   healFraction(hero, BOSS_ENTRY_HEAL);
   const boss = spawnEnemy(biome.boss, run.clears, act);
   prepareFor(run, boss.def);
+  ignitePendingBurn(hero, act);
   const entry = derive(hero);
   const outcome = runBattle({ hero, enemy: boss, policy: run.policy, rng: run.rng, verbs: run.tally.verbs });
   run.probes.push(probeOf(act, run.clears, entry, { boss, outcome }));

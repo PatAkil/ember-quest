@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const SCENES = ['title', 'map', 'battle', 'levelup', 'loot', 'card', 'paused', 'gameover', 'win', 'gear', 'pick', 'drop', 'battle-heavy', 'battle-magic', 'battle-ward', 'battle-phase'];
+const SCENES = ['title', 'map', 'battle', 'levelup', 'loot', 'card', 'paused', 'gameover', 'win', 'gear', 'pick', 'drop', 'battle-heavy', 'battle-magic', 'battle-ward', 'battle-phase', 'event'];
 const ACTS = [1, 2, 3, 4];
 const KEY_RUNS = ['', 'Down,Space,Space,Down,Space'];
 const args = process.argv.slice(2);

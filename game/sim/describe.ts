@@ -107,6 +107,17 @@ const GAUGE: EffectTable<Gauge | null> = {
   EXECUTE: (e) => ({ label: 'EXECUTE', text: `+${pct(e.bonus)}` }),
   FIRST_STRIKE: (e) => ({ label: 'OPENER', text: `X${e.mult.toFixed(1)}` }),
   GRANT_SPELL: noGauge,
+  GUARD_COUNTER: (e) => ({ label: 'COUNTER', text: pct(e.fraction) }),
+  GUARD_MANA: (e) => ({ label: 'GUARD MP', text: `+${e.amount}` }),
+  PARRY_POWER: (e) => ({ label: 'RIPOSTE', text: `X${e.mult.toFixed(1)}` }),
+  PUNISH_WINDUP: (e) => ({ label: 'PUNISH', text: `X${e.mult.toFixed(2)}` }),
+  BURST_GAIN: (e) => ({ label: 'EMBER', text: `X${e.mult.toFixed(1)}` }),
+  BURST_POWER: (e) => ({ label: 'BURST', text: `X${e.mult.toFixed(1)}` }),
+  IMBUE: noGauge,
+  ELEMENT_BOOST: (e) => ({ label: e.element, text: `X${e.mult.toFixed(2)}` }),
+  BURN_ON_HIT: (e) => ({ label: 'IGNITE', text: pct(e.chance) }),
+  BURN_WARD: noGauge,
+  LOW_HP_POWER: (e) => ({ label: 'LOW HP', text: `X${e.mult.toFixed(2)}` }),
 };
 
 function gaugeLine(before: ItemEffect, after: ItemEffect): string | null {
@@ -122,7 +133,10 @@ const EFFECT_WORD: Record<ItemEffect['kind'], string> = {
   TWIN_STRIKE: 'TWIN STRIKES', SPELL_TWICE: 'A DOUBLE CAST', CHEAPER_SPELLS: 'CHEAP SPELLS',
   DRAIN: 'LIFE DRAIN', REFLECT: 'THORNS', REVIVE: 'A SECOND LIFE', MP_ON_HIT: 'MANA ON HIT',
   GLASS: 'GLASS', BLOOD: 'A BLOOD PRICE', EXECUTE: 'AN EXECUTE', FIRST_STRIKE: 'A FIRST STRIKE',
-  GRANT_SPELL: 'A NEW SPELL',
+  GRANT_SPELL: 'A NEW SPELL', GUARD_COUNTER: 'A COUNTERBLOW', GUARD_MANA: 'MANA ON GUARD',
+  PARRY_POWER: 'A KEENER RIPOSTE', PUNISH_WINDUP: 'A PUNISHER', BURST_GAIN: 'A HUNGRY EMBER',
+  BURST_POWER: 'A FIERCER BURST', IMBUE: 'ELEMENTAL STEEL', ELEMENT_BOOST: 'ELEMENT MASTERY',
+  BURN_ON_HIT: 'IGNITION', BURN_WARD: 'FIREPROOFING', LOW_HP_POWER: 'DESPERATION',
 };
 
 const noWords = () => '';
@@ -143,6 +157,17 @@ const AWAKEN_WORDS: EffectTable<string> = {
   EXECUTE: noWords,
   FIRST_STRIKE: noWords,
   GRANT_SPELL: (e) => (e.discount ? 'A CHEAPER SPELL' : ''),
+  GUARD_COUNTER: noWords,
+  GUARD_MANA: noWords,
+  PARRY_POWER: noWords,
+  PUNISH_WINDUP: noWords,
+  BURST_GAIN: noWords,
+  BURST_POWER: noWords,
+  IMBUE: (e) => `${e.element} STEEL`,
+  ELEMENT_BOOST: noWords,
+  BURN_ON_HIT: noWords,
+  BURN_WARD: noWords,
+  LOW_HP_POWER: noWords,
 };
 
 function awakenWords(before: ItemEffect, after: ItemEffect): string {
@@ -182,6 +207,9 @@ const SCROLL_FLAVOUR: Record<SpellId, string> = {
   LEECH: 'DRINKS WHAT IT BURNS',
   QUAKE: 'THE FLOOR DOES THE WORK',
   MEND: 'A BREATH BACK FROM THE EDGE',
+  EMBERS: 'A SHOWER OF SPARKS, TWICE',
+  TREMOR: 'A CHEAP SHOVE OF STONE',
+  AEGIS: 'A SHIELD THAT BITES BACK',
 };
 
 const UPGRADE_ANY_LINES = ['+1 LEVEL TO ONE ITEM YOU OWN', 'WORN OR IN YOUR PACK'];

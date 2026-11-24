@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { withSim } from '../sim/bundle.mjs';
 import { foeRules } from './rules-foe.mjs';
 import { verbRules } from './rules-verbs.mjs';
+import { eventRules } from './rules-events.mjs';
 
 const MAP_SEEDS = 5000;
 const RNG_DRAWS = 1000;
@@ -271,6 +272,7 @@ const GROUPS = [
   ['scout', scoutRules],
   ['foes', foeRules],
   ['verbs', verbRules],
+  ['events', eventRules],
 ];
 
 await withSim((sim) => {

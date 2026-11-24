@@ -7,6 +7,7 @@ import {
   type HeroActResult,
 } from '../types';
 import { burstBlow, canBurst } from './burst';
+import { findEffect } from './gear';
 import { derive } from './hero';
 import { cleanseBurn } from './status';
 
@@ -18,7 +19,7 @@ export const isCommand = (action: HeroAction): action is Verb => VERBS.includes(
 
 const QUIET: Omit<HeroActResult, 'text' | 'hits'> = {
   healed: 0, mpRestored: 0, enemyDefeated: false, crit: false,
-  broke: false, weak: false, resisted: false, guarded: false, missed: false,
+  broke: false, weak: false, resisted: false, guarded: false, missed: false, burned: false,
 };
 
 export const heroResult = (text: string, over: Partial<HeroActResult> = {}): HeroActResult =>
@@ -56,16 +57,22 @@ const VERB_ACT: Record<Verb, (hero: Hero, battle: BattleState) => HeroActResult>
 
 export const commandAct = (hero: Hero, battle: BattleState, action: Verb): HeroActResult => VERB_ACT[action](hero, battle);
 
-function breaks(battle: BattleState, action: HeroAction, result: HeroActResult): boolean {
+interface Settle { hero: Hero; battle: BattleState; action: HeroAction; result: HeroActResult }
+
+const breakEligible = ({ hero, action, result }: Settle): boolean =>
+  action === 'BURST' || result.weak || findEffect(hero, 'PUNISH_WINDUP') !== undefined;
+
+function breaks(settle: Settle): boolean {
+  const { battle, result } = settle;
   const enemy = battle.enemy;
   if (battle.intent !== 'HEAVY' || result.enemyDefeated || result.hits.length === 0) {return false;}
-  if (action !== 'BURST' && !result.weak) {return false;}
+  if (!breakEligible(settle)) {return false;}
   const total = result.hits.reduce((n, h) => n + h.dmg, 0);
   return total >= BREAK_AT[enemy.def.kind] * enemy.maxHp;
 }
 
-export function settleBreak(battle: BattleState, action: HeroAction, result: HeroActResult): HeroActResult {
-  if (!breaks(battle, action, result)) {return result;}
+export function settleBreak(hero: Hero, battle: BattleState, action: HeroAction, result: HeroActResult): HeroActResult {
+  if (!breaks({ hero, battle, action, result })) {return result;}
   battle.enemy.staggered = true;
   return { ...result, broke: true };
 }

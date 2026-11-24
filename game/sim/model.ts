@@ -1,6 +1,7 @@
+import type { EventDef } from '../data';
 import type { BattleState, Derived, EnemyDef, Hero, HeroAction, Item, LootOffer, OwnedItem, StatKey, UpgradeTarget } from '../types';
 
-export type RoomType = 'FIGHT' | 'ELITE' | 'REST' | 'LOOT' | 'BOSS';
+export type RoomType = 'FIGHT' | 'ELITE' | 'REST' | 'LOOT' | 'EVENT' | 'BOSS';
 
 export interface Policy {
   allocate(hero: Hero, d: Derived): StatKey;
@@ -11,4 +12,5 @@ export interface Policy {
   dropWhich(hero: Hero, entering: OwnedItem): number;
   upgradeTarget(hero: Hero, targets: UpgradeTarget[]): number;
   prepare(hero: Hero, foe: EnemyDef): void;
+  eventChoice(hero: Hero, event: EventDef): 0 | 1;
 }

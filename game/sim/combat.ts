@@ -1,5 +1,4 @@
 import {
-  RIPOSTE_MULT,
   type BattleState,
   type DamageKind,
   type Derived,
@@ -14,12 +13,13 @@ import {
 } from '../types';
 import { ACT_MULT, ENEMIES, SPELLS } from '../data';
 import { commandAct, heroResult, isCommand, settleBreak } from './commands';
-import { actionElement, elementMult } from './element';
+import { elementMult } from './element';
 import { gainEmber } from './burst';
 import { nextIntent } from './enemy-turn';
 import { findEffect } from './gear';
-import { derive, spellCost } from './hero';
-import { resistOf, tickWard } from './status';
+import { derive, isGuardAction, spellCost } from './hero';
+import { burnChance, gearPower, heroElement, riposteMult } from './power';
+import { applyBurn, resistOf, tickWard } from './status';
 import { clamp, jitter, type EffectOf } from './util';
 
 type Scope = 'ATTACK' | 'SPELL';
@@ -41,7 +41,7 @@ export function spawnEnemy(id: string, clears: number, act: number): EnemyInstan
 export function createBattle(enemy: EnemyInstance): BattleState {
   return {
     enemy, rampStacks: 0, lastScope: null, actionsTaken: 0,
-    intent: nextIntent(enemy), guarding: false, guardChain: 0, riposte: false,
+    intent: nextIntent(enemy), guarding: false, guardChain: 0, riposte: false, aegis: 0,
   };
 }
 
@@ -133,16 +133,16 @@ function castHeal(hero: Hero, d: Derived, spell: SpellDef, heal: number): HeroAc
   return heroResult(`HERO ${spell.verb} +${healed} HP!`, { healed });
 }
 
-interface Strike { d: Derived; swing: Swing; rampMult: number; openerMult: number; riposteMult: number; elementMul: number }
+interface Strike { d: Derived; swing: Swing; power: number; elementMul: number }
 interface Volley { hits: Hit[]; total: number; anyCrit: boolean; mpRestored: number }
 
 function rollVolley(hero: Hero, enemy: EnemyInstance, strike: Strike, rng: Rng): Volley {
-  const { d, swing, rampMult, openerMult, riposteMult, elementMul } = strike;
+  const { d, swing, power, elementMul } = strike;
   const execute = findEffect(hero, 'EXECUTE');
   const mpOnHit = findEffect(hero, 'MP_ON_HIT');
   const volley: Volley = { hits: [], total: 0, anyCrit: false, mpRestored: 0 };
   for (const mult of swing.mults) {
-    let raw = swing.base * mult * jitter(rng) * rampMult * openerMult * riposteMult;
+    let raw = swing.base * mult * jitter(rng) * power;
     const crit = rng() * 100 < d.crit;
     if (crit) {
       raw *= d.critMult;
@@ -176,34 +176,49 @@ function sustain(hero: Hero, d: Derived, volley: Volley, spell: SpellDef | undef
   return { healed, mpRestored };
 }
 
+function igniteFoe(hero: Hero, enemy: EnemyInstance, volley: Volley, rng: Rng): boolean {
+  const chance = burnChance(hero);
+  if (chance <= 0 || enemy.hp <= 0 || volley.total <= 0 || rng() >= chance) {return false;}
+  applyBurn(enemy, volley.total);
+  return true;
+}
+
+interface Power { ramp: Ramp; opener: number }
+
+function strikePower(hero: Hero, battle: BattleState, d: Derived, action: StrikeAction): number {
+  const power = gearPower({ hero, battle, d, element: heroElement(hero, action) });
+  return battle.riposte ? power * riposteMult(hero) : power;
+}
+
+function openerOf(hero: Hero, battle: BattleState, scope: Scope): Power {
+  const firstStrike = findEffect(hero, 'FIRST_STRIKE');
+  return { ramp: rampFor(hero, battle, scope), opener: firstStrike && battle.actionsTaken === 0 ? firstStrike.mult : 1 };
+}
+
 function strikeAct(hero: Hero, battle: BattleState, action: StrikeAction, rng: Rng): HeroActResult {
   const d = derive(hero);
   const enemy = battle.enemy;
   const scope: Scope = action === 'ATTACK' ? 'ATTACK' : 'SPELL';
   const spell = action === 'ATTACK' ? undefined : SPELLS[action];
-  if (action !== 'ATTACK') {hero.mp = Math.max(0, hero.mp - spellCost(hero, action));}
-  const ramp = rampFor(hero, battle, scope);
-  const firstStrike = findEffect(hero, 'FIRST_STRIKE');
-  const openerMult = firstStrike && battle.actionsTaken === 0 ? firstStrike.mult : 1;
+  const { ramp, opener } = openerOf(hero, battle, scope);
   if (spell?.heal !== undefined) {
     const result = castHeal(hero, d, spell, spell.heal);
     advance(battle, ramp, scope);
     return result;
   }
   const swing = swingFor(hero, d, action);
-  const elementMul = elementMult(enemy.def, actionElement(action));
-  const riposteMult = battle.riposte ? RIPOSTE_MULT : 1;
-  const volley = rollVolley(hero, enemy, { d, swing, rampMult: ramp.mult, openerMult, riposteMult, elementMul }, rng);
+  const elementMul = elementMult(enemy.def, heroElement(hero, action));
+  const power = ramp.mult * opener * strikePower(hero, battle, d, action);
+  const volley = rollVolley(hero, enemy, { d, swing, power, elementMul }, rng);
   enemy.hp = Math.max(0, enemy.hp - volley.total);
   const { healed, mpRestored } = sustain(hero, d, volley, spell);
+  const burned = igniteFoe(hero, enemy, volley, rng);
   advance(battle, ramp, scope);
   battle.riposte = false;
   gainEmber(hero, 'ACTION');
   const nums = volley.hits.map((h) => h.dmg);
   return heroResult(battleLine({ verb: swing.verb, enemyName: enemy.def.name, nums, crit: volley.anyCrit, rampSuffix: ramp.suffix }), {
-    hits: volley.hits,
-    healed,
-    mpRestored,
+    hits: volley.hits, healed, mpRestored, burned,
     enemyDefeated: enemy.hp <= 0,
     crit: volley.anyCrit,
     weak: elementMul > 1,
@@ -211,10 +226,30 @@ function strikeAct(hero: Hero, battle: BattleState, action: StrikeAction, rng: R
   });
 }
 
+function aegisAct(hero: Hero, battle: BattleState, spell: SpellDef): HeroActResult {
+  hero.mp = Math.max(0, hero.mp - spellCost(hero, spell.id));
+  battle.guarding = true;
+  battle.aegis = spell.guard?.reflect ?? 0;
+  return heroResult(`HERO ${spell.verb}!`, { guarded: true });
+}
+
+function spellAct(hero: Hero, battle: BattleState, action: SpellId, rng: Rng): HeroActResult {
+  const spell = SPELLS[action];
+  if (spell.guard) {return aegisAct(hero, battle, spell);}
+  hero.mp = Math.max(0, hero.mp - spellCost(hero, action));
+  return strikeAct(hero, battle, action, rng);
+}
+
+function act(hero: Hero, battle: BattleState, action: HeroAction, rng: Rng): HeroActResult {
+  if (isCommand(action)) {return commandAct(hero, battle, action);}
+  return action === 'ATTACK' ? strikeAct(hero, battle, action, rng) : spellAct(hero, battle, action, rng);
+}
+
 export function heroAct(hero: Hero, battle: BattleState, action: HeroAction, rng: Rng): HeroActResult {
-  battle.guardChain = action === 'GUARD' ? battle.guardChain + 1 : 0;
+  battle.guardChain = isGuardAction(action) ? battle.guardChain + 1 : 0;
   battle.guarding = false;
-  const result = isCommand(action) ? commandAct(hero, battle, action) : strikeAct(hero, battle, action, rng);
+  battle.aegis = 0;
+  const result = act(hero, battle, action, rng);
   tickWard(battle.enemy);
-  return settleBreak(battle, action, result);
+  return settleBreak(hero, battle, action, result);
 }

@@ -13,8 +13,8 @@ import {
   type HeroAction,
   type TurnStart,
 } from '../types';
-import { allEffects } from './gear';
-import { derive } from './hero';
+import { allEffects, findEffect } from './gear';
+import { derive, isGuardAction } from './hero';
 import { clamp } from './util';
 
 interface Burnable { hp: number; burn: Burn | null }
@@ -34,6 +34,12 @@ function tickBurn(target: Burnable): number {
   burn.turns -= 1;
   if (burn.turns <= 0) {target.burn = null;}
   return loss;
+}
+
+export function burnHero(hero: Hero, hitDmg: number): boolean {
+  if (findEffect(hero, 'BURN_WARD')) {return false;}
+  applyBurn(hero, hitDmg);
+  return true;
 }
 
 export const cleanseBurn = (target: Burnable): void => { target.burn = null; };
@@ -79,7 +85,7 @@ export function heroFalls(hero: Hero, d: Derived = derive(hero)): Fall {
 }
 
 function regen(hero: Hero, d: Derived, action: HeroAction | undefined): { hpRegen: number; mpRegen: number } {
-  if (action === 'GUARD') {return { hpRegen: 0, mpRegen: 0 };}
+  if (action !== undefined && isGuardAction(action)) {return { hpRegen: 0, mpRegen: 0 };}
   const hpRegen = clamp(d.hpRegen, 0, Math.max(0, d.maxHp - hero.hp));
   const mpRegen = clamp(d.mpRegen, 0, Math.max(0, d.maxMp - hero.mp));
   hero.hp += hpRegen;

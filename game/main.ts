@@ -23,10 +23,11 @@ function view(game: Game) {
   return {
     scene: game.app.scenes.current, subScene: game.subScene, act: game.actIndex + 1, hero: game.hero, derived: derive(game.hero),
     enemy: battle.enemy, clears: game.clears, score: game.score, dying: game.dying,
-    cursors: { MAP: map.cursor, BATTLE: battle.menuCursor, LEVELUP: game.levelUp.cursor, LOOT: game.loot.cursor, CARD: 0, GEAR: game.gear.cursor, PICK: game.pick.cursor },
+    cursors: { MAP: map.cursor, BATTLE: battle.menuCursor, LEVELUP: game.levelUp.cursor, LOOT: game.loot.cursor, CARD: 0, GEAR: game.gear.cursor, PICK: game.pick.cursor, EVENT: game.event.cursor },
     battlePhase: battle.phase, battleText: battle.text, intent: battle.state?.intent ?? null, actions: heroActions(game.hero), offers: game.loot.offers, card: game.card.lines,
     map: map.stages, curStage: map.curStage, reachable: map.reachable,
     pick: { title: game.pick.title, rows: game.pick.rows.map((r) => r.name) },
+    event: { id: game.event.def.id, title: game.event.def.title, options: game.event.def.options.map((o) => o.label) },
   };
 }
 

@@ -17,6 +17,8 @@ import { updateLoot } from './screens/loot';
 import { renderMap, updateMap } from './screens/map';
 import { renderPick } from './screens/pick-view';
 import { updatePick } from './screens/pick';
+import { renderEvent } from './screens/event-view';
+import { updateEvent } from './screens/event';
 import { renderEndingOverlay, renderPausedOverlay, renderTitle } from './screens/title';
 
 type Scene = SceneMachine['current'];
@@ -29,6 +31,7 @@ const UPDATE_SUB: Record<SubScene, (g: Game, dt: number) => void> = {
   CARD: updateCard,
   GEAR: updateGear,
   PICK: updatePick,
+  EVENT: updateEvent,
 };
 
 const RENDER_SUB: Record<SubScene, (g: Game) => void> = {
@@ -39,6 +42,7 @@ const RENDER_SUB: Record<SubScene, (g: Game) => void> = {
   CARD: renderCard,
   GEAR: renderGear,
   PICK: renderPick,
+  EVENT: renderEvent,
 };
 
 function restartOnA(g: Game): void {

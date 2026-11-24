@@ -1,7 +1,7 @@
 import { PICO8 } from '../../engine';
 import type { EnemyActResult, EnemyInstance, MoveId } from '../types';
 import { enemyAnchor, enemyPos, heroAnchor } from '../backdrop';
-import { addMove, addShot, addTint, meter } from '../fx';
+import { addMove, addShot, addTint, cue, meter } from '../fx';
 import { popSpot, pushPop } from '../pops';
 import type { Game } from '../state';
 import { C_ACCENT, C_DIM, C_DMG_TAKEN, C_EMBER, C_HP, C_WARD, FLOOR_Y, HERO_X, enemyColor, heroPos } from '../theme';
@@ -55,6 +55,21 @@ function reflectFx(g: Game, amount: number): void {
   addMove(g, 'ENEMY', 'RECOIL', 2);
 }
 
+const COUNTER_DELAY = 0.12;
+
+function counterFx(g: Game, amount: number): void {
+  const p = enemyPos(g);
+  const a = enemyAnchor(g);
+  addMove(g, 'HERO', 'LUNGE', 6);
+  cue(g, COUNTER_DELAY, () => {
+    pushPop(g.pops, { ...popSpot(a, 1), scale: 2 }, `COUNTER -${String(amount)}`, C_ACCENT);
+    addShot(g, { kind: 'SLASH', dur: 0.24, from: p, to: p, color: C_ACCENT, glow: PICO8[7] });
+    addTint(g, 'ENEMY', toneFor(g, 'ENEMY'), 0.07);
+    addMove(g, 'ENEMY', 'RECOIL', 4);
+    g.app.audio.play('hit');
+  });
+}
+
 function dodgeFx(g: Game, r: EnemyActResult): void {
   g.app.audio.play('blip');
   addMove(g, 'HERO', 'DODGE', 8);
@@ -90,4 +105,5 @@ export function enemyImpact(g: Game, r: EnemyActResult): void {
   if (r.burned) {fxScorch(g);}
   if (r.revived) {reviveFx(g);}
   if (r.reflected > 0) {reflectFx(g, r.reflected);}
+  if (r.countered > 0) {counterFx(g, r.countered);}
 }

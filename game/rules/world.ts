@@ -9,9 +9,12 @@ export const SPELLS: Record<SpellId, SpellDef> = {
   LEECH: { id: 'LEECH', name: 'LEECH', cost: 6, mult: 1.1, hits: 1, scale: 'MAG', kind: 'MAGIC', verb: 'LEECHES', leech: 0.4 },
   QUAKE: { id: 'QUAKE', name: 'QUAKE', cost: 7, mult: 2.0, hits: 1, scale: 'ATK', kind: 'PHYSICAL', verb: 'QUAKES', element: 'EARTH' },
   MEND: { id: 'MEND', name: 'MEND', cost: 6, mult: 0, hits: 0, scale: 'MAG', kind: 'MAGIC', verb: 'MENDS', heal: 0.35 },
+  EMBERS: { id: 'EMBERS', name: 'EMBERS', cost: 7, mult: 0.8, hits: 2, scale: 'MAG', kind: 'MAGIC', verb: 'RAINS EMBERS ON', element: 'FIRE' },
+  TREMOR: { id: 'TREMOR', name: 'TREMOR', cost: 3, mult: 1.3, hits: 1, scale: 'ATK', kind: 'PHYSICAL', verb: 'SHAKES', element: 'EARTH' },
+  AEGIS: { id: 'AEGIS', name: 'AEGIS', cost: 5, mult: 0, hits: 0, scale: 'MAG', kind: 'MAGIC', verb: 'RAISES AN AEGIS', guard: { reflect: 0.5 } },
 };
 
-export const SPELL_ORDER: SpellId[] = ['FIREBALL', 'WATER', 'SLASH', 'THUNDER', 'TWINBOLT', 'LEECH', 'QUAKE', 'MEND'];
+export const SPELL_ORDER: SpellId[] = ['FIREBALL', 'WATER', 'SLASH', 'THUNDER', 'TWINBOLT', 'LEECH', 'QUAKE', 'MEND', 'EMBERS', 'TREMOR', 'AEGIS'];
 
 export const LOOT_WEIGHTS: Record<LootSource, [number, number, number, number][]> = {
   FIGHT: [[70, 25, 5, 0], [60, 30, 9, 1], [50, 35, 13, 2], [40, 40, 17, 3]],

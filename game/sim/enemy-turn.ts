@@ -17,7 +17,8 @@ import {
 import { findEffect } from './gear';
 import { gainEmber } from './burst';
 import { derive } from './hero';
-import { applyBurn, applyWard, heroFalls } from './status';
+import { counterBlow, guardMana } from './power';
+import { applyWard, burnHero, heroFalls } from './status';
 import { jitter } from './util';
 
 function movesOf(enemy: EnemyInstance): MoveId[] {
@@ -61,7 +62,7 @@ const HIT_VERB: Partial<Record<MoveId, string>> = { WINDUP: 'WINDS UP AT', HEAVY
 
 const QUIET: Omit<EnemyActResult, 'move' | 'text'> = {
   dodged: false, dmg: 0, reflected: 0, revived: false, heroDead: false, enemyDefeated: false,
-  guarded: false, parried: false, staggered: false, phaseChanged: false, burned: false, healed: 0, warded: false,
+  guarded: false, parried: false, staggered: false, phaseChanged: false, burned: false, healed: 0, warded: false, countered: 0,
 };
 
 const quiet = (move: MoveId, text: string, over: Partial<EnemyActResult> = {}): EnemyActResult =>
@@ -83,16 +84,32 @@ function parry(t: Turn): boolean {
   return true;
 }
 
-function reflectDamage(hero: Hero, dmg: number, physical: boolean): number {
+function thorns(hero: Hero, dmg: number, physical: boolean): number {
   const reflect = findEffect(hero, 'REFLECT');
   if (!reflect || reflect.fraction <= 0 || !(physical || reflect.magicToo)) {return 0;}
   return Math.max(1, Math.round(dmg * reflect.fraction));
 }
 
+function reflectDamage(t: Turn, dmg: number, physical: boolean): number {
+  const aegis = t.battle.guarding && t.battle.aegis > 0 ? Math.max(1, Math.round(dmg * t.battle.aegis)) : 0;
+  return thorns(t.hero, dmg, physical) + aegis;
+}
+
+interface Aftermath { burned: boolean; reflected: number; countered: number }
+
+function aftermath(t: Turn, dmg: number, physical: boolean): Aftermath {
+  const enemy = t.battle.enemy;
+  const burned = t.move === 'SCORCH' && burnHero(t.hero, dmg);
+  const reflected = reflectDamage(t, dmg, physical);
+  const countered = t.battle.guarding ? counterBlow(t.hero, t.d, enemy) : 0;
+  enemy.hp = Math.max(0, enemy.hp - reflected - countered);
+  return { burned, reflected, countered };
+}
+
 function guardedGain(t: Turn): void {
   if (chainedGuard(t)) {return;}
   gainEmber(t.hero, 'HIT_TAKEN');
-  if (t.battle.guarding) {t.hero.mp = Math.min(t.d.maxMp, t.hero.mp + GUARD_MP_GAIN);}
+  if (t.battle.guarding) {t.hero.mp = Math.min(t.d.maxMp, t.hero.mp + GUARD_MP_GAIN + guardMana(t.hero));}
 }
 
 function hitText(t: Turn, dmg: number): string {
@@ -118,14 +135,11 @@ function landHit(t: Turn): EnemyActResult {
   hero.hp -= dmg;
   guardedGain(t);
   const parried = parry(t);
-  const burned = move === 'SCORCH';
-  if (burned) {applyBurn(hero, dmg);}
-  const reflected = reflectDamage(hero, dmg, physical);
-  if (reflected > 0) {enemy.hp = Math.max(0, enemy.hp - reflected);}
+  const after = aftermath(t, dmg, physical);
   const fall = heroFalls(hero, d);
   const text = fall === 'STANDING' ? `${hitText(t, dmg)}!` : fellText(t, dmg, fall === 'REVIVED');
   return quiet(move, text, {
-    dmg, reflected, burned, parried, guarded: battle.guarding,
+    ...after, dmg, parried, guarded: battle.guarding,
     revived: fall === 'REVIVED', heroDead: fall === 'DEAD', enemyDefeated: enemy.hp <= 0,
   });
 }

@@ -110,6 +110,17 @@ const STEP: EffectTable<ItemEffect> = {
   EXECUTE: (e) => ({ ...e, bonus: r2(e.bonus * 1.35) }),
   FIRST_STRIKE: (e) => ({ ...e, mult: r2(e.mult + 0.3) }),
   GRANT_SPELL: same,
+  GUARD_COUNTER: (e) => ({ ...e, fraction: Math.min(1.2, r2(e.fraction + 0.15)) }),
+  GUARD_MANA: (e) => ({ ...e, amount: e.amount + 1 }),
+  PARRY_POWER: (e) => ({ ...e, mult: Math.min(3, r2(e.mult + 0.2)) }),
+  PUNISH_WINDUP: (e) => ({ ...e, mult: r2(e.mult + 0.15) }),
+  BURST_GAIN: (e) => ({ ...e, mult: r2(e.mult + 0.2) }),
+  BURST_POWER: (e) => ({ ...e, mult: r2(e.mult + 0.2) }),
+  IMBUE: same,
+  ELEMENT_BOOST: (e) => ({ ...e, mult: r2(e.mult + 0.1) }),
+  BURN_ON_HIT: (e) => ({ ...e, chance: Math.min(0.8, r2(e.chance + 0.1)) }),
+  BURN_WARD: same,
+  LOW_HP_POWER: (e) => ({ ...e, mult: r2(e.mult + 0.15) }),
 };
 
 export function scaleEffect(e: ItemEffect, level: number): ItemEffect {

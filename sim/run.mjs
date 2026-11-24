@@ -1,4 +1,5 @@
 import { withSim } from './bundle.mjs';
+import { endRun, isPicker, mergeTallies, newItemTally, printItems, watchPicks } from './items-report.mjs';
 
 const args = process.argv.slice(2);
 const opt = (name, def) => {
@@ -10,6 +11,7 @@ const SEED = Number(opt('seed', 1));
 const ONLY = opt('policy', 'all');
 const JSON_OUT = args.includes('--json');
 const NO_POTIONS = args.includes('--no-potions');
+const ITEMS = args.includes('--items');
 const TIERS = ['NORMAL', 'ELITE', 'BOSS'];
 
 const pct = (n, d) => (d === 0 ? '  - ' : `${((100 * n) / d).toFixed(0).padStart(3)}%`);
@@ -111,18 +113,36 @@ function policiesOf(sim) {
   return list;
 }
 
-await withSim((sim) => {
-  const report = {};
-  for (const [name, policy] of policiesOf(sim)) {
-    const rng = sim.createSeededRng(SEED).next;
-    const s = newStats();
-    for (let i = 0; i < RUNS; i++) {tallyRun(s, sim.simulateRun(policy, rng));}
-    report[name] = summarize(s);
-    if (!JSON_OUT) {printText(name, s, report[name]);}
+function playPolicy(sim, plain) {
+  const rng = sim.createSeededRng(SEED).next;
+  const s = newStats();
+  const items = newItemTally();
+  const { policy, run } = watchPicks(plain, items);
+  for (let i = 0; i < RUNS; i++) {
+    const result = sim.simulateRun(policy, rng);
+    tallyRun(s, result);
+    endRun(sim, items, run, result.won);
   }
+  return { s, items };
+}
+
+function printFooter(sim, report, pickers) {
+  if (ITEMS) {printItems(sim, 'balanced + glass + tank', pickers);}
   const { naive, balanced } = report;
-  if (naive && balanced && !JSON_OUT) {
+  if (naive && balanced) {
     console.log(`naive/balanced win ratio ${(balanced.winRate > 0 ? naive.winRate / balanced.winRate : 0).toFixed(2)} (target <= 0.75)`);
   }
+}
+
+await withSim((sim) => {
+  const report = {};
+  const pickers = newItemTally();
+  for (const [name, plain] of policiesOf(sim)) {
+    const { s, items } = playPolicy(sim, plain);
+    report[name] = summarize(s);
+    if (!JSON_OUT) {printText(name, s, report[name]);}
+    if (ITEMS && isPicker(name)) {mergeTallies(pickers, items);}
+  }
   if (JSON_OUT) {console.log(JSON.stringify({ seed: SEED, runs: RUNS, policies: report }, null, 2));}
+  else {printFooter(sim, report, pickers);}
 });

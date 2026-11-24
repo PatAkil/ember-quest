@@ -1,7 +1,7 @@
 import { PICO8, contrast } from '../../engine';
 import type { Sprite } from '../../engine';
 import type { EnemyInstance, EnemyKind, Hero, HeroAction, HeroActResult, HeroCommand, Hit, SpellId } from '../types';
-import { isSpell } from '../sim';
+import { heroElement, isSpell } from '../sim';
 import { enemyAnim, heroFrames } from '../sprites';
 import { enemyAnchor, enemyPos, heroAnchor } from '../backdrop';
 import { addMove, addShot, addTint, cue, holdMeter, showBanner } from '../fx';
@@ -10,7 +10,7 @@ import type { Actor, ShotKind } from '../fx-state';
 import { popSpot, pushPop } from '../pops';
 import { fxBurstCharge } from './battle-fx-verbs';
 import type { Game } from '../state';
-import { C_ACCENT, C_HP, C_MP, C_TEXT, FLOOR_Y, HERO_H, HERO_W, HERO_X, HUD_BOTTOM, enemyColor, heroPos } from '../theme';
+import { C_ACCENT, C_EMBER, C_HP, C_MP, C_TEXT, ELEMENT_COLOR, FLOOR_Y, HERO_H, HERO_W, HERO_X, HUD_BOTTOM, enemyColor, heroPos } from '../theme';
 import type { Point } from '../theme';
 
 type Archetype = 'MELEE' | 'HEAVY' | 'SHOT' | 'SKY' | 'AURA' | 'GUARD' | 'DRINK' | 'BURST';
@@ -25,6 +25,9 @@ const SPELL_LOOK: Record<SpellId, Look> = {
   LEECH: { arch: 'SHOT', impact: 0.28, shot: 'BOLT', color: PICO8[14], glow: PICO8[2] },
   QUAKE: { arch: 'HEAVY', impact: 0.24, shot: 'DUST', color: PICO8[15], glow: PICO8[6] },
   MEND: { arch: 'AURA', impact: 0.22, shot: 'RISE', color: PICO8[11], glow: PICO8[7] },
+  EMBERS: { arch: 'SHOT', impact: 0.26, shot: 'ORB', color: PICO8[8], glow: PICO8[9] },
+  TREMOR: { arch: 'HEAVY', impact: 0.2, shot: 'DUST', color: PICO8[4], glow: PICO8[15] },
+  AEGIS: { arch: 'GUARD', impact: 0.14, shot: 'SHIELD', color: PICO8[10], glow: PICO8[7] },
 };
 export const STRIKE_LOOK: Look = { arch: 'MELEE', impact: 0.18, shot: null, color: PICO8[7], glow: PICO8[6] };
 const HEXBOLT_LOOK: Look = { arch: 'SHOT', impact: 0.26, shot: 'BOLT', color: PICO8[14], glow: PICO8[7] };
@@ -45,7 +48,9 @@ export const magicWeapon = (hero: Hero): boolean => hero.equipment.WEAPON?.weapo
 function heroLook(hero: Hero, action: HeroAction): Look {
   if (isSpell(action)) {return SPELL_LOOK[action];}
   if (action !== 'ATTACK') {return COMMAND_LOOK[action];}
-  return hasHex(hero) || magicWeapon(hero) ? HEXBOLT_LOOK : STRIKE_LOOK;
+  const base = hasHex(hero) || magicWeapon(hero) ? HEXBOLT_LOOK : STRIKE_LOOK;
+  const element = heroElement(hero, 'ATTACK');
+  return element ? { ...base, color: ELEMENT_COLOR[element], glow: PICO8[7] } : base;
 }
 
 interface Side { actor: Actor; foe: Actor; cast: Point; hit: Point; feet: Point; head: Point; contact: Point; reach: number }
@@ -249,6 +254,16 @@ export function heroImpact(g: Game, imp: HeroImpact): void {
     stagedHit(g, { look, hit, slot: i, drop, scale });
   });
   if (r.healed > 0) {drainBack(g, r, slot);} else if (r.mpRestored > 0) {popHero(g, restorePops(r), slot);}
+  if (r.burned) {igniteFx(g, r.hits.length);}
+}
+
+function igniteFx(g: Game, slot: number): void {
+  const at = enemyPos(g);
+  cue(g, lastHitDelay(slot), () => {
+    pushPop(g.pops, { ...popSpot(enemyAnchor(g), slot), scale: 1 }, 'IGNITE', C_EMBER);
+    addTint(g, 'ENEMY', C_EMBER, 0.08);
+    g.app.particles.burst(at.x, at.y, { count: 10, color: C_EMBER, speed: 80 });
+  });
 }
 
 export function regenAura(g: Game): void {

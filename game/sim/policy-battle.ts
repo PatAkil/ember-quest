@@ -1,11 +1,12 @@
-import { BREAK_AT, type BattleState, type Derived, type Hero, type HeroAction, RIPOSTE_MULT } from '../types';
+import { BREAK_AT, type BattleState, type Derived, type Hero, type HeroAction } from '../types';
 import { SPELLS } from '../data';
 import { burstBlow } from './burst';
 import { swingFor } from './combat';
 import { isCommand } from './commands';
-import { actionElement, elementMult } from './element';
+import { elementMult } from './element';
 import { moveMult } from './enemy-turn';
-import { isSpell, spellCost } from './hero';
+import { isGuardAction, isSpell, spellCost } from './hero';
+import { gearPower, heroElement, punishes, riposteMult } from './power';
 import type { Policy } from './model';
 import { resistOf } from './status';
 
@@ -28,13 +29,15 @@ const bossOrElite = (f: Fight): boolean => f.battle.enemy.def.kind !== 'NORMAL';
 function swingDamage(f: Fight, action: HeroAction, sure: boolean): number {
   const { hero, d, battle } = f;
   if (action === 'BURST') {return burstBlow(hero, d).dmg;}
-  if (isCommand(action) || isMend(action)) {return 0;}
+  if (isCommand(action) || isMend(action) || isGuardAction(action)) {return 0;}
   const swing = swingFor(hero, d, action);
   const crit = sure ? SURE_SHARE : 1 + (d.crit / 100) * (d.critMult - 1);
-  const element = f.style.verbs ? elementMult(battle.enemy.def, actionElement(action)) : 1;
-  const riposte = battle.riposte ? RIPOSTE_MULT : 1;
+  const elem = heroElement(hero, action);
+  const element = f.style.verbs ? elementMult(battle.enemy.def, elem) : 1;
+  const riposte = battle.riposte ? riposteMult(hero) : 1;
   const resist = 1 - resistOf(battle.enemy, swing.kind) / 100;
-  return swing.mults.reduce((sum, m) => sum + swing.base * m, 0) * crit * element * riposte * resist;
+  const power = gearPower({ hero, battle, d, element: elem });
+  return swing.mults.reduce((sum, m) => sum + swing.base * m, 0) * crit * element * riposte * resist * power;
 }
 
 const sureDamage = (f: Fight, a: HeroAction): number => swingDamage(f, a, true);
@@ -52,8 +55,9 @@ function killer(f: Fight): HeroAction | undefined {
 function breaker(f: Fight): HeroAction | undefined {
   const enemy = f.battle.enemy;
   const floor = BREAK_AT[enemy.def.kind] * enemy.maxHp;
+  const punisher = punishes(f.hero);
   const qualifies = (a: HeroAction): boolean =>
-    a === 'BURST' ? bossOrElite(f) : elementMult(enemy.def, actionElement(a)) > 1;
+    a === 'BURST' ? bossOrElite(f) : punisher || elementMult(enemy.def, heroElement(f.hero, a)) > 1;
   const breaks = f.affordable.filter((a) => qualifies(a) && sureDamage(f, a) >= floor);
   return cheapest(f, breaks.filter((a) => a !== 'BURST')) ?? cheapest(f, breaks);
 }
@@ -64,11 +68,15 @@ function heavyHit(f: Fight): number {
   return enemy.atk * moveMult('HEAVY') * (1 - resist / 100);
 }
 
+function guardChoice(f: Fight): HeroAction {
+  return f.affordable.find((a) => a !== 'GUARD' && isGuardAction(a)) ?? 'GUARD';
+}
+
 function answerHeavy(f: Fight): HeroAction | undefined {
   if (!f.style.verbs || f.battle.intent !== 'HEAVY') {return undefined;}
   const broken = breaker(f);
   if (broken) {return broken;}
-  return heavyHit(f) >= GUARD_HIT_SHARE * f.hero.hp ? 'GUARD' : undefined;
+  return heavyHit(f) >= GUARD_HIT_SHARE * f.hero.hp ? guardChoice(f) : undefined;
 }
 
 const hpShare = (f: Fight): number => f.hero.hp / Math.max(1, f.d.maxHp);

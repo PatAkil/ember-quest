@@ -13,13 +13,14 @@ interface MapShape {
 
 export const MAP_SHAPE: MapShape = {
   stageSizes: [2, 3, 2, 3, 2, 3],
-  weights: { ELITE: 15, REST: 15, LOOT: 12, FIGHT: 58 },
+  weights: { ELITE: 15, REST: 14, LOOT: 12, EVENT: 13, FIGHT: 46 },
 };
 
-const ROLL_ORDER: readonly StageRoom[] = ['ELITE', 'REST', 'LOOT', 'FIGHT'];
+const ROLL_ORDER: readonly StageRoom[] = ['ELITE', 'REST', 'LOOT', 'EVENT', 'FIGHT'];
 const ELITE_STAGE = 2;
 const LOOT_FALLBACK_STAGE = 3;
 const REST_STAGE = 4;
+const EVENT_STAGES: { first: number; last: number } = { first: 1, last: 4 };
 
 interface Threshold { type: StageRoom; below: number }
 
@@ -129,6 +130,43 @@ function ensureVariety(regular: readonly MapNode[][], rng: Rng): void {
   ensureLoot(regular, rng);
 }
 
+function restFed(stages: readonly MapNode[][], s: number): Set<number> {
+  const fed = new Set<number>();
+  for (const n of stages[s - 1] ?? []) {
+    if (n.type === 'REST') {for (const j of n.links) {fed.add(j);}}
+  }
+  return fed;
+}
+
+function unfeedEvents(stages: readonly MapNode[][]): void {
+  stages.forEach((stage, s) => {
+    const fed = restFed(stages, s);
+    stage.forEach((n, j) => { if (n.type === 'EVENT' && fed.has(j)) {n.type = 'FIGHT';} });
+  });
+}
+
+const countOf = (nodes: readonly MapNode[], type: RoomType): number => nodes.filter((n) => n.type === type).length;
+
+function eventSpots(stages: readonly MapNode[][], spare: (n: MapNode) => boolean): MapNode[] {
+  const spots: MapNode[] = [];
+  for (let s = EVENT_STAGES.first; s <= EVENT_STAGES.last; s++) {
+    const fed = restFed(stages, s);
+    (stages[s] ?? []).forEach((n, j) => { if (!fed.has(j) && spare(n)) {spots.push(n);} });
+  }
+  return spots;
+}
+
+function ensureEvent(stages: readonly MapNode[][], rng: Rng): void {
+  const placed = stages.slice(EVENT_STAGES.first, EVENT_STAGES.last + 1).some((st) => st.some((n) => n.type === 'EVENT'));
+  if (placed) {return;}
+  const all = stages.flat();
+  const duplicated = (n: MapNode): boolean => n.type !== 'BOSS' && n.type !== 'FIGHT' && countOf(all, n.type) > 1;
+  const fights = eventSpots(stages, (n) => n.type === 'FIGHT');
+  const spots = fights.length > 0 ? fights : eventSpots(stages, duplicated);
+  const chosen = spots[pickOneIndex(rng, spots.length)];
+  if (chosen) {chosen.type = 'EVENT';}
+}
+
 export interface FoePools { normals: readonly string[]; elites: readonly string[] }
 
 function rollFoe(pool: readonly string[], fallback: readonly string[], rng: Rng): string | undefined {
@@ -151,6 +189,8 @@ export function generateMap(rng: Rng, shape: Partial<MapShape> = {}, pools?: Foe
   const stages: MapNode[][] = [...regular, [{ type: 'BOSS', links: [] }]];
   ensureVariety(regular, rng);
   stages.slice(0, -1).forEach((stage, s) => { linkStage(stage, at(stages, s + 1), rng); });
+  unfeedEvents(stages);
+  ensureEvent(stages, rng);
   if (pools) {scoutFoes(stages, pools, rng);}
   return stages;
 }

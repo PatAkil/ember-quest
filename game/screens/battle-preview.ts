@@ -1,7 +1,7 @@
-import { BREAK_AT, BURST_MULT, EMBER_MAX, GUARD_MP_GAIN, POTION_HEAL, RIPOSTE_MULT } from '../types';
+import { BREAK_AT, BURST_MULT, EMBER_MAX, GUARD_MP_GAIN, POTION_HEAL } from '../types';
 import type { BattleState, DamageKind, Derived, EnemyInstance, Hero, MoveId, SpellId } from '../types';
 import { SPELLS } from '../data';
-import { canAfford, derive, elementMult, knownSpells, resistOf, spellCost } from '../sim';
+import { burstPower, canAfford, derive, elementMult, gearPower, heroElement, knownSpells, punishes, resistOf, riposteMult, spellCost } from '../sim';
 import type { Game } from '../state';
 import { C_ACCENT, C_DIM, C_EMBER, C_GOOD, C_HEX, C_TEXT, C_WARD, C_WARN } from '../theme';
 import { hasHex, magicWeapon } from './battle-fx';
@@ -33,10 +33,11 @@ export function intentLook(e: EnemyInstance, state: BattleState): IntentLook {
 type Stat = 'ATK' | 'MAG';
 interface Strike { stat: Stat; base: number; mult: number; hits: number; kind: DamageKind; elem: number }
 
-function attackStrike(hero: Hero, d: Derived): Strike {
-  if (hasHex(hero)) {return { stat: 'ATK', base: d.atk, mult: 1, hits: 1, kind: 'MAGIC', elem: 1 };}
-  if (magicWeapon(hero)) {return { stat: 'MAG', base: d.mag, mult: 1, hits: 1, kind: 'MAGIC', elem: 1 };}
-  return { stat: 'ATK', base: d.atk, mult: 1, hits: 1, kind: 'PHYSICAL', elem: 1 };
+function attackStrike(hero: Hero, d: Derived, e: EnemyInstance): Strike {
+  const elem = elementMult(e.def, heroElement(hero, 'ATTACK'));
+  if (hasHex(hero)) {return { stat: 'ATK', base: d.atk, mult: 1, hits: 1, kind: 'MAGIC', elem };}
+  if (magicWeapon(hero)) {return { stat: 'MAG', base: d.mag, mult: 1, hits: 1, kind: 'MAGIC', elem };}
+  return { stat: 'ATK', base: d.atk, mult: 1, hits: 1, kind: 'PHYSICAL', elem };
 }
 
 function spellStrike(hero: Hero, d: Derived, id: SpellId, e: EnemyInstance): Strike {
@@ -46,17 +47,20 @@ function spellStrike(hero: Hero, d: Derived, id: SpellId, e: EnemyInstance): Str
 }
 
 const strikeOf = (hero: Hero, d: Derived, a: 'ATTACK' | SpellId, e: EnemyInstance): Strike =>
-  (a === 'ATTACK' ? attackStrike(hero, d) : spellStrike(hero, d, a, e));
+  (a === 'ATTACK' ? attackStrike(hero, d, e) : spellStrike(hero, d, a, e));
 
-function strikeTotal(st: Strike, e: EnemyInstance, riposte: boolean): number {
-  const res = resistOf(e, st.kind);
-  return st.base * st.mult * st.hits * (1 - res / 100) * st.elem * (riposte ? RIPOSTE_MULT : 1);
+interface Ctx { g: Game; hero: Hero; d: Derived; e: EnemyInstance; state: BattleState; heavy: boolean }
+
+function strikeTotal(c: Ctx, st: Strike, a: 'ATTACK' | SpellId): number {
+  const res = resistOf(c.e, st.kind);
+  const riposte = c.state.riposte ? riposteMult(c.hero) : 1;
+  const power = gearPower({ hero: c.hero, battle: c.state, d: c.d, element: heroElement(c.hero, a) });
+  return st.base * st.mult * st.hits * (1 - res / 100) * st.elem * riposte * power;
 }
 
 const burstStat = (d: Derived): Stat => (d.mag > d.atk ? 'MAG' : 'ATK');
-const burstTotal = (d: Derived): number => Math.max(d.atk, d.mag) * BURST_MULT;
-
-interface Ctx { g: Game; hero: Hero; d: Derived; e: EnemyInstance; state: BattleState; heavy: boolean }
+const burstMult = (hero: Hero): number => BURST_MULT * burstPower(hero);
+const burstTotal = (c: Ctx): number => Math.max(c.d.atk, c.d.mag) * burstMult(c.hero);
 
 function breakLine(c: Ctx, total: number, eligible: boolean): PreviewLine | null {
   if (!c.heavy || !eligible) {return null;}
@@ -81,8 +85,9 @@ function strikeHead(st: Strike): string {
 
 function strikePreview(c: Ctx, a: 'ATTACK' | SpellId): PreviewLine[] {
   const st = strikeOf(c.hero, c.d, a, c.e);
-  const total = strikeTotal(st, c.e, c.state.riposte);
-  const third = breakLine(c, total, st.elem > 1) ?? (c.state.riposte ? [{ text: `RIPOSTE X${RIPOSTE_MULT.toFixed(1)}`, color: C_ACCENT }] : []);
+  const total = strikeTotal(c, st, a);
+  const riposteText = `RIPOSTE X${riposteMult(c.hero).toFixed(1)}`;
+  const third = breakLine(c, total, st.elem > 1 || punishes(c.hero)) ?? (c.state.riposte ? [{ text: riposteText, color: C_ACCENT }] : []);
   return [[{ text: strikeHead(st), color: C_TEXT }], resistSegs(c, st), third];
 }
 
@@ -93,11 +98,20 @@ function healLine(c: Ctx, fraction: number): PreviewLine {
   return n > 0 ? [{ text: `+${n} HP`, color: C_GOOD }] : [{ text: 'HP IS FULL', color: C_DIM }];
 }
 
-function spellPreview(c: Ctx, id: SpellId): PreviewLine[] {
+function aegisPreview(c: Ctx, reflect: number): PreviewLine[] {
+  const head = c.heavy ? line('PARRY THE HEAVY BLOW', C_ACCENT) : line('A GUARD THAT BITES', C_TEXT);
+  return [head, line(`RETURNS ${Math.round(reflect * 100)}% OF IT`, C_ACCENT), []];
+}
+
+function spellLines(c: Ctx, id: SpellId): PreviewLine[] {
   const s = SPELLS[id];
-  const lines = s.heal === undefined
-    ? strikePreview(c, id)
-    : [[{ text: `HEAL ${Math.round(s.heal * 100)}% HP`, color: C_GOOD }], healLine(c, s.heal), []];
+  if (s.guard) {return aegisPreview(c, s.guard.reflect);}
+  if (s.heal === undefined) {return strikePreview(c, id);}
+  return [[{ text: `HEAL ${Math.round(s.heal * 100)}% HP`, color: C_GOOD }], healLine(c, s.heal), []];
+}
+
+function spellPreview(c: Ctx, id: SpellId): PreviewLine[] {
+  const lines = spellLines(c, id);
   if (canAfford(c.hero, id)) {return lines;}
   return [...lines.slice(0, 2), [{ text: `NEEDS ${spellCost(c.hero, id)} MP`, color: C_WARN }]];
 }
@@ -105,7 +119,7 @@ function spellPreview(c: Ctx, id: SpellId): PreviewLine[] {
 const line = (text: string, color: string): PreviewLine => [{ text, color }];
 
 function guardPreview(c: Ctx): PreviewLine[] {
-  if (c.heavy) {return [line('PARRY THE HEAVY BLOW', C_ACCENT), line('TAKE HALF DAMAGE', C_TEXT), line(`NEXT HIT X${RIPOSTE_MULT.toFixed(1)}`, C_ACCENT)];}
+  if (c.heavy) {return [line('PARRY THE HEAVY BLOW', C_ACCENT), line('TAKE HALF DAMAGE', C_TEXT), line(`NEXT HIT X${riposteMult(c.hero).toFixed(1)}`, C_ACCENT)];}
   if (c.e.staggered || c.state.intent === 'WARD' || c.state.intent === 'MEND') {return [line('NO BLOW IS COMING', C_WARN), line('A WASTED TURN', C_DIM)];}
   if (c.state.guardChain >= 1) {return [line('CUTS THE HIT BY 25%', C_TEXT), line('YOU GUARDED LAST', C_DIM), line('NO MP OR EMBER', C_DIM)];}
   return [line('HALVES THE NEXT HIT', C_TEXT), line(`+${GUARD_MP_GAIN} MP IF STRUCK`, C_DIM)];
@@ -118,8 +132,8 @@ function potionPreview(c: Ctx): PreviewLine[] {
 
 function burstPreview(c: Ctx): PreviewLine[] {
   if (c.hero.ember < EMBER_MAX) {return [line(`EMBER ${Math.floor(c.hero.ember)}/${EMBER_MAX}`, C_DIM), line('FILLS AS YOU FIGHT', C_DIM)];}
-  const third = breakLine(c, burstTotal(c.d), true) ?? line('EMPTIES THE EMBER', C_DIM);
-  return [line(`${burstStat(c.d)} X${BURST_MULT.toFixed(1)}`, C_TEXT), line('IGNORES ARMOR+WARDS', C_TEXT), third];
+  const third = breakLine(c, burstTotal(c), true) ?? line('EMPTIES THE EMBER', C_DIM);
+  return [line(`${burstStat(c.d)} X${burstMult(c.hero).toFixed(1)}`, C_TEXT), line('IGNORES ARMOR+WARDS', C_TEXT), third];
 }
 
 function magicPreview(c: Ctx): PreviewLine[] {

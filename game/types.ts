@@ -39,7 +39,8 @@ export type Element = 'FIRE' | 'WATER' | 'THUNDER' | 'EARTH';
 export type MoveId = 'STRIKE' | 'WINDUP' | 'HEAVY' | 'WARD' | 'SCORCH' | 'MEND';
 export type SpellId =
   | 'FIREBALL' | 'WATER' | 'SLASH' | 'THUNDER'
-  | 'TWINBOLT' | 'LEECH' | 'QUAKE' | 'MEND';
+  | 'TWINBOLT' | 'LEECH' | 'QUAKE' | 'MEND'
+  | 'EMBERS' | 'TREMOR' | 'AEGIS';
 
 export type ItemEffect =
   | { kind: 'NONE' }
@@ -56,7 +57,18 @@ export type ItemEffect =
   | { kind: 'BLOOD'; hpPerTurn: number }
   | { kind: 'EXECUTE'; threshold: number; bonus: number }
   | { kind: 'FIRST_STRIKE'; mult: number }
-  | { kind: 'GRANT_SPELL'; spell: SpellId; discount?: number };
+  | { kind: 'GRANT_SPELL'; spell: SpellId; discount?: number }
+  | { kind: 'GUARD_COUNTER'; fraction: number }
+  | { kind: 'GUARD_MANA'; amount: number }
+  | { kind: 'PARRY_POWER'; mult: number }
+  | { kind: 'PUNISH_WINDUP'; mult: number }
+  | { kind: 'BURST_GAIN'; mult: number }
+  | { kind: 'BURST_POWER'; mult: number }
+  | { kind: 'IMBUE'; element: Element }
+  | { kind: 'ELEMENT_BOOST'; element: Element; mult: number }
+  | { kind: 'BURN_ON_HIT'; chance: number }
+  | { kind: 'BURN_WARD' }
+  | { kind: 'LOW_HP_POWER'; threshold: number; mult: number };
 export interface Item {
   id: string;
   name: string;
@@ -149,6 +161,8 @@ export interface Hero {
   potions: number;
   ember: number;
   burn: Burn | null;
+  pendingBurn: number;
+  bonusMaxHp: number;
 }
 
 export const POTIONS_MAX = 2;
@@ -184,6 +198,7 @@ export interface BattleState {
   guarding: boolean;
   guardChain: number;
   riposte: boolean;
+  aegis: number;
 }
 export type HeroCommand = 'ATTACK' | 'GUARD' | 'BURST' | 'POTION';
 export type HeroAction = HeroCommand | SpellId;
@@ -200,6 +215,7 @@ export interface HeroActResult {
   resisted: boolean;
   guarded: boolean;
   missed: boolean;
+  burned: boolean;
 }
 export interface EnemyActResult {
   move: MoveId;
@@ -217,6 +233,7 @@ export interface EnemyActResult {
   burned: boolean;
   healed: number;
   warded: boolean;
+  countered: number;
 }
 export interface TurnStart {
   hpRegen: number;

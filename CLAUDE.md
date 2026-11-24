@@ -115,7 +115,7 @@ ember-quest/
 - **Look before you report.** `npm run look -- --scene battle --act 2 --seed 7` prints one
   JSON line (`ok`, the game `state`, console/page `errors`, the screenshot path) in under
   a second; read the state first and the screenshot whenever the look changed. Scenes:
-  `title map battle levelup loot card paused gameover win gear pick drop battle-heavy battle-magic battle-ward battle-phase`; acts 1–4. Claude may say what
+  `title map battle levelup loot card paused gameover win gear pick drop battle-heavy battle-magic battle-ward battle-phase event`; acts 1–4. Claude may say what
   it saw; the owner remains the playtester for feel — report "builds, boots clean,
   ready to play at <URL>", never "playtested".
 - **Done means**: `npm run check` and `npm run lint` after every edit (or `npx eslint

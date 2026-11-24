@@ -41,12 +41,14 @@ export function createHero(): Hero {
     potions: POTIONS_MAX,
     ember: 0,
     burn: null,
+    pendingBurn: 0,
+    bonusMaxHp: 0,
   };
 }
 
 function baseDerived(hero: Hero): Derived {
   return {
-    maxHp: BASE.hp + SP_GAIN.HP * hero.alloc.HP,
+    maxHp: BASE.hp + SP_GAIN.HP * hero.alloc.HP + hero.bonusMaxHp,
     maxMp: BASE.mp + SP_GAIN.MP * hero.alloc.MP,
     atk: BASE.atk + SP_GAIN.ATK * hero.alloc.ATK,
     mag: BASE.mag + SP_GAIN.MAG * hero.alloc.MAG,
@@ -134,6 +136,8 @@ export function spellCost(hero: Hero, spell: SpellId): number {
 const COMMANDS: readonly HeroAction[] = ['ATTACK', 'GUARD', 'BURST', 'POTION'] satisfies readonly HeroCommand[];
 
 export const isSpell = (action: HeroAction): action is SpellId => !COMMANDS.includes(action);
+
+export const isGuardAction = (action: HeroAction): boolean => action === 'GUARD' || (isSpell(action) && SPELLS[action].guard !== undefined);
 
 const COMMAND_READY: Record<HeroCommand, (hero: Hero) => boolean> = {
   ATTACK: () => true,

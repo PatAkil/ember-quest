@@ -1,5 +1,6 @@
 import type { BattleState, EnemyInstance, Hero, LootOffer, LootSource, Rng } from './types';
-import { BIOMES } from './data';
+import { BIOMES, EVENTS } from './data';
+import type { EventDef } from './data';
 import { createHero, createSeededRng } from './sim';
 import type { RoomType, SeededRng } from './sim';
 import type { Sprite } from '../engine';
@@ -11,7 +12,7 @@ import { at, noop, pickOneIndex } from './lookup';
 import { createFx, createReveal } from './fx-state';
 import type { FxState, Reveal } from './fx-state';
 
-export type SubScene = 'MAP' | 'BATTLE' | 'LEVELUP' | 'LOOT' | 'CARD' | 'GEAR' | 'PICK';
+export type SubScene = 'MAP' | 'BATTLE' | 'LEVELUP' | 'LOOT' | 'CARD' | 'GEAR' | 'PICK' | 'EVENT';
 export type { RoomType } from './sim';
 export interface MapNode { type: RoomType; stage: number; slot: number; links: number[]; cleared: boolean; enemyId?: string }
 
@@ -52,6 +53,7 @@ export interface LevelUpScreen { cursor: number; earned: number; onDone: () => v
 export interface LootScreen { offers: LootOffer[]; cursor: number; source: LootSource; stow: boolean; onDone: () => void }
 export interface GearScreen { cursor: number; refusedAt: number }
 export interface PickRow { icon?: Sprite; name: string; color: string; note: string; detail: string[] }
+export interface EventScreen { def: EventDef; cursor: number; refusedAt: number; onDone: () => void }
 export interface PickScreen { title: string; rows: PickRow[]; cursor: number; locked?: boolean; onPick: (i: number) => void; onCancel: () => void }
 
 export interface Game {
@@ -82,6 +84,7 @@ export interface Game {
   loot: LootScreen;
   gear: GearScreen;
   pick: PickScreen;
+  event: EventScreen;
 }
 
 export function createGame(app: App): Game {
@@ -117,6 +120,7 @@ export function createGame(app: App): Game {
     loot: { offers: [], cursor: 0, source: 'FIGHT', stow: false, onDone: noop },
     gear: { cursor: 0, refusedAt: -1 },
     pick: { title: '', rows: [], cursor: 0, onPick: noop, onCancel: noop },
+    event: { def: at(EVENTS, 0), cursor: 0, refusedAt: -1, onDone: noop },
   };
 }
 

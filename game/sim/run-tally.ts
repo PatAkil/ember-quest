@@ -31,7 +31,10 @@ export interface RunResult {
   upgradesWorn?: number;
   upgradesPacked?: number;
   verbs?: VerbTally;
+  events?: EventTally;
 }
+
+export type EventTally = Record<string, [number, number]>;
 
 export interface VerbTally {
   guards: number;
@@ -83,6 +86,7 @@ export interface Tally {
   upgradesWorn: number;
   upgradesPacked: number;
   verbs: VerbTally;
+  events: EventTally;
 }
 
 export interface RunState {
@@ -110,6 +114,7 @@ export function newTally(): Tally {
       guards: 0, parries: 0, bursts: 0, potions: 0, phase2: 0, burnDeaths: 0,
       breakTry: { NORMAL: 0, ELITE: 0, BOSS: 0 }, breakHit: { NORMAL: 0, ELITE: 0, BOSS: 0 },
     },
+    events: {},
   };
 }
 
@@ -166,4 +171,10 @@ export function finish(run: RunState, ending: Ending): RunResult {
     scrollsMissedAtEnd: hero.missedScrolls.length,
     packAtEnd: hero.pack.length,
   };
+}
+
+export function countEvent(tally: Tally, id: string, choice: 0 | 1): void {
+  const split = tally.events[id] ?? [0, 0];
+  split[choice] += 1;
+  tally.events[id] = split;
 }

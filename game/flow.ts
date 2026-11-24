@@ -1,6 +1,6 @@
 import { BIOMES, ENEMIES, BOSS_ENTRY_HEAL } from './data';
 import type { EnemyKind, Hero, LootSource } from './types';
-import { createHero, createSeededRng, fullHeal, grantClear, healFraction, refillPotions } from './sim';
+import { createHero, createSeededRng, fullHeal, grantClear, healFraction, refillPotions, takePendingBurn } from './sim';
 import { at, must } from './lookup';
 import { resetFx } from './fx';
 import { clearPops } from './pops';
@@ -12,6 +12,7 @@ import { startBattle } from './screens/battle';
 import { showCard } from './screens/card';
 import { startLevelUp } from './screens/levelup';
 import { startLoot } from './screens/loot';
+import { startEvent } from './screens/event';
 
 function advanceStage(g: Game): void {
   const node = g.map.pendingNode;
@@ -55,6 +56,11 @@ function levelThenLoot(g: Game, sp: number, source: LootSource, done: () => void
   startLevelUp(g, sp, freshStage(g, () => { startLoot(g, source, freshStage(g, done)); }));
 }
 
+function ignitePendingBurn(g: Game): void {
+  const burn = takePendingBurn(g.hero, g.actIndex);
+  if (burn) {g.hero.burn = burn;}
+}
+
 function fightRoom(g: Game, node: MapNode, kind: 'NORMAL' | 'ELITE'): void {
   const b = biome(g);
   const pool = kind === 'NORMAL' ? b.normals : b.elites;
@@ -62,6 +68,7 @@ function fightRoom(g: Game, node: MapNode, kind: 'NORMAL' | 'ELITE'): void {
   startBattle(g, node.enemyId ?? pickOne(g.rng, pool), () => {
     levelThenLoot(g, onClear(g, kind), source, () => { advanceStage(g); });
   });
+  ignitePendingBurn(g);
 }
 
 function bossRoom(g: Game, node: MapNode): void {
@@ -73,6 +80,7 @@ function bossRoom(g: Game, node: MapNode): void {
     const sp = onClear(g, 'BOSS');
     showCard(g, ['VICTORY!', `${must(ENEMIES[b.boss], b.boss).name} IS NO MORE`], afterVictory(sp));
   });
+  ignitePendingBurn(g);
 }
 
 function restRoom(g: Game): void {
@@ -85,6 +93,7 @@ function restRoom(g: Game): void {
 const normalRoom = (g: Game, node: MapNode): void => { fightRoom(g, node, 'NORMAL'); };
 const eliteRoom = (g: Game, node: MapNode): void => { fightRoom(g, node, 'ELITE'); };
 const lootRoom = (g: Game): void => { startLoot(g, 'LOOT', freshStage(g, () => { advanceStage(g); })); };
+const eventRoom = (g: Game): void => { startEvent(g, freshStage(g, () => { advanceStage(g); })); };
 
 const ROOMS: Record<RoomType, (g: Game, node: MapNode) => void> = {
   FIGHT: normalRoom,
@@ -92,6 +101,7 @@ const ROOMS: Record<RoomType, (g: Game, node: MapNode) => void> = {
   BOSS: bossRoom,
   REST: restRoom,
   LOOT: lootRoom,
+  EVENT: eventRoom,
 };
 
 export function selectNode(g: Game, node: MapNode): void {
