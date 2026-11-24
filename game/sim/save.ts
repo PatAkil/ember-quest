@@ -9,7 +9,7 @@ import { readMap, readStep } from './save-map';
 
 export { SAVE_VERSION, type SavedRun, type SavedStep } from './save-read';
 
-export interface LiveNode extends SavedNode { stage: number; slot: number }
+interface LiveNode extends SavedNode { stage: number; slot: number }
 export interface LiveMap { stages: LiveNode[][]; curStage: number; reachable: number[]; cursor: number }
 export interface RunSnapshot { hero: Hero; run: SavedCounters; depthPlan: ActPlan[]; map: LiveMap; step: SavedStep; rng: number }
 

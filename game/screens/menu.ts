@@ -3,11 +3,11 @@ import { dirEdge, wrapCursor } from '../state';
 import type { Game, MenuScreen } from '../state';
 import { C_ACCENT, C_DIM, C_SEL_BAR, C_TEXT, C_WARN, W } from '../theme';
 
-export interface MenuGuard { rows: number; guarded: number }
-export interface MenuRow { label: string; detail?: string }
-export interface RowSpot { y: number; barW: number; selected: boolean }
+interface MenuGuard { rows: number; guarded: number }
+interface MenuRow { label: string; detail?: string }
+interface RowSpot { y: number; barW: number; selected: boolean }
 
-export const CONFIRM_KEYS = `${BUTTON_KEY.A.hint} YES  ${BUTTON_KEY.B.hint} NO`;
+const CONFIRM_KEYS = `${BUTTON_KEY.A.hint} YES  ${BUTTON_KEY.B.hint} NO`;
 const BAR_H = 9;
 
 function stepConfirm(g: Game, menu: MenuScreen, guarded: number): number | null {

@@ -1,4 +1,4 @@
-export class SaveMismatch extends Error {}
+class SaveMismatch extends Error {}
 
 export type Fields = Record<string, unknown>;
 

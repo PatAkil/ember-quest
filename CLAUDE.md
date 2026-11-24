@@ -48,11 +48,15 @@ ember-quest/
 │   │   ├── hollow.ts         #   THE HOLLOW (hollowOf) and spawnFoe, the one spawn path for game and simulator
 │   │   ├── pacts.ts          #   pactMods (folded PactMod totals), offerPacts, takePact
 │   │   ├── score.ts          #   scoreOf, gloryBonus, scoreAfterDeath
+│   │   ├── save.ts           #   SavedRun: saveRun, loadRun (null on anything wrong, never throws), toSaved/fromSaved, describeSave
+│   │   ├── save-read.ts      #   the saved shape + hero / counters / depth-plan readers
+│   │   ├── save-map.ts       #   map and step readers
+│   │   ├── save-check.ts     #   the small validators the readers share
 │   │   └── run.ts            #   simulateRun (options.descend, off by default), RunResult, Probe
 │   ├── main.ts               # wiring only: app, game state, scene hooks, dev hook, loop
 │   ├── app.ts                # creates the engine objects (canvas, input, scenes, particles, juice, audio, CRT, runtime)
 │   ├── state.ts              # the Game type + createGame(): one object `g` with per-screen slices
-│   ├── flow.ts               # run flow: room selection, stage advance, clears, act change, THRESHOLD (ascend/descend), depth entry + PACT, startRun, scene hooks
+│   ├── flow.ts               # run flow: room selection, stage advance, clears, act change, THRESHOLD (ascend/descend), depth entry + PACT, startRun, save points + CONTINUE (continueRun), abandonRun, scene hooks
 │   ├── frame.ts              # update/render dispatch tables per scene and sub-scene
 │   ├── fx-state.ts           # battle-fx data: actors, moves, tints, shots, cues, lagging meters, banner, screen-reveal state
 │   ├── fx.ts                 # battle-fx clock: eased actor poses, cue queue (skip to impact), meters, boss banner timing
@@ -62,9 +66,9 @@ ember-quest/
 │   ├── backdrop.ts           # biome backdrops, floor, actors, battle tableau
 │   ├── widgets.ts            # bars, lines, fitted/wrapped text, blinkHz/accentHz, item icons
 │   ├── pops.ts               # floating damage/score pops
-│   ├── storage.ts            # best score in localStorage
+│   ├── storage.ts            # localStorage: best score (`retrovibe.ember-quest.best.v2`) and the saved run (`retrovibe.ember-quest.run.v1`; storeRun, loadStoredRun, clearRun)
 │   ├── lookup.ts             # at, pickOneIndex (re-exported from sim), must, noop — guarded indexed access
-│   ├── screens/              # one update + one view per screen: battle/battle-view, map/map-view, loot/loot-view, levelup, card, status (map status panel), gear/gear-view (GEAR: worn slots + pack, B on the map), pick/pick-view (PICK: the shared chooser, e.g. UPGRADE WHICH?), threshold/threshold-view/threshold-gate (THRESHOLD: ASCEND or DESCEND, the abyss gate), pact/pact-view (PACT: one of up to three pacts), title (title, pause), ending (GAME OVER / WIN overlays), battle-fx-affix (SWIFT, THORNED, VAMPIRIC beats)
+│   ├── screens/              # one update + one view per screen: battle/battle-view, map/map-view, loot/loot-view, levelup, card, status (map status panel), gear/gear-view (GEAR: worn slots + pack, B on the map), pick/pick-view (PICK: the shared chooser, e.g. UPGRADE WHICH?), threshold/threshold-view/threshold-gate (THRESHOLD: ASCEND or DESCEND, the abyss gate), pact/pact-view (PACT: one of up to three pacts), title (title + CONTINUE / NEW RUN), pause (PAUSED: RESUME / ABANDON RUN), menu (the shared two-row menu with a confirm), ending (GAME OVER / WIN overlays), battle-fx-affix (SWIFT, THORNED, VAMPIRIC beats)
 │   │   ├── battle-fx.ts      #   choreography of a turn: wind-ups, impacts, pops, regen aura, defeat, entrance, death
 │   │   ├── battle-fx-view.ts #   draws the shots (orbs, bolts, slashes, blooms …) and the boss/elite banner strip
 │   │   ├── battle-fx-verbs.ts #  the beat of each battle verb: guard, parry, break, burst, potion, burn tick, phase, weak
@@ -122,7 +126,7 @@ ember-quest/
 - **Look before you report.** `npm run look -- --scene battle --act 2 --seed 7` prints one
   JSON line (`ok`, the game `state`, console/page `errors`, the screenshot path) in under
   a second; read the state first and the screenshot whenever the look changed. Scenes:
-  `title map battle levelup loot card paused gameover win gear pick drop battle-heavy battle-magic battle-ward battle-phase event threshold pact battle-hollow map-long battle-affix`; acts 1–4, depths 1–10 (`--depth`). Claude may say what
+  `title map battle levelup loot card paused gameover win gear pick drop battle-heavy battle-magic battle-ward battle-phase event threshold pact battle-hollow map-long battle-affix title-continue paused-abandon`; acts 1–4, depths 1–10 (`--depth`). Claude may say what
   it saw; the owner remains the playtester for feel — report "builds, boots clean,
   ready to play at <URL>", never "playtested".
 - **Done means**: `npm run check` and `npm run lint` after every edit (or `npx eslint
@@ -182,12 +186,12 @@ the fixture holds the depth plan, `won`, the banked score and one pact per depth
 `threshold` stops on the THRESHOLD after the depth's last boss, `win` ascends from it, and `pact`
 descends into `depth` (from the depth above it); `battle-hollow` fights THE HOLLOW as the act's
 boss, `map-long` regenerates the act's map with 8 stages, `battle-affix` gives the foe THORNED,
-VAMPIRIC and SWIFT; `&hold=1` also seeds `Math.random` (ambient,
+VAMPIRIC and SWIFT, `title-continue` shows the title with an in-memory save of that stage (never localStorage), `paused-abandon` stops on `REALLY ABANDON?`; the hook never loads, writes or deletes the player's saved run; `&hold=1` also seeds `Math.random` (ambient,
 shake) and stops the rAF loop from ticking or drawing, so frames advance only through
 the hook — this is what makes screenshots pixel-identical. In the page:
 `window.__ember.state()` (JSON: scene, subScene, act (= actInDepth + 1), n, depth, actInDepth, seed, cursor,
 won, banked, bosses, biome, hero, derived, enemy, clears, score, and the
-battle/loot/card/gear/pick/event/threshold/pact/map slice of the current sub-scene),
+battle/loot/card/gear/pick/event/threshold/pact/map slice of the current sub-scene, plus `menu` — `{cursor, confirm}` while PAUSED, with `resume` (the CONTINUE line) on a TITLE that offers a save),
 `step(n)` (n fixed ticks synchronously, one render, returns the state) and
 `press('A' | 'B' | 'PAUSE' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT')` (one edge press on the next tick).
 

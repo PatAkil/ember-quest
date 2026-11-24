@@ -567,6 +567,50 @@ the descent (see *Balance state → The descent*).
 - `node sim/run.mjs --events` prints, per policy, each event's plays per run and its
   option split (also in `--json` as `events`); `--help` lists every flag.
 
+## v3 — save, resume and pause (M5)
+
+- **What is saved**: one run in `localStorage` under `retrovibe.ember-quest.run.v1` as
+  versioned plain JSON (`SavedRun`, `game/sim/save.ts`, headless; readers in
+  `save-read.ts` / `save-map.ts`): the hero with items as ids + levels (worn and packed),
+  alloc, SP, HP/MP, potions, ember, burn and pending burn, bonus max HP, spells, missed
+  scrolls, revive flags, dry fights, pacts; the run counters (`n`, clears, bosses, the
+  frozen descent clears, score, banked, `won`); the depth plan (all four `ActPlan`s);
+  the map (rooms with type, links, cleared, enemy id, affixes; current stage, reachable,
+  cursor); the seeded rng state; and a **step**: `MAP`, `ROOM` (stage, slot), `THRESHOLD`
+  or `PACT` (with the offers already drawn). Items, foes, spells and pacts are rebuilt
+  from the content tables by id.
+- **When**: whenever the map is shown (a room resolved, an act or depth entered — the
+  map is now generated *before* the `… AWAITS` card, so closing on that card resumes on
+  the new map), **just before a room's handler runs** (`selectNode`: the hero as on the
+  map, the entered room recorded, the rng state of that instant), when THRESHOLD opens,
+  and when PACT opens (after its offers are drawn). Entering GAME_OVER or WIN deletes it.
+- **Resume**: the title band becomes `CONTINUE  DEPTH n ACT n  BIOME` / `NEW RUN`;
+  NEW RUN over a save asks once (`ERASE YOUR RUN?`, A yes, B no). CONTINUE restores
+  everything and the rng state, then re-enters the step: the map; the saved room, replayed
+  from the saved rng state (same foe, same loot rolls, same event; the boss entry heal is
+  applied once because the save holds the hero from before it); THRESHOLD; or PACT with
+  the same offers — reloading cannot reroll a room or a pact. **Accepted**: a fight in
+  progress restarts from its first turn, and closing on any screen inside a room (level
+  up, loot, a card, the boss's victory screens) replays the whole room from its entry.
+- **Version policy**: `version` is 1. A save with another version, malformed JSON, an
+  unknown item / foe / spell / pact id, a level past the item's cap, an out-of-range or
+  non-finite number, a map whose links or step point outside it, or a depth plan without
+  four acts is rejected by `loadRun` (which never throws) and dropped silently: the title
+  shows no CONTINUE. A change to the saved shape bumps the version; old saves are dropped,
+  never migrated.
+- **The dev hook never reads or writes it**: with `?seed`, `?scene` or `&hold` the hook
+  owns the rng (`g.rngFromHook`) and saving, loading and deleting are all skipped.
+- **Pause**: Up/Down over `RESUME` / `ABANDON RUN`, A to choose; ABANDON asks
+  `REALLY ABANDON?  A YES  B NO` (A again confirms, B backs out); PAUSE still resumes at
+  once. Abandoning sets `g.abandoned`, goes PAUSED → PLAYING → GAME_OVER in the same tick
+  (the scene machine forbids PAUSED → GAME_OVER), is reported to the host as an ordinary
+  game over (the unbanked-half rule applies), and deletes the save. The overlay keeps
+  listing the pacts.
+- **ASH in the game**: REST calls `restHero`; the card reads `REST HEALS 50%`, the HP / MP
+  restored, and either `THE ASHES OFFER AN UPGRADE` (A opens `UPGRADE WHICH?` through the
+  loot chooser with a single UPGRADE_ANY; B backs out to that one-card loot screen, where
+  KEEP YOUR GEAR gives the usual skip mend) or `NOTHING TO UPGRADE  MENDED n HP`.
+
 ## Combat
 
 See *v3 — battle verbs (M2)* above for moves, intents, GUARD, POTION, elements, BURN,
