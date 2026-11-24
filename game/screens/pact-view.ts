@@ -1,6 +1,6 @@
 import { SAFE_MARGIN, dimScene, drawText } from '../../engine';
 import type { AffixId } from '../types';
-import { AFFIX_IDS, PACTS, affixCountFor, depthOf, pactMods } from '../sim';
+import { PACTS, depthAffixes, depthOf } from '../sim';
 import { renderTableau } from '../backdrop';
 import { armed } from '../state';
 import type { Game } from '../state';
@@ -15,13 +15,7 @@ const DETAIL_X = SAFE_MARGIN + NAME_W + 8;
 const ROW_PITCH = 11;
 const SKY_TEXT_W = W - 60;
 
-function rollableAffixes(g: Game): AffixId[] {
-  const counts = affixCountFor(depthOf(g.n));
-  const most = Math.max(counts.normal, counts.elite) + pactMods(g.hero).foeAffix;
-  if (most <= 0) {return [];}
-  const seen = new Set(g.depthPlan.flatMap((plan) => (plan.affixOrder ?? AFFIX_IDS).slice(0, most)));
-  return AFFIX_IDS.filter((id) => seen.has(id));
-}
+const rollableAffixes = (g: Game): AffixId[] => depthAffixes(g.depthPlan);
 
 function depthLines(g: Game): Ink[] {
   const depth = `DEPTH ${String(depthOf(g.n))}`;
@@ -39,7 +33,7 @@ const AFFIX_BLURB: Record<AffixId, string> = {
   WARDED: '+20 MDEF',
   THORNED: 'HURTS ATTACKERS',
   SWIFT: 'DODGES SOME HITS',
-  SEARING: 'ITS HITS BURN',
+  SEARING: 'ITS STRIKES BURN',
 };
 const LEGEND = { x: 122, y: 57, pitch: 8, nameW: 40 };
 

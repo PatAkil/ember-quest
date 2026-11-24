@@ -92,13 +92,13 @@ export function replayRules(sim) {
   return `${String(fights)} fights (plain, THORNED/VAMPIRIC/SWIFT, SEARING, a DARK LORD phase switch, THE HOLLOW) saved mid-battle through toSaved -> JSON -> loadRun -> fromSaved: ${String(turns)} later turns identical to the uninterrupted fight (${String(phased)} phase switches after the reload)`;
 }
 
-const SPELL_IDS = ['FIREBALL', 'WATER', 'SLASH', 'THUNDER', 'TWINBOLT', 'LEECH', 'QUAKE', 'MEND', 'EMBERS', 'TREMOR', 'AEGIS'];
+export const SPELL_IDS = ['FIREBALL', 'WATER', 'SLASH', 'THUNDER', 'TWINBOLT', 'LEECH', 'QUAKE', 'MEND', 'EMBERS', 'TREMOR', 'AEGIS'];
 const FOES = ['SLIME', 'GOBLIN', 'SKELETON', 'OGRE_KING', 'WRAITH_LORD', 'DARK_LORD', 'ICE_WOLF', 'ICE_BEAR', 'FROST_WISP', 'YETI', 'SANDWORM', 'SCORPION', 'MUMMY', 'SAND_GOLEM', 'GUARDIAN', 'ORACLE', 'PALADIN', 'SERAPH'];
 const FIGHTS = 3000;
 const HALF = () => 0.5;
 
-const pickOf = (list, rng) => list[Math.floor(rng() * list.length)];
-const intBelow = (n, rng) => Math.floor(rng() * n);
+export const pickOf = (list, rng) => list[Math.floor(rng() * list.length)];
+export const intBelow = (n, rng) => Math.floor(rng() * n);
 
 function randomHero(sim, rng) {
   const hero = sim.createHero();
@@ -113,7 +113,7 @@ function randomHero(sim, rng) {
   return hero;
 }
 
-function randomFoe(sim, rng) {
+export function randomFoe(sim, rng) {
   const affixes = sim.AFFIX_IDS.filter(() => rng() < 0.2);
   const enemy = sim.spawnEnemy(pickOf(FOES, rng), { n: intBelow(12, rng), clears: intBelow(10, rng), descentClears: null }, affixes);
   enemy.hp = 1 + intBelow(enemy.maxHp, rng);
@@ -229,60 +229,6 @@ function burstCleanses(sim) {
   assert.notEqual(result.outcome, 'LOST');
 }
 
-function burningHero(sim) {
-  const hero = sim.createHero();
-  hero.hp = 5;
-  hero.burn = { perTurn: 8, turns: 3 };
-  return hero;
-}
-
-function burnWarnings(sim) {
-  const weak = sim.spawnEnemy('SKELETON', { n: 0, clears: 0, descentClears: null }, []);
-  weak.hp = 1;
-  const stout = sim.spawnEnemy('SKELETON', { n: 0, clears: 0, descentClears: null }, []);
-  const swift = sim.spawnEnemy('SKELETON', { n: 0, clears: 0, descentClears: null }, ['SWIFT']);
-  swift.hp = 1;
-  assert.equal(sim.burnWillKill(burningHero(sim), sim.createBattle(weak), 'ATTACK'), false, 'a sure kill ends the fight before the burn ticks');
-  assert.equal(sim.burnWillKill(burningHero(sim), sim.createBattle(stout), 'ATTACK'), true, 'the burn kills when the foe survives');
-  assert.equal(sim.burnWillKill(burningHero(sim), sim.createBattle(swift), 'ATTACK'), true, 'a SWIFT foe may slip the killing hit');
-  assert.equal(sim.burnWillKill(burningHero(sim), sim.createBattle(stout), 'GUARD'), true);
-  const near = { ...weak, hp: 3 };
-  assert.equal(sim.burnWillKill(burningHero(sim), sim.createBattle(near), 'ATTACK'), false, 'the lowest roll (4) still fells a 3-HP foe');
-  for (let seed = 0; seed < 1000; seed++) {
-    const result = sim.resolveTurn(burningHero(sim), sim.createBattle({ ...near }), 'ATTACK', seed);
-    assert.equal(result.outcome, 'WON', `3-HP foe, seed ${String(seed)}`);
-  }
-  for (let seed = 0; seed < 1000; seed++) {
-    const hero = burningHero(sim);
-    const foe = { ...weak };
-    const result = sim.resolveTurn(hero, sim.createBattle(foe), 'ATTACK', seed);
-    assert.equal(result.outcome, 'WON', `seed ${String(seed)}`);
-    assert.equal(hero.hp, 5);
-  }
-}
-
-function warningsNeverLie(sim) {
-  const rng = sim.createSeededRng(613).next;
-  let safe = 0;
-  for (let i = 0; i < 4000; i++) {
-    const fight = randomFight(sim, rng);
-    fight.hero.burn = { perTurn: 1 + intBelow(30, rng), turns: 2 };
-    if (i % 2 === 0) {fight.battle.enemy.hp = Math.max(1, sim.expectedHeroDamage(fight.hero, fight.battle, 'ATTACK') - intBelow(4, rng));}
-    for (const action of ['ATTACK', ...sim.heroActions(fight.hero).filter((a) => a !== 'ATTACK')]) {
-      if (sim.burnWillKill(fight.hero, fight.battle, action)) {continue;}
-      if (fight.hero.hp - sim.pendingTick(fight.hero) > 0) {continue;}
-      safe++;
-      const hero = { ...fight.hero, burn: { ...fight.hero.burn } };
-      const battle = { ...fight.battle, enemy: { ...fight.battle.enemy } };
-      const lives = [hero.revived, hero.revivedTwice].join();
-      sim.startTurn(hero, action);
-      sim.heroAct(hero, battle, action, sim.createSeededRng(i).next);
-      assert.ok(hero.hp > 0 && [hero.revived, hero.revivedTwice].join() === lives, `case ${String(i)} ${action}: declared safe, but the burn took the hero`);
-    }
-  }
-  assert.ok(safe > 20, `only ${String(safe)} safe-under-lethal-burn cases sampled`);
-}
-
 export function estimateRules(sim) {
   const rng = sim.createSeededRng(41).next;
   let rolls = 0;
@@ -295,8 +241,139 @@ export function estimateRules(sim) {
   }
   heavyParry(sim);
   burstCleanses(sim);
-  burnWarnings(sim);
-  warningsNeverLie(sim);
   const t = guardDeaths(sim);
   return `${FIGHTS} random fights (enrage edge, burning heroes): expectedHeroDamage equals the hit after turn-start regen/BLOOD and brackets ${rolls} real rolls; expectedFoeDamage open/guarded likewise (enrage included), a parried HEAVY halved; ${GUARD_TURNS} GUARD turns: expectedPreBlowLoss exact, ${String(t.deaths)} guarded deaths all within jitter of guarded + pre-blow loss (${String(t.warned)} exactly warned)`;
+}
+
+const PREVIEW_STATES = 20000;
+const MOVES = ['STRIKE', 'WINDUP', 'HEAVY', 'WARD', 'SCORCH', 'MEND'];
+const REFUSALS = ['NO POTIONS LEFT!', 'YOUR HP IS ALREADY FULL!', 'THE EMBER IS NOT READY!'];
+const SEVERITY = { SAFE: 0, RISES: 1, FALLS: 2 };
+const EFFECT_KINDS = ['REVIVE', 'BLOOD', 'HEX_STRIKE', 'DRAIN'];
+
+function wearKind(sim, hero, kind, rng) {
+  const items = sim.ITEMS.filter((it) => it.effect.kind === kind || it.awaken?.effect?.kind === kind);
+  const it = pickOf(items, rng);
+  sim.equip(hero, it, it.effect.kind === kind ? intBelow(sim.maxLevelFor(it) + 1, rng) : sim.maxLevelFor(it));
+}
+
+function kit(sim, hero, rng) {
+  for (const kind of EFFECT_KINDS) {if (rng() < 0.12) {wearKind(sim, hero, kind, rng);}}
+  for (const id of SPELL_IDS) {if (rng() < 0.3) {sim.learnSpell(hero, id);}}
+  if (rng() < 0.3) {sim.takePact(hero, pickOf(Object.keys(sim.PACTS), rng));}
+}
+
+function previewHero(sim, rng) {
+  const hero = sim.createHero();
+  for (let i = intBelow(6, rng); i > 0; i--) {
+    const it = pickOf(sim.ITEMS, rng);
+    sim.equip(hero, it, intBelow(sim.maxLevelFor(it) + 1, rng));
+  }
+  kit(sim, hero, rng);
+  const d = sim.derive(hero);
+  const low = rng() < 0.15 ? 1 : 1 + intBelow(8, rng);
+  Object.assign(hero, {
+    hp: Math.min(d.maxHp, rng() < 0.45 ? low : 1 + intBelow(d.maxHp, rng)),
+    mp: rng() < 0.2 ? 0 : intBelow(d.maxMp + 1, rng),
+    ember: rng() < 0.4 ? 100 : intBelow(100, rng),
+    potions: intBelow(3, rng),
+    revived: rng() < 0.2,
+    burn: rng() < 0.5 ? { perTurn: 1 + intBelow(16, rng), turns: 1 + intBelow(3, rng) } : null,
+  });
+  return hero;
+}
+
+function previewState(sim, rng) {
+  const enemy = randomFoe(sim, rng);
+  for (const affix of ['THORNED', 'SWIFT']) {if (rng() < 0.2 && !enemy.affixes.includes(affix)) {enemy.affixes.push(affix);}}
+  if (rng() < 0.3) {enemy.hp = 1 + intBelow(Math.min(enemy.maxHp, 12), rng);}
+  if (rng() < 0.15) {enemy.burn = { perTurn: 1 + intBelow(10, rng), turns: 1 + intBelow(3, rng) };}
+  enemy.staggered = rng() < 0.08;
+  const battle = sim.createBattle(enemy);
+  Object.assign(battle, {
+    intent: rng() < 0.6 ? pickOf(MOVES, rng) : battle.intent,
+    riposte: rng() < 0.2, actionsTaken: intBelow(3, rng), rampStacks: intBelow(4, rng), guardChain: intBelow(3, rng),
+    calm: sim.ENRAGE_AFTER - 1 + intBelow(3, rng),
+  });
+  return { hero: previewHero(sim, rng), battle };
+}
+
+const lives = (hero) => Number(hero.revived) + Number(hero.revivedTwice);
+const shadow = (s) => ({ hero: { ...s.hero, burn: s.hero.burn && { ...s.hero.burn } }, battle: { ...s.battle, enemy: { ...s.battle.enemy, burn: s.battle.enemy.burn && { ...s.battle.enemy.burn } } } });
+
+function heroPhase(sim, s, action, rng) {
+  const f = shadow(s);
+  const start = sim.startTurn(f.hero, action);
+  const r = sim.heroAct(f.hero, f.battle, action, rng);
+  return { ...f, start, r, fate: severity(r, lives(f.hero) - lives(s.hero)) };
+}
+
+const severity = (r, spent) => (r.heroDead ? 'FALLS' : spent > 0 ? 'RISES' : 'SAFE');
+
+const where = (s, action) => `${action} hp ${String(s.hero.hp)} vs ${s.battle.enemy.def.id} [${s.battle.enemy.affixes.join(' ')}] hp ${String(s.battle.enemy.hp)}`;
+
+function checkFate(sim, s, action, tally) {
+  const f = sim.preBlowFate(s.hero, s.battle, action);
+  const worst = heroPhase(sim, s, action, sim.rollScript(s.battle, f.plan));
+  assert.equal(worst.fate, f.fate, `${where(s, action)}: the least favourable roll gives ${worst.fate}, preview ${f.fate}`);
+  tally[f.fate] += 1;
+  for (const seed of [tally.n, tally.n + 7919]) {
+    const real = sim.resolveTurn(shadow(s).hero, shadow(s).battle, action, seed);
+    const seen = severity(real.hero, Number(real.hero.revived));
+    assert.ok(SEVERITY[seen] <= SEVERITY[f.fate], `${where(s, action)} seed ${String(seed)}: preview ${f.fate} but the hero ${seen} before the blow`);
+    assert.ok(!REFUSALS.includes(real.hero.text), `${where(s, action)}: offered, then refused (${real.hero.text})`);
+  }
+}
+
+const dealt = (r) => r.hits.reduce((n, h) => n + h.dmg, 0);
+
+function checkStrike(sim, s, action) {
+  const exact = heroPhase(sim, s, action, sim.rollScript(s.battle, sim.expectedPlan(s.hero, action)));
+  const kind = action === 'BURST' ? sim.burstKind(s.hero) : sim.strikeFacts(s.hero, s.battle, action).kind;
+  if (exact.r.missed || exact.r.hits.length === 0) {return;}
+  assert.equal(dealt(exact.r), sim.expectedHeroDamage(s.hero, s.battle, action), `${where(s, action)}: damage at the expected roll`);
+  assert.ok(exact.r.hits.every((h) => h.kind === kind), `${where(s, action)}: hits ${exact.r.hits.map((h) => h.kind).join()} but preview ${kind}`);
+  const brk = sim.breakFacts(s.hero, s.battle, action);
+  if (brk && !exact.r.enemyDefeated) {assert.equal(exact.r.broke, brk.verdict === 'BREAKS', `${where(s, action)}: break verdict ${brk.verdict}, broke ${String(exact.r.broke)}`);}
+}
+
+function checkHeal(sim, s, action) {
+  const real = heroPhase(sim, s, action, sim.rollScript(s.battle, sim.expectedPlan(s.hero, action)));
+  assert.equal(real.r.healed, sim.healPreview(s.hero, s.battle, action), `${where(s, action)}: heal`);
+}
+
+function checkGuard(sim, s, _action, tally) {
+  const gf = sim.guardFacts(s.hero, s.battle);
+  const f = heroPhase(sim, s, 'GUARD', sim.rollScript(s.battle, sim.expectedPlan(s.hero, 'GUARD')));
+  if (f.r.heroDead) {return;}
+  const mp = f.hero.mp;
+  const livesBefore = lives(f.hero);
+  const er = sim.enemyAct(f.hero, f.battle, HALF);
+  if (er.dmg <= 0) {return;}
+  tally.blows += 1;
+  assert.equal(er.dmg, gf.take.guarded, `${where(s, 'GUARD')}: guarded blow`);
+  assert.equal(f.hero.mp - mp, gf.mpGain, `${where(s, 'GUARD')}: MP if struck`);
+  const fell = er.heroDead ? 'FALLS' : lives(f.hero) > livesBefore ? 'RISES' : 'SAFE';
+  const said = gf.lethal ? (gf.rises ? 'RISES' : 'FALLS') : 'SAFE';
+  assert.equal(fell, said, `${where(s, 'GUARD')}: guard preview ${said}, the expected blow ${fell}`);
+}
+
+const KIND_CHECK = { GUARD: checkGuard, POTION: checkHeal, MEND: checkHeal, AEGIS: () => undefined };
+
+function checkAction(sim, s, action, tally) {
+  if (!sim.canAfford(s.hero, action)) {return;}
+  tally.n += 1;
+  checkFate(sim, s, action, tally);
+  (KIND_CHECK[action] ?? checkStrike)(sim, s, action, tally);
+}
+
+export function previewRules(sim) {
+  const rng = sim.createSeededRng(2026).next;
+  const tally = { n: 0, blows: 0, SAFE: 0, RISES: 0, FALLS: 0 };
+  for (let i = 0; i < PREVIEW_STATES; i++) {
+    const s = previewState(sim, rng);
+    for (const action of ['ATTACK', 'GUARD', 'BURST', 'POTION', ...sim.knownSpells(s.hero)]) {checkAction(sim, s, action, tally);}
+  }
+  assert.ok(tally.RISES > 100 && tally.FALLS > 100, `too few lethal previews sampled (${String(tally.RISES)} rise, ${String(tally.FALLS)} fall)`);
+  return `${String(PREVIEW_STATES)} fuzzed states, ${String(tally.n)} offered actions (${String(tally.FALLS)} FALLS / ${String(tally.RISES)} RISES / ${String(tally.SAFE)} SAFE): the least favourable roll reproduces each fate, 2 real turns each never fare worse, nothing offered is refused; damage, damage kind and break verdict exact at the expected roll; heals exact; ${String(tally.blows)} guarded blows: take, MP gain and fall/rise exact`;
 }

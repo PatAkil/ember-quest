@@ -13,6 +13,7 @@ import {
   type SpellId,
 } from '../types';
 import { ACT_MULT, BIOMES, HOLLOW_ID } from '../data';
+import { affixPool } from './affixes';
 import { MAP_SHAPE, type MapShape } from './map';
 import { at, clamp, pickOneIndex, shuffled } from './util';
 
@@ -110,3 +111,8 @@ export function planDepth(depth: number, rng: Rng): ActPlan[] {
 }
 
 export const planOf = (depthPlan: readonly ActPlan[], n: number): ActPlan => at(depthPlan, actInDepth(n));
+
+export function depthAffixes(plans: readonly ActPlan[]): AffixId[] {
+  const seen = new Set(plans.flatMap((plan) => affixPool(plan)));
+  return AFFIX_IDS.filter((id) => seen.has(id));
+}

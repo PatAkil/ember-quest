@@ -8,7 +8,7 @@ import { depthRules, descentRules } from './rules-descent.mjs';
 import { affixRules } from './rules-affixes.mjs';
 import { pactEffectRules } from './rules-pacts.mjs';
 import { saveRules } from './rules-save.mjs';
-import { estimateRules, replayRules } from './rules-replay.mjs';
+import { estimateRules, previewRules, replayRules } from './rules-replay.mjs';
 import { guardRules } from './rules-guards.mjs';
 
 const MAP_SEEDS = 5000;
@@ -310,6 +310,7 @@ const GROUPS = [
   ['replay', replayRules],
   ['guards', guardRules],
   ['estimate', estimateRules],
+  ['preview', previewRules],
 ];
 
 await withSim((sim) => {

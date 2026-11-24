@@ -1,7 +1,8 @@
 import type { BattleState, EnemyActResult, EnemyInstance, Hero, HeroAction, HeroActResult, Rng, TurnResult } from '../types';
 import { createBattle } from './combat';
 import { elementMult } from './element';
-import { battleActions, canAfford, derive } from './hero';
+import { battleActions, derive } from './hero';
+import { canAfford } from './status';
 import type { Policy } from './model';
 import { heroElement, punishes } from './power';
 import type { BattleOutcome, VerbTally } from './run-tally';

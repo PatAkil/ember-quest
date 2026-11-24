@@ -9,8 +9,6 @@ export {
   scaleEffect,
 } from './sim/gear';
 export {
-  canAfford,
-  canDrinkPotion,
   createHero,
   derive,
   enterActRecovery,
@@ -40,10 +38,28 @@ export {
 } from './sim/describe';
 export { applyOffer, ensureStarterWeapon, noteDeclinedScrolls, resolveOverflow, resolveUpgrade, rollLoot, type AppliedOffer, type OfferChoice } from './sim/loot';
 export { discard, ownedIds, packSize, stow, swapIn, unequip, upgradableTargets } from './sim/pack';
-export { clearsTerm, createBattle, expectedHeroDamage, heroAct, spawnEnemy } from './sim/combat';
+export { clearsTerm, createBattle, expectedHeroDamage, heroAct, rollScript, spawnEnemy, type RollPlan } from './sim/combat';
 export { ENRAGE_LINE, enemyAct, expectedFoeDamage, type FoeBlowEstimate } from './sim/enemy-turn';
-export { burnWillKill, expectedPreBlowLoss, resolveTurn, turnRng, turnSeed, type TurnStream } from './sim/turn';
-export { pendingTick, resistOf, startTurn } from './sim/status';
+export { resolveTurn, turnRng, turnSeed, type TurnStream } from './sim/turn';
+export {
+  breakFacts,
+  burstKind,
+  expectedPlan,
+  expectedPreBlowLoss,
+  guardFacts,
+  healPreview,
+  preBlowFate,
+  strikeFacts,
+  strikeKind,
+  type BreakFacts,
+  type Fate,
+  type FateCause,
+  type GuardFacts,
+  type PreBlow,
+  type StrikeAction,
+  type StrikeFacts,
+} from './sim/preview';
+export { canAfford, canDrinkPotion, livesLeft, pendingTick, resistOf, startTurn } from './sim/status';
 export { elementMult } from './sim/element';
 export { burstPower } from './sim/burst';
 export { burnWarded, desperate, gearPower, heroElement, punishes, riposteMult, woundUp } from './sim/power';
@@ -57,6 +73,7 @@ export {
   actInDepth,
   actMult,
   affixCountFor,
+  depthAffixes,
   depthOf,
   descentStageSizes,
   descentWeights,
@@ -70,7 +87,7 @@ export {
   type ActPlan,
   type ActRef,
 } from './sim/descent';
-export { affixResists, searingStrike, swiftEvades, thornsDamage, vampiricHeal } from './sim/affixes';
+export { affixPool, affixResists, searingStrike, swiftEvades, thornsDamage, vampiricHeal } from './sim/affixes';
 export { foeAffixes, hollowAffixes, hollowOf, spawnFoe, type SpawnContext } from './sim/hollow';
 export { descentRow, lootWeights } from './sim/descent-loot';
 export { restHero, type RestOutcome } from './sim/rest';

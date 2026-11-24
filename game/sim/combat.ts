@@ -25,7 +25,7 @@ import { derive, isGuardAction, isSpell, spellCost } from './hero';
 import { pactDamage } from './pacts';
 import { burnChance, gearPower, heroElement, riposteMult } from './power';
 import { applyBurn, atTurnStart, heroBurnTick, heroFalls, resistOf, tickWard, type Fall } from './status';
-import { JITTER_MIN, jitter, type EffectOf } from './util';
+import { jitter, type EffectOf } from './util';
 
 type Scope = 'ATTACK' | 'SPELL';
 type StrikeAction = 'ATTACK' | SpellId;
@@ -57,25 +57,33 @@ function afterResist(raw: number, kind: DamageKind, enemy: EnemyInstance, elemen
   return Math.max(1, Math.round(raw * (1 - resistOf(enemy, kind) / 100) * elementMul));
 }
 
+type SwingStat = 'ATK' | 'MAG';
+
 interface Swing {
   base: number;
+  stat: SwingStat;
   kind: DamageKind;
   verb: string;
   mults: number[];
 }
 
+function hexSwing(swing: Swing, d: Derived): void {
+  swing.kind = 'MAGIC';
+  swing.base = d.atk;
+  swing.stat = 'ATK';
+}
+
 function attackSwing(hero: Hero, d: Derived): Swing {
   const weaponKind: DamageKind = hero.equipment.WEAPON?.weaponKind ?? 'PHYSICAL';
+  const stat: SwingStat = weaponKind === 'MAGIC' ? 'MAG' : 'ATK';
   const swing: Swing = {
-    base: weaponKind === 'MAGIC' ? d.mag : d.atk,
+    base: stat === 'MAG' ? d.mag : d.atk,
+    stat,
     kind: weaponKind,
     verb: 'STRIKES',
     mults: [1],
   };
-  if (findEffect(hero, 'HEX_STRIKE')) {
-    swing.kind = 'MAGIC';
-    swing.base = d.atk;
-  }
+  if (findEffect(hero, 'HEX_STRIKE')) {hexSwing(swing, d);}
   const twin = findEffect(hero, 'TWIN_STRIKE');
   if (twin) {swing.mults.push(twin.secondHitMult);}
   return swing;
@@ -86,14 +94,12 @@ function spellSwing(hero: Hero, d: Derived, action: SpellId): Swing {
   const hex = findEffect(hero, 'HEX_STRIKE');
   const swing: Swing = {
     base: spell.scale === 'MAG' ? d.mag : d.atk,
+    stat: spell.scale,
     kind: spell.kind,
     verb: spell.verb,
     mults: Array.from({ length: Math.max(1, spell.hits) }, () => spell.mult),
   };
-  if (hex && spell.kind === 'PHYSICAL' && (action === 'SLASH' || hex.allPhysical)) {
-    swing.kind = 'MAGIC';
-    swing.base = d.atk;
-  }
+  if (hex && spell.kind === 'PHYSICAL' && (action === 'SLASH' || hex.allPhysical)) {hexSwing(swing, d);}
   const twice = findEffect(hero, 'SPELL_TWICE');
   if (twice?.spell === action) {swing.mults.push(spell.mult * twice.secondHitMult);}
   return swing;
@@ -101,6 +107,23 @@ function spellSwing(hero: Hero, d: Derived, action: SpellId): Swing {
 
 export function swingFor(hero: Hero, d: Derived, action: StrikeAction): Swing {
   return action === 'ATTACK' ? attackSwing(hero, d) : spellSwing(hero, d, action);
+}
+
+export interface RollPlan { evade: boolean; jitters: readonly number[]; crits: readonly boolean[] }
+
+const NEVER = 0.999999;
+
+export const ROLL_TOP = NEVER;
+
+export function rollScript(battle: BattleState, plan: RollPlan): Rng {
+  const evade = swiftEvades(battle.enemy, () => 0) ? [plan.evade ? 0 : NEVER] : [];
+  const draws = [...evade, ...plan.jitters.flatMap((u, i) => [u, plan.crits[i] === true ? 0 : NEVER])];
+  let next = 0;
+  return () => {
+    const draw = draws[next] ?? NEVER;
+    next += 1;
+    return draw;
+  };
 }
 
 interface LineParts { verb: string; enemyName: string; nums: number[]; crit: boolean; rampSuffix: string }
@@ -171,11 +194,13 @@ function rollVolley(hero: Hero, enemy: EnemyInstance, strike: Strike, rng: Rng):
   return volley;
 }
 
-function sustain(hero: Hero, d: Derived, volley: Volley, spell: SpellDef | undefined): { healed: number; mpRestored: number } {
-  let healed = 0;
+export function volleyHeal(hero: Hero, total: number, spell: SpellDef | undefined): number {
   const drain = findEffect(hero, 'DRAIN');
-  if (drain) {healed += Math.round(volley.total * drain.fraction);}
-  if (spell?.leech) {healed += Math.round(volley.total * spell.leech);}
+  return (drain ? Math.round(total * drain.fraction) : 0) + (spell?.leech ? Math.round(total * spell.leech) : 0);
+}
+
+function sustain(hero: Hero, d: Derived, volley: Volley, spell: SpellDef | undefined): { healed: number; mpRestored: number } {
+  let healed = volleyHeal(hero, volley.total, spell);
   if (healed > 0) {
     healed = Math.min(healed, Math.max(0, d.maxHp - hero.hp));
     hero.hp += healed;
@@ -288,7 +313,7 @@ function backlash(hero: Hero, battle: BattleState, result: HeroActResult): HeroA
   return { ...result, thorns, thornsText, heroDead: fall === 'DEAD', revived: fall === 'REVIVED' };
 }
 
-const strikesFoe = (action: HeroAction): action is StrikeAction =>
+export const strikesFoe = (action: HeroAction): action is StrikeAction =>
   action === 'ATTACK' || (isSpell(action) && SPELLS[action].heal === undefined && SPELLS[action].guard === undefined);
 
 const dealsDamage = (action: HeroAction): boolean => action === 'BURST' || strikesFoe(action);
@@ -326,4 +351,3 @@ function heroDamageAt(hero: Hero, battle: BattleState, action: HeroAction, roll:
 
 export const expectedHeroDamage = (hero: Hero, battle: BattleState, action: HeroAction): number => heroDamageAt(hero, battle, action, 1);
 
-export const leastHeroDamage = (hero: Hero, battle: BattleState, action: HeroAction): number => heroDamageAt(hero, battle, action, JITTER_MIN);

@@ -10,11 +10,13 @@ import {
   type EnemyInstance,
   type Hero,
   type HeroAction,
+  type HeroCommand,
   type Item,
   type TurnStart,
 } from '../types';
 import { allEffects, effectiveEffect, findEffect } from './gear';
-import { derive, isGuardAction } from './hero';
+import { canBurst } from './burst';
+import { derive, isGuardAction, isSpell, spellCost } from './hero';
 import { clamp } from './util';
 
 interface Burnable { hp: number; burn: Burn | null }
@@ -73,7 +75,7 @@ function reviveCharges(hero: Hero): { total: number; hpFraction: number } {
 
 const livesSpent = (hero: Hero): number => (hero.revived ? 1 : 0) + (hero.revivedTwice ? 1 : 0);
 
-const livesLeft = (hero: Hero): number => Math.max(0, reviveCharges(hero).total - livesSpent(hero));
+export const livesLeft = (hero: Hero): number => Math.max(0, reviveCharges(hero).total - livesSpent(hero));
 
 export function reviveSpent(hero: Hero, item: Item, level: number): boolean {
   if (effectiveEffect(item, level).kind !== 'REVIVE') {return false;}
@@ -135,3 +137,18 @@ export function atTurnStart(hero: Hero, action: HeroAction): Hero {
 }
 
 export const pendingTick = (hero: Hero): number => hero.burn?.perTurn ?? 0;
+
+export const canDrinkPotion = (hero: Hero): boolean =>
+  hero.potions > 0 && atTurnStart(hero, 'POTION').hp < derive(hero).maxHp;
+
+const COMMAND_READY: Record<HeroCommand, (hero: Hero) => boolean> = {
+  ATTACK: () => true,
+  GUARD: () => true,
+  BURST: canBurst,
+  POTION: canDrinkPotion,
+};
+
+export function canAfford(hero: Hero, action: HeroAction): boolean {
+  if (isSpell(action)) {return hero.mp >= spellCost(hero, action);}
+  return COMMAND_READY[action](hero);
+}

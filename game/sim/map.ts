@@ -1,4 +1,5 @@
-import { AFFIX_IDS, type AffixId, type Rng } from '../types';
+import type { AffixId, Rng } from '../types';
+import { affixPool } from './affixes';
 import type { RoomType } from './model';
 import { at, pickOneIndex, shuffled } from './util';
 
@@ -178,6 +179,7 @@ export interface FoePools {
   normals: readonly string[];
   elites: readonly string[];
   affixCount?: { normal: number; elite: number };
+  affixOrder?: readonly AffixId[];
 }
 
 function rollFoe(pool: readonly string[], fallback: readonly string[], rng: Rng): string | undefined {
@@ -185,23 +187,26 @@ function rollFoe(pool: readonly string[], fallback: readonly string[], rng: Rng)
   return from.length > 0 ? from[pickOneIndex(rng, from.length)] : undefined;
 }
 
-export const rollAffixes = (count: number, rng: Rng): AffixId[] => (count > 0 ? shuffled(AFFIX_IDS, rng).slice(0, count) : []);
+export const rollAffixes = (pool: readonly AffixId[], count: number, rng: Rng): AffixId[] => (count > 0 ? shuffled(pool, rng).slice(0, count) : []);
 
-function scoutAffixes(node: MapNode, count: number, rng: Rng): void {
-  const affixes = rollAffixes(count, rng);
+interface Scout { pool: readonly AffixId[]; rng: Rng }
+
+function scoutAffixes(node: MapNode, count: number, scout: Scout): void {
+  const affixes = rollAffixes(scout.pool, count, scout.rng);
   if (affixes.length > 0) {node.affixes = affixes;}
 }
 
 function scoutFoes(stages: readonly MapNode[][], pools: FoePools, rng: Rng): void {
   const counts = pools.affixCount ?? { normal: 0, elite: 0 };
+  const scout: Scout = { pool: affixPool(pools), rng };
   for (const node of stages.flat()) {
     if (node.type === 'FIGHT') {
       node.enemyId = rollFoe(pools.normals, pools.elites, rng);
-      scoutAffixes(node, counts.normal, rng);
+      scoutAffixes(node, counts.normal, scout);
     }
     if (node.type === 'ELITE') {
       node.enemyId = rollFoe(pools.elites, pools.normals, rng);
-      scoutAffixes(node, counts.elite, rng);
+      scoutAffixes(node, counts.elite, scout);
     }
   }
 }

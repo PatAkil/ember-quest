@@ -1,7 +1,7 @@
 import { PICO8, contrast } from '../../engine';
 import type { Sprite } from '../../engine';
 import type { EnemyInstance, EnemyKind, Hero, HeroAction, HeroActResult, HeroCommand, Hit, SpellId } from '../types';
-import { heroElement, isSpell } from '../sim';
+import { heroElement, isSpell, strikeKind } from '../sim';
 import { HOLLOW_ID } from '../data';
 import { enemyAnim, heroFrames } from '../sprites';
 import { enemyAnchor, enemyPos, heroAnchor } from '../backdrop';
@@ -43,13 +43,11 @@ export const MOTES_FLIGHT = 0.3;
 
 export const lastHitDelay = (hits: number): number => STAGGER * Math.max(0, hits - 1);
 
-export const hasHex = (hero: Hero): boolean => Object.values(hero.equipment).some((it) => it.effect.kind === 'HEX_STRIKE');
-export const magicWeapon = (hero: Hero): boolean => hero.equipment.WEAPON?.weaponKind === 'MAGIC';
 
 function heroLook(hero: Hero, action: HeroAction): Look {
   if (isSpell(action)) {return SPELL_LOOK[action];}
   if (action !== 'ATTACK') {return COMMAND_LOOK[action];}
-  const base = hasHex(hero) || magicWeapon(hero) ? HEXBOLT_LOOK : STRIKE_LOOK;
+  const base = strikeKind(hero, 'ATTACK') === 'MAGIC' ? HEXBOLT_LOOK : STRIKE_LOOK;
   const element = heroElement(hero, 'ATTACK');
   return element ? { ...base, color: ELEMENT_COLOR[element], glow: PICO8[7] } : base;
 }

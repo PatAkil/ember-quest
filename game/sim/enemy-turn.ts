@@ -81,7 +81,9 @@ const quiet = (move: MoveId, text: string, over: Partial<EnemyActResult> = {}): 
 
 interface Turn { hero: Hero; battle: BattleState; d: Derived; move: MoveId; rng: Rng }
 
-const chainedGuard = (t: Turn): boolean => t.battle.guarding && t.battle.guardChain > 1 && t.move !== 'HEAVY';
+export const guardTires = (battle: BattleState, move: MoveId): boolean => battle.guarding && battle.guardChain > 1 && move !== 'HEAVY';
+
+const chainedGuard = (t: Turn): boolean => guardTires(t.battle, t.move);
 
 function guardFactor(t: Turn): number {
   if (!t.battle.guarding) {return 1;}
@@ -126,10 +128,17 @@ function aftermath(t: Turn, dmg: number, physical: boolean): Aftermath {
   return { burned, reflected, countered, healed: drink(enemy, dmg) };
 }
 
+const guardedMp = (t: Turn): number => Math.min(t.d.maxMp, t.hero.mp + GUARD_MP_GAIN + guardMana(t.hero));
+
 function guardedGain(t: Turn): void {
   if (chainedGuard(t)) {return;}
   gainEmber(t.hero, 'HIT_TAKEN');
-  if (t.battle.guarding) {t.hero.mp = Math.min(t.d.maxMp, t.hero.mp + GUARD_MP_GAIN + guardMana(t.hero));}
+  if (t.battle.guarding) {t.hero.mp = guardedMp(t);}
+}
+
+export function guardMpIfStruck(hero: Hero, guarded: BattleState): number {
+  const t: Turn = { hero, battle: guarded, d: derive(hero), move: guarded.intent, rng: () => 0.5 };
+  return chainedGuard(t) ? 0 : guardedMp(t) - hero.mp;
 }
 
 function hitText(t: Turn, dmg: number): string {
@@ -270,13 +279,15 @@ function poised(battle: BattleState): BattleState {
   return shadow;
 }
 
+const landingMove = (battle: BattleState): MoveId => (battle.intent === 'MEND' && !canMend(battle.enemy) ? 'STRIKE' : battle.intent);
+
 function blowIf(hero: Hero, battle: BattleState, guarding: boolean): number {
   const shadow: BattleState = { ...battle, guarding, guardChain: guarding ? battle.guardChain + 1 : 0 };
-  return blowDamage({ hero, battle: shadow, d: derive(hero), move: battle.intent, rng: () => 0.5 }, 1);
+  return blowDamage({ hero, battle: shadow, d: derive(hero), move: landingMove(battle), rng: () => 0.5 }, 1);
 }
 
 export function expectedFoeDamage(hero: Hero, battle: BattleState): FoeBlowEstimate {
-  if (battle.enemy.staggered || !strikesHero(battle.intent)) {return { unguarded: 0, guarded: 0 };}
+  if (battle.enemy.staggered || !strikesHero(landingMove(battle))) {return { unguarded: 0, guarded: 0 };}
   const next = poised(battle);
   return { unguarded: blowIf(hero, next, false), guarded: blowIf(hero, next, true) };
 }

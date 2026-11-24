@@ -236,6 +236,46 @@ function hollow(sim) {
   return `hollowOf: ATK ${sim.HOLLOW_ATK_SHARE} x best-loadout max(ATK, MAG) (a STRIKE landing ${sim.HOLLOW_HIT_FLOOR}-${sim.HOLLOW_HIT_CAP} x max HP through the weaker resist) x actMult/ACT_MULT[3], HP ${sim.HOLLOW_HP_HITS} hits through the resist faced (floor ${sim.HOLLOW_HP_FLOOR} x max HP), resists capped ${sim.HOLLOW_RES_CAP}, gear affixes in order (max 3) | ${swapProof(sim)}`;
 }
 
+const ANNOUNCE_SEEDS = 400;
+
+function hexHero(sim, seed) {
+  const hero = sim.createHero();
+  if (seed % 2 === 1) {sim.takePact(hero, 'HEX');}
+  return hero;
+}
+
+function announcedDepth(sim, depth, seed) {
+  const rng = sim.createSeededRng(seed * 31 + depth).next;
+  const plans = sim.planDepth(depth, rng);
+  const announced = new Set(sim.depthAffixes(plans));
+  const hero = hexHero(sim, seed);
+  let carried = 0;
+  plans.forEach((plan, act) => {
+    const n = (depth - 1) * 4 + act;
+    const stages = sim.generateMap(rng, { stageSizes: plan.stageSizes, weights: plan.weights }, plan);
+    const foes = stages.flat().filter((node) => node.type !== 'BOSS' && node.enemyId).map((node) => [node.enemyId, node.affixes ?? []]);
+    if (plan.boss !== 'HOLLOW') {foes.push([plan.boss, []]);}
+    for (const [id, affixes] of foes) {
+      const enemy = sim.spawnFoe(id, { n, clears: 0, descentClears: 0, hero, affixes, plan });
+      for (const affix of [...affixes, ...enemy.affixes]) {
+        carried += 1;
+        assert.ok(announced.has(affix), `depth ${String(depth)} seed ${String(seed)}: ${id} carries ${affix}, announced only ${[...announced].join(' ')}`);
+      }
+    }
+  });
+  return carried;
+}
+
+function announcedSet(sim) {
+  let carried = 0;
+  for (let depth = 2; depth <= 7; depth++) {
+    for (let seed = 0; seed < ANNOUNCE_SEEDS; seed++) {carried += announcedDepth(sim, depth, seed);}
+  }
+  assert.ok(carried > 1000, `only ${String(carried)} affixes sampled`);
+  assert.deepEqual(sim.depthAffixes(sim.planDepth(1, sim.createSeededRng(1).next)), [], 'depth 1 announces affixes');
+  return `${String(6 * ANNOUNCE_SEEDS)} depths 2-7 (HEX on half): all ${String(carried)} affixes on scouted nodes and spawned foes (top-ups, bosses) are in the PACT screen's announced set`;
+}
+
 export function affixRules(sim) {
-  return [affixBehaviour, spawnTopUp, phaseLine, hollow].map((rule) => rule(sim)).join(' | ');
+  return [affixBehaviour, spawnTopUp, phaseLine, hollow, announcedSet].map((rule) => rule(sim)).join(' | ');
 }

@@ -1,9 +1,8 @@
 import type { BattleState, EnemyActResult, Hero, HeroAction, HeroActResult, Rng, TurnCause, TurnResult } from '../types';
-import { heroAct, leastHeroDamage } from './combat';
+import { heroAct } from './combat';
 import { enemyAct } from './enemy-turn';
-import { pendingTick, startTurn } from './status';
-import { canBurst } from './burst';
-import { JITTER_MAX, JITTER_MIN, createSeededRng } from './util';
+import { startTurn } from './status';
+import { createSeededRng } from './util';
 
 export type TurnStream = 'HERO' | 'FOE';
 
@@ -51,48 +50,4 @@ export function resolveTurn(hero: Hero, battle: BattleState, action: HeroAction,
   const enemy = enemyAct(hero, battle, turnRng(roomSeed, turn, 'FOE'));
   const cause = foeCause(enemy);
   return { turn, action, start, hero: heroResult, enemy, outcome: outcomeOf(cause), cause };
-}
-
-const EVEN: Rng = () => 0.5;
-
-const HIGH: Rng = () => 0.999;
-
-interface Rehearsal { hero: Hero; foeHp: number }
-
-function rehearse(hero: Hero, battle: BattleState, action: HeroAction, rng: Rng): Rehearsal {
-  const shadow: Hero = { ...hero, burn: hero.burn ? { ...hero.burn } : null };
-  const enemy = { ...battle.enemy };
-  startTurn(shadow, action);
-  heroAct(shadow, { ...battle, enemy }, action, rng);
-  return { hero: shadow, foeHp: enemy.hp };
-}
-
-export function expectedPreBlowLoss(hero: Hero, battle: BattleState, action: HeroAction = 'GUARD'): number {
-  return hero.hp - rehearse(hero, battle, action, EVEN).hero.hp;
-}
-
-const ROUNDING_SLACK = 2;
-
-const swift = (battle: BattleState): boolean => battle.enemy.affixes.includes('SWIFT');
-
-function surelyKills(hero: Hero, battle: BattleState, action: HeroAction): boolean {
-  return !swift(battle) && leastHeroDamage(hero, battle, action) >= battle.enemy.hp;
-}
-
-const spentALife = (before: Hero, after: Hero): boolean => before.revived !== after.revived || before.revivedTwice !== after.revivedTwice;
-
-const escapesBurn = (hero: Hero, battle: BattleState, action: HeroAction): boolean =>
-  (action === 'BURST' && canBurst(hero)) || surelyKills(hero, battle, action);
-
-function healOutlastsBurn(hero: Hero, battle: BattleState, action: HeroAction): boolean {
-  const best = rehearse(hero, battle, action, HIGH);
-  if (best.hero.hp <= 0 || best.foeHp <= 0 || spentALife(hero, best.hero) || swift(battle)) {return false;}
-  const afterTick = hero.hp - pendingTick(hero);
-  const gained = best.hero.hp - afterTick;
-  return afterTick + Math.floor((gained * JITTER_MIN) / JITTER_MAX) - ROUNDING_SLACK > 0;
-}
-
-export function burnWillKill(hero: Hero, battle: BattleState, action: HeroAction): boolean {
-  if (hero.hp - pendingTick(hero) > 0) {return false;}
-  return !escapesBurn(hero, battle, action) && !healOutlastsBurn(hero, battle, action);
 }

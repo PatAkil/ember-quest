@@ -10,8 +10,8 @@ export const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > h
 
 export const r2 = (v: number) => Math.round(v * 100) / 100;
 
-export const JITTER_MIN = 0.9;
-export const JITTER_MAX = 1.1;
+const JITTER_MIN = 0.9;
+const JITTER_MAX = 1.1;
 
 export const jitter = (rng: Rng) => JITTER_MIN + rng() * (JITTER_MAX - JITTER_MIN);
 

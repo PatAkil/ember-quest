@@ -18,6 +18,14 @@ function potionAtFull(sim) {
   assert.ok(sim.canDrinkPotion(f.hero) && sim.canAfford(f.hero, 'POTION'), 'a hurt hero cannot drink');
   f.hero.potions = 0;
   assert.ok(!sim.canDrinkPotion(f.hero), 'drank from an empty flask');
+  const grail = fightOf(sim, 'SLIME');
+  sim.equip(grail.hero, itemOf(sim, 'HOLY_GRAIL'), 0);
+  grail.hero.hp = sim.derive(grail.hero).maxHp - 2;
+  assert.ok(!sim.canAfford(grail.hero, 'POTION'), 'POTION offered although turn-start regen fills the HP');
+  const blood = fightOf(sim, 'SLIME');
+  sim.equip(blood.hero, itemOf(sim, 'NIGHT_SCEPTRE'), 0);
+  blood.hero.hp = sim.derive(blood.hero).maxHp;
+  assert.ok(sim.canAfford(blood.hero, 'POTION') && sim.healPreview(blood.hero, blood.battle, 'POTION') > 0, 'BLOOD at full HP leaves room the potion fills');
 }
 
 function watchPotions(sim, base, seen) {
@@ -25,7 +33,7 @@ function watchPotions(sim, base, seen) {
     ...base,
     act: (hero, d, battle, actions) => {
       if (actions.includes('POTION')) {
-        assert.ok(hero.hp < d.maxHp, 'a policy was offered POTION at full HP');
+        assert.ok(sim.healPreview(hero, battle, 'POTION') > 0 && hero.hp <= d.maxHp, 'a policy was offered a POTION that heals nothing');
         seen.offered += 1;
       }
       return base.act(hero, d, battle, actions);
@@ -245,7 +253,7 @@ export function guardRules(sim) {
   const falls = guardedFallLines(sim);
   const hits = guardedHitLines(sim);
   return [
-    `POTION refused at full HP (no potion spent); 360 policy runs offered POTION ${String(offered)} times, never at full HP`,
+    `POTION refused at full HP and when turn-start regen fills it (BLOOD leaves room); 360 policy runs offered POTION ${String(offered)} times, always with HP to restore`,
     'a whole foe never MENDs (STRIKE instead, the once-only flag kept)',
     'the act-1 starter weapon replaces the weakest non-scroll card, never an EPIC or a scroll, not after act 1, not on boss tables',
     'THORNS is its own line; the damage line keeps its numbers',

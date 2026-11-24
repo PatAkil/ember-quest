@@ -23,7 +23,6 @@ import {
   type StatMods,
 } from '../types';
 import { CLEAR_HEAL, SKIP_MEND, SPELLS, SPELL_ORDER } from '../data';
-import { canBurst } from './burst';
 import { allEffects, effectiveEffect, effectiveMods, itemLevel } from './gear';
 import { pactMods, swallowedCards, type PactTotals } from './pacts';
 import { clamp } from './util';
@@ -144,20 +143,6 @@ const COMMANDS: readonly HeroAction[] = ['ATTACK', 'GUARD', 'BURST', 'POTION'] s
 export const isSpell = (action: HeroAction): action is SpellId => !COMMANDS.includes(action);
 
 export const isGuardAction = (action: HeroAction): boolean => action === 'GUARD' || (isSpell(action) && SPELLS[action].guard !== undefined);
-
-export const canDrinkPotion = (hero: Hero): boolean => hero.potions > 0 && hero.hp < derive(hero).maxHp;
-
-const COMMAND_READY: Record<HeroCommand, (hero: Hero) => boolean> = {
-  ATTACK: () => true,
-  GUARD: () => true,
-  BURST: canBurst,
-  POTION: (hero) => canDrinkPotion(hero),
-};
-
-export function canAfford(hero: Hero, action: HeroAction): boolean {
-  if (isSpell(action)) {return hero.mp >= spellCost(hero, action);}
-  return COMMAND_READY[action](hero);
-}
 
 export const refillPotions = (hero: Hero): void => { hero.potions = POTIONS_MAX; };
 

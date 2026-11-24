@@ -18,7 +18,7 @@ past the fourth act.
 | `game/data.ts` | the content import path: re-exports `game/rules/*` (ITEMS, ENEMIES, SPELLS, BIOMES, LOOT_WEIGHTS, ACT_MULT, the heal constants, `validateData`, EVENTS and their types) | `./rules/*` only |
 | `game/rules/*.ts` | the content itself: `items` (ITEMS), `enemies` (ENEMIES), `world` (SPELLS, SPELL_ORDER, BIOMES, ACT_MULT, LOOT_WEIGHTS, LOOT_COUNT, CLEAR_HEAL, BOSS_ENTRY_HEAL, SKIP_MEND, RARITY_COLOR_INDEX), `validate` (`validateData`; never imports `data.ts`), `events` (EVENTS, the effect vocabulary, `validateEvents`), `pacts` (PACTS, `validatePacts`); `enemies` also holds the descent-only THE HOLLOW | `../types`, each other |
 | `game/sim.ts` | the barrel: the only path presentation and the simulator use to reach the rules (also re-exports `validateData`, `generateMap`, `createSeededRng`, `at`) | `./sim/*`, `./data` |
-| `game/sim/*.ts` | pure rules, one concern per file: `util` (clamp, `at`, rng picks, `createSeededRng` — mulberry32 with readable state — and effect tables), `gear` (item levels, upgrades, effective mods/effects), `hero` (derived stats, skill points, heals, equip, spells), `ghost` (stats of a hypothetical equip), `describe` (item/offer/compare text, `compareFull` — its `awaken` and `describeOffer`'s spare third line carry `awakenPreview(item, level)` = `AT +2: <awaken blurb>`, '' for legendaries and awakened items), `loot` (loot rolls, offers, scrolls, `resolveUpgrade`), `pack` (the pack: `stow`, `discard`, `swapIn`, `unequip`, `ownedIds`, `upgradableTargets`), `combat` (enemy scaling, battle creation, hero actions, damage), `commands` (GUARD, POTION, BURST, BREAK), `enemy-turn` (enemy moves, intent, phase), `status` (turn start, BURN, WARD, `heroFalls`), `turn` (`resolveTurn`: one whole turn on two per-turn rng streams, played by the game and the simulator), `element`, `burst`, `power` (the gear-driven damage multipliers: IMBUE element, PUNISH, LOW HP, ELEMENT BOOST, riposte power, ignite chance, the guard counter), `events` (event effects, enablement, `eventPlayable`, `pickEvent(rng, hero)`, `takePendingBurn`, preview words), `map` (**the one map generator**, `generateMap(rng, shape?)`, played by both the screens and the simulator), `model` (`Policy`, `RoomType` including `BOSS`), `scoring`, `policies`, `policy-battle` (how they fight) and `policy-choices` (how the archetypes decide; `DEFAULT_CHOICES` holds the shared pack/upgrade/prepare defaults), `descent` (`n`, `depthOf`, `actInDepth`, `actMult`, `ActPlan`, `planDepth`), `affixes`, `hollow` (`hollowOf` with its private best-loadout `armouryOf`, `spawnFoe`), `pacts` (`pactMods`, `offerPacts`, `lootCards`, `swallowedCards`), `score`, `run` (`simulateRun`), `save` / `save-read` / `save-map` / `save-battle` (the save format) and `save-sanity` (`saneSave`: the cross-field checks run after a save is read) | `../types`, `../data`, each other |
+| `game/sim/*.ts` | pure rules, one concern per file: `util` (clamp, `at`, rng picks, `createSeededRng` — mulberry32 with readable state — and effect tables), `gear` (item levels, upgrades, effective mods/effects), `hero` (derived stats, skill points, heals, equip, spells), `ghost` (stats of a hypothetical equip), `describe` (item/offer/compare text, `compareFull` — its `awaken` and `describeOffer`'s spare third line carry `awakenPreview(item, level)` = `AT +2: <awaken blurb>`, '' for legendaries and awakened items), `loot` (loot rolls, offers, scrolls, `resolveUpgrade`), `pack` (the pack: `stow`, `discard`, `swapIn`, `unequip`, `ownedIds`, `upgradableTargets`), `combat` (enemy scaling, battle creation, hero actions, damage), `commands` (GUARD, POTION, BURST, BREAK), `enemy-turn` (enemy moves, intent, phase), `status` (turn start, BURN, WARD, `heroFalls`, `livesLeft`, and `canAfford` / `canDrinkPotion`, judged on the hero as the turn start leaves him), `turn` (`resolveTurn`: one whole turn on two per-turn rng streams, played by the game and the simulator), `rehearse` (the hero's half-turn played on a shadow copy under a scripted roll, and the least favourable rolls), `preview` (the battle menu's facts, read off rehearsals: `preBlowFate`, `strikeFacts` / `strikeKind` / `burstKind`, `breakFacts`, `healPreview`, `guardFacts`, `expectedPreBlowLoss`, `expectedPlan` — the screen only words and colours them), `element`, `burst`, `power` (the gear-driven damage multipliers: IMBUE element, PUNISH, LOW HP, ELEMENT BOOST, riposte power, ignite chance, the guard counter), `events` (event effects, enablement, `eventPlayable`, `pickEvent(rng, hero)`, `takePendingBurn`, preview words), `map` (**the one map generator**, `generateMap(rng, shape?)`, played by both the screens and the simulator), `model` (`Policy`, `RoomType` including `BOSS`), `scoring`, `policies`, `policy-battle` (how they fight) and `policy-choices` (how the archetypes decide; `DEFAULT_CHOICES` holds the shared pack/upgrade/prepare defaults), `descent` (`n`, `depthOf`, `actInDepth`, `actMult`, `ActPlan`, `planDepth`), `affixes`, `hollow` (`hollowOf` with its private best-loadout `armouryOf`, `spawnFoe`), `pacts` (`pactMods`, `offerPacts`, `lootCards`, `swallowedCards`), `score`, `run` (`simulateRun`), `save` / `save-read` / `save-map` / `save-battle` (the save format) and `save-sanity` (`saneSave`: the cross-field checks run after a save is read) | `../types`, `../data`, each other |
 | `game/sprites.ts` + `game/sprites/*.ts` | hero/enemy/icon sprites: `helpers`, `hero`, `icons`, one file per biome; `sprites.ts` re-exports them and adds `enemyAnim(id)` | `../engine` only |
 | `game/main.ts` + `app`, `state`, `flow`, `persist`, `resume`, `frame`, `mapgen`, `theme`, `backdrop`, `widgets`, `pops`, `fx-state`, `fx`, `transition`, `storage`, `lookup`, `screens/*.ts` | presentation: `main.ts` only wires; `app` creates the engine objects and fits the canvas to the window; `state` holds the one `Game` object `g` with per-screen slices; `flow` runs the run (rooms, stages, clears, acts, scene hooks); `persist` writes and deletes the save (`realRun`, the step builders, `settleRoom`); `resume` reads it back and re-enters its step; `frame` dispatches update/render; `mapgen` adapts the shared headless map to the screens (adds `stage`, `slot`, `cleared`); the **fx / transition layer** presents what the rules decided and never decides anything — `fx-state` + `fx` hold the battle-fx clock (actor poses, timed cues, lagging meters, boss banner), `screens/battle-fx` choreographs a turn on it, `screens/battle-fx-verbs` gives each battle verb its beat, `screens/battle-fx-view` draws its shots and banner, `screens/battle-menu` holds the command menu, `screens/battle-tags` the tag strips under the plates, `screens/battle-reach` measures lunges, `transition` reveals each new sub-scene; `screens/` one update file and one view file per screen (`map-view`, `loot-view`, `battle-view`; `plate` holds the shared medallions) | everything |
 | `game/devhook.ts` | the dev-only seeded hook (`?seed`, `?scene`, `&act`, `&depth`, `&hold`, `window.__ember`), never in the build | `../engine` types, `./sim`, presentation types |
@@ -258,7 +258,7 @@ enemy's move, intent, cycle and phase), `status` (turn start, BURN, WARD, `heroF
   ember — unless it answers a shown `HEAVY` (full ×0.5, and it parries). **Only a
   damaging hero action (ATTACK, a damaging spell, BURST — a SWIFT miss counts) resets the
   chain**; POTION and the MEND spell leave it where it was, so GUARD, MEND, GUARD is a
-  chain (the second GUARD pays no MP and no ember). AEGIS counts as a GUARD. GUARD leaves RAMP
+  chain (the second GUARD pays no MP and no ember; the menu calls it `A CHAINED GUARD`, not "you guarded last", since a POTION or MEND may stand between, and the ending tip reads `GUARD HALVES ONE BLOW - LESS IF CHAINED`). AEGIS counts as a GUARD. GUARD leaves RAMP
   stacks, `lastScope` and FIRST_STRIKE alone (`actionsTaken` counts damaging and healing
   actions: spells, ATTACK, POTION).
 - **Soft enrage** (anti-stall; the game has no turn cap). `battle.calm` counts consecutive
@@ -325,25 +325,62 @@ enemy's move, intent, cycle and phase), `status` (turn start, BURN, WARD, `heroF
   regen and BLOOD applied first, so LOW HP gear is judged at hit-time HP). GUARD shows the
   expected blow `TAKE ~g OF u` (`expectedFoeDamage`, guarded / unguarded, with the foe's
   phase switch and its enrage step folded in when its next calm action crosses
-  `ENRAGE_AFTER`), under `PARRY THE HEAVY BLOW` on a HEAVY, and `GUARD WON'T SAVE YOU` in
-  pink with the take line pink when `g + expectedPreBlowLoss(hero, battle)` is at least the
-  hero's HP (`expectedPreBlowLoss(hero, battle, action = 'GUARD')`: the HP the hero loses
-  this turn before the foe's blow — turn-start regen and BLOOD, his own action, thorns and
-  his BURN tick — computed by running `startTurn` and `heroAct` on a shadow copy, so it is
-  exactly the real turn; the `estimate` rules group checks it over 6000 GUARD turns); `BURN n KILLS YOU` on a command only when `burnWillKill(hero, battle, action)` says so — never for a full BURST (it cleanses first) or a hit whose lowest roll (`leastHeroDamage`: the real per-hit formula at minimum jitter, no crit) ends the fight against a foe that cannot evade, and a heal counts only at its lowest roll, so a silent preview never hides a burn death (4000 fuzzed fights); BURST shows `CLEANSES YOUR BURN` while burning; POTION `HEAL 40% HP`; BURST `IGNORES ARMOR+WARDS`. The hint line reads
+  `ENRAGE_AFTER`, and a MEND the foe can no longer cast counted as the STRIKE it becomes;
+  `NO BLOW IS COMING` exactly when the unguarded figure is 0), under `PARRY THE HEAVY BLOW`
+  on a HEAVY, `+n MP IF STRUCK` with n the real gain (`guardFacts(...).mpGain`: `GUARD_MP_GAIN`
+  + GUARD_MANA gear, capped at max MP; the line is left out when it is 0) and, on a chained
+  guard (`guardTires`), `A CHAINED GUARD` / `NO MP OR EMBER`. **The preview contract**: the
+  screen never re-derives a rule; every number and verdict comes from `game/sim/preview.ts`,
+  which reads it off a *rehearsal* — `startTurn` and `heroAct` run on a shadow copy under a
+  scripted roll (`rollScript(battle, plan)`, owned by `combat`, which knows its own draw
+  order: the SWIFT evade draw, then per hit a jitter draw and a crit draw, then the ignite
+  draw). The `rules` suite's `preview` group fuzzes 20 000 states and checks every fact below
+  against real turns. (1) **Fate before the blow** — `preBlowFate(hero, battle, action)` →
+  `SAFE` / `RISES` / `FALLS` plus the cause (`BURN` or `THORNS`; BLOOD is capped at HP − 1 and
+  never kills alone), judged at the **least favourable roll**, built deliberately
+  (`worstRolls`, `game/sim/rehearse.ts`): the lowest roll (every hit at minimum jitter, no
+  crit — least damage, least DRAIN/LEECH healing, least chance to end the fight); the SWIFT
+  evade (no damage at all); and against a THORNED foe the total that hurts most — every hit's
+  damage is a rounded continuous function of its jitter, so each crit pattern reaches every
+  integer total between its lowest and highest roll; the total below the foe's HP that
+  minimises `min(room, volleyHeal(total)) − thornsDamage(total)` is picked arithmetically and
+  then realised as a real roll (hits raised in order, the one partial hit's jitter found by
+  bisection) and rehearsed. The worst of those rehearsals is the fate, and its roll is
+  returned (`PreBlow.plan`), so the gate replays it. A full BURST cleanses first, a hit whose
+  lowest roll fells a foe that cannot evade ends the fight first, heals count exactly
+  (they roll nothing), and a REVIVE charge turns a fall into `RISES` (`livesLeft`). The line
+  reads `BURN n KILLS YOU` / `THORNS WILL KILL YOU` (pink) or `BURN n - YOU RISE` /
+  `THORNS - YOU RISE` (orange); on a damaging command it shows only when the fate is not SAFE
+  (MAGIC: when every castable spell is, the mildest shown); POTION, GUARD and healing spells
+  otherwise end on `THEN YOU BURN -n` with n the rehearsed tick. GUARD heads `GUARD WON'T SAVE
+  YOU` (pink, take line pink) when the expected guarded blow is at least the HP the hero stands
+  at when struck (`guardFacts(...).lethal`, the rehearsal at the expected roll), or `GUARD
+  FAILS - RISE` (orange, take line orange) when a REVIVE charge is left then. (2) **Damage**
+  `~n DMG` = `expectedHeroDamage` (exact at the expected roll: jitter 1, no crit, no evade).
+  (3) **Damage kind and resist** — `strikeFacts(hero, battle, action)` from the same `swingFor`
+  the real hit uses, so an awakened HEX STRIKE (all physical hits as MAGIC) and a magic weapon
+  show the resist they actually meet; the same kind picks the ATTACK's look (`strikeKind`) and
+  the glance hint. (4) **Break verdict** — `breakFacts` runs the expected roll through the real
+  `settleBreak` (`BREAKS` / `SHORT` with `need` = `breakNeed(enemy)` / `NOT_WEAK`). (5) **Heals**
+  — `healPreview`, the rehearsed heal after turn-start regen and BLOOD. BURST shows `CLEANSES YOUR BURN` while burning; POTION `HEAL 40% HP`; BURST `IGNORES ARMOR+WARDS`. The hint line reads
   `HEAVY BLOW NEXT (~u): GUARD, OR BREAK IT` on a HEAVY, `WINDING UP: HIT NOW, GUARD NEXT
   TURN` on a WINDUP, and otherwise `ATTACKS GLANCE OFF: TRY MAGIC` when ATTACK is resisted
   (an element below 1 or 20 %+ resist, ward included) and an affordable damaging spell is
-  expected to out-hit it. All of these are presentation estimates (no jitter, crit, RAMP
-  or TWIN). Cursor memory: the TOP
+  expected to out-hit it (the resist read off `strikeFacts`, so an awakened HEX never
+  glances off armour). Damage figures are the expected roll (jitter 1, no crit; RAMP, TWIN and
+  SPELL_TWICE included, as the real hit computes them); fates are the least favourable roll.
+  Cursor memory: the TOP
   cursor holds between turns (ATTACK at each fight's start); MAGIC keeps the last spell
   across fights; choosing an action returns to TOP.
 - **POTION.** `hero.potions` starts at 2 (`POTIONS_MAX`), REST refills, entering a new act
   gives one back; drinking heals
-  40 % max HP (`POTION_HEAL`) and uses the turn; at 0, or at full HP, it cannot be chosen
-  (`canDrinkPotion(hero)`, which `canAfford(hero, 'POTION')` uses, so the menu and every
-  policy refuse it; review round 3: a full-HP potion healed +0 and was spent). Resolved
-  anyway at full HP, it spends nothing (`YOUR HP IS ALREADY FULL!`).
+  40 % max HP (`POTION_HEAL`) and uses the turn; at 0, or when it would restore nothing, it
+  cannot be chosen (`canDrinkPotion(hero)`, which `canAfford(hero, 'POTION')` uses, so the
+  menu and every policy refuse it; review round 3: a full-HP potion healed +0 and was spent).
+  "Nothing to restore" is judged on the hero as the turn start leaves him (`atTurnStart`:
+  regen, then BLOOD), because `potion()` runs after it: a HOLY GRAIL hero 2 below max HP is
+  refused (regen fills him first), a NIGHT SCEPTRE hero at full HP may drink (BLOOD opens
+  room). Resolved anyway at full HP, it spends nothing (`YOUR HP IS ALREADY FULL!`).
 - **Elements.** `SpellDef.element`: FIREBALL fire, WATER water, THUNDER and TWINBOLT
   thunder, QUAKE earth; LEECH, SLASH, MEND none. `EnemyDef.weak` ×1.5 (`WEAK_MULT`),
   `resists` ×0.5 (`RESIST_MULT`), after resist, on each hit of a multi-hit
@@ -613,9 +650,17 @@ the descent (see *Balance state → The descent*).
   | SEARING | its STRIKEs apply BURN (SCORCH already does) | `enemy-turn` |
 
   Tuned: THORNED was 20 % uncapped; it then caused 36–42 % of all descent deaths (a
-  descent turn deals ~330, so 66 came back). Rolling: `generateMap` scouts FIGHT nodes
-  with `affixCount.normal` and ELITE nodes with `affixCount.elite` affixes drawn without
-  repeats (`rollAffixes`; no draw when the count is 0, so depth 1 maps are unchanged).
+  descent turn deals ~330, so 66 came back). **A depth's affix set**: each act draws only
+  from its **affix pool**, `affixPool(plan)` = the first `max(normal, elite) + room` entries of
+  its `affixOrder` (room = the most foe affixes all pacts together can add, at least 1 —
+  today HEX's 1; empty when both counts are 0); the depth's announced set is the union of its
+  acts' pools (`depthAffixes(plans)`), which the PACT screen lists. Rolling: `generateMap`
+  scouts FIGHT nodes with `affixCount.normal` and ELITE nodes with `affixCount.elite` affixes
+  drawn without repeats from the act's pool (`rollAffixes(pool, count, rng)`; no draw when
+  the count is 0, so depth 1 maps are unchanged) — game and simulator share this one path.
+  The spawn top-up below takes `affixOrder` in order, so it never leaves the pool either (the
+  `affixes` rules group checks every scouted and spawned foe of 2400 depths, HEX on half).
+  THE HOLLOW is the exception: it wears the affixes of the hero's gear.
   At spawn `foeAffixes` tops a foe up (never trims) to its tier count — normals
   `affixCount.normal`, elites and bosses `affixCount.elite` + HEX — taking the plan's
   `affixOrder` in order, so a boss gets its affixes from the plan, deterministically.
@@ -989,7 +1034,7 @@ not); the map header `DEPTH n  ACT n  BIOME` <= 30 chars. Descent screens: THRES
 headline <= 22 chars at scale 2, its detail lines <= 134 px (33 chars) beside the 82-px
 label column; PACT names <= 12 chars (58-px column), `CURSE: ` / `BOON: ` + line <= 158 px
 (pact lines <= 30 chars); the PACT sky card's affix line wraps to at most two lines of
-<= 180 px, and the PACT screen lists each of those affixes under the sky card (x 122, 8-px
+<= 180 px, and the PACT screen lists each of those affixes (`depthAffixes`) under the sky card (x 122, 8-px
 pitch, name orange, blurb white, blurb <= 16 chars: `THORNED  HURTS ATTACKERS`). A foe
 with one affix shows it in the enemy tag strip (the short label — `VAMP`, `ARMOR`,
 `THORN`, `SEAR` — when the word does not fit); a foe with two or more gets its own affix
@@ -1031,23 +1076,25 @@ died below depth 1; THORNS = killed by THORNED backlash):
 
 | policy | beat Seraph | clear d2 | d3 | d4 | d5 | final n mean / median | deaths ELITE / BOSS / HOLLOW / THORNS / NORMAL |
 |---|---|---|---|---|---|---|---|
-| balanced | 759 | 39 % | 8 % | 0.1 % | 0 | 7.5 / 7 | 44 / 14 / 37 / 4 / 1 % |
-| naive | 318 | 22 % | 4 % | 0 % | 0 | 6.2 / 5 | 54 / 20 / 19 / 4 / 2 % |
-| glass | 359 | 28 % | 5 % | 0.3 % | 0 | 6.4 / 5 | 48 / 26 / 19 / 5 / 3 % |
-| tank | 736 | 59 % | 22 % | 2 % | 0 | 9.0 / 9 | 31 / 19 / 39 / 11 / 1 % |
-| elite-hungry | 755 | 31 % | 5 % | 0.1 % | 0 | 6.7 / 6 | 49 / 15 / 27 / 7 / 1 % |
-| chest-hungry | 595 | 46 % | 10 % | 0.5 % | 0 | 8.0 / 7 | 23 / 25 / 42 / 5 / 5 % |
+| balanced | 793 | 36 % | 7 % | 0.3 % | 0 | 7.3 / 7 | 39 / 18 / 36 / 5 / 1 % |
+| naive | 311 | 23 % | 5 % | 0 % | 0 | 6.3 / 5 | 53 / 21 / 21 / 4 / 1 % |
+| glass | 355 | 30 % | 7 % | 0.3 % | 0 | 6.8 / 6 | 45 / 22 / 27 / 3 / 3 % |
+| tank | 744 | 58 % | 23 % | 2 % | 0 | 9.0 / 9 | 33 / 18 / 39 / 10 / 1 % |
+| elite-hungry | 760 | 31 % | 7 % | 0.5 % | 0 | 6.9 / 7 | 48 / 16 / 29 / 6 / 1 % |
+| chest-hungry | 650 | 46 % | 11 % | 0.5 % | 0 | 8.1 / 7 | 23 / 24 / 46 / 4 / 3 % |
 
-THE HOLLOW is the top descent killer for every policy (balanced: HOLLOW 299, FROST WISP
-129, MUMMY 112, PALADIN 57). Affix on the killer (balanced): SWIFT 57 %, THORNED 37 %,
-VAMPIRIC 25 %, WARDED 16 %, SEARING 16 %, ARMORED 9 %. Pact win-through pooled over the
-non-random policies: ASH 41, TITHE 38, IRON 35, MISER 33, BRITTLE 33, HUNTER 29, HEX 21,
-STORM 19 %.
+Re-measured on 2026-11-24 after the affix pool (each act rolls its affixes from the first
+`max(normal, elite) + 1` entries of its `affixOrder`) and the turn-start potion check: the
+story table above is unchanged; the descent rows are the new ones. THE HOLLOW is the top
+descent killer for every policy (balanced: HOLLOW 311, FROST WISP 125, SERAPH 85, MUMMY 75).
+Affix on the killer (balanced): SWIFT 57 %, THORNED 37 %, VAMPIRIC 26 %, SEARING 14 %,
+WARDED 14 %, ARMORED 8 %. Pact win-through pooled over the non-random policies: ASH 43,
+TITHE 40, BRITTLE 40, MISER 34, IRON 32, HUNTER 28, STORM 27, HEX 22 %.
 
 **Open balance items** (known, not yet addressed):
 
-- **The tank's descent advantage.** It clears depth 2 in 59 % of descents against
-  balanced's 39 % and depth 3 in 22 % against 8 %. The Hollow does not carry it (with every
+- **The tank's descent advantage.** It clears depth 2 in 58 % of descents against
+  balanced's 36 % and depth 3 in 23 % against 7 %. The Hollow does not carry it (with every
   Hollow STRIKE pinned at 15 % of max HP it still clears depth 2 in ~65 %); it outlasts the
   depth's elites and bosses. Its act-3/4 boss fights also sit at the p90 edge (16 turns,
   8–9 % over 16).

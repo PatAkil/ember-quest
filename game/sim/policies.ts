@@ -9,7 +9,8 @@ import {
   type Rng,
   type StatKey,
 } from '../types';
-import { canAfford, derive } from './hero';
+import { derive } from './hero';
+import { canAfford } from './status';
 import type { Policy, RoomType } from './model';
 import { swapIn } from './pack';
 import { battleAct } from './policy-battle';

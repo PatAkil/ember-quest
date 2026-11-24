@@ -2,6 +2,7 @@ import {
   BREAK_AT,
   POTION_HEAL,
   type BattleState,
+  type EnemyInstance,
   type Hero,
   type HeroAction,
   type HeroActResult,
@@ -61,7 +62,9 @@ export const commandAct = (hero: Hero, battle: BattleState, action: Verb): HeroA
 
 interface Settle { hero: Hero; battle: BattleState; action: HeroAction; result: HeroActResult }
 
-const breakEligible = ({ hero, action, result }: Settle): boolean =>
+export const breakNeed = (enemy: EnemyInstance): number => Math.ceil(BREAK_AT[enemy.def.kind] * enemy.maxHp);
+
+export const breakEligible = ({ hero, action, result }: Settle): boolean =>
   action === 'BURST' || result.weak || findEffect(hero, 'PUNISH_WINDUP') !== undefined;
 
 function breaks(settle: Settle): boolean {
@@ -70,7 +73,7 @@ function breaks(settle: Settle): boolean {
   if (battle.intent !== 'HEAVY' || result.enemyDefeated || result.hits.length === 0) {return false;}
   if (!breakEligible(settle)) {return false;}
   const total = result.hits.reduce((n, h) => n + h.dmg, 0);
-  return total >= BREAK_AT[enemy.def.kind] * enemy.maxHp;
+  return total >= breakNeed(enemy);
 }
 
 export function settleBreak(hero: Hero, battle: BattleState, action: HeroAction, result: HeroActResult): HeroActResult {
