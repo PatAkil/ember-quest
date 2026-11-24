@@ -1,11 +1,11 @@
 import { BIOMES, ENEMIES, BOSS_ENTRY_HEAL } from './data';
 import type { EnemyKind, Hero, LootSource } from './types';
-import { createHero, fullHeal, grantClear, healFraction } from './sim';
+import { createHero, createSeededRng, fullHeal, grantClear, healFraction } from './sim';
 import { at, must } from './lookup';
 import { resetFx } from './fx';
 import { clearPops } from './pops';
 import { generateMap } from './mapgen';
-import { biome, biomeLook, pickOne, resetCursorEdge, stageAt } from './state';
+import { biome, biomeLook, installRng, pickOne, resetCursorEdge, stageAt } from './state';
 import type { Game, MapNode, RoomType } from './state';
 import { storeBest } from './storage';
 import { startBattle } from './screens/battle';
@@ -98,7 +98,15 @@ export function selectNode(g: Game, node: MapNode): void {
   ROOMS[node.type](g, node);
 }
 
+const SEED_SPACE = 0x100000000;
+
+function seedRun(g: Game): void {
+  if (g.rngFromHook) {return;}
+  installRng(g, createSeededRng(Math.floor(Math.random() * SEED_SPACE)), false);
+}
+
 export function startRun(g: Game, hero: Hero = createHero(), act = 0, clears = 0): void {
+  seedRun(g);
   g.hero = hero;
   g.clears = clears; g.score = clears * 100; g.actIndex = act;
   g.dying = false; g.heroDown = false;

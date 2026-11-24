@@ -14,18 +14,23 @@ ember-quest/
 ├── HANDOVER.md               # where the work stands between cloud tasks
 ├── game/
 │   ├── types.ts              # shared types + tuning constants (caps, SP gains, drop rates) — headless
-│   ├── data.ts               # ITEMS, SPELLS, ENEMIES, BIOMES, ACT_MULT, validateData — headless
+│   ├── data.ts               # content import path: re-exports game/rules/* — headless
+│   ├── rules/                # the content itself — headless
+│   │   ├── items.ts          #   ITEMS
+│   │   ├── enemies.ts        #   ENEMIES
+│   │   ├── world.ts          #   SPELLS, SPELL_ORDER, BIOMES, ACT_MULT, LOOT_WEIGHTS/COUNT, heal constants, rarity colours
+│   │   └── validate.ts       #   validateData (never imports data.ts)
 │   ├── sim.ts                # barrel: the one import path for rules — headless
 │   ├── sim/                  # pure rules + balance policies, one concern per file — headless
-│   │   ├── util.ts           #   clamp, rng picks, the exhaustive ItemEffect table helper
+│   │   ├── util.ts           #   clamp, at, rng picks, createSeededRng (mulberry32 + state), the ItemEffect table helper
 │   │   ├── gear.ts           #   item levels, upgrades, effective mods/effects/blurbs
 │   │   ├── hero.ts           #   createHero, derive, skill points, heals, equip, spells
 │   │   ├── ghost.ts          #   derived stats of a hypothetical equip (compare previews)
 │   │   ├── describe.ts       #   item / offer / compare text for the screens
 │   │   ├── loot.ts           #   rollLoot, applyOffer, missed scrolls
 │   │   ├── combat.ts         #   spawnEnemy, turns, damage, effects in battle
-│   │   ├── map.ts            #   the simulator's map topology (buildMap)
-│   │   ├── model.ts          #   Policy, RoomType
+│   │   ├── map.ts            #   the one map generator, generateMap(rng, shape?) — game and simulator
+│   │   ├── model.ts          #   Policy, RoomType (with BOSS)
 │   │   ├── scoring.ts        #   how policies value a loot offer
 │   │   ├── policies.ts       #   POLICIES (random, balanced, glass, tank, routing archetypes)
 │   │   └── run.ts            #   simulateRun, RunResult, Probe
@@ -37,13 +42,13 @@ ember-quest/
 │   ├── fx-state.ts           # battle-fx data: actors, moves, tints, shots, cues, lagging meters, banner, screen-reveal state
 │   ├── fx.ts                 # battle-fx clock: eased actor poses, cue queue (skip to impact), meters, boss banner timing
 │   ├── transition.ts         # screen reveal between sub-scenes (blinds into battle, wipe elsewhere)
-│   ├── mapgen.ts             # the map the screens play (generateMap)
+│   ├── mapgen.ts             # adapter: the shared map + stage/slot/cleared for the screens
 │   ├── theme.ts              # colours, biome looks, layout constants
 │   ├── backdrop.ts           # biome backdrops, floor, actors, battle tableau
 │   ├── widgets.ts            # bars, lines, fitted/wrapped text, blinkHz/accentHz, item icons
 │   ├── pops.ts               # floating damage/score pops
 │   ├── storage.ts            # best score in localStorage
-│   ├── lookup.ts             # at, must, noop — guarded indexed access
+│   ├── lookup.ts             # at, pickOneIndex (re-exported from sim), must, noop — guarded indexed access
 │   ├── screens/              # one update + one view per screen: battle/battle-view, map/map-view, loot/loot-view, levelup, card, status (map status panel), title (title, pause, endings)
 │   │   ├── battle-fx.ts      #   choreography of a turn: wind-ups, impacts, pops, regen aura, defeat, entrance, death
 │   │   ├── battle-fx-view.ts #   draws the shots (orbs, bolts, slashes, blooms …) and the boss/elite banner strip
@@ -58,6 +63,7 @@ ember-quest/
 │   ├── setup-eyes.mjs        # npm run setup — browser + dev server, idempotent
 │   ├── look.mjs              # npm run look — state JSON + errors + one screenshot
 │   ├── verify.mjs            # npm run verify — every gate, one line each
+│   ├── rules.mjs             # npm run rules — node:assert invariants against the rules bundle
 │   ├── oracle.mjs            # behaviour-preservation proof for refactors
 │   ├── oracle-comment.mjs    # CI: turns the PR-vs-base oracle into one sticky PR comment
 │   ├── agent-feedback.mjs    # the hook entry: per-edit check, end-of-turn gate, pre-commit gate (npm run gate)
@@ -67,6 +73,7 @@ ember-quest/
 ├── tools/eslint-no-comments.mjs   # the local no-comments lint rule
 ├── eslint.config.mjs, knip.config.js, .jscpd.json, .dependency-cruiser.cjs   # the lint suite
 ├── sim/run.mjs               # balance simulator runner (npm run sim)
+├── sim/bundle.mjs            # esbuild bundling of game/sim.ts, shared by sim/run.mjs and scripts/rules.mjs
 ├── smoke.mjs                 # headless boot gate (npm run smoke)
 ├── index.html                # arcade shell; game mounts into #screen
 ├── .github/workflows/pages.yml   # PR = full gates + pixel report (a PR comment with before/after shots; images live on the `oracle-screens` branch); push to main = gates, then deploy
@@ -76,7 +83,7 @@ ember-quest/
 ## Conventions
 
 - **Commands run at the repo root**: `dev` (Vite, port 5173, strictPort), `check`
-  (`tsc --noEmit`), `lint`, `lint:full`, `build`, `smoke`, `sim`, `sim:quick`,
+  (`tsc --noEmit`), `lint`, `lint:full`, `build`, `smoke`, `rules`, `sim`, `sim:quick`,
   `setup`, `look`, `verify`, `gate` (verify + remember the green tree), `browse`
   (agent-browser).
 - **Eyes first.** A SessionStart hook in `.claude/settings.json` runs `npm run setup`
@@ -114,7 +121,7 @@ ember-quest/
   configured). Message = what changed for the player. `git add -A` is fine here: the
   repo is the game.
 - **Push = release.** Only through **releasing-the-game**, only after the gates.
-- **Headless boundary**: `game/types.ts`, `game/data.ts`, `game/sim.ts` and `game/sim/*`
+- **Headless boundary**: `game/types.ts`, `game/data.ts`, `game/rules/*`, `game/sim.ts` and `game/sim/*`
   never import the engine, presentation modules or the DOM, and never call
   `Math.random` (rules take an injected `rng`). Rules live in `game/sim/`; presentation
   imports them only through the barrel `game/sim.ts`. Lint and dependency-cruiser both
@@ -138,7 +145,7 @@ ember-quest/
 |---|---|
 | `npm run setup` | Browser + dev server, idempotent; prints `eyes: ready - … \| chromium /tmp/ember-chromium \| dev <url>`; marker `/tmp/ember-eyes.json` (`url` is the public exposed-port URL when `JBCENTRAL_EXPOSED_PORT_URL_5173` is set, else `http://localhost:5173/`). `--force` redoes everything |
 | `npm run look -- [--scene S] [--act N] [--seed N] [--keys "Down,Space"] [--steps N] [--out file.png] [--no-shot]` | One JSON line `{"ok","state","errors","shot"}`; exit 1 on any console/page error or no canvas. With `--scene` or `--seed` the page runs in hold mode and each key is followed by `--steps` (default 30) fixed ticks. Keys: `Up Down Left Right Space Esc Enter` or Playwright names (`ArrowDown`, `KeyZ`, `KeyP`). Default shot: `$AIR_ARTIFACTS_DIR/look/<scene>-a<act>-s<seed>.png`, else `/tmp/ember-look/` |
-| `npm run verify` | eyes, lint, check, build, smoke, `sim:quick` (informational: balanced and random win rates), two at a time; one `PASS/FAIL/INFO` line per gate with its time, then `TOTAL`. About 10 s |
+| `npm run verify` | eyes, lint, check, build, smoke, rules (map invariants over 5000 seeds, seeded-rng determinism, `validateData`), `sim:quick` (informational: balanced and random win rates), two at a time; one `PASS/FAIL/INFO` line per gate with its time, then `TOTAL`. About 10 s |
 | `npm run verify -- --full` | adds knip, jscpd, depcruise, `dist:no-hook` (no `__ember` in `dist/`), `look:all` (every scene), and the full sim. About 30 s |
 | `node scripts/oracle.mjs --save <file>` / `--check <file>` | 72 cases (9 scenes × 4 acts × still / after `Down,Space,Space,Down,Space`, seed 7): sha256 of the state JSON and of the exact screenshot. `--check` prints `ORACLE OK` or lists each differing case as `(state)` or `(pixels)`. Save before a refactor, check after. Needs the dev server; about 80 s |
 | `npm run browse -- <command>` (or `npx agent-browser`) | Free-form interactive exploration (`open <url>`, `press Space`, `screenshot <file>`, `errors`, `eval <js>`, `close`). Export `AGENT_BROWSER_EXECUTABLE_PATH=/tmp/ember-chromium` first (setup writes it into `CLAUDE_ENV_FILE` when the harness provides one) |
@@ -149,8 +156,9 @@ target. `npx playwright install chromium` is blocked in this environment — nev
 
 **Dev hook** (`game/devhook.ts`, installed only when `import.meta.env.DEV`; absent from
 the build, which `verify --full` proves). URL parameters: `?seed=<uint>` routes every
-random decision in the game through one seeded PRNG (absent → `Math.random`, exactly as
-shipped); `?scene=<name>&act=<1..4>` boots straight into that screen with a
+random decision in the game through one seeded PRNG (absent → a real run draws a random
+seed at `startRun` and plays the same seeded generator, `createSeededRng`; the hook's rng,
+marked by `g.rngFromHook`, always wins); `?scene=<name>&act=<1..4>` boots straight into that screen with a
 deterministic fixture (seed defaults to 1); `&hold=1` also seeds `Math.random` (ambient,
 shake) and stops the rAF loop from ticking or drawing, so frames advance only through
 the hook — this is what makes screenshots pixel-identical. In the page:

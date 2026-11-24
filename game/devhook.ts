@@ -1,6 +1,7 @@
 import type { SceneMachine } from '../engine';
 import type { Hero, Derived, EnemyInstance, EnemyKind, HeroAction, LootOffer, LootSource, Rng, StatKey } from './types';
-import { createHero, grantClear, spendPoint, rollLoot, applyOffer, noteDeclinedScrolls, fullHeal } from './sim';
+import { createHero, createSeededRng, grantClear, spendPoint, rollLoot, applyOffer, noteDeclinedScrolls, fullHeal } from './sim';
+import type { SeededRng } from './sim';
 import type { MapNode, RoomType, SubScene } from './state';
 import { at, noop } from './lookup';
 
@@ -17,7 +18,7 @@ interface DevView {
 
 interface DevHost {
   scenes: SceneMachine;
-  setRng(r: Rng): void;
+  setRng(source: SeededRng): void;
   tick(dt: number): void;
   render(): void;
   resetEdge(): void;
@@ -36,17 +37,6 @@ const KEY: Record<Action, string> = { A: 'Space', PAUSE: 'KeyP', UP: 'ArrowUp', 
 const DT = 1 / 60;
 const PLAN: readonly StatKey[] = ['HP', 'ATK', 'MAG', 'DEF', 'MDEF', 'HP', 'MP', 'CRIT'];
 const ACT_CLEARS: EnemyKind[] = ['NORMAL', 'NORMAL', 'NORMAL', 'ELITE', 'NORMAL', 'BOSS'];
-
-function mulberry32(seed: number): Rng {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 function spendAll(hero: Hero, start: number): number {
   let i = start;
@@ -117,7 +107,7 @@ function snapshot(v: DevView, seed: number | null): unknown {
 }
 
 export const HOLD = import.meta.env.DEV && new URLSearchParams(location.search).has('hold');
-if (HOLD) {Math.random = mulberry32(0x9e3779b9);}
+if (HOLD) {Math.random = createSeededRng(0x9e3779b9).next;}
 
 interface Driver {
   runTick: (dt: number) => void;
@@ -208,8 +198,9 @@ function preservingStorage(run: () => void): void {
 
 export function installDevHook(host: DevHost): { update(dt: number): void; render(): void } {
   const { seed, fixture, act } = parseParams();
-  const rng = seed === null ? null : mulberry32(seed);
-  if (rng) {host.setRng(rng);}
+  const source = seed === null ? null : createSeededRng(seed);
+  if (source) {host.setRng(source);}
+  const rng = source?.next ?? null;
   let manual = HOLD;
   const driver = createDriver(host);
   if (fixture !== null && rng !== null) {

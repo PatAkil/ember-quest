@@ -1,17 +1,18 @@
 import type { BattleState, EnemyInstance, Hero, LootOffer, LootSource, Rng } from './types';
 import { BIOMES } from './data';
-import { createHero } from './sim';
+import { createHero, createSeededRng } from './sim';
+import type { RoomType, SeededRng } from './sim';
 import type { Sprite } from '../engine';
 import type { App } from './app';
 import { BIOME_LOOK, C_TEXT } from './theme';
 import type { BiomeLook } from './theme';
 import { loadBest } from './storage';
-import { at, noop } from './lookup';
+import { at, noop, pickOneIndex } from './lookup';
 import { createFx, createReveal } from './fx-state';
 import type { FxState, Reveal } from './fx-state';
 
 export type SubScene = 'MAP' | 'BATTLE' | 'LEVELUP' | 'LOOT' | 'CARD';
-export type RoomType = 'FIGHT' | 'ELITE' | 'REST' | 'LOOT' | 'BOSS';
+export type { RoomType } from './sim';
 export interface MapNode { type: RoomType; stage: number; slot: number; links: number[]; cleared: boolean }
 
 export interface Pop { x: number; y: number; life: number; text: string; color: string; scale: number }
@@ -47,7 +48,9 @@ export interface LootScreen { offers: LootOffer[]; cursor: number; source: LootS
 
 export interface Game {
   app: App;
+  rngSource: SeededRng;
   rng: Rng;
+  rngFromHook: boolean;
   clock: number;
   hero: Hero;
   clears: number;
@@ -71,9 +74,12 @@ export interface Game {
 }
 
 export function createGame(app: App): Game {
+  const rngSource = createSeededRng(0);
   return {
     app,
-    rng: Math.random,
+    rngSource,
+    rng: rngSource.next,
+    rngFromHook: false,
     clock: 0,
     hero: createHero(),
     clears: 0,
@@ -118,7 +124,13 @@ export function wrapCursor(cursor: number, dy: number, n: number): number {
   return (cursor + dy + n) % n;
 }
 
-export const pickOne = <T,>(rng: Rng, items: readonly T[]): T => at(items, Math.floor(rng() * items.length));
+export const pickOne = <T,>(rng: Rng, items: readonly T[]): T => at(items, pickOneIndex(rng, items.length));
+
+export function installRng(g: Game, source: SeededRng, fromHook: boolean): void {
+  g.rngSource = source;
+  g.rng = source.next;
+  g.rngFromHook = fromHook;
+}
 
 export function stageAt(g: Game, stage: number): MapNode[] {
   return at(g.map.stages, stage);

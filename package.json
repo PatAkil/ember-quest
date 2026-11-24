@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "smoke": "node smoke.mjs",
     "sim": "node sim/run.mjs",
+    "rules": "node scripts/rules.mjs",
     "setup": "node scripts/setup-eyes.mjs",
     "look": "node scripts/look.mjs",
     "verify": "node scripts/verify.mjs",

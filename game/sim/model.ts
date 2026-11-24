@@ -1,6 +1,6 @@
 import type { BattleState, Derived, Hero, HeroAction, LootOffer, StatKey } from '../types';
 
-export type RoomType = 'FIGHT' | 'ELITE' | 'REST' | 'LOOT';
+export type RoomType = 'FIGHT' | 'ELITE' | 'REST' | 'LOOT' | 'BOSS';
 
 export interface Policy {
   allocate(hero: Hero, d: Derived): StatKey;

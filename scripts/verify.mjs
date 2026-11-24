@@ -28,6 +28,12 @@ function simRates(out) {
   return rates.length ? rates.join(', ') : 'no win rates parsed';
 }
 
+function rulesNote(out) {
+  const groups = [...out.matchAll(/^(PASS|FAIL)\s+(\S+)/gm)];
+  const passed = groups.filter((m) => m[1] === 'PASS').length;
+  return groups.length ? `${passed}/${groups.length} groups` : '';
+}
+
 async function lookAll() {
   const lines = [];
   let code = 0;
@@ -67,6 +73,7 @@ function gates() {
     { name: 'check', exec: tool('tsc', '--noEmit') },
     { name: 'build', exec: tool('vite', 'build', '--logLevel', 'warn') },
     { name: 'smoke', after: ['eyes'], exec: script('smoke.mjs') },
+    { name: 'rules', light: true, exec: script('scripts/rules.mjs'), note: rulesNote },
     { name: 'sim:quick', info: true, exec: script('sim/run.mjs', '--runs', '500', '--policy', 'balanced,random'), note: simRates },
   ];
   if (!FULL) {

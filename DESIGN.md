@@ -1,5 +1,7 @@
 # Ember Quest — systems design (v2: skill points + loot table)
 
+v3 (The Long Descent) is in progress — the approved contract is OVERHAUL_PLAN.md; sections move here as milestones land.
+
 A roguelike JRPG: branching node map per act, turn-based one-on-one battles,
 permadeath. v2 replaces the tier-upgrade gear with **skill points** and a
 **loot table of named items with unique effects**.
@@ -9,12 +11,14 @@ permadeath. v2 replaces the tier-upgrade gear with **skill points** and a
 | File | Owns | May import |
 |---|---|---|
 | `game/types.ts` | shared types + tuning constants (caps, SP gains) | nothing |
-| `game/data.ts` | ITEMS, LOOT_WEIGHTS, SPELLS, ENEMIES, BIOMES, ACT_MULT, `validateData` | `./types` only |
-| `game/sim.ts` | the barrel: the only path presentation and the simulator use to reach the rules | `./sim/*` |
-| `game/sim/*.ts` | pure rules, one concern per file: `util` (clamp, rng picks, effect tables), `gear` (item levels, upgrades, effective mods/effects), `hero` (derived stats, skill points, heals, equip, spells), `ghost` (stats of a hypothetical equip), `describe` (item/offer/compare text), `loot` (loot rolls, offers, scrolls), `combat` (enemy scaling, turns, damage), `map` (the simulator's map), `model` (`Policy`, `RoomType`), `scoring` and `policies` (how the archetypes decide), `run` (`simulateRun`) | `../types`, `../data`, each other |
+| `game/data.ts` | the content import path: re-exports `game/rules/*` (ITEMS, ENEMIES, SPELLS, BIOMES, LOOT_WEIGHTS, ACT_MULT, the heal constants, `validateData`) | `./rules/*` only |
+| `game/rules/*.ts` | the content itself: `items` (ITEMS), `enemies` (ENEMIES), `world` (SPELLS, SPELL_ORDER, BIOMES, ACT_MULT, LOOT_WEIGHTS, LOOT_COUNT, CLEAR_HEAL, BOSS_ENTRY_HEAL, SKIP_MEND, RARITY_COLOR_INDEX), `validate` (`validateData`; never imports `data.ts`) | `../types`, each other |
+| `game/sim.ts` | the barrel: the only path presentation and the simulator use to reach the rules (also re-exports `validateData`, `generateMap`, `createSeededRng`, `at`) | `./sim/*`, `./data` |
+| `game/sim/*.ts` | pure rules, one concern per file: `util` (clamp, `at`, rng picks, `createSeededRng` — mulberry32 with readable state — and effect tables), `gear` (item levels, upgrades, effective mods/effects), `hero` (derived stats, skill points, heals, equip, spells), `ghost` (stats of a hypothetical equip), `describe` (item/offer/compare text), `loot` (loot rolls, offers, scrolls), `combat` (enemy scaling, turns, damage), `map` (**the one map generator**, `generateMap(rng, shape?)`, played by both the screens and the simulator), `model` (`Policy`, `RoomType` including `BOSS`), `scoring` and `policies` (how the archetypes decide), `run` (`simulateRun`) | `../types`, `../data`, each other |
 | `game/sprites.ts` + `game/sprites/*.ts` | hero/enemy/icon sprites: `helpers`, `hero`, `icons`, one file per biome; `sprites.ts` re-exports them and adds `enemyAnim(id)` | `../engine` only |
-| `game/main.ts` + `app`, `state`, `flow`, `frame`, `mapgen`, `theme`, `backdrop`, `widgets`, `pops`, `fx-state`, `fx`, `transition`, `storage`, `lookup`, `screens/*.ts` | presentation: `main.ts` only wires; `app` creates the engine objects and fits the canvas to the window; `state` holds the one `Game` object `g` with per-screen slices; `flow` runs the run (rooms, stages, clears, acts, scene hooks); `frame` dispatches update/render; `mapgen` builds the map the screens play; the **fx / transition layer** presents what the rules decided and never decides anything — `fx-state` + `fx` hold the battle-fx clock (actor poses, timed cues, lagging meters, boss banner), `screens/battle-fx` choreographs a turn on it, `screens/battle-fx-view` draws its shots and banner, `screens/battle-reach` measures lunges, `transition` reveals each new sub-scene; `screens/` one update file and one view file per screen (`map-view`, `loot-view`, `battle-view`; `plate` holds the shared medallions) | everything |
+| `game/main.ts` + `app`, `state`, `flow`, `frame`, `mapgen`, `theme`, `backdrop`, `widgets`, `pops`, `fx-state`, `fx`, `transition`, `storage`, `lookup`, `screens/*.ts` | presentation: `main.ts` only wires; `app` creates the engine objects and fits the canvas to the window; `state` holds the one `Game` object `g` with per-screen slices; `flow` runs the run (rooms, stages, clears, acts, scene hooks); `frame` dispatches update/render; `mapgen` adapts the shared headless map to the screens (adds `stage`, `slot`, `cleared`); the **fx / transition layer** presents what the rules decided and never decides anything — `fx-state` + `fx` hold the battle-fx clock (actor poses, timed cues, lagging meters, boss banner), `screens/battle-fx` choreographs a turn on it, `screens/battle-fx-view` draws its shots and banner, `screens/battle-reach` measures lunges, `transition` reveals each new sub-scene; `screens/` one update file and one view file per screen (`map-view`, `loot-view`, `battle-view`; `plate` holds the shared medallions) | everything |
 | `game/devhook.ts` | the dev-only seeded hook (`?seed`, `?scene`, `&act`, `&hold`, `window.__ember`), never in the build | `../engine` types, `./sim`, presentation types |
+| `sim/run.mjs`, `sim/bundle.mjs`, `scripts/rules.mjs` | the balance simulator; the shared esbuild bundling of `game/sim.ts`; the rules gate (`npm run rules`, part of `verify`): `node:assert` invariants against the bundle — every map node reachable and linked, one BOSS last, ELITE + REST + LOOT on every map (5000 seeds), seeded-rng determinism and state round-trip, `validateData()` clean | the bundle |
 
 `types.ts`, `data.ts`, `sim.ts` and `game/sim/` are **headless** (no engine, no DOM,
 no presentation import, no `Math.random` — every roll takes an injected `rng`) so the
@@ -29,7 +33,7 @@ thousands of runs. ESLint and dependency-cruiser enforce the boundary.
 - Clears also heal 25 % of max HP/MP (a breather, not a reset). REST = full.
 - Boss node: heal 60 % entering. **One boss per act** (the Crypt gauntlet is
   gone: OGRE KING and WRAITH LORD become Crypt elites, DARK LORD is the boss).
-- Caps: DEF/MDEF 60 %, CRIT 60 %, DODGE 40 % — items + points together.
+- Caps: DEF/MDEF 42 %, CRIT 60 %, DODGE 40 % — items + points together.
 - Act-entry spells unchanged: WATER (act 2), SLASH (act 3), THUNDER (act 4).
   TOME items grant extra spells (TWINBOLT, LEECH, QUAKE, MEND) while equipped.
 
@@ -75,8 +79,13 @@ chests at `MISSED_SCROLL_CHANCE` and the next boss table always carries it.
 Each boss also owns one **signature item** (`Item.bossOnly`) that never
 appears elsewhere — Dark Lord's crown, Yeti's hide, the Golem's fist.
 
-The map guarantees one chest per act and, when it has to invent one, places
-it beside the rest stop so "rest or loot" is a forced choice at least once.
+The map guarantees one elite, one rest and one chest per act. When it has to
+invent a chest it places it beside the rest stop so "rest or loot" is a forced
+choice at least once; an invented rest or chest never replaces an elite.
+
+Every run is seeded: `startRun` draws a random seed and plays it through
+`createSeededRng`, so the rng state is always readable (the dev hook's `?seed`
+fixes it instead).
 
 ## Combat
 
@@ -102,37 +111,38 @@ Logical screen 240×160, font 4 px per char at scale 1. Battle log line
 <= 12, spell names <= 9. Every panel is placed with `SAFE_MARGIN`; the loot
 and level-up panels sit beside the hero, never over him.
 
-## Balance state (tuned with the headless simulator, 2026-09-04)
+## Balance state (measured with the headless simulator, 2026-11-23)
 
 Harness: `npm run sim` (`sim/run.mjs`) bundles `game/sim.ts` with esbuild into a
-temporary directory, then calls `simulateRun` with each of `POLICIES` and a seeded
-PRNG (`--runs`, default 2000; `--seed`, default 1; `--policy`; `--json`). Same seed and
-same code give byte-identical `--json` output. The simulator replicates the drop
-rates, upgrade cards and boss tables; its map (`game/sim/map.ts`) uses the same stage
-sizes as the game's but its own linking — see *Open item* below.
+temporary directory (`sim/bundle.mjs`), then calls `simulateRun` with each of
+`POLICIES` and a seeded PRNG (`createSeededRng`; `--runs`, default 2000; `--seed`,
+default 1; `--policy`; `--json`). Same seed and same code give byte-identical `--json`
+output. The simulator replicates the drop rates, upgrade cards and boss tables, and
+plays **the same map generator as the game** (`game/sim/map.ts`). Numbers below:
+2000 runs, seed 1, after the generators were unified (M0); no tuning was changed.
 
 | policy | win | reach act 2 | act 3 | act 4 | boss clears a1/a2/a3/a4 |
 |---|---|---|---|---|---|
-| balanced | 17–19 % | 77 % | 52 % | 32 % | 86/79/72/62 |
-| glass (all offence) | 9 % | 84 % | 54 % | 24 % | 95/82/60/45 |
-| tank (HP/DEF, physical) | 15 % | 81 % | 45 % | 22 % | 86/65/55/75 |
-| elite-hungry routing | 17 % | | | | |
-| chest-hungry routing | 15 % | | | | |
-| random picks + points | 0 % | 38 % | 2 % | 0 % | |
+| balanced | 24.9 % | 81 % | 62 % | 42 % | 94/86/79/67 |
+| glass (all offence) | 13.0 % | 85 % | 61 % | 35 % | 97/87/73/47 |
+| tank (HP/DEF, physical) | 23.3 % | 86 % | 56 % | 31 % | 91/77/62/86 |
+| elite-hungry routing | 24.5 % | 82 % | 62 % | 43 % | 93/87/78/66 |
+| chest-hungry routing | 18.3 % | 78 % | 52 % | 32 % | 85/70/66/59 |
+| random picks + points | 0 % | 38 % | 2 % | 0 % | 46/10/6/– |
 
-Act-4 boss vs the balanced hero: ~11 turns to kill, each hit ≈ 21 % of max
-HP. Elites kill 4 % of heroes entering above 70 % HP and ~50 % of those
-entering below 50 %. Upgrades matter without being mandatory: with upgrade
-cards disabled the balanced win rate halves. Taking a boss's scroll beats
-walking past it (33 % vs 28 % wins for balanced, 59 % vs 17 % for tank).
-Hero base: 46 HP, +6 HP per skill point; DEF/MDEF cap 42 %; `ACT_MULT` [1.0, 1.38, 2.2, 3.1].
+Act-4 boss vs the balanced hero: ~10.5 turns to kill, each hit ≈ 21 % of max HP.
+Balanced fights ~3.8 elites and opens ~3.2 chests per run (up from 2.8 / 2.7 on the
+simulator's old, stingier linking). Hero base: 46 HP, +6 HP per skill point;
+DEF/MDEF cap 42 %; `ACT_MULT` [1.0, 1.38, 2.2, 3.1].
 
-### Open item: the game's map links more generously than the simulator's
+Findings from the 2026-09-04 tuning pass (on the simulator's old map, not re-measured
+since): elites kill 4 % of heroes entering above 70 % HP and ~50 % of those entering
+below 50 %; with upgrade cards disabled the balanced win rate halves; taking a boss's
+scroll beats walking past it (33 % vs 28 % wins for balanced, 59 % vs 17 % for tank).
 
-A review measured that the map generator the screens use (`game/mapgen.ts`) gives
-about 74 % of nodes two onward links, against about 39 % in the simulator's
-`game/sim/map.ts`. More links mean more routing choice, so the real game is
-somewhat easier than the table above says: with the game's linking in the simulator,
-balanced wins about 24 % instead of 19 %. Not fixed in the tooling work because
-choosing which linking is right is a balance decision; it is owned by the gameplay
-work, which will re-measure this table once the two generators agree.
+### The map generators are unified
+
+There is one generator, `generateMap` in `game/sim/map.ts`; `game/mapgen.ts` only
+adds the screen fields. The simulator used to link more stingily (about 39 % of nodes
+with two onward links against 74 % in the game), which understated the real game's
+win rate by about five points; the table above is measured on the game's map.

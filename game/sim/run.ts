@@ -14,7 +14,7 @@ import { createBattle, enemyAct, heroAct, spawnEnemy, startTurn } from './combat
 import { equippedItems } from './gear';
 import { canAfford, createHero, derive, fullHeal, grantClear, healFraction, heroActions, skipMend, spendPoint } from './hero';
 import { applyOffer, noteDeclinedScrolls, rollLoot } from './loot';
-import { buildMap, type MapNode } from './map';
+import { generateMap, type MapNode } from './map';
 import type { Policy, RoomType } from './model';
 import { withPolicyContext } from './policies';
 import { clamp, isNonEmpty, pick } from './util';
@@ -54,7 +54,6 @@ export interface Probe {
   ttk: number;
 }
 
-const ROOMS_PER_ACT = 6;
 const TURN_CAP = 80;
 
 interface BattleOutcome {
@@ -212,12 +211,13 @@ function routeNext(node: MapNode, next: MapNode[], policy: Policy): MapNode | un
 }
 
 function playMap(run: RunState, act: number, biome: Biome): Ending | null {
-  const stages = buildMap(run.rng);
+  const stages = generateMap(run.rng);
+  const rooms = stages.length - 1;
   const entry = stages[0] ?? [];
   let node = entry[routeIndex(run.policy, entry.map((n) => n.type))];
-  for (let r = 0; r < ROOMS_PER_ACT && node; r += 1) {
+  for (let r = 0; r < rooms && node; r += 1) {
     const current: MapNode = node;
-    const next = r + 1 < ROOMS_PER_ACT ? stages[r + 1] : undefined;
+    const next = r + 1 < rooms ? stages[r + 1] : undefined;
     node = next ? routeNext(current, next, run.policy) : undefined;
     const ending = playRoom(run, act, biome, current.type);
     if (ending) {return ending;}

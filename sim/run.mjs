@@ -1,8 +1,4 @@
-import { build } from 'esbuild';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { withSim } from './bundle.mjs';
 
 const args = process.argv.slice(2);
 const opt = (name, def) => {
@@ -13,17 +9,6 @@ const RUNS = Number(opt('runs', 2000));
 const SEED = Number(opt('seed', 1));
 const ONLY = opt('policy', 'all');
 const JSON_OUT = args.includes('--json');
-
-function mulberry32(seed) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 const pct = (n, d) => (d === 0 ? '  - ' : `${((100 * n) / d).toFixed(0).padStart(3)}%`);
 const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
@@ -79,31 +64,17 @@ function printText(name, s, r) {
     `  top killers ${r.topKillers.map(([k, v]) => `${k} ${v}`).join(', ')}`);
 }
 
-const dir = await mkdtemp(join(tmpdir(), 'ember-sim-'));
-const outfile = join(dir, 'sim.bundle.mjs');
-try {
-  await build({
-    entryPoints: [new URL('../game/sim.ts', import.meta.url).pathname],
-    bundle: true,
-    format: 'esm',
-    platform: 'node',
-    outfile,
-    logLevel: 'silent',
-  });
-  const sim = await import(pathToFileURL(outfile).href);
+await withSim((sim) => {
   const names = ONLY === 'all' ? Object.keys(sim.POLICIES) : ONLY.split(',');
-
   const report = {};
   for (const name of names) {
     const policy = sim.POLICIES[name];
     if (!policy) {throw new Error(`unknown policy "${name}" — known: ${Object.keys(sim.POLICIES).join(', ')}`);}
-    const rng = mulberry32(SEED);
+    const rng = sim.createSeededRng(SEED).next;
     const s = newStats();
     for (let i = 0; i < RUNS; i++) {tallyRun(s, sim.simulateRun(policy, rng));}
     report[name] = summarize(s);
     if (!JSON_OUT) {printText(name, s, report[name]);}
   }
   if (JSON_OUT) {console.log(JSON.stringify({ seed: SEED, runs: RUNS, policies: report }, null, 2));}
-} finally {
-  await rm(dir, { recursive: true, force: true });
-}
+});

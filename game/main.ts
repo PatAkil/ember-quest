@@ -1,12 +1,11 @@
 import { createLoop } from '../engine';
-import { derive, heroActions } from './sim';
-import { validateData } from './data';
+import { derive, heroActions, validateData } from './sim';
 import { HOLD, installDevHook } from './devhook';
 import { createApp } from './app';
 import { selectNode, startRun, wireScenes } from './flow';
 import { render, update } from './frame';
 import { at } from './lookup';
-import { createGame, resetCursorEdge, stageAt } from './state';
+import { createGame, installRng, resetCursorEdge, stageAt } from './state';
 import type { Game } from './state';
 import { syncReveal } from './transition';
 import { applyEnemyAction, onQueueDone } from './screens/battle';
@@ -31,7 +30,7 @@ function view(game: Game) {
 const tick = (dt: number): void => { update(g, dt); };
 const draw = (): void => { render(g); };
 const dev = import.meta.env.DEV ? installDevHook({
-  scenes: app.scenes, setRng: (r) => { g.rng = r; }, tick, render: draw, resetEdge: () => { resetCursorEdge(g); },
+  scenes: app.scenes, setRng: (source) => { installRng(g, source, true); }, tick, render: draw, resetEdge: () => { resetCursorEdge(g); },
   syncReveal: () => { syncReveal(g); },
   startRun: (hero, act, clears) => { startRun(g, hero, act, clears); },
   selectNode: (node) => { selectNode(g, node); },
