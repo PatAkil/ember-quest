@@ -34,6 +34,24 @@ function depthLines(g: Game): Ink[] {
   return inks.length === 1 ? [head, ...inks] : inks;
 }
 
+const AFFIX_BLURB: Record<AffixId, string> = {
+  VAMPIRIC: 'HEALS AS IT HITS',
+  ARMORED: '+20 DEF',
+  WARDED: '+20 MDEF',
+  THORNED: 'HURTS ATTACKERS',
+  SWIFT: 'DODGES SOME HITS',
+  SEARING: 'ITS HITS BURN',
+};
+const LEGEND = { x: 122, y: 57, pitch: 8, nameW: 40 };
+
+function drawAffixLegend(g: Game, ctx: CanvasRenderingContext2D): void {
+  rollableAffixes(g).forEach((id, i) => {
+    const y = LEGEND.y + i * LEGEND.pitch;
+    drawText(ctx, id, { x: LEGEND.x, y }, { color: C_WARN, shadow: true });
+    drawText(ctx, AFFIX_BLURB[id], { x: LEGEND.x + LEGEND.nameW, y }, { color: C_TEXT, shadow: true });
+  });
+}
+
 function drawPactRows(g: Game, ctx: CanvasRenderingContext2D, ready: boolean): void {
   const { offers, cursor } = g.pact;
   offers.forEach((id, i) => {
@@ -54,6 +72,7 @@ export function renderPact(g: Game): void {
   renderTableau(g, false);
   dimScene(pc, 0.6);
   drawSkyCard(ctx, 'CHOOSE A PACT', depthLines(g));
+  drawAffixLegend(g, ctx);
   drawCommandBand(ctx);
   drawPactRows(g, ctx, ready);
   drawDetail(ctx, [

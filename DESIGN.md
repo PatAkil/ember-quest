@@ -76,10 +76,16 @@ fights and elites, never from bosses (`UPGRADE_CHANCE`).
 
 Rarity weights shift toward rare by act (`LOOT_WEIGHTS`). Items already
 equipped never re-roll; `minAct` gates the wildest items. The player may
-always decline for a 25 % mend. While the hero owns no weapon (worn or packed), every
-loot offer includes a common blade or wand, and a FIGHT never rolls dry — so the run's
-first fight always drops one (review round 2: a real run reached the act-1 boss never
-offered a weapon; 4000 simulated runs now all see one before it).
+always decline for a 25 % mend. In the run's first act (`n` 0), while the hero owns no
+weapon (worn or packed), every FIGHT, ELITE and chest roll includes a common blade or wand
+and a FIGHT never rolls dry — so the run's first fight always drops one (review round 2: a
+real run reached the act-1 boss never offered a weapon; 4000 simulated runs now all see one
+before it). The weapon takes the weakest non-scroll card (an UPGRADE card first, then the
+lowest rarity), or an empty place when the roll came up short; it never replaces a scroll,
+and boss tables are never touched. After the first act a weaponless hero is left to its
+choice (review round 3: a caster who kept declining blades got one forced into every roll,
+and a boss table could lose its EPIC). The guarantee is checked before MISER's curse; the
+two never meet in play, since pacts are sworn from depth 2.
 
 ### Spells and boss tables
 
@@ -115,7 +121,9 @@ fixes it instead).
   (Left/Right, default EQUIP; `LootScreen.stow`): EQUIP wears it and the old item goes to
   the pack, STOW puts the new one in the pack. A full pack opens `DROP WHICH?` (the pack
   plus the entering item; A drops one for good; B is ignored, silently — the offer is already applied, so a
-  choice must be made, and the prompt says `YOU MUST CHOOSE`). Dropping the
+  choice must be made, and the prompt says `YOU MUST CHOOSE`). The cursor opens on the
+  least valuable candidate (lowest rarity, then lowest level; the entering item on a tie),
+  never on the item just replaced, and A is armed as on every PICK). Dropping the
   newcomer still counts as taking the offer (no mend). KEEP YOUR GEAR (25 % mend) stays.
 - **The loot contract.** `applyOffer(hero, offer, rng, { stow? })` returns
   `{ line, replaced?, stowed, overflow? }`. A full pack never drops anything silently: the
@@ -154,7 +162,9 @@ fixes it instead).
 - **Scouting.** Every FIGHT / ELITE node carries its foe (`MapNode.enemyId`), rolled by the
   map generator from the biome's pools after linking (`generateMap(rng, shape, pools)`;
   without pools nothing is rolled, so a seed's layout does not change); fight rooms read
-  it, and the map readout names the highlighted foe. An empty elite pool falls back to
+  it, and the map readout names the highlighted foe and its weakness (`WEAK FIRE`); the map
+  header names the act boss's weakness from the first room (`ACT 1  THE CRYPT  BOSS  WEAK
+  FIRE`, the biome name dropped first when the corners crowd it). An empty elite pool falls back to
   the normals.
 - **Simulator policies** also choose `stowOrEquip` (keep the higher-scored item worn under
   the archetype's profile), `dropWhich` (drop the lowest-scored of pack + entering),
@@ -178,7 +188,8 @@ enemy's move, intent, cycle and phase), `status` (turn start, BURN, WARD, `heroF
   `wardTurns`, `phase`, `cycleIndex`, `mended`, `staggered`. All resist math and the enemy
   plate read the instance (`resistOf(enemy, kind)` adds the ward).
 - **Moves and intents.** `EnemyDef.moves` is a cycle of any length; `battle.intent`
-  = the move at `cycleIndex` (a spent MEND reads as STRIKE), set at battle creation and
+  = the move at `cycleIndex` (a spent MEND, or a MEND while the foe is at full HP, reads
+  as STRIKE), set at battle creation and
   advanced after every enemy action, deterministic. Dodge is rolled first and only for
   damaging moves; a dodged move still advances the cycle and a dodged SCORCH burns nothing.
 
@@ -189,7 +200,7 @@ enemy's move, intent, cycle and phase), `status` (turn start, BURN, WARD, `heroF
   | `HEAVY` | ×2.0 hit (`HEAVY_MULT`; 2.2 before the 2026-11-24 balance pass) | `HEAVY BLOW` |
   | `WARD` | no damage; `wardTurns` = 2: resist = min(60, instance + 25) for the hero's next 2 actions (GUARD counts); never written into the instance; re-applying refreshes | `WARDS` |
   | `SCORCH` | ×0.7 hit; the hero gains BURN | `SCORCHES` |
-  | `MEND` | heals 10 % max HP (bosses 6 %, `BOSS_MEND_FRACTION`, review round 2) once per phase; afterwards that entry acts as `STRIKE` | `MENDS` |
+  | `MEND` | heals 10 % max HP (bosses 6 %, `BOSS_MEND_FRACTION`, review round 2) once per phase; afterwards that entry acts as `STRIKE`. A foe at full HP never MENDs: the entry shows and resolves as `STRIKE` and the once-only `mended` flag is kept (review round 3: a whole foe used to print `MENDS +0 HP` and lose its mend) | `MENDS` |
 
   WARD never lowers a resist already above the cap (`max(instance, min(60, instance + 25))`).
 
@@ -293,10 +304,12 @@ enemy's move, intent, cycle and phase), `status` (turn start, BURN, WARD, `heroF
   (2 × 3, pages with Down past the end beyond 6: `magicCursor`, `magicPage`), B = back;
   it opens even when nothing is affordable (rows dim). BURST is dim until the gauge is
   full, POTION when none is left; choosing a dim command refuses with a blip and a short
-  reason in the hint line (`NOT ENOUGH MP`, `NO POTIONS LEFT`, `THE EMBER IS NOT FULL
-  YET`). A preview column right of the grid (3 lines) shows what the highlighted command
+  reason in the hint line (`NOT ENOUGH MP`, `NO POTIONS LEFT`, `YOUR HP IS FULL`, `THE EMBER IS NOT FULL
+  YET`); POTION is dim at full HP as well. A preview column right of the grid (3 lines) shows what the highlighted command
   does against this foe: `ATK X1.0` / `MAG X0.8 2 HITS`, `WEAK X1.5` / `RESIST X0.5`,
-  `-25% WARD` / `-30% RES`, `BREAKS IT` / `TOO WEAK TO BREAK` against a shown HEAVY,
+  `-25% WARD` / `-30% RES`, `BREAKS IT` (accent) / `TOO WEAK TO BREAK` / `NOT WEAK: NO BREAK`
+  (orange, for a damaging command that is not eligible) against a shown HEAVY — the hint
+  above names the real floor, `ceil(BREAK_AT[kind] × maxHp)`,
   `RIPOSTE X1.5`; GUARD `HALVES THE NEXT HIT` / `PARRY THE HEAVY BLOW`; POTION `HEAL 40%
   HP`; BURST `IGNORES ARMOR+WARDS`. The break preview is a presentation estimate (no
   jitter, crit, RAMP or TWIN), so it can only under-promise. Cursor memory: the TOP
@@ -304,7 +317,10 @@ enemy's move, intent, cycle and phase), `status` (turn start, BURN, WARD, `heroF
   across fights; choosing an action returns to TOP.
 - **POTION.** `hero.potions` starts at 2 (`POTIONS_MAX`), REST refills, entering a new act
   gives one back; drinking heals
-  40 % max HP (`POTION_HEAL`) and uses the turn; at 0 it cannot be chosen.
+  40 % max HP (`POTION_HEAL`) and uses the turn; at 0, or at full HP, it cannot be chosen
+  (`canDrinkPotion(hero)`, which `canAfford(hero, 'POTION')` uses, so the menu and every
+  policy refuse it; review round 3: a full-HP potion healed +0 and was spent). Resolved
+  anyway at full HP, it spends nothing (`YOUR HP IS ALREADY FULL!`).
 - **Elements.** `SpellDef.element`: FIREBALL fire, WATER water, THUNDER and TWINBOLT
   thunder, QUAKE earth; LEECH, SLASH, MEND none. `EnemyDef.weak` ×1.5 (`WEAK_MULT`),
   `resists` ×0.5 (`RESIST_MULT`), after resist, on each hit of a multi-hit
@@ -561,7 +577,7 @@ the descent (see *Balance state → The descent*).
   | ARMORED | +20 DEF (`resPhys`) | applied by `spawnEnemy` |
   | WARDED | +20 MDEF (`resMagic`) | applied by `spawnEnemy` |
   | VAMPIRIC | heals 30 % of the damage its hits deal, capped at max HP (`EnemyActResult.healed`) | `enemy-turn` |
-  | THORNED | returns 15 % of the damage it takes from ATTACK, spells and BURST, at most 12 % of the hero's max HP per action (`AFFIX_THORNS`, `AFFIX_THORNS_CAP`); never on the killing blow; it can kill through `heroFalls` (REVIVE answers): `HeroActResult.thorns / revived / heroDead` | `combat` |
+  | THORNED | returns 15 % of the damage it takes from ATTACK, spells and BURST, at most 12 % of the hero's max HP per action (`AFFIX_THORNS`, `AFFIX_THORNS_CAP`); never on the killing blow; it can kill through `heroFalls` (REVIVE answers): `HeroActResult.thorns / revived / heroDead`, and its own log line `HeroActResult.thornsText` (`THORNS BITE YOU FOR n`, `THE THORNS TAKE YOU! (n)`, `THE THORNS FELL YOU (n) - YOU RISE!`) — the damage line is never cut to make room (review round 3) | `combat` |
   | SWIFT | 15 % to evade ATTACK and damaging spells, rolled on the injected rng (`IT SLIPS AWAY!`, `HeroActResult.missed`); the spell's MP is spent, no ember, RAMP still advances, a held riposte is kept for the next damaging action; BURST never misses | `combat` |
   | SEARING | its STRIKEs apply BURN (SCORCH already does) | `enemy-turn` |
 
@@ -634,8 +650,12 @@ the descent (see *Balance state → The descent*).
   `retrovibe.ember-quest.best.v2` (`game/storage.ts`); while that key is absent the old
   bare-number key is read as `score` (depth 1); unreadable or corrupt values read as 0 and
   never throw. The title shows `BEST 14200` with `DEPTH 3` under it when the best run went
-  below depth 1.
-- **THRESHOLD presentation**: the cursor starts on ASCEND and A is ignored for the first
+  below depth 1. A death's best is stored the moment the fatal turn is committed
+  (`keepDeathBest`: `scoreAfterDeath` against the stored best, the same value GAME OVER
+  stores again), so closing the page during the death animation keeps it. Abandoning
+  during a turn's animation first adopts the committed turn, so the score GAME OVER reports
+  is the one the host already heard.
+- **THRESHOLD presentation**: no row is lit until Up or Down (see *Arming and input*) and A is ignored for the first
   1.0 s (the headline types itself in; both choices are drawn faint until then), so a
   player mashing through the VICTORY, LEVEL UP and loot screens cannot confirm either way
   by accident; DESCEND is an explicit Down + A. PACT arms after 0.5 s the same way. The
@@ -725,7 +745,10 @@ the descent (see *Balance state → The descent*).
   `REWARD` on a kill, nothing on a death) and the live state is put back, then the
   choreography replays the same rule calls on the same streams beat by beat (so every
   intent lean, tag and meter still reads the live state) and adopts the shadow copy when
-  the turn ends or the foe falls (a drift is reported through `reportError`). Reloading
+  the turn ends, the foe falls or the hero dies (a drift — hero HP, MP, potions, ember and
+  BURN, foe HP, stagger and BURN differing from the shadow — is reported through
+  `reportError` on every outcome, and counted: the dev hook's state carries `drift` when it
+  is non-zero and `npm run look` fails on it). Reloading
   mid-animation therefore lands on the next turn's menu, on the reward, or on a title
   without CONTINUE; reloading a turn and choosing another action meets the same foe roll.
 - **Rewards depend on the room, not on the fight.** `selectNode` draws one 32-bit
@@ -745,7 +768,8 @@ the run rng; the moment the foe dies the rng is re-seeded to
   boss entry heal is applied once because the save holds the hero from before it); a
   `REWARD` opens LEVEL UP while SP is unspent (`+n EARNED` shows the step's `earned`, not
   the whole pool), then the same loot offers (FIGHT / ELITE / BOSS; a boss then continues
-  to its act card or THRESHOLD), or for an EVENT the same gift; THRESHOLD; or PACT with
+  to its act card or THRESHOLD — the boss's loot and result card are drawn over the act it
+  was won in, the next act's scenery appearing with its act card), or for an EVENT the same gift; THRESHOLD; or PACT with
   the same offers. **Reloading cannot reroll a room, a drop, an event or a pact, cannot
   undo a paid event cost, a taken offer, a GEAR swap or a chosen battle action, and cannot
   undo a death.** **Accepted**: reloading on a result card lands on the map, the next act
@@ -757,7 +781,12 @@ the run rng; the moment the foe dies the rng is re-seeded to
   re-reads the stamp; if the stored one is missing or differs (another tab wrote, ended or
   deleted the run), the tab stops saving for the rest of that run (`g.saveLost`; the map
   shows `ANOTHER TAB TOOK THIS RUN - THIS ONE NO LONGER SAVES` in orange) and never
-  deletes the save on its own death or abandon. A new run claims the slot outright. The
+  deletes the save on its own death or abandon. A new run from the title claims the slot
+  outright (behind the title's `ERASE YOUR RUN?` confirm when a save is offered). TRY AGAIN /
+  PLAY AGAIN never overwrites a live save silently: this tab's own save is already gone at
+  GAME OVER / WIN, so a save still stored then is another tab's, and A goes to the title
+  instead (CONTINUE that run, or NEW RUN through the confirm). A failed write (quota) puts
+  the previous stamp back, so it is never read as another tab taking over. The
   title listens to the `storage` event and refreshes or drops CONTINUE; CONTINUE itself
   re-reads storage and refuses a save that is gone or whose stamp moved
   (`THAT RUN HAS ENDED` in orange under the hook lines for 2.5 s, then the title offers
@@ -813,13 +842,19 @@ the run rng; the moment the foe dies the rng is re-seeded to
   until it has been released once after the screen opened and 0.25 s have passed (`armA`
   / `takeA` in `game/state.ts`), so an A held or mashed through a battle's last beat or a
   card cannot spend SP, take an offer, skip a card or walk into the next room. The title's
-  confirm re-arms when it opens. THRESHOLD (1.0 s) and PACT (0.5 s) additionally wait that
+  confirm re-arms when it opens. **The battle menu** is armed the same way when a battle
+  opens, when the entrance banner is skipped and after every turn's queue, so an A mashed
+  to skip a turn's animation (or buffered during a hit-stop) never chooses the next
+  command. A during the ELITE / BOSS banner skips the banner (as A skips to the next impact
+  in a turn); directions are not read until it is gone. THRESHOLD (1.0 s) and PACT (0.5 s) additionally wait that
   long, and GAME OVER and WIN (1.0 s, prompt faint until then) are armed by time
   (`armed`). PAUSED reads plain presses (the clock is frozen there).
 - **THRESHOLD has no default.** It opens with neither row lit and the detail column reading
   `TWO PATHS - NO TURNING BACK` / `ASCEND ENDS THE RUN` / `DESCEND GOES DEEPER` /
-  `UP/DOWN TO CHOOSE`; Up lights ASCEND, Down lights DESCEND, and only then does an armed
-  A choose. (Chosen over a second `END THE RUN HERE?` confirm: one deliberate direction
+  `UP/DOWN TO CHOOSE`; Up lights ASCEND, Down lights DESCEND (the cursor clamps: Down,Down
+  stays on DESCEND, Up,Up on ASCEND), and only then does an armed A choose. An A that
+  cannot choose yet blips and turns the prompt line into a blinking `CHOOSE: UP / DOWN` for
+  1.2 s. PACT's rows clamp the same way. (Chosen over a second `END THE RUN HERE?` confirm: one deliberate direction
   press is enough to stop a masher, and both paths are treated alike.)
 - **Grids** (the battle commands and the spell list, 2 columns): Left/Right step through
   the list in reading order (Right from the right column goes to the next row's left cell,
@@ -873,7 +908,7 @@ not from stat inflation alone.
 
 Logical screen 240×160, font 4 px per char at scale 1. Battle log line
 <= 52 chars, or it wraps to two lines. Battle verbs: the plate's intent text <= 10 chars
-(`HEAVY BLOW`, `STAGGERED` 9), the band's intent hint <= 52 chars (the HEAVY hints are 51 and 47), a phase banner
+(`HEAVY BLOW`, `STAGGERED` 9), the band's intent hint <= 52 chars (the HEAVY hints `HEAVY NEXT: GUARD, OR BREAK: WEAK HIT/BURST n+` and `… ANY HIT n+` are at most 48 and 41 with a 4-digit n), a phase banner
 <= 20 chars (scale 2 beside its tag), a menu preview line <= 82 px (21 chars), a spell
 cell `NAME` + `nMP` inside 68 px, a tag strip inside its plate's 96 px (tags that do not
 fit are dropped, lowest priority last: enemy WEAK, WARD, BURN, RES, affixes; hero BURN,
@@ -885,13 +920,17 @@ six cells of <= 18 chars (74 px columns); `LOSE:` / `GAIN:` lines <= 36 chars (b
 <= 30). A loot offer's hint <= 64 px (the worn item's `displayName`). GEAR rows <= 92 px
 of name; PICK rows `NAME +n→+n+1` <= 84 px (the arrow is a 4-px glyph) beside a <= 4-char note (`WORN`, `PACK`,
 `NEW`, `OLD`); PICK titles <= 30 chars; PICK detail <= 3 lines. The map readout
-`ELITE  NAME  HEXES  AFFIX +n` stays inside 224 px (the verb is dropped first when it does
+`ELITE  NAME  HEXES  WEAK FIRE  AFFIX +n` stays inside 224 px (the verb, then the affix are dropped first when it does
 not); the map header `DEPTH n  ACT n  BIOME` <= 30 chars. Descent screens: THRESHOLD
 headline <= 22 chars at scale 2, its detail lines <= 134 px (33 chars) beside the 82-px
 label column; PACT names <= 12 chars (58-px column), `CURSE: ` / `BOON: ` + line <= 158 px
 (pact lines <= 30 chars); the PACT sky card's affix line wraps to at most two lines of
-<= 180 px; the enemy tag strip shows one affix word (cycling every 1.6 s) plus `+n`,
-falling back to the bare word when `+n` does not fit beside WEAK; affix ids <= 8 chars.
+<= 180 px, and the PACT screen lists each of those affixes under the sky card (x 122, 8-px
+pitch, name orange, blurb white, blurb <= 16 chars: `THORNED  HURTS ATTACKERS`). A foe
+with one affix shows it in the enemy tag strip (the short label — `VAMP`, `ARMOR`,
+`THORN`, `SEAR` — when the word does not fit); a foe with two or more gets its own affix
+row 9 px under the strip, all names at once (full, else short labels, else one cycling every
+1.6 s plus `+n`), so no affix is ever hidden; affix ids <= 8 chars.
 The ending summary `DEPTH n  n CLEARED  SCORE n  BEST n` <= 180 px. Pause lists the
 pacts joined with ` / ` on lines <= 172 px.
 

@@ -240,6 +240,7 @@ export interface HeroActResult {
   missed: boolean;
   burned: boolean;
   thorns: number;
+  thornsText: string;
   heroDead: boolean;
   revived: boolean;
   burnTick: number;

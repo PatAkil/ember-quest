@@ -1,5 +1,8 @@
 import type { SceneMachine } from '../engine';
 import { startPlaying } from './flow';
+import { realRun } from './persist';
+import { loadResume } from './resume';
+import { loadStoredRun } from './storage';
 import { updatePops } from './pops';
 import { drawReveal, revealActive, trackReveal } from './transition';
 import { armed, resetCursorEdge } from './state';
@@ -55,9 +58,18 @@ const RENDER_SUB: Record<SubScene, (g: Game) => void> = {
   PACT: renderPact,
 };
 
+function liveSaveElsewhere(g: Game): boolean {
+  return realRun(g) && loadStoredRun() !== null;
+}
+
 function restartOnA(g: Game): void {
   if (!armed(g, { openedAt: g.endedAt, delay: END_ARM })) {return;}
-  if (g.app.input.pressed('A')) { g.app.audio.play('blip'); startPlaying(g); }
+  if (!g.app.input.pressed('A')) {return;}
+  g.app.audio.play('blip');
+  if (!liveSaveElsewhere(g)) { startPlaying(g); return; }
+  g.title = { cursor: 0, confirm: false, yes: false };
+  loadResume(g);
+  g.app.scenes.to('TITLE');
 }
 
 function updatePlaying(g: Game, dt: number): void {

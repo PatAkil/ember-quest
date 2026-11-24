@@ -37,7 +37,7 @@ const battleFixture = () => ({
   state: { rampStacks: 2, lastScope: 'SPELL', actionsTaken: 4, intent: 'HEAVY', guarding: false, guardChain: 1, riposte: true, aegis: 0, calm: 7, foeMark: 31, turn: 5 },
 });
 
-function liveRun(sim, depth) {
+export function liveRun(sim, depth) {
   const source = sim.createSeededRng(depth * 101);
   const n = (depth - 1) * 4 + 1;
   const depthPlan = sim.planDepth(depth, source.next);

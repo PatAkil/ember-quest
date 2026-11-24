@@ -20,7 +20,7 @@ export const isCommand = (action: HeroAction): action is Verb => VERBS.includes(
 const QUIET: Omit<HeroActResult, 'text' | 'hits'> = {
   healed: 0, mpRestored: 0, enemyDefeated: false, crit: false,
   broke: false, weak: false, resisted: false, guarded: false, missed: false, burned: false,
-  thorns: 0, heroDead: false, revived: false, burnTick: 0, burnText: '',
+  thorns: 0, thornsText: '', heroDead: false, revived: false, burnTick: 0, burnText: '',
 };
 
 export const heroResult = (text: string, over: Partial<HeroActResult> = {}): HeroActResult =>
@@ -34,7 +34,8 @@ function guard(_hero: Hero, battle: BattleState): HeroActResult {
 function potion(hero: Hero, battle: BattleState): HeroActResult {
   if (hero.potions <= 0) {return heroResult('NO POTIONS LEFT!');}
   const d = derive(hero);
-  const healed = Math.min(Math.round(d.maxHp * POTION_HEAL), Math.max(0, d.maxHp - hero.hp));
+  if (hero.hp >= d.maxHp) {return heroResult('YOUR HP IS ALREADY FULL!');}
+  const healed = Math.min(Math.round(d.maxHp * POTION_HEAL), d.maxHp - hero.hp);
   hero.potions -= 1;
   hero.hp += healed;
   battle.actionsTaken += 1;

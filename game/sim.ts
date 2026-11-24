@@ -10,6 +10,7 @@ export {
 } from './sim/gear';
 export {
   canAfford,
+  canDrinkPotion,
   createHero,
   derive,
   enterActRecovery,

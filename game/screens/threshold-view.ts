@@ -63,12 +63,18 @@ function drawBigChoices(ctx: Ctx, cursor: number, ready: boolean): void {
   });
 }
 
-const UNCHOSEN: readonly Ink[] = [
-  { text: 'TWO PATHS - NO TURNING BACK', color: C_TEXT },
-  { text: 'ASCEND ENDS THE RUN', color: C_DIM },
-  { text: 'DESCEND GOES DEEPER', color: C_DIM },
-  { text: 'UP/DOWN TO CHOOSE', color: C_ACCENT },
-];
+const NUDGE_SHOWN = 1.2;
+
+function unchosen(g: Game): Ink[] {
+  const nudged = g.threshold.refusedAt >= 0 && g.clock - g.threshold.refusedAt < NUDGE_SHOWN;
+  const prompt = nudged ? { text: 'CHOOSE: UP / DOWN', color: blinkHz(g.clock, 4) ? C_WARN : C_TEXT } : { text: 'UP/DOWN TO CHOOSE', color: C_ACCENT };
+  return [
+    { text: 'TWO PATHS - NO TURNING BACK', color: C_TEXT },
+    { text: 'UP: ASCEND ENDS THE RUN', color: C_DIM },
+    { text: 'DOWN: DESCEND GOES DEEPER', color: C_DIM },
+    prompt,
+  ];
+}
 
 function headline(depth: number): string {
   return depth <= 1 ? 'THE SERAPH IS NO MORE' : `DEPTH ${String(depth)} CONQUERED`;
@@ -109,6 +115,6 @@ export function renderThreshold(g: Game): void {
   drawCommandBand(ctx);
   drawBigChoices(ctx, t.cursor, ready);
   const choice = THRESHOLD_CHOICES[t.cursor];
-  const lines = choice ? [...choiceLines(g, choice), promptInk(g, ready, 'CHOOSE')] : UNCHOSEN;
+  const lines = choice ? [...choiceLines(g, choice), promptInk(g, ready, `CHOOSE ${choice}`)] : unchosen(g);
   drawDetail(ctx, lines, DETAIL_X);
 }

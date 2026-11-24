@@ -8,7 +8,7 @@ import type { PopAnchor } from './pops';
 import { ACTOR_PX, ENEMY_FRONT, ENEMY_MIN_X, FLOOR_Y, H, HERO_H, HERO_W, HERO_X, W } from './theme';
 import type { Point } from './theme';
 import { depthOf } from './sim';
-import { biomeLook } from './state';
+import { biomeLook, shownAct } from './state';
 import type { Game } from './state';
 
 type Ctx = CanvasRenderingContext2D;
@@ -142,7 +142,7 @@ function depthCast(n: number): DepthCast | null {
 }
 
 function castOver(g: Game, area: { y: number; h: number }): void {
-  const cast = depthCast(g.n);
+  const cast = depthCast(shownAct(g).n);
   if (!cast) {return;}
   const ctx = g.app.pc.ctx;
   ctx.globalAlpha = cast.alpha; ctx.fillStyle = cast.color;
@@ -151,7 +151,7 @@ function castOver(g: Game, area: { y: number; h: number }): void {
 }
 
 export function renderBiomeBackdrop(g: Game, dim = 1, showSun = true): void {
-  const draw = BACKDROPS[g.plan.biomeIndex] ?? templeBackdrop;
+  const draw = BACKDROPS[shownAct(g).plan.biomeIndex] ?? templeBackdrop;
   const ctx = g.app.pc.ctx;
   draw({ ctx, clock: g.clock, dim, showSun });
   ctx.globalAlpha = 1;
@@ -159,7 +159,7 @@ export function renderBiomeBackdrop(g: Game, dim = 1, showSun = true): void {
 }
 
 function drawAbyssRim(g: Game): void {
-  const rim = depthCast(g.n)?.rim;
+  const rim = depthCast(shownAct(g).n)?.rim;
   if (rim === undefined) {return;}
   const ctx = g.app.pc.ctx;
   ctx.fillStyle = rim; ctx.fillRect(0, FLOOR_Y, W, 1);

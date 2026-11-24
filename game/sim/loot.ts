@@ -137,24 +137,44 @@ function starterWeapons(hero: Hero, act: number): Item[] {
 const ownsWeapon = (hero: Hero): boolean =>
   hero.equipment.WEAPON !== undefined || hero.pack.some((o) => o.item.slot === 'WEAPON');
 
-export function ensureStarterWeapon(offers: LootOffer[], hero: Hero, act: number, rng: Rng): void {
-  if (ownsWeapon(hero)) {return;}
+const STARTER_N = 0;
+
+const needsStarter = (hero: Hero, n: number): boolean => n === STARTER_N && !ownsWeapon(hero);
+
+const rarityRank = (offer: LootOffer): number => (offer.kind === 'ITEM' ? RARITIES.indexOf(offer.item.rarity) : -1);
+
+function weakestCard(offers: readonly LootOffer[]): number {
+  let best = -1;
+  for (const [i, o] of offers.entries()) {
+    if (o.kind === 'SCROLL') {continue;}
+    const chosen = offers[best];
+    if (!chosen || rarityRank(o) <= rarityRank(chosen)) {best = i;}
+  }
+  return best;
+}
+
+function starterSlot(offers: readonly LootOffer[], want: number): number {
+  if (offers.length < want) {return offers.length;}
+  return weakestCard(offers);
+}
+
+export function ensureStarterWeapon(offers: LootOffer[], hero: Hero, ref: { n: number; want: number }, rng: Rng): void {
+  if (!needsStarter(hero, ref.n)) {return;}
   if (offers.some((o) => o.kind === 'ITEM' && o.item.slot === 'WEAPON')) {return;}
-  const starters = starterWeapons(hero, act);
-  if (!isNonEmpty(starters)) {return;}
-  const lastItem = offers.reduce((last, o, i) => (o.kind === 'ITEM' ? i : last), -1);
-  const slot = lastItem >= 0 ? lastItem : Math.min(offers.length, MAX_OFFERS - 1);
+  const starters = starterWeapons(hero, ref.n);
+  const slot = starterSlot(offers, Math.min(MAX_OFFERS, Math.max(1, ref.want)));
+  if (!isNonEmpty(starters) || slot < 0) {return;}
   offers[slot] = { kind: 'ITEM', item: pick(starters, rng) };
 }
 
 const noDrop = (mods: PactTotals): boolean => mods.fightDrops <= 0;
 
-function fightWithheld(hero: Hero, rng: Rng): boolean {
-  if (noDrop(pactMods(hero))) {return true;}
-  if (!ownsWeapon(hero)) {
+function fightWithheld(hero: Hero, n: number, rng: Rng): boolean {
+  if (needsStarter(hero, n)) {
     hero.dryFights = 0;
     return false;
   }
+  if (noDrop(pactMods(hero))) {return true;}
   return fightIsDry(hero, rng);
 }
 
@@ -165,9 +185,10 @@ function bossOffers(ref: ActRef, hero: Hero, rng: Rng): LootOffer[] {
 }
 
 export function rollLoot(source: LootSource, ref: ActRef, hero: Hero, rng: Rng): LootOffer[] {
-  if (source === 'FIGHT' && fightWithheld(hero, rng)) {return [];}
-  const offers = source === 'BOSS' ? bossOffers(ref, hero, rng) : rollRoomLoot(source, ref.n, hero, rng);
-  ensureStarterWeapon(offers, hero, ref.n, rng);
+  if (source === 'FIGHT' && fightWithheld(hero, ref.n, rng)) {return [];}
+  if (source === 'BOSS') {return bossOffers(ref, hero, rng).slice(0, MAX_OFFERS);}
+  const offers = rollRoomLoot(source, ref.n, hero, rng);
+  ensureStarterWeapon(offers, hero, { n: ref.n, want: cardsFor(source, pactMods(hero)) }, rng);
   return offers.slice(0, MAX_OFFERS);
 }
 

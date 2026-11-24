@@ -1,6 +1,6 @@
 import { PICO8 } from '../../engine';
 import { at } from '../lookup';
-import { armA, armed, dirEdge, resetCursorEdge, takeA, wrapCursor } from '../state';
+import { armA, armed, dirEdge, resetCursorEdge, takeA } from '../state';
 import type { Arming, Game, ThresholdChoice } from '../state';
 import { C_ACCENT, W } from '../theme';
 
@@ -8,26 +8,29 @@ export const THRESHOLD_CHOICES: readonly ThresholdChoice[] = ['ASCEND', 'DESCEND
 export const THRESHOLD_ARM = 1.0;
 export const PACT_ARM = 0.5;
 
-interface ChoiceStep { cursor: number; chosen: boolean }
+interface ChoiceStep { cursor: number; chosen: boolean; refused: boolean }
 export const END_ARM = 1.0;
 
 const NO_CHOICE = -1;
 
 function nextChoice(cursor: number, dy: number, count: number): number {
   if (cursor === NO_CHOICE) {return dy < 0 ? 0 : count - 1;}
-  return wrapCursor(cursor, dy, count);
+  return Math.min(count - 1, Math.max(0, cursor + dy));
 }
 
 export function stepChoice(g: Game, cursor: number, count: number, arming: Arming): ChoiceStep {
   const dy = dirEdge(g);
-  if (dy) {g.app.audio.play('blip');}
   const next = dy ? nextChoice(cursor, dy, count) : cursor;
+  if (next !== cursor) {g.app.audio.play('blip');}
   const taken = takeA(g);
-  return { cursor: next, chosen: taken && armed(g, arming) && next !== NO_CHOICE };
+  const chosen = taken && armed(g, arming) && next !== NO_CHOICE;
+  const refused = taken && !chosen;
+  if (refused) {g.app.audio.play('blip');}
+  return { cursor: next, chosen, refused };
 }
 
 export function startThreshold(g: Game, choose: (choice: ThresholdChoice) => void): void {
-  g.threshold = { cursor: NO_CHOICE, openedAt: g.clock, choose };
+  g.threshold = { cursor: NO_CHOICE, openedAt: g.clock, refusedAt: -1, choose };
   g.subScene = 'THRESHOLD';
   g.app.audio.play('pickup');
   g.app.juice.flash(C_ACCENT, 0.35);
@@ -52,6 +55,7 @@ export function updateThreshold(g: Game): void {
   const t = g.threshold;
   const step = stepChoice(g, t.cursor, THRESHOLD_CHOICES.length, { openedAt: t.openedAt, delay: THRESHOLD_ARM });
   t.cursor = step.cursor;
+  if (step.refused) {t.refusedAt = g.clock;}
   if (!step.chosen) {return;}
   const choice = at(THRESHOLD_CHOICES, step.cursor);
   CHOICE_BEAT[choice](g);

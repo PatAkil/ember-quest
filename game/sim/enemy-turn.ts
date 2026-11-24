@@ -32,10 +32,12 @@ function movesOf(enemy: EnemyInstance): MoveId[] {
 
 const CARRIED_HEAVY = -1;
 
+const canMend = (enemy: EnemyInstance): boolean => !enemy.mended && enemy.hp < enemy.maxHp;
+
 export function nextIntent(enemy: EnemyInstance): MoveId {
   if (enemy.cycleIndex === CARRIED_HEAVY) {return 'HEAVY';}
   const move = movesOf(enemy)[enemy.cycleIndex] ?? 'STRIKE';
-  return move === 'MEND' && enemy.mended ? 'STRIKE' : move;
+  return move === 'MEND' && !canMend(enemy) ? 'STRIKE' : move;
 }
 
 function nextIndex(enemy: EnemyInstance, shown: MoveId, phaseChanged: boolean): number {
@@ -186,6 +188,7 @@ function wardUp(t: Turn): EnemyActResult {
 
 function mendUp(t: Turn): EnemyActResult {
   const enemy = t.battle.enemy;
+  if (!canMend(enemy)) {return landHit({ ...t, move: 'STRIKE' });}
   const fraction = enemy.def.kind === 'BOSS' ? BOSS_MEND_FRACTION : MEND_FRACTION;
   const healed = Math.min(Math.round(enemy.maxHp * fraction), enemy.maxHp - enemy.hp);
   enemy.hp += healed;

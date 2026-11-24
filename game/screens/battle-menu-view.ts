@@ -1,7 +1,6 @@
 import { BUTTON_KEY, PICO8, SAFE_MARGIN, drawText, drawTextCentered, textWidth } from '../../engine';
-import { EMBER_MAX } from '../types';
 import { SPELLS } from '../data';
-import { canAfford, knownSpells, spellCost } from '../sim';
+import { canAfford, canDrinkPotion, knownSpells, spellCost } from '../sim';
 import { noteText } from '../fx';
 import type { Game } from '../state';
 import { BAND_Y, C_ACCENT, C_DIM, C_EMBER, C_FAINT, C_GOOD, C_SEL_BAR, C_TEXT, C_WARN, H, W } from '../theme';
@@ -56,8 +55,8 @@ function weakNote(g: Game, cmd: TopCommand): { note: string; noteColor?: string 
 function topCell(g: Game, cmd: TopCommand, sel: boolean): Cell {
   const hero = g.hero;
   const inset = sel && hasColumnHint(g.battle.topCursor) ? 5 : 0;
-  if (cmd === 'POTION') {return { label: `POTION X${hero.potions}`, note: '', color: labelColor(sel, hero.potions > 0), sel };}
-  if (cmd === 'BURST') {return { label: 'BURST', note: '', color: labelColor(sel, hero.ember >= EMBER_MAX, true), sel };}
+  if (cmd === 'POTION') {return { label: `POTION X${hero.potions}`, note: '', color: labelColor(sel, canDrinkPotion(hero)), sel };}
+  if (cmd === 'BURST') {return { label: 'BURST', note: '', color: labelColor(sel, canAfford(hero, 'BURST'), true), sel };}
   if (cmd === 'MAGIC') {return { label: 'MAGIC', ...weakNote(g, cmd), color: labelColor(sel, knownSpells(hero).length > 0), sel, inset };}
   return { label: cmd, ...weakNote(g, cmd), color: labelColor(sel, true), sel, inset };
 }
@@ -88,7 +87,8 @@ function drawMagic(g: Game): void {
     const sel = page * PAGE_SIZE + i === g.battle.magicCursor;
     const ready = canAfford(g.hero, id);
     const color = ready && !sel && weak.includes(id) ? C_GOOD : labelColor(sel, ready);
-    drawCell(ctx, i, { label: SPELLS[id].name, note: `${spellCost(g.hero, id)}MP`, color, sel });
+    const noteColor = ready ? undefined : C_WARN;
+    drawCell(ctx, i, { label: SPELLS[id].name, note: `${spellCost(g.hero, id)}MP`, color, sel, noteColor });
   });
 }
 

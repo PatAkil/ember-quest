@@ -127,6 +127,7 @@ async function look(page, errors) {
     errors.push('no live <canvas> after module ran');
   }
   else {result.state = await drive(page);}
+  if (result.state?.drift > 0) {errors.push(`battle replay drifted from the committed turn ${String(result.state.drift)} time(s)`);}
   result.shot = await capture(page, canvas);
   result.ok = Boolean(canvas) && errors.length === 0;
   return result;

@@ -90,6 +90,7 @@ function wardRules(sim) {
 function mendRules(sim) {
   const f = fightOf(sim, 'SLIME', 3);
   f.enemy.hp = f.enemy.maxHp - 20;
+  f.battle.intent = 'MEND';
   const r = sim.enemyAct(f.hero, f.battle, seeded(sim, 1));
   assert.equal(r.healed, Math.min(20, Math.round(f.enemy.maxHp * 0.1)), 'MEND heals 10 %');
   for (let i = 0; i < 3; i++) {sim.enemyAct(f.hero, f.battle, seeded(sim, 1));}
@@ -198,7 +199,7 @@ function foeRollsIgnoreTheHero(sim) {
     assert.deepEqual(sim.resolveTurn(again.hero, again.battle, 'ATTACK', seed), ra, `seed ${seed}: the same turn resolved twice differs`);
   }
   assert.ok(compared > 400, `only ${compared} comparable turns`);
-  return `${compared} seeds: the foe's turn-N roll is the same whatever the hero chose; a reloaded turn replays exactly`;
+  return `${compared} seeds: the foe's turn-N roll is the same whatever the hero chose; the same turn resolved twice from a copy is identical`;
 }
 
 function streamsDiffer(sim) {

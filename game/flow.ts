@@ -15,6 +15,7 @@ import type { BattleWin, Game, MapNode, RoomType, ThresholdChoice } from './stat
 import { newStamp } from './storage';
 import { forgetRun, keepBest, persist, persistBattle, persistReward, settleRoom } from './persist';
 import { startBattle } from './screens/battle';
+import { settleCommitted } from './screens/battle-commit';
 import { popHero } from './screens/battle-fx';
 import type { PopSpec } from './screens/battle-fx';
 import { C_HP, C_MP } from './theme';
@@ -28,7 +29,17 @@ import { startThreshold } from './screens/threshold';
 
 export type FightSource = Exclude<RewardSource, 'EVENT'>;
 
+function showScenery(g: Game): void {
+  g.app.particles.setAmbient(biomeLook(g).ambient, biomeLook(g).ambientColor);
+}
+
+function releaseScenery(g: Game): void {
+  g.scenery = null;
+  showScenery(g);
+}
+
 export function backToMap(g: Game): void {
+  if (g.scenery) {releaseScenery(g);}
   g.subScene = 'MAP';
   resetCursorEdge(g);
   armA(g);
@@ -55,8 +66,10 @@ export function enterAct(g: Game): void {
   g.map.curStage = -1;
   g.map.reachable = (g.map.stages[0] ?? []).map((_, i) => i);
   g.map.cursor = 0;
-  g.app.particles.setAmbient(biomeLook(g).ambient, biomeLook(g).ambientColor);
-  backToMap(g);
+  showScenery(g);
+  g.subScene = 'MAP';
+  resetCursorEdge(g);
+  armA(g);
   persist(g, { at: 'MAP' });
 }
 
@@ -126,9 +139,10 @@ export function bossExit(g: Game): LootExit {
   const move = (): void => {
     if (moved) {return;}
     moved = true;
+    g.scenery = { n: g.n, plan: g.plan };
     nextAct(g);
   };
-  return { settle: move, done: () => { move(); showActCard(g); } };
+  return { settle: move, done: () => { move(); releaseScenery(g); showActCard(g); } };
 }
 
 export const roomExit = (g: Game): LootExit => ({ settle: () => { settleRoom(g); }, done: () => { advanceStage(g); } });
@@ -268,6 +282,7 @@ function placeRun(g: Game, n: number, clears: number): void {
 }
 
 export function resetRunScreens(g: Game): void {
+  g.scenery = null;
   g.dying = false; g.heroDown = false; g.abandoned = false;
   g.battle.enemy = null; g.battle.state = null;
   clearPops(g);
@@ -296,6 +311,7 @@ export function startFresh(g: Game): void {
 }
 
 export function abandonRun(g: Game): void {
+  settleCommitted(g);
   g.abandoned = true;
   g.app.scenes.to('GAME_OVER');
 }

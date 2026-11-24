@@ -145,11 +145,13 @@ export const isSpell = (action: HeroAction): action is SpellId => !COMMANDS.incl
 
 export const isGuardAction = (action: HeroAction): boolean => action === 'GUARD' || (isSpell(action) && SPELLS[action].guard !== undefined);
 
+export const canDrinkPotion = (hero: Hero): boolean => hero.potions > 0 && hero.hp < derive(hero).maxHp;
+
 const COMMAND_READY: Record<HeroCommand, (hero: Hero) => boolean> = {
   ATTACK: () => true,
   GUARD: () => true,
   BURST: canBurst,
-  POTION: (hero) => hero.potions > 0,
+  POTION: (hero) => canDrinkPotion(hero),
 };
 
 export function canAfford(hero: Hero, action: HeroAction): boolean {

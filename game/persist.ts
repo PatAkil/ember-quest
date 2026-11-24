@@ -1,5 +1,5 @@
 import type { Rarity } from './types';
-import { saveRun } from './sim';
+import { actInDepth, depthOf, saveRun, scoreAfterDeath } from './sim';
 import type { RewardSource, RunSnapshot, SavedBattle, SavedStep } from './sim';
 import { at } from './lookup';
 import { stageAt } from './state';
@@ -39,6 +39,12 @@ export function forgetRun(g: Game): void {
 
 export function keepBest(g: Game): void {
   if (realRun(g)) {storeBest(g.best);}
+}
+
+export function keepDeathBest(g: Game): void {
+  const score = scoreAfterDeath(g);
+  if (!realRun(g) || score <= g.best.score) {return;}
+  storeBest({ score, depth: depthOf(g.n), act: actInDepth(g.n) + 1 });
 }
 
 function roomSpot(g: Game): { stage: number; slot: number } | null {

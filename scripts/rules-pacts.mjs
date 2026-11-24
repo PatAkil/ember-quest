@@ -104,7 +104,7 @@ function lootMods(sim) {
   const miser = pacted(sim, ['MISER']);
   const rng = sim.createSeededRng(8).next;
   const plan = sim.planDepth(1, rng)[0];
-  for (let i = 0; i < 50; i++) {assert.deepEqual(sim.rollLoot('FIGHT', { n: 0, plan }, miser, rng), [], 'MISER: a FIGHT dropped');}
+  for (let i = 0; i < 50; i++) {assert.deepEqual(sim.rollLoot('FIGHT', { n: 1, plan }, miser, rng), [], 'MISER: a FIGHT dropped');}
   assert.equal(miser.dryFights, 0, 'MISER: pity counter moved');
   const count = (ids, source) => sim.rollLoot(source, { n: 1, plan }, pacted(sim, ids), sim.createSeededRng(2).next).length;
   assert.equal(count(['MISER'], 'LOOT'), count([], 'LOOT') + 1, 'MISER +1 chest card');

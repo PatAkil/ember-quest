@@ -8,6 +8,8 @@ import { depthRules, descentRules } from './rules-descent.mjs';
 import { affixRules } from './rules-affixes.mjs';
 import { pactEffectRules } from './rules-pacts.mjs';
 import { saveRules } from './rules-save.mjs';
+import { replayRules } from './rules-replay.mjs';
+import { guardRules } from './rules-guards.mjs';
 
 const MAP_SEEDS = 5000;
 const RNG_DRAWS = 1000;
@@ -254,12 +256,18 @@ function lootRules(sim) {
 }
 
 function starterRules(sim) {
+  let later = 0;
   rollAll(sim, () => sim.createHero(), (_hero, offers, where) => {
     const items = offers.filter((o) => o.kind === 'ITEM');
-    if (items.length === 0) {return;}
-    assert.ok(items.some((o) => o.item.slot === 'WEAPON'), `${where}: an unarmed hero got no weapon`);
+    const armed = items.some((o) => o.item.slot === 'WEAPON');
+    if (!where.endsWith('act 0') || where.startsWith('BOSS')) {
+      if (!armed) {later++;}
+      return;
+    }
+    assert.ok(items.length === 0 || armed, `${where}: an unarmed hero got no weapon`);
   });
-  return `${LOOT_ROLLS} unarmed rolls: every roll with an item offers a weapon`;
+  assert.ok(later > 0, 'a weapon was forced outside the first act');
+  return `${LOOT_ROLLS} unarmed rolls: every first-act FIGHT, ELITE and chest roll with an item offers a weapon; later acts and boss tables are not forced`;
 }
 
 const POOLS = { normals: ['N1', 'N2', 'N3'], elites: ['E1', 'E2'] };
@@ -299,6 +307,8 @@ const GROUPS = [
   ['pacts', pactEffectRules],
   ['save', saveRules],
   ['turn', turnRules],
+  ['replay', replayRules],
+  ['guards', guardRules],
 ];
 
 await withSim((sim) => {

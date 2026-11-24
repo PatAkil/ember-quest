@@ -27,6 +27,7 @@ interface DevView {
   pacts: PactId[];
   menu: { cursor: number; confirm: boolean; yes: boolean; resume?: string } | null;
   save: { lost: boolean; notice: string | null };
+  drift: number;
 }
 
 interface DevHost {
@@ -177,6 +178,7 @@ function parseParams(): Params {
 }
 
 const menuOf = (v: DevView): { menu?: DevView['menu'] } => (v.menu ? { menu: v.menu } : {});
+const driftOf = (v: DevView): { drift?: number } => (v.drift > 0 ? { drift: v.drift } : {});
 
 function snapshot(v: DevView, seed: number | null): unknown {
   const sub = v.subScene;
@@ -193,6 +195,7 @@ function snapshot(v: DevView, seed: number | null): unknown {
     threshold: sub === 'THRESHOLD' ? { choices: ['ASCEND', 'DESCEND'] } : null,
     pact: sub === 'PACT' ? { offers: v.pacts } : null,
     ...menuOf(v),
+    ...driftOf(v),
     save: v.save,
     map: sub === 'MAP' ? { stage: v.curStage, reachable: v.reachable, stages: v.map.map((st) => st.map((n) => (n.cleared ? `${n.type}*` : n.type))) } : null,
   }));

@@ -59,12 +59,25 @@ function parseStamp(raw: string): RunStamp | null {
   return typeof s.id === 'string' && typeof s.writes === 'number' && Number.isFinite(s.writes) ? { id: s.id, writes: s.writes } : null;
 }
 
-export function storeRun(text: string, stamp: RunStamp): boolean {
+function restoreStamp(previous: string | null): void {
   try {
+    if (previous === null) {localStorage.removeItem(STAMP_KEY);} else {localStorage.setItem(STAMP_KEY, previous);}
+  } catch {
+    return;
+  }
+}
+
+export function storeRun(text: string, stamp: RunStamp): boolean {
+  let previous: string | null = null;
+  let stamped = false;
+  try {
+    previous = localStorage.getItem(STAMP_KEY);
     localStorage.setItem(STAMP_KEY, JSON.stringify(stamp));
+    stamped = true;
     localStorage.setItem(RUN_KEY, text);
     return true;
   } catch {
+    if (stamped) {restoreStamp(previous);}
     return false;
   }
 }

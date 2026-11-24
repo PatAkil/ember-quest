@@ -4,9 +4,8 @@ import { SPELLS } from '../data';
 import { canAfford, createBattle, enemyAct, heroAct, isSpell, spawnFoe, startTurn } from '../sim';
 import { adoptTurn, commitTurn, mirrorRng } from './battle-commit';
 import { BRACE_DUR, bannerBlocks, cue, dismissBanner, fadeProgress, flushFx, resetFx, skipToImpact, updateFx } from '../fx';
-import { biome, foeScale, resetCursorEdge } from '../state';
+import { armA, biome, foeScale, resetCursorEdge, takeA } from '../state';
 import type { BattleWin, Game } from '../state';
-import { forgetRun } from '../persist';
 import { C_ACCENT, C_DIM, C_DMG_TAKEN, C_HP, C_LOG_HURT, C_MP, C_TEXT, C_WARN, heroPos } from '../theme';
 import { MOTES_FLIGHT, deathFx, lastHitDelay, defeatFx, entranceFx, heroImpact, heroWindup, popHero, prepareFx, regenAura } from './battle-fx';
 import { enemyImpact, enemyWindup, reviveFx } from './battle-fx-enemy';
@@ -30,6 +29,7 @@ function openBattle(g: Game, state: BattleState, win: BattleWin): void {
   resetFx(g);
   clampMenuCursor(g);
   resetCursorEdge(g);
+  armA(g);
 }
 
 export function startBattle(g: Game, id: string, win: BattleWin, affixes: readonly AffixId[] = []): void {
@@ -63,7 +63,7 @@ export function onQueueDone(g: Game): void {
   const b = g.battle;
   b.bufferedA = false;
   if (b.outcome === 'LOST') {return;}
-  adoptTurn(g, b.outcome === 'NONE');
+  adoptTurn(g);
   if (b.outcome === 'WON') {
     b.outcome = 'NONE';
     const cb = b.onWon;
@@ -74,6 +74,7 @@ export function onQueueDone(g: Game): void {
     return;
   }
   b.phase = 'MENU';
+  armA(g);
   clampMenuCursor(g);
 }
 
@@ -84,7 +85,7 @@ const DEFEAT_SAY_DELAY = 0.4;
 
 function enemyDefeated(g: Game, e: EnemyInstance, lastHit = 0): void {
   g.battle.onKill();
-  cue(g, lastHit, () => { adoptTurn(g, false); });
+  cue(g, lastHit, () => { adoptTurn(g); });
   cue(g, lastHit, () => {
     defeatFx(g, e);
     pushPop(g.pops, scoreSpot(), '+100', C_ACCENT);
@@ -105,7 +106,7 @@ function heroDies(g: Game, text: string): void {
   juice.flash(PICO8[8], 0.45, { x: hp.x, y: hp.y });
   juice.hitStop(0.4);
   g.dying = true; g.heroDown = true;
-  forgetRun(g);
+  adoptTurn(g);
   g.battle.outcome = 'LOST';
   deathFx(g);
 }
@@ -230,11 +231,18 @@ function heroTail(g: Game, landed: Landed): void {
 
 function affixFx(g: Game, r: HeroActResult, slot: number): boolean {
   if (r.missed) {fxSlipsAway(g, slot);}
-  if (r.thorns > 0) {fxThorns(g, r.thorns, r.hits.length);}
   const byBurn = r.burnTick > 0;
-  if (r.revived && !byBurn) {reviveFx(g);}
-  if (r.heroDead && !byBurn) { heroDies(g, r.text); return true; }
+  const byThorns = r.heroDead && !byBurn;
+  if (r.thorns > 0) {fxThorns(g, { amount: r.thorns, hits: r.hits.length, then: () => { thornsLine(g, r, byThorns); } });}
+  if (r.revived && (!byBurn || r.heroDead)) {reviveFx(g);}
+  if (byThorns) { noteLog(g, r.thornsText); heroDies(g, r.thornsText || r.text); return true; }
   return false;
+}
+
+function thornsLine(g: Game, r: HeroActResult, fatal: boolean): void {
+  if (fatal || !r.thornsText) {return;}
+  say(g, r.thornsText, r.revived && r.burnTick === 0 ? C_ACCENT : C_LOG_HURT);
+  noteLog(g, r.thornsText);
 }
 
 const elementOf = (action: HeroAction) => (isSpell(action) ? SPELLS[action].element : undefined);
@@ -293,10 +301,11 @@ function consumeA(g: Game): boolean {
 function updateMenu(g: Game): void {
   if (bannerBlocks(g)) {
     resetCursorEdge(g);
-    if (consumeA(g)) {dismissBanner(g);}
+    if (consumeA(g)) { dismissBanner(g); armA(g); }
     return;
   }
-  const chosen = menuChoice(g, consumeA(g));
+  g.battle.bufferedA = false;
+  const chosen = menuChoice(g, takeA(g));
   if (chosen) {useAction(g, chosen);}
 }
 

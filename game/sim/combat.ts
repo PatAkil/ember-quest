@@ -24,7 +24,7 @@ import { findEffect } from './gear';
 import { derive, isGuardAction, isSpell, spellCost } from './hero';
 import { pactDamage } from './pacts';
 import { burnChance, gearPower, heroElement, riposteMult } from './power';
-import { applyBurn, heroBurnTick, heroFalls, resistOf, tickWard } from './status';
+import { applyBurn, heroBurnTick, heroFalls, resistOf, tickWard, type Fall } from './status';
 import { jitter, type EffectOf } from './util';
 
 type Scope = 'ATTACK' | 'SPELL';
@@ -259,14 +259,20 @@ function act(hero: Hero, battle: BattleState, action: HeroAction, rng: Rng): Her
   return action === 'ATTACK' ? strikeAct(hero, battle, action, rng) : spellAct(hero, battle, action, rng);
 }
 
+const THORNS_LINE: Record<Fall, (n: string) => string> = {
+  STANDING: (n) => `THORNS BITE YOU FOR ${n}`,
+  DEAD: (n) => `THE THORNS TAKE YOU! (${n})`,
+  REVIVED: (n) => `THE THORNS FELL YOU (${n}) - YOU RISE!`,
+};
+
 function backlash(hero: Hero, battle: BattleState, result: HeroActResult): HeroActResult {
   const dealt = result.hits.reduce((sum, h) => sum + h.dmg, 0);
   const thorns = result.enemyDefeated ? 0 : thornsDamage(battle.enemy, dealt, derive(hero).maxHp);
   if (thorns <= 0) {return result;}
   hero.hp -= thorns;
   const fall = heroFalls(hero);
-  const text = `${result.text.slice(0, 40)} THORNS ${String(thorns)}`;
-  return { ...result, text: text.slice(0, 52), thorns, heroDead: fall === 'DEAD', revived: fall === 'REVIVED' };
+  const thornsText = THORNS_LINE[fall](String(thorns));
+  return { ...result, thorns, thornsText, heroDead: fall === 'DEAD', revived: fall === 'REVIVED' };
 }
 
 const dealsDamage = (action: HeroAction): boolean =>

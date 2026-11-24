@@ -1,9 +1,9 @@
-import type { BattleState, EnemyInstance, Hero, HeroAction, Rng, TurnResult } from '../types';
+import type { BattleState, Burn, EnemyInstance, Hero, HeroAction, Rng, TurnResult } from '../types';
 import { must } from '../lookup';
 import { resolveTurn, turnRng } from '../sim';
 import type { TurnStream } from '../sim';
 import type { CommittedTurn, Game, TurnLedger } from '../state';
-import { forgetRun, persistBattle } from '../persist';
+import { forgetRun, keepDeathBest, persistBattle } from '../persist';
 
 type Ledger = TurnLedger;
 
@@ -34,7 +34,7 @@ function install(g: Game, l: Ledger): void {
 }
 
 function saveOutcome(g: Game, r: TurnResult): void {
-  if (r.outcome === 'LOST') { forgetRun(g); return; }
+  if (r.outcome === 'LOST') { forgetRun(g); keepDeathBest(g); return; }
   if (r.outcome === 'WON') { g.battle.onKill(); return; }
   persistBattle(g);
 }
@@ -58,13 +58,37 @@ export function mirrorRng(g: Game, stream: TurnStream): Rng {
   return turn === undefined ? g.rng : turnRng(g.roomSeed, turn, stream);
 }
 
-const drifted = (g: Game, after: Ledger): boolean =>
-  g.hero.hp !== after.hero.hp || g.hero.mp !== after.hero.mp || g.battle.enemy?.hp !== after.enemy.hp;
+const burnOf = (b: Burn | null): string => (b ? `${String(b.turns)}/${String(b.perTurn)}` : '-');
 
-export function adoptTurn(g: Game, checked: boolean): void {
+function heroPrint(h: Hero): string {
+  return [h.hp, h.mp, h.potions, h.ember, burnOf(h.burn)].join(':');
+}
+
+function foePrint(e: EnemyInstance | null): string {
+  return e ? [e.hp, e.staggered, burnOf(e.burn)].join(':') : '-';
+}
+
+const drifted = (g: Game, after: Ledger): boolean =>
+  heroPrint(g.hero) !== heroPrint(after.hero) || foePrint(g.battle.enemy) !== foePrint(after.enemy);
+
+let drift = 0;
+
+export const driftCount = (): number => drift;
+
+export function adoptTurn(g: Game): void {
   const c = g.battle.committed;
   if (!c) {return;}
   g.battle.committed = null;
-  if (checked && drifted(g, c.after)) {reportError(new Error(`[battle] turn ${String(c.result.turn)} replay drifted from the committed result`));}
+  if (drifted(g, c.after)) {
+    drift++;
+    reportError(new Error(`[battle] turn ${String(c.result.turn)} replay drifted from the committed result`));
+  }
+  install(g, c.after);
+}
+
+export function settleCommitted(g: Game): void {
+  const c = g.battle.committed;
+  if (!c) {return;}
+  g.battle.committed = null;
   install(g, c.after);
 }

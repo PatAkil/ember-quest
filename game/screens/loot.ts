@@ -1,5 +1,6 @@
 import { BUTTON_KEY } from '../../engine';
 import { SPELLS } from '../data';
+import { RARITIES } from '../types';
 import type { Item, LootOffer, LootSource, OwnedItem, SpellId } from '../types';
 import {
   applyOffer, awakenPreview, compareOffer, describeItem, describeOffer, displayName, effectiveBlurb, noteDeclinedScrolls,
@@ -94,13 +95,25 @@ function dropRow(owned: OwnedItem, note: string): PickRow {
   };
 }
 
+const worth = (o: OwnedItem): number => RARITIES.indexOf(o.item.rarity) * 100 + o.level;
+
+function leastValuable(candidates: readonly OwnedItem[]): number {
+  let best = candidates.length - 1;
+  candidates.forEach((o, i) => {
+    const pick = candidates[best];
+    if (pick && worth(o) < worth(pick)) {best = i;}
+  });
+  return best;
+}
+
 function chooseDrop(g: Game, item: Item, r: AppliedOffer & { overflow: OwnedItem }): void {
   const entering = r.overflow;
+  const candidates = [...g.hero.pack, entering];
   const rows = [...g.hero.pack.map((o) => dropRow(o, 'PACK')), dropRow(entering, r.stowed ? 'NEW' : 'OLD')];
   openPick(g, {
     title: 'PACK FULL  DROP WHICH?',
     rows,
-    cursor: rows.length - 1,
+    cursor: leastValuable(candidates),
     locked: true,
     onPick: (i) => {
       const dropped = resolveOverflow(g.hero, entering, i);

@@ -64,7 +64,7 @@ export interface GearScreen { cursor: number; refusedAt: number }
 export interface PickRow { icon?: Sprite; name: string; color: string; note: string; detail: string[]; aside?: string }
 export interface EventScreen { def: EventDef; cursor: number; refusedAt: number; onDone: () => void }
 export type ThresholdChoice = 'ASCEND' | 'DESCEND';
-export interface ThresholdScreen { cursor: number; openedAt: number; choose: (choice: ThresholdChoice) => void }
+export interface ThresholdScreen { cursor: number; openedAt: number; refusedAt: number; choose: (choice: ThresholdChoice) => void }
 export interface PactScreen { offers: PactId[]; cursor: number; openedAt: number; onDone: () => void }
 export interface MenuScreen { cursor: number; confirm: boolean; yes: boolean }
 export interface Notice { text: string; at: number }
@@ -83,6 +83,7 @@ export interface Game {
   n: number;
   depthPlan: ActPlan[];
   plan: ActPlan;
+  scenery: ActRef | null;
   won: boolean;
   banked: number;
   descentClears: number | null;
@@ -137,6 +138,7 @@ export function createGame(app: App): Game {
     n: 0,
     depthPlan,
     plan: planOf(depthPlan, 0),
+    scenery: null,
     won: false,
     banked: 0,
     descentClears: null,
@@ -172,15 +174,16 @@ export function createGame(app: App): Game {
     gear: { cursor: 0, refusedAt: -1 },
     pick: { title: '', rows: [], cursor: 0, onPick: noop, onCancel: noop },
     event: { def: at(EVENTS, 0), cursor: 0, refusedAt: -1, onDone: noop },
-    threshold: { cursor: 0, openedAt: 0, choose: noop },
+    threshold: { cursor: 0, openedAt: 0, refusedAt: -1, choose: noop },
     pact: { offers: [], cursor: 0, openedAt: 0, onDone: noop },
     title: { cursor: 0, confirm: false, yes: false },
     pause: { cursor: 0, confirm: false, yes: false },
   };
 }
 
-export const biome = (g: Game) => at(BIOMES, g.plan.biomeIndex);
-export const biomeLook = (g: Game): BiomeLook => at(BIOME_LOOK, g.plan.biomeIndex);
+export const shownAct = (g: Game): ActRef => g.scenery ?? { n: g.n, plan: g.plan };
+export const biome = (g: Game) => at(BIOMES, shownAct(g).plan.biomeIndex);
+export const biomeLook = (g: Game): BiomeLook => at(BIOME_LOOK, shownAct(g).plan.biomeIndex);
 export const actRef = (g: Game): ActRef => ({ n: g.n, plan: g.plan });
 export const foeScale = (g: Game): FoeScale & { plan: ActPlan } => ({ n: g.n, clears: g.clears, descentClears: g.descentClears, plan: g.plan });
 

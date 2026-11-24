@@ -91,7 +91,7 @@ function tryRevive(hero: Hero, d: Derived): boolean {
   return true;
 }
 
-type Fall = 'STANDING' | 'REVIVED' | 'DEAD';
+export type Fall = 'STANDING' | 'REVIVED' | 'DEAD';
 
 export function heroFalls(hero: Hero, d: Derived = derive(hero)): Fall {
   if (hero.hp > 0) {return 'STANDING';}

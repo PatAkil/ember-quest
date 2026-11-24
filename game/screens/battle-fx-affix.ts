@@ -15,8 +15,10 @@ export function fxSlipsAway(g: Game, slot: number): void {
   g.app.audio.play('whoosh');
 }
 
-export function fxThorns(g: Game, amount: number, hits: number): void {
+export function fxThorns(g: Game, bite: { amount: number; hits: number; then: () => void }): void {
+  const { amount, hits, then } = bite;
   cue(g, lastHitDelay(hits) + THORN_BEAT, () => {
+    then();
     const p = centreOf(g, 'HERO');
     popOn(g, { actor: 'HERO', slot: 1, scale: 1 }, `THORNS -${String(amount)}`, C_DMG_TAKEN);
     addTint(g, 'HERO', PICO8[7], 0.06);

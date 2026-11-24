@@ -24,11 +24,16 @@ const INTENT: Record<MoveId, IntentLook> = {
 const HEX_INTENT = look('HEXES', 'IT READIES A HEX', C_HEX);
 const STAGGER_INTENT = look('STAGGERED', 'IT IS STAGGERED - IT LOSES ITS TURN', C_DIM);
 
-const PUNISH_HEAVY = look('HEAVY BLOW', 'HEAVY NEXT: GUARD, OR BREAK IT WITH A STRONG HIT', C_WARN, true);
+const breakNeed = (e: EnemyInstance): number => Math.ceil(BREAK_AT[e.def.kind] * e.maxHp);
+
+function heavyHint(e: EnemyInstance, hero: Hero): IntentLook {
+  const how = punishes(hero) ? 'ANY HIT' : 'WEAK HIT/BURST';
+  return look('HEAVY BLOW', `HEAVY NEXT: GUARD, OR BREAK: ${how} ${String(breakNeed(e))}+`, C_WARN, true);
+}
 
 export function intentHint(e: EnemyInstance, state: BattleState, hero: Hero): IntentLook {
   const shown = intentLook(e, state);
-  return shown === INTENT.HEAVY && punishes(hero) ? PUNISH_HEAVY : shown;
+  return shown === INTENT.HEAVY ? heavyHint(e, hero) : shown;
 }
 
 export function intentLook(e: EnemyInstance, state: BattleState): IntentLook {
@@ -70,9 +75,10 @@ const burstMult = (hero: Hero): number => BURST_MULT * burstPower(hero);
 const burstTotal = (c: Ctx): number => Math.max(c.d.atk, c.d.mag) * burstMult(c.hero);
 
 function breakLine(c: Ctx, total: number, eligible: boolean): PreviewLine | null {
-  if (!c.heavy || !eligible) {return null;}
-  const enough = total >= BREAK_AT[c.e.def.kind] * c.e.maxHp;
-  return enough ? [{ text: 'BREAKS IT', color: C_ACCENT }] : [{ text: 'TOO WEAK TO BREAK', color: C_DIM }];
+  if (!c.heavy) {return null;}
+  if (!eligible) {return [{ text: 'NOT WEAK: NO BREAK', color: C_WARN }];}
+  const enough = total >= breakNeed(c.e);
+  return enough ? [{ text: 'BREAKS IT', color: C_ACCENT }] : [{ text: 'TOO WEAK TO BREAK', color: C_WARN }];
 }
 
 function resistSegs(c: Ctx, st: Strike): Seg[] {

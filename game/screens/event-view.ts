@@ -6,7 +6,7 @@ import { derive, effectIsGain, effectWords, eventOptionBlocker } from '../sim';
 import { renderTableau } from '../backdrop';
 import type { Game } from '../state';
 import { BAND_Y, C_ACCENT, C_BORDER, C_DIM, C_FAINT, C_GOOD, C_LOG_HURT, C_PANEL, C_SEL_BAR, C_TEXT, C_WARN, HERO_W, HERO_X, W } from '../theme';
-import { blinkHz, drawCommandBand } from '../widgets';
+import { blinkHz, drawCommandBand, fitText } from '../widgets';
 
 const X0 = HERO_X + HERO_W / 2 + 12;
 const PW = W - SAFE_MARGIN - X0;
@@ -28,8 +28,8 @@ const panelCentre = (text: string, scale: number): number => Math.round(X0 + (PW
 function drawStory(g: Game, ctx: CanvasRenderingContext2D): void {
   const { def } = g.event;
   drawPanel(g.app.pc, { x: X0, y: SAFE_MARGIN, w: PW, h: PANEL_H }, { color: C_PANEL, border: C_BORDER });
-  const scale = textWidth(def.title, 2) <= PW - 8 ? 2 : 1;
-  drawText(ctx, def.title, { x: panelCentre(def.title, scale), y: SAFE_MARGIN + (scale === 2 ? 5 : 7) }, { color: C_ACCENT, scale, shadow: true });
+  const titleW = PW - 8;
+  fitText(ctx, def.title, { x: Math.max(X0 + 4, panelCentre(def.title, 1)), y: SAFE_MARGIN + 7, maxW: titleW }, { color: C_ACCENT, shadow: true });
   ctx.fillStyle = PICO8[9];
   ctx.fillRect(X0 + PW / 2 - 16, SAFE_MARGIN + 18, 32, 1);
   def.lines.forEach((line, i) => {
@@ -77,7 +77,9 @@ function drawPreview(g: Game, ctx: CanvasRenderingContext2D): void {
 
 function promptInk(g: Game): Ink {
   const refused = g.event.refusedAt >= 0 && g.clock - g.event.refusedAt < REFUSE_SECONDS;
-  if (refused) {return { text: 'YOU CANNOT PAY THAT PRICE', color: C_WARN };}
+  const option = g.event.def.options[g.event.cursor];
+  const why = option ? eventOptionBlocker(g.hero, option) : null;
+  if (refused) {return { text: why ?? 'YOU CANNOT PAY THAT PRICE', color: blinkHz(g.clock, 4) ? C_WARN : C_TEXT };}
   return { text: `${BUTTON_KEY.A.hint} CHOOSE`, color: blinkHz(g.clock, 1.2) ? C_TEXT : C_DIM };
 }
 

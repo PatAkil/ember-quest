@@ -10,6 +10,7 @@ import { createGame, installRng, resetCursorEdge, stageAt } from './state';
 import type { Game } from './state';
 import { syncReveal } from './transition';
 import { applyEnemyAction, onQueueDone } from './screens/battle';
+import { driftCount } from './screens/battle-commit';
 import { openGear } from './screens/gear';
 import { chooseUpgrade } from './screens/loot';
 
@@ -41,6 +42,7 @@ function view(game: Game) {
     pacts: game.pact.offers,
     menu: menuView(game),
     save: { lost: game.saveLost, notice: game.notice?.text ?? null },
+    drift: driftCount(),
   };
 }
 

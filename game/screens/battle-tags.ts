@@ -1,6 +1,6 @@
 import { PICO8, drawText, textWidth } from '../../engine';
 import { EMBER_MAX } from '../types';
-import type { BattleState, EnemyInstance, Hero } from '../types';
+import type { AffixId, BattleState, EnemyInstance, Hero } from '../types';
 import { ENRAGE_AFTER, derive, desperate, punishes, woundUp } from '../sim';
 import { guardShown } from '../fx';
 import type { Game } from '../state';
@@ -52,14 +52,21 @@ function drawStrip(ctx: Ctx, entries: readonly Choices[], strip: Strip): void {
 const word = (text: string, color: string): Tag => [{ text, color }];
 
 const AFFIX_CYCLE = 1.6;
+const AFFIX_ROW = 9;
 export const C_AFFIX = PICO8[8];
 
-function affixChoices(affixes: readonly string[], clock: number): Choices {
+const AFFIX_SHORT: Record<AffixId, string> = { VAMPIRIC: 'VAMP', ARMORED: 'ARMOR', WARDED: 'WARDED', THORNED: 'THORN', SWIFT: 'SWIFT', SEARING: 'SEAR' };
+
+const affixList = (names: readonly string[]): Tag => names.map((text) => ({ text, color: C_AFFIX }));
+
+function affixChoices(affixes: readonly AffixId[], clock: number): Choices {
   const shown = affixes[Math.floor(clock / AFFIX_CYCLE) % Math.max(1, affixes.length)];
   if (shown === undefined) {return [];}
-  const more = affixes.length - 1;
   const alone = word(shown, C_AFFIX);
-  return more > 0 ? [[{ text: shown, color: C_AFFIX }, { text: `+${String(more)}`, color: C_DIM }], alone] : [alone];
+  if (affixes.length === 1) {return [alone, word(AFFIX_SHORT[shown], C_AFFIX)];}
+  const more = { text: `+${String(affixes.length - 1)}`, color: C_DIM };
+  const short = affixes.map((id) => AFFIX_SHORT[id]);
+  return [affixList(affixes), affixList(short), [...alone, more], [{ text: AFFIX_SHORT[shown], color: C_AFFIX }, more]];
 }
 
 const burnTag = (burn: Burn): Tag => word(`BURN ${String(burn.perTurn)} X${String(burn.turns)}`, C_EMBER);
@@ -74,7 +81,7 @@ function weakTag(g: Game, e: EnemyInstance): Choices {
 function enemyTags(g: Game, e: EnemyInstance, state: BattleState | null): Choices[] {
   const tags: Choices[] = [weakTag(g, e)];
   if (state && state.calm > ENRAGE_AFTER) {tags.push([word('ENRAGED', C_AFFIX)]);}
-  tags.push(affixChoices(e.affixes, g.clock));
+  if (e.affixes.length === 1) {tags.push(affixChoices(e.affixes, g.clock));}
   if (e.wardTurns > 0) {tags.push([word(`WARD ${e.wardTurns}`, C_WARD)]);}
   if (e.burn) {tags.push([burnTag(e.burn), word(`BURN -${String(e.burn.perTurn)}`, C_EMBER)]);}
   if (e.def.resists) {tags.push([[{ text: 'RES', color: C_DIM }, { text: e.def.resists, color: ELEMENT_COLOR[e.def.resists] }]]);}
@@ -111,5 +118,7 @@ export function drawTags(g: Game, plates: TagPlates): void {
   const ctx = g.app.pc.ctx;
   const { enemy, state } = g.battle;
   if (!g.heroDown) {drawStrip(ctx, heroTags(g, state, guardShown(g)).map((t) => [t]), { plate: plates.hero, pad: plates.pad, y: HERO_TAG_Y });}
-  if (enemy && enemy.hp > 0) {drawStrip(ctx, enemyTags(g, enemy, state), { plate: plates.enemy, pad: plates.pad, y: ENEMY_TAG_Y });}
+  if (!enemy || enemy.hp <= 0) {return;}
+  drawStrip(ctx, enemyTags(g, enemy, state), { plate: plates.enemy, pad: plates.pad, y: ENEMY_TAG_Y });
+  if (enemy.affixes.length > 1) {drawStrip(ctx, [affixChoices(enemy.affixes, g.clock)], { plate: plates.enemy, pad: plates.pad, y: ENEMY_TAG_Y + AFFIX_ROW });}
 }

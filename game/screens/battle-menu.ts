@@ -9,9 +9,9 @@ export const TOP_COMMANDS: readonly TopCommand[] = ['ATTACK', 'MAGIC', 'GUARD', 
 export const MENU_COLS = 2;
 export const PAGE_SIZE = 6;
 
-const REFUSAL: Record<Exclude<HeroCommand, 'ATTACK' | 'GUARD'>, string> = {
-  BURST: 'THE EMBER IS NOT FULL YET',
-  POTION: 'NO POTIONS LEFT',
+const REFUSAL: Record<Exclude<HeroCommand, 'ATTACK' | 'GUARD'>, (g: Game) => string> = {
+  BURST: () => 'THE EMBER IS NOT FULL YET',
+  POTION: (g) => (g.hero.potions > 0 ? 'YOUR HP IS FULL' : 'NO POTIONS LEFT'),
 };
 
 const rowsIn = (col: number, count: number): number => Math.ceil(Math.max(0, count - col) / MENU_COLS);
@@ -77,7 +77,7 @@ function openMagic(g: Game): null {
 
 function chooseTop(g: Game, cmd: TopCommand): HeroAction | null {
   if (cmd === 'MAGIC') {return openMagic(g);}
-  if (cmd !== 'ATTACK' && cmd !== 'GUARD' && !canAfford(g.hero, cmd)) {return refuse(g, REFUSAL[cmd]);}
+  if (cmd !== 'ATTACK' && cmd !== 'GUARD' && !canAfford(g.hero, cmd)) {return refuse(g, REFUSAL[cmd](g));}
   g.app.audio.play('blip');
   return cmd;
 }
