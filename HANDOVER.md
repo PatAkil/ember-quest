@@ -1,57 +1,45 @@
-# Handover — Ember Quest visual overhaul (2026-11-22)
+# Handover — Ember Quest gameplay overhaul "The Long Descent" (2026-11-24)
 
-For the next Air cloud task. Read this first, then `CLAUDE.md` and `DESIGN.md`
-(and `STYLE.md` before touching the look).
+For the next cloud task. Read this first, then `CLAUDE.md` and `DESIGN.md`
+(and `STYLE.md` before touching the look). `OVERHAUL_PLAN.md` is the reviewed plan this
+work followed, with the owner-vetoable decisions and the features cut for later.
 
 ## Where things stand
 
-The owner plays the **v2 in-browser game** (keyboard, desktop browser) and builds on
-it; the v3 rewrite stays in history.
-
-- **`main`** is `2b55b37` ("PRs get a comment showing which screens changed, with
-  before/after shots (#7)"); a push to `main` deploys to
+- **`main`** still holds the game before the overhaul; a push to `main` deploys to
   https://patakil.github.io/ember-quest/. Release only through `releasing-the-game`,
   and only when the owner asks.
-- **The overhaul branch** is `visual-overhaul` (`git log main..HEAD`, remote
-  `air/resume-failed-job-visual-review-7bf06496-4`), built on top of `main`:
-  - `24fe87e`: the game fills the window — whole-number scaling, the Ember Quest
-    cabinet shell, legible warnings, coloured map icons, honest level-up labels, clean
-    ending screens.
-  - `69a6b0d`: auto-commit of work in progress.
-  - `a0d598e`: battles look like a fight scene and move — 2× actors, mirrored HUD
-    plates, the command band, lunges, spell projectiles, hit flash, dissolve on kill,
-    boss banner, lagging HP bars, screen transitions (`game/fx*.ts`,
-    `game/transition.ts`, `game/screens/battle-fx*.ts`); the map gets room icons, a
-    hero marker and a lit path; loot and equip get item cards.
-  - `21467a4`: overhaul round 1 — melee lunges connect with a slash arc, bigger
-    fireball and impact blooms, no dead beats before a kill dissolves, no stray numbers
-    carried into the next fight; reward screens get the command band and the knight;
-    redrawn Ice Bear, wolf, scorpion, Dark Lord and fallen knight; readable desert sun
-    and temple columns; clearer map choices.
-  - `c029c38`: further styling and enemy presentation.
-  - `d7bb7b9`, `4509197`, and PR #8 adversarial review fixes (committed on the branch):
-    the window fit (whole-number scale down to 1, CSS shrink below 240×160, backing
-    store capped at 6× with whole-number CSS enlargement above it, see `STYLE.md` →
-    *Shell and scale*), docs brought in line, and battle/menu/sprite fixes (hit-stop A
-    buffering, wipe input gating, uniform two-column battle menu, desert sun hidden on
-    reward/card screens, zero-allocation `drawSprite`, `C_SCROLL` in `game/theme.ts`,
-    sharp `#screen` corners).
-- **Visual review:** the overhaul scored **77/100**.
-- **Known open balance item** (unchanged): the game's map links stages more
-  generously than the simulator's — see `DESIGN.md` → *Open item*.
+- **The overhaul branch** is `claude/fervent-ptolemy-9ivdbk` (`git log main..HEAD`), one
+  commit per milestone and per review round:
+  - the pack (4 items), the GEAR screen (B on the map), the full NOW / NEW compare card,
+    scouting (foe, attack type and weakness per map node), chosen upgrade targets;
+  - battle verbs: telegraphed enemy moves, GUARD / PARRY, BREAK, elements, BURN, the
+    EMBER BURST gauge, potions, boss phases, previews with real numbers;
+  - 69 items, new effect kinds and spells; EVENT rooms;
+  - the endless descent: THRESHOLD (ASCEND or DESCEND), pacts, affixes, longer maps,
+    THE HOLLOW;
+  - save and CONTINUE (one run, multi-tab safe), pause RESUME / ABANDON, the run recap
+    with a NEXT TIME tip.
+- **Gates**: `npm run verify -- --full` green; rules 22 groups; smoke wins a fight.
+- **Balance** (2000 runs, seed 1, 2026-11-24): balanced 38 %, tank 35 %, eliteHungry
+  37 %, chestHungry 30 %, glass 17 %, naive 15 %, random 0 %. See `DESIGN.md` →
+  *Balance state*.
 
 ## Open follow-ups
 
-- Pause freezes the enemy mid entrance hop (in the devhook paused fixture).
-- Ambient particles drift across the "ACT 4" and "VICTORY" headlines.
-- The loot panel is cramped and its title truncates.
-- The Ice Bear and fallen-knight sprites are still weak.
-- The stage half stays empty on the rest and win screens.
-- Fractional `devicePixelRatio` is ignored by the fit (CSS px only), so a 125 %/150 %
-  display resamples the pixels unevenly.
-- No gate asserts on `autoFit` across viewports: `look` and the oracle run in hold mode
-  (3×) and `smoke` does not check canvas sizing or resize behaviour; the viewport check
-  was a one-off Playwright script.
+- **Balance**: tank descends far better than every other policy (clears depth 2 in 63 %
+  of its descents against balanced 37 %); naive (15 %) and glass (17 %) sit on their
+  floors; balanced clears depth 3 in 7 % (aim ≈ 10 %); elites MUMMY and PALADIN are top
+  killers; a pure physical build has no way to break a HEAVY except BURST.
+- **Descent variety**: depths 2+ reuse the four act bosses with affixes; only THE HOLLOW
+  is new. Pacts cannot be declined.
+- **Clarity**: the map cannot inspect rooms beyond the next column; `pact --depth 10`
+  has no pact left to offer, so that fixture lands on the depth card.
+- **Cut from the plan for a later pass**: origins / classes, a codex, resonance sets, a
+  forge and currency, more ailments, a daily seed, a battle-speed toggle.
+- From the visual overhaul, still open: the Ice Bear and fallen-knight sprites, the
+  empty stage half on rest and win screens, fractional `devicePixelRatio`, no gate on
+  `autoFit` across viewports.
 
 ## First things to do in the new task
 
