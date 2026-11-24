@@ -28,6 +28,7 @@ export {
   takePact,
 } from './sim/hero';
 export {
+  awakenPreview,
   compareFull,
   compareLine,
   compareOffer,
@@ -39,8 +40,9 @@ export {
 export { applyOffer, ensureStarterWeapon, noteDeclinedScrolls, resolveOverflow, resolveUpgrade, rollLoot, type AppliedOffer, type OfferChoice } from './sim/loot';
 export { discard, ownedIds, packSize, stow, swapIn, unequip, upgradableTargets } from './sim/pack';
 export { clearsTerm, createBattle, heroAct, spawnEnemy } from './sim/combat';
-export { enemyAct } from './sim/enemy-turn';
-export { resistOf, startTurn } from './sim/status';
+export { ENRAGE_LINE, enemyAct } from './sim/enemy-turn';
+export { resolveTurn, turnRng, turnSeed, type TurnStream } from './sim/turn';
+export { pendingTick, resistOf, startTurn } from './sim/status';
 export { elementMult } from './sim/element';
 export { burstPower } from './sim/burst';
 export { burnWarded, desperate, gearPower, heroElement, punishes, riposteMult, woundUp } from './sim/power';
@@ -89,6 +91,7 @@ export {
   ENRAGE_AFTER,
   HOLLOW_ATK_SHARE,
   HOLLOW_HIT_CAP,
+  HOLLOW_HIT_FLOOR,
   HOLLOW_HP_FLOOR,
   HOLLOW_HP_HITS,
   HOLLOW_RES_CAP,
@@ -103,6 +106,7 @@ export {
   effectWords,
   eventOptionBlocker,
   eventOptionEnabled,
+  eventById,
   eventPlayable,
   pickEvent,
   rollEventItem,

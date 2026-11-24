@@ -18,19 +18,14 @@ const rowsIn = (col: number, count: number): number => Math.ceil(Math.max(0, cou
 
 interface Step { dx: number; dy: number }
 
-function stepInPage(local: number, count: number, step: Step): number {
-  let col = local % MENU_COLS;
-  let row = Math.floor(local / MENU_COLS);
-  if (step.dx !== 0) {
-    const next = (col + step.dx + MENU_COLS) % MENU_COLS;
-    if (rowsIn(next, count) > 0) { col = next; row = Math.min(row, rowsIn(col, count) - 1); }
-  }
-  if (step.dy !== 0) {
-    const n = rowsIn(col, count);
-    row = (row + step.dy + n) % n;
-  }
+function stepInPage(local: number, count: number, dy: number): number {
+  const col = local % MENU_COLS;
+  const rows = rowsIn(col, count);
+  const row = (Math.floor(local / MENU_COLS) + dy + rows) % rows;
   return row * MENU_COLS + col;
 }
+
+const stepAcross = (cursor: number, n: number, dx: number): number => (cursor + dx + n) % n;
 
 export const pageCount = (n: number): number => Math.max(1, Math.ceil(n / PAGE_SIZE));
 const pageLen = (n: number, page: number): number => Math.min(PAGE_SIZE, n - page * PAGE_SIZE);
@@ -51,11 +46,12 @@ function turnPage(cursor: number, n: number, dy: number): number {
 }
 
 function moveMagic(cursor: number, n: number, step: Step): number {
+  if (step.dx !== 0) {return stepAcross(cursor, n, step.dx);}
   const page = Math.floor(cursor / PAGE_SIZE);
   const local = cursor - page * PAGE_SIZE;
   const count = pageLen(n, page);
-  if (step.dy !== 0 && pageCount(n) > 1 && leavesPage(local, count, step.dy)) {return turnPage(cursor, n, step.dy);}
-  return page * PAGE_SIZE + stepInPage(local, count, step);
+  if (pageCount(n) > 1 && leavesPage(local, count, step.dy)) {return turnPage(cursor, n, step.dy);}
+  return page * PAGE_SIZE + stepInPage(local, count, step.dy);
 }
 
 function refuse(g: Game, text: string): null {
@@ -89,7 +85,7 @@ function chooseTop(g: Game, cmd: TopCommand): HeroAction | null {
 function topChoice(g: Game, e: Edges): HeroAction | null {
   const b = g.battle;
   if (e.dx !== 0 || e.dy !== 0) {
-    b.topCursor = stepInPage(b.topCursor, TOP_COMMANDS.length, e);
+    b.topCursor = e.dx !== 0 ? stepAcross(b.topCursor, TOP_COMMANDS.length, e.dx) : stepInPage(b.topCursor, TOP_COMMANDS.length, e.dy);
     g.app.audio.play('blip');
   }
   const cmd = TOP_COMMANDS[b.topCursor];

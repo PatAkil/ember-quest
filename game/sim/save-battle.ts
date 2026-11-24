@@ -1,6 +1,7 @@
 import { AFFIX_IDS, RARITIES } from '../types';
 import type { BattleState, Burn, EnemyInstance, MoveId, Rarity } from '../types';
-import { ENEMIES, EVENTS } from '../data';
+import { ENEMIES } from '../data';
+import { eventById } from './events';
 import { fail, flag, idList, int, knownKey, num, oneOf, record } from './save-check';
 import type { Bounds, Fields } from './save-check';
 
@@ -9,7 +10,7 @@ export type SavedBattleState = Omit<BattleState, 'enemy'>;
 export interface SavedBattle { roomSeed: number; foe: SavedFoe; state: SavedBattleState }
 export type RewardSource = 'FIGHT' | 'ELITE' | 'BOSS' | 'EVENT';
 export interface RoomExtras { roomSeed?: number; eventId?: string; battle?: SavedBattle }
-export interface RewardStep { at: 'REWARD'; stage: number; slot: number; roomSeed: number; source: RewardSource; gift?: Rarity }
+export interface RewardStep { at: 'REWARD'; stage: number; slot: number; roomSeed: number; source: RewardSource; earned: number; gift?: Rarity }
 
 const MOVES: readonly MoveId[] = ['STRIKE', 'WINDUP', 'HEAVY', 'WARD', 'SCORCH', 'MEND'];
 const SCOPES = ['ATTACK', 'SPELL'] as const;
@@ -18,6 +19,8 @@ const STAT: Bounds = { lo: 0, hi: 1e9 };
 const RESIST: Bounds = { lo: -1e3, hi: 1e3 };
 const SMALL: Bounds = { lo: 0, hi: 99 };
 const SEED: Bounds = { lo: 0, hi: 0xffffffff };
+const COUNT: Bounds = { lo: 0, hi: 1e6 };
+const EARNED: Bounds = { lo: 0, hi: 99 };
 
 function readFoeBurn(value: unknown): Burn | null {
   if (value === null) {return null;}
@@ -49,6 +52,7 @@ function readState(value: unknown): SavedBattleState {
     intent: oneOf(f.intent, 'intent', MOVES),
     guarding: flag(f.guarding, 'guarding'), guardChain: int(f.guardChain, 'guardChain', SMALL),
     riposte: flag(f.riposte, 'riposte'), aegis: num(f.aegis, 'aegis', { lo: 0, hi: 1 }),
+    calm: int(f.calm, 'calm', COUNT), foeMark: num(f.foeMark, 'foeMark', STAT), turn: int(f.turn, 'turn', COUNT),
   };
 }
 
@@ -58,8 +62,9 @@ function readBattle(value: unknown): SavedBattle {
 }
 
 function readEventId(value: unknown): string {
-  if (!EVENTS.some((e) => e.id === value)) {fail(`eventId: unknown "${String(value)}"`);}
-  return String(value);
+  const event = typeof value === 'string' ? eventById(value) : undefined;
+  if (!event) {fail(`eventId: unknown "${String(value)}"`);}
+  return event.id;
 }
 
 export function readRoomExtras(f: Fields): RoomExtras {
@@ -71,7 +76,10 @@ export function readRoomExtras(f: Fields): RoomExtras {
 }
 
 export function readRewardStep(f: Fields, spot: { stage: number; slot: number }): RewardStep {
-  const step: RewardStep = { at: 'REWARD', ...spot, roomSeed: int(f.roomSeed, 'roomSeed', SEED), source: oneOf(f.source, 'reward source', SOURCES) };
+  const step: RewardStep = {
+    at: 'REWARD', ...spot, roomSeed: int(f.roomSeed, 'roomSeed', SEED),
+    source: oneOf(f.source, 'reward source', SOURCES), earned: int(f.earned, 'earned', EARNED),
+  };
   return f.gift === undefined ? step : { ...step, gift: oneOf(f.gift, 'gift', RARITIES) };
 }
 

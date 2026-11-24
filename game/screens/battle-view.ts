@@ -74,14 +74,26 @@ function drawStatLine(ctx: Ctx, plate: Box, d: Derived): void {
 
 const EMBER_Y = HUD_BOTTOM + 1;
 
+const FLAME_W = 3;
+
+function drawFlame(ctx: Ctx, at: { x: number; y: number }, full: boolean): void {
+  ctx.fillStyle = full ? PICO8[7] : PICO8[10];
+  ctx.fillRect(at.x + 1, at.y - 1, 1, 2);
+  ctx.fillStyle = full ? C_ACCENT : C_EMBER;
+  ctx.fillRect(at.x, at.y, 1, 2); ctx.fillRect(at.x + 2, at.y, 1, 2); ctx.fillRect(at.x + 1, at.y + 1, 1, 1);
+  ctx.fillStyle = PICO8[8]; ctx.fillRect(at.x + 1, at.y + 2, 1, 1);
+}
+
 function drawEmberBar(g: Game, plate: Box): void {
   const ctx = g.app.pc.ctx;
   const m = meter(g, 'heroEmber');
-  const x = innerLeft(plate);
+  const left = innerLeft(plate);
+  const x = left + FLAME_W + 2;
   const w = innerRight(plate) - x;
   const y = EMBER_Y;
   const full = g.hero.ember >= EMBER_MAX;
-  ctx.fillStyle = PICO8[0]; ctx.fillRect(x - 1, y - 1, w + 2, 4);
+  ctx.fillStyle = PICO8[0]; ctx.fillRect(left - 1, y - 1, innerRight(plate) - left + 2, 4);
+  drawFlame(ctx, { x: left, y }, full);
   ctx.fillStyle = PICO8[5]; ctx.fillRect(x, y, w, 2);
   const ghost = Math.round(w * Math.min(1, m.ghost / EMBER_MAX));
   ctx.fillStyle = PICO8[7]; ctx.fillRect(x, y, ghost, 2);

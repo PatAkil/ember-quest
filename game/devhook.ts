@@ -25,7 +25,8 @@ interface DevView {
   event: { id: string; title: string; options: string[] };
   descent: { won: boolean; banked: number; bosses: number; descentClears: number | null; plan: ActPlan };
   pacts: PactId[];
-  menu: { cursor: number; confirm: boolean; resume?: string } | null;
+  menu: { cursor: number; confirm: boolean; yes: boolean; resume?: string } | null;
+  save: { lost: boolean; notice: string | null };
 }
 
 interface DevHost {
@@ -192,6 +193,7 @@ function snapshot(v: DevView, seed: number | null): unknown {
     threshold: sub === 'THRESHOLD' ? { choices: ['ASCEND', 'DESCEND'] } : null,
     pact: sub === 'PACT' ? { offers: v.pacts } : null,
     ...menuOf(v),
+    save: v.save,
     map: sub === 'MAP' ? { stage: v.curStage, reachable: v.reachable, stages: v.map.map((st) => st.map((n) => (n.cleared ? `${n.type}*` : n.type))) } : null,
   }));
 }
@@ -318,6 +320,7 @@ function fixtureBuilders(fx: FixtureContext): Record<Fixture, () => void> {
   };
   const winRun = (): void => {
     killLastBoss();
+    driver.press('UP'); driver.runTick(DT);
     ticksUntil(driver, () => host.scenes.is('WIN'), 400, true);
   };
   const pactRun = (): void => {

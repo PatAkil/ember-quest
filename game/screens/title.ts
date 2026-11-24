@@ -2,11 +2,12 @@ import { BUTTON_KEY, PICO8, SAFE_MARGIN, controlHints, drawLogo, drawText, drawT
 import { describeSave } from '../sim';
 import type { SavedRun } from '../sim';
 import { startFresh } from '../flow';
-import { continueRun } from '../resume';
+import { continueIfCurrent } from '../resume';
 import { ENEMY_FRAMES, heroFrames } from '../sprites';
 import { drawActor, renderBiomeBackdrop, renderFloor } from '../backdrop';
+import { takeA } from '../state';
 import type { Game } from '../state';
-import { BAND_Y, C_ACCENT, C_DIM, C_TEXT, W } from '../theme';
+import { BAND_Y, C_ACCENT, C_DIM, C_TEXT, C_WARN, W } from '../theme';
 import { blinkHz, drawCommandBand } from '../widgets';
 import { drawConfirm, drawMenuRow, stepMenu } from './menu';
 
@@ -21,13 +22,13 @@ const MENU_BAR_W = W - 2 * SAFE_MARGIN;
 
 export function updateTitle(g: Game): void {
   const saved = g.resume;
-  const { input, audio } = g.app;
+  const { audio } = g.app;
   if (!saved) {
-    if (input.pressed('A')) { audio.play('blip'); startFresh(g); }
+    if (takeA(g)) { audio.play('blip'); startFresh(g); }
     return;
   }
-  const chosen = stepMenu(g, g.title, { rows: ROW_Y.length, guarded: NEW_RUN_ROW });
-  if (chosen === CONTINUE_ROW) {continueRun(g, saved);}
+  const chosen = stepMenu(g, g.title, { rows: ROW_Y.length, guarded: NEW_RUN_ROW, readA: takeA });
+  if (chosen === CONTINUE_ROW) {continueIfCurrent(g, saved);}
   if (chosen === NEW_RUN_ROW) {startFresh(g);}
 }
 
@@ -61,12 +62,21 @@ export function renderTitle(g: Game): void {
   }
   drawTextCentered(ctx, controlHints(input).join('   '), { width: W, y: BAND_Y + 27 }, hintOpts);
   drawBest(g);
+  drawNotice(g);
+}
+
+const NOTICE_SHOWN = 2.5;
+
+function drawNotice(g: Game): void {
+  const n = g.notice;
+  if (!n || g.clock - n.at > NOTICE_SHOWN) {return;}
+  copyLine(g.app.pc.ctx, n.text, 60, C_WARN);
 }
 
 function drawResumeChoice(g: Game, saved: SavedRun): void {
   const ctx = g.app.pc.ctx;
   if (g.title.confirm) {
-    drawConfirm(ctx, 'ERASE YOUR RUN?', { y: BAND_Y + 11, barW: MENU_BAR_W });
+    drawConfirm(ctx, 'ERASE YOUR RUN?', { y: BAND_Y + 6, barW: MENU_BAR_W, selected: g.title.yes, hintY: BAND_Y + 16 });
     return;
   }
   const rows = [{ label: 'CONTINUE', detail: describeSave(saved) }, { label: 'NEW RUN' }];

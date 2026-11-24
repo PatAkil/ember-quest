@@ -13,7 +13,7 @@ ember-quest/
 ├── STYLE.md                  # the visual style card — read FIRST for any look work
 ├── HANDOVER.md               # where the work stands between cloud tasks
 ├── game/
-│   ├── types.ts              # shared types + tuning constants (caps, SP gains, drop rates) — headless
+│   ├── types.ts              # shared types + tuning constants (caps, SP gains, drop rates, TurnResult) — headless
 │   ├── data.ts               # content import path: re-exports game/rules/* — headless
 │   ├── rules/                # the content itself — headless
 │   │   ├── items.ts          #   ITEMS
@@ -28,35 +28,47 @@ ember-quest/
 │   │   ├── gear.ts           #   item levels, upgrades, effective mods/effects/blurbs
 │   │   ├── hero.ts           #   createHero, derive, skill points, heals, equip, spells
 │   │   ├── ghost.ts          #   derived stats of a hypothetical equip (compare previews)
-│   │   ├── describe.ts       #   item / offer / compare text for the screens, compareFull (every changed stat, LOSE/GAIN)
+│   │   ├── describe.ts       #   item / offer / compare text for the screens, compareFull, awakenPreview (`AT +2: …`)
 │   │   ├── loot.ts           #   rollLoot, applyOffer, resolveUpgrade, missed scrolls
 │   │   ├── pack.ts           #   the 4-item pack: stow, discard, swapIn, unequip, ownedIds, upgradableTargets
-│   │   ├── combat.ts         #   spawnEnemy, createBattle, heroAct (ATTACK + spells), damage, effects in battle
+│   │   ├── combat.ts         #   spawnEnemy, createBattle, heroAct (ATTACK + spells; the hero's BURN tick after the action), damage
 │   │   ├── commands.ts       #   GUARD, POTION, BURST and the BREAK settle
-│   │   ├── enemy-turn.ts     #   enemyAct: moves, intent, cycle, phase switch
-│   │   ├── status.ts         #   startTurn (regen, BLOOD, BURN ticks), BURN, WARD, heroFalls
+│   │   ├── enemy-turn.ts     #   enemyAct: moves, intent, cycle, phase switch, soft enrage (ENRAGE_LINE), the foe's BURN tick
+│   │   ├── turn.ts           #   resolveTurn (turn start → hero → foe, one TurnResult) and the per-turn rng streams (turnRng)
+│   │   ├── status.ts         #   startTurn (regen, BLOOD), BURN, WARD, heroFalls, pendingTick
+│   │   ├── power.ts          #   gear power in battle: heroElement, riposteMult, punishes, desperate, burnWarded
 │   │   ├── element.ts        #   elementMult (weakness / resistance)
 │   │   ├── burst.ts          #   ember gain, canBurst, the burst blow
 │   │   ├── map.ts            #   the one map generator, generateMap(rng, shape?) — game and simulator
 │   │   ├── model.ts          #   Policy (incl. stowOrEquip, dropWhich, upgradeTarget, prepare), RoomType (with BOSS)
 │   │   ├── scoring.ts        #   how policies value a loot offer
-│   │   ├── policies.ts       #   POLICIES (random, balanced, glass, tank, routing archetypes)
-│   │   ├── policy-battle.ts  #   how the policies fight (damageAct, expected damage)
+│   │   ├── policies.ts       #   POLICIES (random, balanced, glass, tank, naive, routing archetypes)
+│   │   ├── policy-battle.ts  #   how the policies fight (battleAct, expected damage)
 │   │   ├── policy-choices.ts #   DEFAULT_CHOICES: the shared pack/upgrade/prepare defaults every policy spreads
 │   │   ├── descent.ts        #   the stage counter n: depthOf, actInDepth, actMult, ActPlan, planDepth, planOf
+│   │   ├── descent-loot.ts   #   descent loot rows and weights
 │   │   ├── affixes.ts        #   enemy affixes: ARMORED/WARDED resists, VAMPIRIC/THORNED/SWIFT/SEARING values
 │   │   ├── hollow.ts         #   THE HOLLOW (hollowOf) and spawnFoe, the one spawn path for game and simulator
 │   │   ├── pacts.ts          #   pactMods (folded PactMod totals), offerPacts, takePact
+│   │   ├── events.ts         #   pickEvent, event costs and effects, rollEventItem
+│   │   ├── rest.ts           #   restHero (REST, the ASH upgrade)
 │   │   ├── score.ts          #   scoreOf, gloryBonus, scoreAfterDeath
 │   │   ├── save.ts           #   SavedRun: saveRun, loadRun (null on anything wrong, never throws), toSaved/fromSaved, describeSave
-│   │   ├── save-read.ts      #   the saved shape + hero / counters / depth-plan readers
+│   │   ├── save-read.ts      #   the saved shape, SAVE_VERSION + hero / counters / depth-plan readers
 │   │   ├── save-map.ts       #   map and step readers
+│   │   ├── save-battle.ts    #   the saved fight (foe + battle state), REWARD step (with `earned`), event id readers
+│   │   ├── save-sanity.ts    #   saneSave: cross-field checks and repairs after reading
 │   │   ├── save-check.ts     #   the small validators the readers share
-│   │   └── run.ts            #   simulateRun (options.descend, off by default), RunResult, Probe
-│   ├── main.ts               # wiring only: app, game state, scene hooks, dev hook, loop
+│   │   ├── run-battle.ts     #   runBattle: one simulated fight through resolveTurn
+│   │   ├── run-rooms.ts      #   the simulator's rooms (playRoom, bossRoom)
+│   │   ├── run-tally.ts      #   RunResult, verb / event / boss tallies
+│   │   └── run.ts            #   simulateRun (options.descend, off by default), Probe
+│   ├── main.ts               # wiring only: app, game state, scene hooks, dev hook, storage watch, loop
 │   ├── app.ts                # creates the engine objects (canvas, input, scenes, particles, juice, audio, CRT, runtime)
-│   ├── state.ts              # the Game type + createGame(): one object `g` with per-screen slices
-│   ├── flow.ts               # run flow: room selection, stage advance, clears, act change, THRESHOLD (ascend/descend), depth entry + PACT, startRun, save points + CONTINUE (continueRun), abandonRun, scene hooks
+│   ├── state.ts              # the Game type + createGame(): one object `g` with per-screen slices; armA/takeA, dirEdge, CommittedTurn
+│   ├── flow.ts               # run flow: room selection, stage advance, clears, act change, loot exits (settle, then card), THRESHOLD, depth entry + PACT, startRun, abandonRun, scene hooks
+│   ├── persist.ts            # every save point: persist (owner check + write counter), persistBattle/Reward/Event, settleRoom, forgetRun
+│   ├── resume.ts             # CONTINUE: loadResume, continueIfCurrent (re-reads storage), continueRun, the `storage` event watch
 │   ├── frame.ts              # update/render dispatch tables per scene and sub-scene
 │   ├── fx-state.ts           # battle-fx data: actors, moves, tints, shots, cues, lagging meters, banner, screen-reveal state
 │   ├── fx.ts                 # battle-fx clock: eased actor poses, cue queue (skip to impact), meters, boss banner timing
@@ -66,26 +78,51 @@ ember-quest/
 │   ├── backdrop.ts           # biome backdrops, floor, actors, battle tableau
 │   ├── widgets.ts            # bars, lines, fitted/wrapped text, blinkHz/accentHz, item icons
 │   ├── pops.ts               # floating damage/score pops
-│   ├── storage.ts            # localStorage: best score (`retrovibe.ember-quest.best.v2`) and the saved run (`retrovibe.ember-quest.run.v1`; storeRun, loadStoredRun, clearRun)
+│   ├── storage.ts            # localStorage: best (`retrovibe.ember-quest.best.v2`), the run (`retrovibe.ember-quest.run.v1`) and its stamp (`retrovibe.ember-quest.run.stamp`: run id + write counter)
 │   ├── lookup.ts             # at, pickOneIndex (re-exported from sim), must, noop — guarded indexed access
-│   ├── screens/              # one update + one view per screen: battle/battle-view, map/map-view, loot/loot-view, levelup, card, status (map status panel), gear/gear-view (GEAR: worn slots + pack, B on the map), pick/pick-view (PICK: the shared chooser, e.g. UPGRADE WHICH?), threshold/threshold-view/threshold-gate (THRESHOLD: ASCEND or DESCEND, the abyss gate), pact/pact-view (PACT: one of up to three pacts), title (title + CONTINUE / NEW RUN), pause (PAUSED: RESUME / ABANDON RUN), menu (the shared two-row menu with a confirm), ending (GAME OVER / WIN overlays), battle-fx-affix (SWIFT, THORNED, VAMPIRIC beats)
+│   ├── screens/              # one update + one view per screen
+│   │   ├── battle.ts         #   the battle update: commit the turn, the queue, hero/foe beats, death, skip-to-impact
+│   │   ├── battle-commit.ts  #   commitTurn (resolveTurn on a shadow copy, save, restore), mirrorRng, adoptTurn
+│   │   ├── battle-view.ts    #   plates, bars, ember bar, intent row, the band
+│   │   ├── battle-menu.ts    #   the command / spell grids: cursor, choice, refusals
+│   │   ├── battle-menu-view.ts # the band while choosing: intent hint, grid, WEAK notes, preview column
+│   │   ├── battle-preview.ts #   intent looks and hints, the per-command preview lines (break, burn, ember, weakness)
+│   │   ├── battle-tags.ts    #   the tag strips under the plates (WEAK, ENRAGED, affixes, WARD, BURN n Xt, EMBER n% …)
+│   │   ├── battle-auras.ts   #   state-driven auras (guard arc, heavy pulse, ward ring, burn motes, stagger)
+│   │   ├── battle-death.ts   #   the death record for the ending (killer, move, last log lines)
 │   │   ├── battle-fx.ts      #   choreography of a turn: wind-ups, impacts, pops, regen aura, defeat, entrance, death
-│   │   ├── battle-fx-view.ts #   draws the shots (orbs, bolts, slashes, blooms …) and the boss/elite banner strip
+│   │   ├── battle-fx-enemy.ts #  the foe's wind-up, impact and the revive beat
 │   │   ├── battle-fx-verbs.ts #  the beat of each battle verb: guard, parry, break, burst, potion, burn tick, phase, weak
-│   │   ├── battle-menu.ts    #   the command menu: draw, cursor, choice
-│   │   ├── battle-tags.ts    #   the tag strips under the plates (RAMP, BURN, WARD, weakness …)
+│   │   ├── battle-fx-affix.ts #  SWIFT, THORNED, VAMPIRIC beats
+│   │   ├── battle-fx-view.ts #   draws the shots (orbs, bolts, slashes, blooms …) and the boss/elite banner strip
+│   │   ├── battle-fx-shapes.ts # shot drawing primitives
 │   │   ├── battle-reach.ts   #   lunge distances and contact points between the knight and the foe
-│   │   ├── map-view.ts       #   map nodes with room icons, edges and lit path, hero marker
+│   │   ├── map.ts, map-view.ts #  MAP: cursor, readout (REST at full strength), lost-save notice; nodes, edges, hero marker
+│   │   ├── status.ts         #   the map status panel
+│   │   ├── levelup.ts        #   LEVEL UP (update + view)
+│   │   ├── loot.ts, loot-view.ts # loot offers, the result cards (persisted before they show), the upgrade picker
+│   │   ├── compare-view.ts   #   the item card and the compare card (GAIN / AT +2 line)
+│   │   ├── card.ts           #   text and item cards
+│   │   ├── gear.ts, gear-view.ts # GEAR: worn slots + pack, B on the map; saved on every swap
+│   │   ├── pick.ts, pick-view.ts # PICK: the shared chooser (UPGRADE WHICH?, DROP WHICH?, GIVE UP WHICH?)
+│   │   ├── event.ts, event-view.ts # EVENT rooms
+│   │   ├── threshold.ts, threshold-view.ts, threshold-gate.ts # THRESHOLD: no preselected row, ASCEND or DESCEND, the abyss gate
+│   │   ├── pact.ts, pact-view.ts # PACT: one of up to three pacts
+│   │   ├── title.ts          #   title + CONTINUE / NEW RUN, the THAT RUN HAS ENDED notice
+│   │   ├── pause.ts          #   PAUSED: RESUME / ABANDON RUN
+│   │   ├── menu.ts           #   the shared two-row menu and its `> NO   YES` confirm
+│   │   ├── ending.ts, ending-recap.ts # GAME OVER / WIN overlays and the run summary rows
 │   │   └── plate.ts          #   rarity rings, medallions and centred icons shared by loot and card
 │   ├── sprites.ts            # single entry point: re-exports game/sprites/*, adds enemyAnim(id)
 │   ├── sprites/              # helpers, hero, icons, and one file per biome (crypt, tundra, desert, temple)
-│   └── devhook.ts            # dev-only seeded hook (?seed, ?scene, &act, &hold, window.__ember)
+│   └── devhook.ts            # dev-only seeded hook (?seed, ?scene, &act, &depth, &hold, window.__ember)
 ├── engine/                   # this game's OWN copy of the Retrovibe engine — editable
 ├── scripts/
 │   ├── setup-eyes.mjs        # npm run setup — browser + dev server, idempotent
 │   ├── look.mjs              # npm run look — state JSON + errors + one screenshot
 │   ├── verify.mjs            # npm run verify — every gate, one line each
 │   ├── rules.mjs             # npm run rules — node:assert invariants against the rules bundle
+│   ├── rules-*.mjs           #   its suites: affixes, depth, descent, events, foe, items, pacts, save, turn, verbs
 │   ├── oracle.mjs            # behaviour-preservation proof for refactors
 │   ├── oracle-comment.mjs    # CI: turns the PR-vs-base oracle into one sticky PR comment
 │   ├── agent-feedback.mjs    # the hook entry: per-edit check, end-of-turn gate, pre-commit gate (npm run gate)
@@ -96,6 +133,7 @@ ember-quest/
 ├── eslint.config.mjs, knip.config.js, .jscpd.json, .dependency-cruiser.cjs   # the lint suite
 ├── sim/run.mjs               # balance simulator runner (npm run sim)
 ├── sim/bundle.mjs            # esbuild bundling of game/sim.ts, shared by sim/run.mjs and scripts/rules.mjs
+├── sim/*-report.mjs          # the simulator's report sections: boss, descent, events, items
 ├── smoke.mjs                 # headless boot gate (npm run smoke)
 ├── index.html                # arcade shell; game mounts into #screen
 ├── .github/workflows/pages.yml   # PR = full gates + pixel report (a PR comment with before/after shots; images live on the `oracle-screens` branch); push to main = gates, then deploy
@@ -169,7 +207,7 @@ ember-quest/
 | `npm run look -- [--scene S] [--act N] [--depth D] [--seed N] [--keys "Down,Space"] [--steps N] [--out file.png] [--no-shot]` | One JSON line `{"ok","state","errors","shot"}`; exit 1 on any console/page error or no canvas. With `--scene` or `--seed` the page runs in hold mode and each key is followed by `--steps` (default 30) fixed ticks. Keys: `Up Down Left Right Space B Esc Enter` (`B`/`X` = button B) or Playwright names (`ArrowDown`, `KeyZ`, `KeyX`, `KeyP`). Default shot: `$AIR_ARTIFACTS_DIR/look/<scene>-a<act>-s<seed>.png` (`<scene>-d<depth>-a…` when `--depth` > 1), else `/tmp/ember-look/` |
 | `npm run verify` | eyes, lint, check, build, smoke, rules (map invariants over 5000 seeds, seeded-rng determinism, `validateData`), `sim:quick` (informational: balanced and random win rates), two at a time; one `PASS/FAIL/INFO` line per gate with its time, then `TOTAL`. About 10 s |
 | `npm run verify -- --full` | adds knip, jscpd, depcruise, `dist:no-hook` (no `__ember` in `dist/`), `look:all` (every scene), and the full sim. About 30 s |
-| `node scripts/oracle.mjs --save <file>` / `--check <file>` | 96 cases (12 scenes × 4 acts × still / after `Down,Space,Space,Down,Space`, seed 7): sha256 of the state JSON and of the exact screenshot. `--check` prints `ORACLE OK` or lists each differing case as `(state)` or `(pixels)`. Save before a refactor, check after. Needs the dev server; about 80 s |
+| `node scripts/oracle.mjs --save <file>` / `--check <file>` | 192 cases: the 24 scenes of its `SCENES` list (the same list `look` accepts: `title map battle levelup loot card paused gameover win gear pick drop battle-heavy battle-magic battle-ward battle-phase event threshold pact battle-hollow map-long battle-affix title-continue paused-abandon`) × acts 1–4 × still / after `Down,Space,Space,Down,Space`, seed 7, depth 1 (the oracle passes no `--depth`): sha256 of the state JSON and of the exact screenshot. `--check` prints `ORACLE OK` or lists each differing case as `(state)` or `(pixels)`. Save before a refactor, check after. Needs the dev server; roughly a second per case. The battle cases change whenever turn choreography or turn rules change |
 | `npm run browse -- <command>` (or `npx agent-browser`) | Free-form interactive exploration (`open <url>`, `press Space`, `screenshot <file>`, `errors`, `eval <js>`, `close`). Export `AGENT_BROWSER_EXECUTABLE_PATH=/tmp/ember-chromium` first (setup writes it into `CLAUDE_ENV_FILE` when the harness provides one) |
 
 `smoke.mjs`, `look.mjs` and `oracle.mjs` use `/tmp/ember-chromium` automatically when
@@ -191,7 +229,7 @@ shake) and stops the rAF loop from ticking or drawing, so frames advance only th
 the hook — this is what makes screenshots pixel-identical. In the page:
 `window.__ember.state()` (JSON: scene, subScene, act (= actInDepth + 1), n, depth, actInDepth, seed, cursor,
 won, banked, bosses, biome, hero, derived, enemy, clears, score, and the
-battle/loot/card/gear/pick/event/threshold/pact/map slice of the current sub-scene, plus `menu` — `{cursor, confirm}` while PAUSED, with `resume` (the CONTINUE line) on a TITLE that offers a save),
+battle/loot/card/gear/pick/event/threshold/pact/map slice of the current sub-scene, plus `menu` — `{cursor, confirm, yes}` while PAUSED, with `resume` (the CONTINUE line) on a TITLE that offers a save — and `save` — `{lost, notice}`: whether this tab stopped saving because another tab owns the run, and the title's last notice (`THAT RUN HAS ENDED`)),
 `step(n)` (n fixed ticks synchronously, one render, returns the state) and
 `press('A' | 'B' | 'PAUSE' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT')` (one edge press on the next tick).
 

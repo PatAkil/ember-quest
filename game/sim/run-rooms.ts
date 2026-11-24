@@ -204,8 +204,9 @@ export function bossRoom(run: RunState): Ending | null {
   const boss = foeOf(run, plan.boss);
   takePendingBurn(hero, run.n);
   const entry = derive(hero);
+  const atk = boss.atk;
   const outcome = runBattle({ hero, enemy: boss, policy: run.policy, rng: run.rng, verbs: run.tally.verbs });
-  run.probes.push(probeOf(run.n, run.clears, entry, { boss, outcome }));
+  run.probes.push(probeOf(run.n, run.clears, entry, { boss, outcome, atk }));
   if (!outcome.won) {return lost(run, boss, outcome);}
   run.clears += 1;
   grantClear(hero, 'BOSS');

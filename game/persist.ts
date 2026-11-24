@@ -4,7 +4,7 @@ import type { RewardSource, RunSnapshot, SavedBattle, SavedStep } from './sim';
 import { at } from './lookup';
 import { stageAt } from './state';
 import type { Game } from './state';
-import { clearRun, storeBest, storeRun } from './storage';
+import { clearRun, loadStoredRun, sameStamp, storeBest, storeRun } from './storage';
 
 export const realRun = (g: Game): boolean => !g.rngFromHook;
 
@@ -14,14 +14,27 @@ export function snapshotOf(g: Game, step: SavedStep): RunSnapshot {
   return { hero: g.hero, run, depthPlan: g.depthPlan, map: { stages, curStage, reachable, cursor }, step, rng: g.rngSource.getState() };
 }
 
+function ownsSave(g: Game): boolean {
+  const mine = g.saveStamp;
+  if (!mine || g.saveLost) {return false;}
+  return mine.writes === 0 || sameStamp(loadStoredRun()?.stamp ?? null, mine);
+}
+
+export function checkSaveOwner(g: Game): void {
+  if (realRun(g) && g.saveStamp && g.saveStamp.writes > 0 && !ownsSave(g)) {g.saveLost = true;}
+}
+
 export function persist(g: Game, step: SavedStep): void {
-  if (!realRun(g)) {return;}
-  storeRun(saveRun(snapshotOf(g, step)));
+  if (!realRun(g) || g.saveLost) {return;}
+  const mine = g.saveStamp;
+  if (!mine || !ownsSave(g)) { g.saveLost = true; return; }
+  const next = { id: mine.id, writes: mine.writes + 1 };
+  if (storeRun(saveRun(snapshotOf(g, step)), next)) {g.saveStamp = next;}
 }
 
 export function forgetRun(g: Game): void {
   g.resume = null;
-  if (realRun(g)) {clearRun();}
+  if (realRun(g) && ownsSave(g)) {clearRun();}
 }
 
 export function keepBest(g: Game): void {
@@ -38,23 +51,19 @@ export function persistEvent(g: Game, eventId: string): void {
   if (spot) {persist(g, { at: 'ROOM', ...spot, roomSeed: g.roomSeed, eventId });}
 }
 
-export function persistReward(g: Game, source: RewardSource, gift?: Rarity): void {
+interface Reward { source: RewardSource; earned: number; gift?: Rarity }
+
+export function persistReward(g: Game, reward: Reward): void {
   const spot = roomSpot(g);
-  if (!spot) {return;}
-  const step = { at: 'REWARD' as const, ...spot, roomSeed: g.roomSeed, source };
-  persist(g, gift === undefined ? step : { ...step, gift });
+  if (spot) {persist(g, { at: 'REWARD', ...spot, roomSeed: g.roomSeed, ...reward });}
 }
 
 function battleOf(g: Game): SavedBattle | null {
   const { enemy, state } = g.battle;
   if (!enemy || !state) {return null;}
   const { def, ...foe } = enemy;
-  const { rampStacks, lastScope, actionsTaken, intent, guarding, guardChain, riposte, aegis } = state;
-  return {
-    roomSeed: g.roomSeed,
-    foe: { ...foe, id: def.id },
-    state: { rampStacks, lastScope, actionsTaken, intent, guarding, guardChain, riposte, aegis },
-  };
+  const { enemy: shown, ...saved } = state;
+  return shown === enemy ? { roomSeed: g.roomSeed, foe: { ...foe, id: def.id }, state: saved } : null;
 }
 
 export function persistBattle(g: Game): void {

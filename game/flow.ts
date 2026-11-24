@@ -7,11 +7,12 @@ import {
 } from './sim';
 import type { RestOutcome, RewardSource } from './sim';
 import { must } from './lookup';
-import { resetFx } from './fx';
+import { bannerDur, cue, resetFx } from './fx';
 import { clearPops } from './pops';
 import { generateMap } from './mapgen';
-import { biome, biomeLook, installRng, pickOne, resetCursorEdge } from './state';
+import { armA, biome, biomeLook, installRng, pickOne, resetCursorEdge } from './state';
 import type { BattleWin, Game, MapNode, RoomType, ThresholdChoice } from './state';
+import { newStamp } from './storage';
 import { forgetRun, keepBest, persist, persistBattle, persistReward, settleRoom } from './persist';
 import { startBattle } from './screens/battle';
 import { popHero } from './screens/battle-fx';
@@ -20,6 +21,7 @@ import { C_HP, C_MP } from './theme';
 import { showCard } from './screens/card';
 import { startLevelUp } from './screens/levelup';
 import { chooseUpgrade, startLoot } from './screens/loot';
+import type { LootExit } from './screens/loot';
 import { startEvent } from './screens/event';
 import { startPact } from './screens/pact';
 import { startThreshold } from './screens/threshold';
@@ -29,9 +31,10 @@ export type FightSource = Exclude<RewardSource, 'EVENT'>;
 export function backToMap(g: Game): void {
   g.subScene = 'MAP';
   resetCursorEdge(g);
+  armA(g);
 }
 
-export function advanceStage(g: Game): void {
+function advanceStage(g: Game): void {
   settleRoom(g);
   backToMap(g);
 }
@@ -52,19 +55,21 @@ export function enterAct(g: Game): void {
   g.map.curStage = -1;
   g.map.reachable = (g.map.stages[0] ?? []).map((_, i) => i);
   g.map.cursor = 0;
-  g.subScene = 'MAP';
   g.app.particles.setAmbient(biomeLook(g).ambient, biomeLook(g).ambientColor);
-  resetCursorEdge(g);
+  backToMap(g);
   persist(g, { at: 'MAP' });
 }
 
 const freshStage = (g: Game, next: () => void) => (): void => { clearPops(g); next(); };
 
-function advanceAct(g: Game): void {
+function nextAct(g: Game): void {
   g.n++;
   enterActRecovery(g.hero);
   g.plan = planOf(g.depthPlan, g.n);
   enterAct(g);
+}
+
+function showActCard(g: Game): void {
   showCard(g, [`${biome(g).name} AWAITS...`, 'THE DESCENT CONTINUES'], () => { backToMap(g); });
 }
 
@@ -115,16 +120,25 @@ export function openThreshold(g: Game): void {
   startThreshold(g, (choice) => { THRESHOLD_PATH[choice](g); });
 }
 
-export function onActCleared(g: Game): void {
-  if (isLastActOfDepth(g.n)) { openThreshold(g); return; }
-  advanceAct(g);
+export function bossExit(g: Game): LootExit {
+  if (isLastActOfDepth(g.n)) {return { settle: () => { persist(g, { at: 'THRESHOLD' }); }, done: () => { openThreshold(g); } };}
+  let moved = false;
+  const move = (): void => {
+    if (moved) {return;}
+    moved = true;
+    nextAct(g);
+  };
+  return { settle: move, done: () => { move(); showActCard(g); } };
 }
 
-export function levelThenLoot(g: Game, sp: number, source: FightSource, done: () => void): void {
+export const roomExit = (g: Game): LootExit => ({ settle: () => { settleRoom(g); }, done: () => { advanceStage(g); } });
+
+export function levelThenLoot(g: Game, reward: { earned: number; source: FightSource }, exit: LootExit): void {
+  const { earned, source } = reward;
   clearPops(g);
-  startLevelUp(g, sp, freshStage(g, () => {
-    persistReward(g, source);
-    startLoot(g, source, freshStage(g, done));
+  startLevelUp(g, earned, freshStage(g, () => {
+    persistReward(g, { source, earned });
+    startLoot(g, source, { settle: exit.settle, done: freshStage(g, exit.done) });
   }));
 }
 
@@ -141,12 +155,12 @@ function reseedReward(g: Game): void {
 
 function bossVictory(g: Game, sp: number): void {
   const name = must(ENEMIES[g.plan.boss], g.plan.boss).name;
-  showCard(g, ['VICTORY!', `${name} IS NO MORE`], () => { levelThenLoot(g, sp, 'BOSS', () => { onActCleared(g); }); });
+  showCard(g, ['VICTORY!', `${name} IS NO MORE`], () => { levelThenLoot(g, { earned: sp, source: 'BOSS' }, bossExit(g)); });
 }
 
 const AFTER_WIN: Record<FightSource, (g: Game, sp: number) => void> = {
-  FIGHT: (g, sp) => { levelThenLoot(g, sp, 'FIGHT', () => { advanceStage(g); }); },
-  ELITE: (g, sp) => { levelThenLoot(g, sp, 'ELITE', () => { advanceStage(g); }); },
+  FIGHT: (g, sp) => { levelThenLoot(g, { earned: sp, source: 'FIGHT' }, roomExit(g)); },
+  ELITE: (g, sp) => { levelThenLoot(g, { earned: sp, source: 'ELITE' }, roomExit(g)); },
   BOSS: bossVictory,
 };
 
@@ -155,8 +169,9 @@ export function winFor(g: Game, source: FightSource): BattleWin {
   const kill = (): void => {
     if (sp !== null) {return;}
     reseedReward(g);
-    sp = onClear(g, KIND_OF[source]);
-    persistReward(g, source);
+    const earned = onClear(g, KIND_OF[source]);
+    sp = earned;
+    persistReward(g, { source, earned });
   };
   return { kill, done: () => { kill(); AFTER_WIN[source](g, sp ?? 0); } };
 }
@@ -177,7 +192,8 @@ function bossRoom(g: Game, node: MapNode): void {
   node.cleared = true;
   const healed = healFraction(g.hero, BOSS_ENTRY_HEAL);
   startBattle(g, g.plan.boss, winFor(g, 'BOSS'));
-  popHero(g, entryHealPops(healed));
+  const pops = entryHealPops(healed);
+  cue(g, bannerDur(), () => { popHero(g, pops); });
   ignitePendingBurn(g);
   persistBattle(g);
 }
@@ -204,7 +220,8 @@ function restLines(g: Game, rest: RestOutcome, refilled: boolean): string[] {
 }
 
 function offerAshUpgrade(g: Game): void {
-  g.loot = { offers: [{ kind: 'UPGRADE_ANY' }], source: 'LOOT', cursor: 0, stow: false, ash: true, onDone: freshStage(g, () => { advanceStage(g); }) };
+  const exit = roomExit(g);
+  g.loot = { offers: [{ kind: 'UPGRADE_ANY' }], source: 'LOOT', cursor: 0, stow: false, ash: true, onDone: freshStage(g, exit.done), settle: exit.settle };
   chooseUpgrade(g);
 }
 
@@ -222,7 +239,7 @@ const ROOMS: Record<RoomType, (g: Game, node: MapNode) => void> = {
   ELITE: (g, node) => { fightRoom(g, node, 'ELITE'); },
   BOSS: bossRoom,
   REST: restRoom,
-  LOOT: (g) => { startLoot(g, 'LOOT', leaveRoom(g)); },
+  LOOT: (g) => { startLoot(g, 'LOOT', { settle: roomExit(g).settle, done: leaveRoom(g) }); },
   EVENT: (g) => { startEvent(g, leaveRoom(g)); },
 };
 
@@ -259,6 +276,8 @@ export function resetRunScreens(g: Game): void {
 
 export function startRun(g: Game, hero: Hero = createHero(), n = 0, clears = 0): void {
   seedRun(g);
+  g.saveStamp = newStamp();
+  g.saveLost = false;
   g.hero = hero;
   placeRun(g, n, clears);
   resetRunScreens(g);
@@ -296,9 +315,9 @@ function saveBest(g: Game): void {
 
 export function wireScenes(g: Game): void {
   const { scenes, runtime } = g.app;
-  scenes.onEnter('TITLE', () => { runtime.stateChanged('TITLE'); });
+  scenes.onEnter('TITLE', () => { armA(g); runtime.stateChanged('TITLE'); });
   scenes.onEnter('PLAYING', () => { runtime.stateChanged('PLAYING'); });
-  scenes.onEnter('PAUSED', () => { g.pause = { cursor: 0, confirm: false }; runtime.stateChanged('PAUSED'); });
+  scenes.onEnter('PAUSED', () => { g.pause = { cursor: 0, confirm: false, yes: false }; runtime.stateChanged('PAUSED'); });
   scenes.onEnter('GAME_OVER', () => {
     g.endedAt = g.clock;
     forgetRun(g); settleDeath(g); saveBest(g);

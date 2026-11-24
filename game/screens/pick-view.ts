@@ -33,6 +33,7 @@ function drawBand(ctx: CanvasRenderingContext2D, row: PickRow | undefined): void
   if (!row) {return;}
   const last = row.detail.length - 1;
   const lines = row.detail.slice(0, 3).map((text, i) => ({ text, color: i === last && last > 0 ? row.color : C_TEXT }));
+  if (row.aside) {lines.push({ text: row.aside, color: C_DIM });}
   drawItemCard(ctx, { icon: row.icon ?? ICON_EMPTY, px: 3 }, { name: row.name, color: row.color, lines });
 }
 

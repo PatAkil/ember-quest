@@ -1,11 +1,14 @@
 import { PICO8, drawText, textWidth } from '../../engine';
 import { EMBER_MAX } from '../types';
 import type { BattleState, EnemyInstance, Hero } from '../types';
-import { derive, desperate, punishes, woundUp } from '../sim';
+import { ENRAGE_AFTER, derive, desperate, punishes, woundUp } from '../sim';
 import { guardShown } from '../fx';
 import type { Game } from '../state';
 import { C_ACCENT, C_DIM, C_EMBER, C_TEXT, C_WARD, C_WARN, ELEMENT_COLOR, HUD_BOTTOM } from '../theme';
+import type { Burn } from '../types';
 import type { Seg } from './battle-preview';
+import { hasWeakAnswer } from './battle-preview';
+import { TOP_COMMANDS } from './battle-menu';
 
 export interface PlateBox { x: number; y: number; w: number; h: number }
 interface TagPlates { hero: PlateBox; enemy: PlateBox; pad: number }
@@ -59,19 +62,36 @@ function affixChoices(affixes: readonly string[], clock: number): Choices {
   return more > 0 ? [[{ text: shown, color: C_AFFIX }, { text: `+${String(more)}`, color: C_DIM }], alone] : [alone];
 }
 
-function enemyTags(e: EnemyInstance, clock: number): Choices[] {
-  const tags: Choices[] = [];
-  if (e.def.weak) {tags.push([[{ text: 'WEAK', color: C_TEXT }, { text: e.def.weak, color: ELEMENT_COLOR[e.def.weak] }]]);}
-  tags.push(affixChoices(e.affixes, clock));
+const burnTag = (burn: Burn): Tag => word(`BURN ${String(burn.perTurn)} X${String(burn.turns)}`, C_EMBER);
+
+function weakTag(g: Game, e: EnemyInstance): Choices {
+  const weak = e.def.weak;
+  if (!weak) {return [];}
+  const answered = hasWeakAnswer(g.hero, e);
+  return [[{ text: 'WEAK', color: answered ? C_TEXT : C_DIM }, { text: weak, color: answered ? ELEMENT_COLOR[weak] : C_DIM }]];
+}
+
+function enemyTags(g: Game, e: EnemyInstance, state: BattleState | null): Choices[] {
+  const tags: Choices[] = [weakTag(g, e)];
+  if (state && state.calm > ENRAGE_AFTER) {tags.push([word('ENRAGED', C_AFFIX)]);}
+  tags.push(affixChoices(e.affixes, g.clock));
   if (e.wardTurns > 0) {tags.push([word(`WARD ${e.wardTurns}`, C_WARD)]);}
-  if (e.burn) {tags.push([word(`BURN ${e.burn.turns}`, C_EMBER)]);}
+  if (e.burn) {tags.push([burnTag(e.burn), word(`BURN -${String(e.burn.perTurn)}`, C_EMBER)]);}
   if (e.def.resists) {tags.push([[{ text: 'RES', color: C_DIM }, { text: e.def.resists, color: ELEMENT_COLOR[e.def.resists] }]]);}
   return tags;
 }
 
-function heroTags(hero: Hero, state: BattleState | null, guard: boolean): Tag[] {
-  const tags: Tag[] = [];
-  if (hero.burn) {tags.push(word(`BURN ${hero.burn.turns}`, C_EMBER));}
+function emberTag(g: Game): Tag[] {
+  const b = g.battle;
+  const lit = b.menu === 'TOP' && b.phase === 'MENU' && TOP_COMMANDS[b.topCursor] === 'BURST';
+  if (!lit || g.hero.ember >= EMBER_MAX) {return [];}
+  return [word(`EMBER ${String(Math.floor((100 * g.hero.ember) / EMBER_MAX))}%`, C_EMBER)];
+}
+
+function heroTags(g: Game, state: BattleState | null, guard: boolean): Tag[] {
+  const hero = g.hero;
+  const tags: Tag[] = emberTag(g);
+  if (hero.burn) {tags.push(burnTag(hero.burn));}
   if (state?.riposte) {tags.push(word('RIPOSTE', C_ACCENT));}
   if (guard) {tags.push(word(state && state.aegis > 0 ? 'AEGIS' : 'GUARD', C_WARD));}
   tags.push(...edgeTags(hero, state));
@@ -90,6 +110,6 @@ function edgeTags(hero: Hero, state: BattleState | null): Tag[] {
 export function drawTags(g: Game, plates: TagPlates): void {
   const ctx = g.app.pc.ctx;
   const { enemy, state } = g.battle;
-  if (!g.heroDown) {drawStrip(ctx, heroTags(g.hero, state, guardShown(g)).map((t) => [t]), { plate: plates.hero, pad: plates.pad, y: HERO_TAG_Y });}
-  if (enemy && enemy.hp > 0) {drawStrip(ctx, enemyTags(enemy, g.clock), { plate: plates.enemy, pad: plates.pad, y: ENEMY_TAG_Y });}
+  if (!g.heroDown) {drawStrip(ctx, heroTags(g, state, guardShown(g)).map((t) => [t]), { plate: plates.hero, pad: plates.pad, y: HERO_TAG_Y });}
+  if (enemy && enemy.hp > 0) {drawStrip(ctx, enemyTags(g, enemy, state), { plate: plates.enemy, pad: plates.pad, y: ENEMY_TAG_Y });}
 }

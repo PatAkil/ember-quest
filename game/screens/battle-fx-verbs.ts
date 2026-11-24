@@ -1,5 +1,5 @@
 import { PICO8 } from '../../engine';
-import type { EnemyInstance, Element, TurnStart } from '../types';
+import type { EnemyInstance, Element } from '../types';
 import { enemyAnchor, heroAnchor } from '../backdrop';
 import { addMove, addShot, addTint, cue, showBanner } from '../fx';
 import type { Actor } from '../fx-state';
@@ -93,17 +93,12 @@ export function fxPotion(g: Game): void {
   addTint(g, 'HERO', C_HP, 0.08);
 }
 
-export function fxBurnTick(g: Game, turn: TurnStart, heroSlot: number): void {
-  if (turn.heroBurn > 0) {burnTick(g, 'HERO', turn.heroBurn, heroSlot);}
-  if (turn.enemyBurn > 0) {burnTick(g, 'ENEMY', turn.enemyBurn, 0);}
-  g.app.audio.play('hit');
-}
-
-function burnTick(g: Game, actor: Actor, amount: number, slot: number): void {
+export function fxBurnTick(g: Game, actor: Actor, amount: number, slot: number): void {
   const p = centreOf(g, actor);
   popOn(g, { actor, slot, scale: 1 }, `BURN -${String(amount)}`, C_EMBER);
   addTint(g, actor, C_EMBER, 0.08);
   g.app.particles.burst(p.x, p.y - 6, { count: 8, color: C_EMBER, speed: 60 });
+  g.app.audio.play('hit');
 }
 
 export function fxPhase(g: Game, e: EnemyInstance): void {

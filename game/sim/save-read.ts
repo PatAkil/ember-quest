@@ -8,7 +8,7 @@ import { fail, flag, idList, int, knownKey, list, num, oneOf, record } from './s
 import type { Bounds, Fields } from './save-check';
 import type { RewardStep, RoomExtras } from './save-battle';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export interface SavedItem { id: string; level: number }
 export type SavedHero = Omit<Hero, 'equipment' | 'pack'> & { equipment: Partial<Record<Slot, string>>; pack: SavedItem[] };

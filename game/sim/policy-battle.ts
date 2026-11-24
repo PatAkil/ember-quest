@@ -9,7 +9,7 @@ import { isGuardAction, isSpell, spellCost } from './hero';
 import { gearPower, heroElement, punishes, riposteMult } from './power';
 import type { Policy } from './model';
 import { pactDamage } from './pacts';
-import { resistOf } from './status';
+import { pendingTick, resistOf } from './status';
 
 interface BattleStyle {
   mendBelow: number;
@@ -77,10 +77,19 @@ function answerHeavy(f: Fight): HeroAction | undefined {
   if (!f.style.verbs || f.battle.intent !== 'HEAVY') {return undefined;}
   const broken = breaker(f);
   if (broken) {return broken;}
-  return heavyHit(f) >= GUARD_HIT_SHARE * f.hero.hp ? guardChoice(f) : undefined;
+  return heavyHit(f) >= GUARD_HIT_SHARE * standing(f) ? guardChoice(f) : undefined;
 }
 
-const hpShare = (f: Fight): number => f.hero.hp / Math.max(1, f.d.maxHp);
+const standing = (f: Fight): number => f.hero.hp - pendingTick(f.hero);
+
+const hpShare = (f: Fight): number => standing(f) / Math.max(1, f.d.maxHp);
+
+function douse(f: Fight): HeroAction | undefined {
+  if (standing(f) > 0) {return undefined;}
+  if (f.affordable.includes('BURST')) {return 'BURST';}
+  if (f.affordable.includes('POTION')) {return 'POTION';}
+  return f.affordable.find(isMend);
+}
 
 function heal(f: Fight): HeroAction | undefined {
   if (hpShare(f) < POTION_BELOW && f.affordable.includes('POTION')) {return 'POTION';}
@@ -123,7 +132,7 @@ function hardestHit(f: Fight): HeroAction {
 function decide(f: Fight): HeroAction {
   const kill = killer(f);
   if (kill) {return kill;}
-  const answer = answerHeavy(f) ?? heal(f);
+  const answer = douse(f) ?? answerHeavy(f) ?? heal(f);
   if (answer) {return answer;}
   const best = hardestHit(f);
   return burstNow(f, best) ? 'BURST' : best;

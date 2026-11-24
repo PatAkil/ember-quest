@@ -4,10 +4,10 @@ import type { RunSnapshot, SavedBattle, SavedRun, SavedStep } from './sim';
 import { at } from './lookup';
 import { biomeLook, foeScale, stageAt } from './state';
 import type { Game, MapNode } from './state';
-import { clearRun, loadStoredRun } from './storage';
-import { realRun, snapshotOf } from './persist';
+import { clearRun, newStamp, isRunKey, loadStoredRun, sameStamp } from './storage';
+import { checkSaveOwner, realRun, snapshotOf } from './persist';
 import {
-  advanceStage, backToMap, leaveRoom, levelThenLoot, onActCleared, openPact, openThreshold, resetRunScreens, seedRun, selectNode, winFor,
+  backToMap, bossExit, leaveRoom, levelThenLoot, openPact, openThreshold, resetRunScreens, roomExit, seedRun, selectNode, winFor,
 } from './flow';
 import type { FightSource } from './flow';
 import { resumeBattle } from './screens/battle';
@@ -55,7 +55,7 @@ function resumeEventReward(g: Game, step: Step<'REWARD'>): void {
   const leave = leaveRoom(g);
   const { gift } = step;
   const then = gift === undefined ? leave : (): void => { offerGift(g, gift, leave); };
-  startLevelUp(g, g.hero.sp, then);
+  startLevelUp(g, step.earned, then);
 }
 
 function resumeReward(g: Game, step: Step<'REWARD'>): void {
@@ -63,8 +63,7 @@ function resumeReward(g: Game, step: Step<'REWARD'>): void {
   g.roomSeed = step.roomSeed;
   const { source } = step;
   if (source === 'EVENT') { resumeEventReward(g, step); return; }
-  const done = source === 'BOSS' ? (): void => { onActCleared(g); } : (): void => { advanceStage(g); };
-  levelThenLoot(g, g.hero.sp, source, done);
+  levelThenLoot(g, { earned: step.earned, source }, source === 'BOSS' ? bossExit(g) : roomExit(g));
 }
 
 function resumeStep(g: Game, step: SavedStep): void {
@@ -74,11 +73,13 @@ function resumeStep(g: Game, step: SavedStep): void {
   if (step.at === 'PACT') {openPact(g, step.offers);}
 }
 
-export function continueRun(g: Game, saved: SavedRun): void {
+function continueRun(g: Game, saved: SavedRun): void {
   const live = fromSaved(saved);
   g.resume = null;
   restore(g, live);
   resetRunScreens(g);
+  g.saveStamp = g.resumeStamp ?? newStamp();
+  g.saveLost = false;
   g.app.particles.setAmbient(biomeLook(g).ambient, biomeLook(g).ambientColor);
   backToMap(g);
   g.app.scenes.to('PLAYING');
@@ -88,9 +89,29 @@ export function continueRun(g: Game, saved: SavedRun): void {
 
 export function loadResume(g: Game): void {
   if (!realRun(g)) {return;}
-  const text = loadStoredRun();
-  g.resume = text === null ? null : loadRun(text);
-  if (text !== null && g.resume === null) {clearRun();}
+  const stored = loadStoredRun();
+  g.resume = stored === null ? null : loadRun(stored.text);
+  g.resumeStamp = g.resume === null ? null : stored?.stamp ?? null;
+  if (stored !== null && g.resume === null) {clearRun();}
+  if (g.resume === null) {g.title = { cursor: 0, confirm: false, yes: false };}
+}
+
+const ENDED_NOTE = 'THAT RUN HAS ENDED';
+
+export function continueIfCurrent(g: Game, saved: SavedRun): void {
+  const stored = realRun(g) ? loadStoredRun() : null;
+  if (!realRun(g) || (stored !== null && sameStamp(stored.stamp, g.resumeStamp))) { continueRun(g, saved); return; }
+  g.notice = { text: ENDED_NOTE, at: g.clock };
+  g.app.audio.play('blip');
+  loadResume(g);
+}
+
+export function watchStorage(g: Game): void {
+  window.addEventListener('storage', (e) => {
+    if (!isRunKey(e.key)) {return;}
+    if (g.app.scenes.current === 'TITLE') { loadResume(g); return; }
+    checkSaveOwner(g);
+  });
 }
 
 export function offerResume(g: Game): void {

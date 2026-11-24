@@ -47,9 +47,9 @@ function guardLeavesState(sim) {
   sim.equip(r.hero, itemOf(sim, 'HOLY_GRAIL'), 0);
   r.hero.hp = 10;
   r.hero.mp = 0;
-  const still = sim.startTurn(r.hero, r.battle, 'GUARD');
+  const still = sim.startTurn(r.hero, 'GUARD');
   assert.ok(still.hpRegen === 0 && still.mpRegen === 0, 'regen ticked on a GUARD turn');
-  const moving = sim.startTurn(r.hero, r.battle, 'ATTACK');
+  const moving = sim.startTurn(r.hero, 'ATTACK');
   assert.ok(moving.hpRegen > 0 && moving.mpRegen > 0, 'regen did not tick on an ATTACK turn');
 }
 
@@ -83,8 +83,8 @@ function burnRules(sim) {
   assert.ok(r.burned);
   assert.deepEqual(f.hero.burn, { perTurn: Math.max(1, Math.round(r.dmg * 0.4)), turns: 3 }, 'BURN = 40 % of the hit for 3 turns');
   const big = f.hero.burn.perTurn;
-  const tick = sim.startTurn(f.hero, f.battle, 'ATTACK');
-  assert.equal(tick.heroBurn, big);
+  const tick = sim.heroAct(f.hero, f.battle, 'GUARD', seeded(sim, 1));
+  assert.equal(tick.burnTick, big, 'the hero burns at the end of his own action');
   f.enemy.atk = 2;
   f.enemy.cycleIndex = 1;
   f.battle.intent = 'SCORCH';
@@ -98,21 +98,29 @@ function burnRules(sim) {
 
 function burnTicks(sim) {
   const f = fightOf(sim, 'SLIME');
+  f.enemy.hp = f.enemy.maxHp = 1000;
   f.hero.hp = 3;
   f.hero.burn = { perTurn: 5, turns: 3 };
   f.enemy.burn = { perTurn: 5, turns: 3 };
-  const dead = sim.startTurn(f.hero, f.battle, 'ATTACK');
-  assert.ok(dead.heroDead && dead.enemyBurn === 0, 'a hero tick kills before the foe ticks');
+  const dead = sim.heroAct(f.hero, f.battle, 'ATTACK', seeded(sim, 1));
+  assert.ok(dead.heroDead && dead.burnTick === 3 && f.enemy.burn.turns === 3, 'the hero tick after his action kills; the foe has not ticked');
   const phoenix = fightOf(sim, 'SLIME');
+  phoenix.enemy.hp = phoenix.enemy.maxHp = 1000;
   sim.equip(phoenix.hero, itemOf(sim, 'PHOENIX_TEAR'), 0);
   phoenix.hero.hp = 3;
   phoenix.hero.burn = { perTurn: 5, turns: 3 };
-  const rose = sim.startTurn(phoenix.hero, phoenix.battle, 'ATTACK');
+  const rose = sim.heroAct(phoenix.hero, phoenix.battle, 'ATTACK', seeded(sim, 1));
   assert.ok(rose.revived && !rose.heroDead && phoenix.hero.hp > 0, 'REVIVE answers a BURN tick');
   const foe = fightOf(sim, 'SLIME');
   foe.enemy.burn = { perTurn: 999, turns: 3 };
-  const won = sim.startTurn(foe.hero, foe.battle, 'ATTACK');
-  assert.ok(won.enemyDefeated && foe.hero.ember === 0, 'a foe tick kills, and gives no ember');
+  foe.enemy.staggered = true;
+  const won = sim.enemyAct(foe.hero, foe.battle, seeded(sim, 1));
+  assert.ok(won.enemyDefeated && won.burnTick > 0 && foe.hero.ember === 0, 'a foe tick at the end of its action kills, and gives no ember');
+  const burst = fightOf(sim, 'SLIME');
+  burst.enemy.hp = burst.enemy.maxHp = 1000;
+  Object.assign(burst.hero, { hp: 3, ember: 100, burn: { perTurn: 5, turns: 3 } });
+  const cleansed = sim.heroAct(burst.hero, burst.battle, 'BURST', seeded(sim, 1));
+  assert.ok(!cleansed.heroDead && cleansed.burnTick === 0 && burst.hero.hp === 3, 'BURST cleanses before the tick');
 }
 
 function burstRules(sim) {
@@ -216,8 +224,8 @@ function guardMendLoop(sim, f, rng) {
   let enraged = false;
   for (let turn = 0; turn < 200; turn++) {
     const action = turn % 2 === 0 || !sim.canAfford(f.hero, 'MEND') ? 'GUARD' : 'MEND';
-    if (sim.startTurn(f.hero, f.battle, action).heroDead) {return enraged;}
-    sim.heroAct(f.hero, f.battle, action, rng);
+    sim.startTurn(f.hero, action);
+    if (sim.heroAct(f.hero, f.battle, action, rng).heroDead) {return enraged;}
     const reply = sim.enemyAct(f.hero, f.battle, rng);
     enraged ||= reply.enraged;
     if (reply.heroDead || reply.enemyDefeated) {return enraged;}

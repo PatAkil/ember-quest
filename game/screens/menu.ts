@@ -1,31 +1,37 @@
-import { BUTTON_KEY, drawText, drawTextCentered, textWidth } from '../../engine';
-import { dirEdge, wrapCursor } from '../state';
+import { BUTTON_KEY, drawText, textWidth } from '../../engine';
+import { armA, dirEdge, dirEdgeX, wrapCursor } from '../state';
 import type { Game, MenuScreen } from '../state';
 import { C_ACCENT, C_DIM, C_SEL_BAR, C_TEXT, C_WARN, W } from '../theme';
 
-interface MenuGuard { rows: number; guarded: number }
+interface MenuGuard { rows: number; guarded: number; readA: (g: Game) => boolean }
 interface MenuRow { label: string; detail?: string }
 interface RowSpot { y: number; barW: number; selected: boolean }
 
-const CONFIRM_KEYS = `${BUTTON_KEY.A.hint} YES  ${BUTTON_KEY.B.hint} NO`;
 const BAR_H = 9;
+const CONFIRM_GAP = 8;
 
-function stepConfirm(g: Game, menu: MenuScreen, guarded: number): number | null {
+function stepConfirm(g: Game, menu: MenuScreen, guard: MenuGuard): number | null {
   const { input, audio } = g.app;
-  if (input.pressed('A')) { menu.confirm = false; audio.play('blip'); return guarded; }
-  if (input.pressed('B')) { menu.confirm = false; audio.play('blip'); }
-  return null;
+  const moved = dirEdgeX(g) !== 0 || dirEdge(g) !== 0;
+  if (moved) { menu.yes = !menu.yes; audio.play('blip'); }
+  if (input.pressed('B')) { menu.confirm = false; audio.play('blip'); return null; }
+  if (!guard.readA(g)) {return null;}
+  audio.play('blip');
+  menu.confirm = false;
+  return menu.yes ? guard.guarded : null;
 }
 
 export function stepMenu(g: Game, menu: MenuScreen, guard: MenuGuard): number | null {
-  const { input, audio } = g.app;
-  if (menu.confirm) {return stepConfirm(g, menu, guard.guarded);}
+  const { audio } = g.app;
+  if (menu.confirm) {return stepConfirm(g, menu, guard);}
   const dy = dirEdge(g);
   if (dy) { menu.cursor = wrapCursor(menu.cursor, dy, guard.rows); audio.play('blip'); }
-  if (!input.pressed('A')) {return null;}
+  if (!guard.readA(g)) {return null;}
   audio.play('blip');
   if (menu.cursor !== guard.guarded) {return menu.cursor;}
   menu.confirm = true;
+  menu.yes = false;
+  armA(g);
   return null;
 }
 
@@ -43,7 +49,26 @@ export function drawMenuRow(ctx: CanvasRenderingContext2D, row: MenuRow, spot: R
   if (tail) {drawText(ctx, tail, { x: x + textWidth(head, 1), y: spot.y }, { color: C_DIM, shadow: true });}
 }
 
-export function drawConfirm(ctx: CanvasRenderingContext2D, question: string, spot: Omit<RowSpot, 'selected'>): void {
+interface Ink { text: string; color: string }
+
+function confirmInks(question: string, yes: boolean): Ink[] {
+  return [
+    { text: question, color: C_WARN },
+    { text: yes ? '  NO' : '> NO', color: yes ? C_TEXT : C_ACCENT },
+    { text: yes ? '> YES' : '  YES', color: yes ? C_ACCENT : C_TEXT },
+  ];
+}
+
+export function drawConfirm(ctx: CanvasRenderingContext2D, question: string, spot: RowSpot & { hintY?: number }): void {
   drawBar(ctx, spot.y, spot.barW);
-  drawTextCentered(ctx, `${question}  ${CONFIRM_KEYS}`, { width: W, y: spot.y }, { color: C_WARN, shadow: true });
+  const inks = confirmInks(question, spot.selected);
+  const width = inks.reduce((n, ink) => n + textWidth(ink.text, 1), 0) + CONFIRM_GAP * (inks.length - 1);
+  let x = Math.round(W / 2 - width / 2);
+  for (const ink of inks) {
+    drawText(ctx, ink.text, { x, y: spot.y }, { color: ink.color, shadow: true });
+    x += textWidth(ink.text, 1) + CONFIRM_GAP;
+  }
+  if (spot.hintY === undefined) {return;}
+  const hint = `ARROWS PICK  ${BUTTON_KEY.A.hint} CONFIRM  ${BUTTON_KEY.B.hint} NO`;
+  drawText(ctx, hint, { x: Math.round(W / 2 - textWidth(hint, 1) / 2), y: spot.hintY }, { color: C_DIM, shadow: true });
 }

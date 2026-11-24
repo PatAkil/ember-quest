@@ -2,6 +2,7 @@ import {
   AFFIX_IDS,
   AFFIX_MAX,
   HOLLOW_ATK_SHARE,
+  HOLLOW_HIT_FLOOR,
   HOLLOW_HP_FLOOR,
   HOLLOW_HIT_CAP,
   HOLLOW_HP_HITS,
@@ -24,7 +25,7 @@ import { actMult, affixCountFor, depthOf, inDescent, type ActPlan } from './desc
 import { effectiveEffect, findEffect, itemLevel } from './gear';
 import { derive } from './hero';
 import { pactMods } from './pacts';
-import { at } from './util';
+import { at, clamp } from './util';
 
 type GearTest = (hero: Hero, d: Derived) => boolean;
 
@@ -86,11 +87,13 @@ export function hollowOf(hero: Hero, n: number): EnemyInstance {
   const res = { phys: Math.min(HOLLOW_RES_CAP, best.def), magic: Math.min(HOLLOW_RES_CAP, best.mdef) };
   const landed = base * (1 - facedResist(hero, kind, res) / 100);
   const hp = Math.max(1, Math.round(HOLLOW_HP_HITS * landed), Math.round(HOLLOW_HP_FLOOR * best.maxHp));
-  const guard = kind === 'MAGIC' ? best.mdef : best.def;
-  const capped = (HOLLOW_HIT_CAP * best.maxHp) / Math.max(0.05, 1 - guard / 100);
-  const atk = Math.max(1, Math.round((Math.min(HOLLOW_ATK_SHARE * base, capped) * actMult(n)) / storyPeak()));
+  const strikeKind: DamageKind = best.def > best.mdef ? 'MAGIC' : best.mdef > best.def ? 'PHYSICAL' : kind;
+  const guard = strikeKind === 'MAGIC' ? best.mdef : best.def;
+  const perHp = best.maxHp / Math.max(0.05, 1 - guard / 100);
+  const strike = clamp(HOLLOW_ATK_SHARE * base, HOLLOW_HIT_FLOOR * perHp, HOLLOW_HIT_CAP * perHp);
+  const atk = Math.max(1, Math.round((strike * actMult(n)) / storyPeak()));
   const shell = spawnEnemy(HOLLOW_ID, { n, clears: 0, descentClears: null }, hollowAffixes(hero));
-  return { ...shell, def: { ...shell.def, atkType: kind }, hp, maxHp: hp, atk, resPhys: res.phys, resMagic: res.magic };
+  return { ...shell, def: { ...shell.def, atkType: strikeKind }, hp, maxHp: hp, atk, resPhys: res.phys, resMagic: res.magic };
 }
 
 export interface SpawnContext extends FoeScale { hero: Hero; affixes?: readonly AffixId[]; plan?: ActPlan }

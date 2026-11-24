@@ -31,7 +31,7 @@ export const BIOMES: Biome[] = [
   { name: 'THE DESERT', normals: ['SANDWORM', 'SCORPION'], elites: ['MUMMY'], boss: 'SAND_GOLEM', scroll: 'THUNDER' },
   { name: 'HOLY TEMPLE', normals: ['GUARDIAN', 'ORACLE'], elites: ['PALADIN'], boss: 'SERAPH' },
 ];
-export const ACT_MULT = [1.3, 1.75, 2.8, 3.8];
+export const ACT_MULT = [1.3, 1.8, 3.05, 4.3];
 
 export const CLEAR_HEAL = 0.25;
 export const BOSS_ENTRY_HEAL = 0.6;

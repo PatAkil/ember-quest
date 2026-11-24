@@ -1,7 +1,7 @@
 import type { PactId } from '../types';
 import { takePact } from '../sim';
 import { at } from '../lookup';
-import { resetCursorEdge } from '../state';
+import { armA, resetCursorEdge } from '../state';
 import type { Game } from '../state';
 import { C_ACCENT } from '../theme';
 import { PACT_ARM, stepChoice } from './threshold';
@@ -10,6 +10,7 @@ export function startPact(g: Game, offers: PactId[], onDone: () => void): void {
   g.pact = { offers, cursor: 0, openedAt: g.clock, onDone };
   g.subScene = 'PACT';
   resetCursorEdge(g);
+  armA(g);
 }
 
 export function updatePact(g: Game): void {

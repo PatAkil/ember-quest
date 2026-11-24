@@ -127,3 +127,165 @@ export function foeRules(sim) {
   validateCycles(sim);
   return '18 cycles: shown move always resolves, WINDUP->HEAVY, intents rng-free; phase switch keeps the shown move (and its HEAVY); WARD +25 cap 60 for 2 actions; MEND once; cycle rules validated';
 }
+
+const clone = (f) => {
+  const copy = structuredClone({ hero: f.hero, battle: f.battle });
+  return { hero: copy.hero, battle: copy.battle, enemy: copy.battle.enemy };
+};
+
+function potionBeforeTick(sim) {
+  const f = fightOf(sim, 'SLIME');
+  f.enemy.hp = f.enemy.maxHp = 1000;
+  Object.assign(f.hero, { hp: 5, burn: { perTurn: 8, turns: 3 } });
+  const t = sim.resolveTurn(f.hero, f.battle, 'POTION', 11);
+  assert.ok(t.hero.healed > 0 && t.hero.burnTick === 8 && !t.hero.heroDead, 'a POTION at 5 HP must land before the burn tick');
+  return 'a POTION at 5 HP lands before an 8 tick';
+}
+
+function guardedHeavyThenTick(sim) {
+  const f = fightOf(sim, 'GOBLIN', 1);
+  f.enemy.hp = f.enemy.maxHp = 1000;
+  f.enemy.atk = 16;
+  Object.assign(f.hero, { hp: 36, burn: { perTurn: 8, turns: 3 } });
+  const t = sim.resolveTurn(f.hero, f.battle, 'GUARD', 5);
+  assert.equal(t.hero.burnTick, 8, 'the hero tick follows his GUARD');
+  assert.ok(t.enemy?.parried && t.outcome === null && f.hero.hp > 0, `a guarded HEAVY at 36 HP and an 8 tick killed: ${JSON.stringify(t.enemy)}`);
+  assert.ok(t.enemy.text.startsWith('PARRIED! THE BLOW ONLY GRAZES YOU FOR') && t.enemy.text.length <= 52, `parry line: ${t.enemy.text}`);
+  return 'a guarded HEAVY (33 raw) at 36 HP with an 8 tick is survived';
+}
+
+function foeTicksAfterItsAction(sim) {
+  const f = fightOf(sim, 'SLIME', 3);
+  f.enemy.maxHp = 1000;
+  f.enemy.hp = 500;
+  f.enemy.burn = { perTurn: 10, turns: 1 };
+  f.hero.hp = 1000;
+  f.battle.intent = 'MEND';
+  const r = sim.enemyAct(f.hero, f.battle, () => 0.5);
+  assert.ok(r.move === 'MEND' && r.healed === 100 && r.burnTick === 10 && f.enemy.hp === 590, 'the foe ticks after its own action');
+  assert.equal(r.burnText, 'SLIME BURNS FOR 10');
+  return 'the foe ticks after its own action';
+}
+
+function lastTurn(sim, f, seed, actions) {
+  let t = null;
+  for (const action of actions) {t = sim.resolveTurn(f.hero, f.battle, action, seed);}
+  return t;
+}
+
+function boss(sim) {
+  const f = fightOf(sim, 'SERAPH');
+  f.enemy.hp = f.enemy.maxHp = 100000;
+  f.hero.hp = 100000;
+  f.hero.mp = 100;
+  return f;
+}
+
+function foeRollsIgnoreTheHero(sim) {
+  let compared = 0;
+  for (let seed = 0; seed < 500; seed++) {
+    const base = boss(sim);
+    lastTurn(sim, base, seed, ['ATTACK', 'ATTACK']);
+    const a = clone(base);
+    const b = clone(base);
+    const ra = sim.resolveTurn(a.hero, a.battle, 'ATTACK', seed);
+    const rb = sim.resolveTurn(b.hero, b.battle, 'POTION', seed);
+    assert.equal(ra.turn, rb.turn);
+    if (!ra.enemy || !rb.enemy || ra.enemy.move !== rb.enemy.move) {continue;}
+    compared += 1;
+    assert.deepEqual([ra.enemy.dodged, ra.enemy.dmg], [rb.enemy.dodged, rb.enemy.dmg], `seed ${seed}: the foe's roll changed with the hero's action`);
+    const again = clone(base);
+    assert.deepEqual(sim.resolveTurn(again.hero, again.battle, 'ATTACK', seed), ra, `seed ${seed}: the same turn resolved twice differs`);
+  }
+  assert.ok(compared > 400, `only ${compared} comparable turns`);
+  return `${compared} seeds: the foe's turn-N roll is the same whatever the hero chose; a reloaded turn replays exactly`;
+}
+
+function streamsDiffer(sim) {
+  const hero = sim.turnRng(7, 3, 'HERO');
+  const foe = sim.turnRng(7, 3, 'FOE');
+  const next = sim.turnRng(7, 4, 'FOE');
+  const a = [hero(), hero()];
+  const b = [foe(), foe()];
+  const c = [next(), next()];
+  assert.notDeepEqual(a, b, 'hero and foe share a stream');
+  assert.notDeepEqual(b, c, 'two turns share a stream');
+  assert.equal(sim.turnSeed(7, 3, 'FOE'), sim.turnSeed(7, 3, 'FOE'));
+}
+
+function enrageOnThirteenth(sim) {
+  const f = fightOf(sim, 'GOBLIN');
+  f.enemy.hp = f.enemy.maxHp = 1000;
+  f.enemy.atk = 1;
+  f.hero.hp = 100000;
+  let first = 0;
+  for (let action = 1; action <= 20 && first === 0; action++) {
+    const t = sim.resolveTurn(f.hero, f.battle, 'GUARD', 3);
+    if (t.enemy?.enraged) {
+      first = action;
+      assert.equal(t.enemy.aside, sim.ENRAGE_LINE);
+    }
+  }
+  assert.equal(first, sim.ENRAGE_AFTER + 1, `the calm foe first enraged on action ${first}`);
+  return `the calm foe enrages exactly on its ${first}th calm action (with the IMPATIENT line)`;
+}
+
+function watchWeapons(sim, base) {
+  const seen = { offered: false, unarmedBoss: 0 };
+  const policy = {
+    ...base,
+    pick: (hero, offers, n) => {
+      if (offers.some((o) => o.kind === 'ITEM' && o.item.slot === 'WEAPON')) {seen.offered = true;}
+      return base.pick(hero, offers, n);
+    },
+    prepare: (hero, foe) => {
+      if (foe.kind === 'BOSS' && foe.id === 'DARK_LORD' && !seen.offered) {seen.unarmedBoss += 1;}
+      base.prepare(hero, foe);
+    },
+  };
+  return { seen, policy };
+}
+
+function starterWeaponReached(sim) {
+  const runs = 2000;
+  let never = 0;
+  for (const name of ['balanced', 'random']) {
+    const rng = sim.createSeededRng(17).next;
+    for (let i = 0; i < runs; i++) {
+      const { seen, policy } = watchWeapons(sim, sim.POLICIES[name]);
+      sim.simulateRun(policy, rng);
+      never += seen.unarmedBoss;
+    }
+  }
+  assert.equal(never, 0, `${never} runs reached the act-1 boss never offered a weapon`);
+  const hero = sim.createHero();
+  const ref = { n: 0, plan: sim.planOf(sim.planDepth(1, () => 0), 0) };
+  for (let seed = 0; seed < 200; seed++) {
+    const offers = sim.rollLoot('FIGHT', ref, hero, sim.createSeededRng(seed).next);
+    assert.ok(offers.some((o) => o.kind === 'ITEM' && o.item.slot === 'WEAPON'), `seed ${seed}: an unarmed hero's fight dropped no weapon`);
+  }
+  return `${runs * 2} runs (balanced + random): every hero is offered a weapon before the act-1 boss; an unarmed hero's FIGHT always drops one`;
+}
+
+function packedWeaponCounts(sim) {
+  const ref = { n: 0, plan: sim.planOf(sim.planDepth(1, () => 0), 0) };
+  const worn = sim.createHero();
+  const packed = sim.createHero();
+  const sword = sim.ITEMS.find((i) => i.id === 'IRON_SWORD');
+  sim.equip(worn, sword, 0);
+  sim.stow(packed, { item: sword, level: 0 });
+  for (let seed = 0; seed < 300; seed++) {
+    const a = sim.rollLoot('LOOT', ref, worn, sim.createSeededRng(seed).next);
+    const b = sim.rollLoot('LOOT', ref, packed, sim.createSeededRng(seed).next);
+    assert.deepEqual(b, a, `seed ${seed}: unequipping the weapon changed the chest`);
+  }
+  return 'a packed weapon counts like a worn one (300 chests identical)';
+}
+
+export function turnRules(sim) {
+  streamsDiffer(sim);
+  return [
+    potionBeforeTick(sim), guardedHeavyThenTick(sim), foeTicksAfterItsAction(sim),
+    foeRollsIgnoreTheHero(sim), enrageOnThirteenth(sim), starterWeaponReached(sim), packedWeaponCounts(sim),
+  ].join('; ');
+}

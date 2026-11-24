@@ -104,7 +104,17 @@ function kindChangeSpot(endX: number, cmp: FullCompare): KindChangeSpot {
   return cmp.rows.length <= COLUMNS ? { line1: false, line3: true, lose: false } : { line1: false, line3: false, lose: true };
 }
 
-export function drawCompare(ctx: CanvasRenderingContext2D, hero: Hero, next: OwnedItem): void {
+const AWAKEN_SWAP = 2;
+
+function tailLines(cmp: FullCompare, gain: CardLine, at: { clock: number; spot: KindChangeSpot }): { lines: CardLine[]; row: number } {
+  const awaken = cmp.awaken ? { text: cmp.awaken, color: C_DIM } : null;
+  const roomy = cmp.rows.length <= COLUMNS && !at.spot.line3;
+  if (!awaken) {return { lines: [gain], row: 4 };}
+  if (roomy) {return { lines: [gain, awaken], row: 3 };}
+  return { lines: [Math.floor(at.clock / AWAKEN_SWAP) % 2 === 0 ? gain : awaken], row: 4 };
+}
+
+export function drawCompare(ctx: CanvasRenderingContext2D, hero: Hero, next: OwnedItem, clock = 0): void {
   const worn = wornOwned(hero, next);
   const cmp = compareFull(hero, next.item, next.level);
   const endX = drawRun(ctx, headline(worn, next), { x: LEFT, y: TOP });
@@ -115,6 +125,10 @@ export function drawCompare(ctx: CanvasRenderingContext2D, hero: Hero, next: Own
   if (spot.line3) {drawText(ctx, cmp.kindChange, { x: LEFT, y: TOP + 2 * LINE }, warn);}
   const lose = spot.lose ? { text: cmp.kindChange, color: C_WARN } : loseLine(worn, cmp);
   const gain = effectLine('GAIN', hasEffect(next) ? cmp.gain : '', C_GAIN);
-  fitText(ctx, lose.text, { x: LEFT, y: TOP + 3 * LINE, maxW: RIGHT - LEFT }, { color: lose.color });
-  fitText(ctx, gain.text, { x: LEFT, y: TOP + 4 * LINE, maxW: RIGHT - LEFT }, { color: gain.color });
+  const tail = tailLines(cmp, gain, { clock, spot });
+  const lines = [lose, ...tail.lines];
+  const first = tail.row - 1;
+  lines.forEach((line, i) => {
+    fitText(ctx, line.text, { x: LEFT, y: TOP + (first + i) * LINE, maxW: RIGHT - LEFT }, { color: line.color });
+  });
 }

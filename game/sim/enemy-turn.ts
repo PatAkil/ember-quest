@@ -5,6 +5,7 @@ import {
   GUARD_FACTOR,
   GUARD_MP_GAIN,
   HEAVY_MULT,
+  BOSS_MEND_FRACTION,
   MEND_FRACTION,
   SCORCH_MULT,
   WINDUP_MULT,
@@ -21,7 +22,7 @@ import { findEffect } from './gear';
 import { gainEmber } from './burst';
 import { derive } from './hero';
 import { counterBlow, guardMana } from './power';
-import { applyWard, burnHero, heroFalls } from './status';
+import { applyWard, burnHero, foeBurnTick, heroFalls } from './status';
 import { jitter } from './util';
 
 function movesOf(enemy: EnemyInstance): MoveId[] {
@@ -66,11 +67,15 @@ const HIT_VERB: Partial<Record<MoveId, string>> = { WINDUP: 'WINDS UP AT', HEAVY
 const QUIET: Omit<EnemyActResult, 'move' | 'text'> = {
   dodged: false, dmg: 0, reflected: 0, revived: false, heroDead: false, enemyDefeated: false,
   guarded: false, parried: false, staggered: false, phaseChanged: false, burned: false, healed: 0, warded: false, countered: 0,
-  enraged: false,
+  enraged: false, burnTick: 0, burnText: '', aside: '',
 };
 
+const LOG_MAX = 52;
+
+export const ENRAGE_LINE = 'IT GROWS IMPATIENT - ITS BLOWS HIT HARDER';
+
 const quiet = (move: MoveId, text: string, over: Partial<EnemyActResult> = {}): EnemyActResult =>
-  ({ ...QUIET, move, text: text.slice(0, 52), ...over });
+  ({ ...QUIET, move, text: text.slice(0, LOG_MAX), ...over });
 
 interface Turn { hero: Hero; battle: BattleState; d: Derived; move: MoveId; rng: Rng }
 
@@ -131,6 +136,22 @@ function hitText(t: Turn, dmg: number): string {
   return `${enemy.def.name} ${verb} YOU FOR ${dmg}`;
 }
 
+const withTail = (line: string, tail: string): string => (line.length + tail.length <= LOG_MAX ? line + tail : line);
+
+function landedText(t: Turn, dmg: number, burned: boolean): string {
+  const name = t.battle.enemy.def.name;
+  const n = String(dmg);
+  const line = !t.battle.guarding ? `${hitText(t, dmg)}!`
+    : t.move === 'HEAVY' ? `PARRIED! THE BLOW ONLY GRAZES YOU FOR ${n}`
+      : chainedGuard(t) ? `A TIRED GUARD - ${name} STILL HITS FOR ${n}`
+        : `YOU BLOCK HALF - ${name} STILL HITS FOR ${n}`;
+  return burned ? withTail(line, ' - YOU BURN!') : line;
+}
+
+function dodgedText(t: Turn, parried: boolean): string {
+  return parried ? 'DODGED AND PARRIED! YOUR NEXT STRIKE HITS HARDER' : `YOU DODGE ${t.battle.enemy.def.name}'S BLOW!`;
+}
+
 function fellText(t: Turn, dmg: number, revived: boolean): string {
   if (revived) {return `${t.battle.enemy.def.name} FELLS YOU! YOUR GEAR BURNS - YOU RISE!`;}
   return `${hitText(t, dmg)} - YOU FALL!`;
@@ -140,7 +161,8 @@ function landHit(t: Turn): EnemyActResult {
   const { hero, battle, d, move, rng } = t;
   const enemy = battle.enemy;
   if (rng() * 100 < d.dodge) {
-    return quiet(move, `YOU DODGE ${enemy.def.name}'S BLOW!`, { dodged: true, guarded: battle.guarding, parried: parry(t) });
+    const parried = parry(t);
+    return quiet(move, dodgedText(t, parried), { dodged: true, guarded: battle.guarding, parried });
   }
   const physical = enemy.def.atkType === 'PHYSICAL';
   const resist = physical ? d.def : d.mdef;
@@ -150,7 +172,7 @@ function landHit(t: Turn): EnemyActResult {
   const parried = parry(t);
   const after = aftermath(t, dmg, physical);
   const fall = heroFalls(hero, d);
-  const text = fall === 'STANDING' ? `${hitText(t, dmg)}!` : fellText(t, dmg, fall === 'REVIVED');
+  const text = fall === 'STANDING' ? landedText(t, dmg, after.burned) : fellText(t, dmg, fall === 'REVIVED');
   return quiet(move, text, {
     ...after, dmg, parried, guarded: battle.guarding,
     revived: fall === 'REVIVED', heroDead: fall === 'DEAD', enemyDefeated: enemy.hp <= 0,
@@ -159,12 +181,13 @@ function landHit(t: Turn): EnemyActResult {
 
 function wardUp(t: Turn): EnemyActResult {
   applyWard(t.battle.enemy);
-  return quiet(t.move, `${t.battle.enemy.def.name} RAISES A WARD!`, { warded: true });
+  return quiet(t.move, `${t.battle.enemy.def.name} RAISES A WARD - YOUR HITS SOFTEN`, { warded: true });
 }
 
 function mendUp(t: Turn): EnemyActResult {
   const enemy = t.battle.enemy;
-  const healed = Math.min(Math.round(enemy.maxHp * MEND_FRACTION), enemy.maxHp - enemy.hp);
+  const fraction = enemy.def.kind === 'BOSS' ? BOSS_MEND_FRACTION : MEND_FRACTION;
+  const healed = Math.min(Math.round(enemy.maxHp * fraction), enemy.maxHp - enemy.hp);
   enemy.hp += healed;
   enemy.mended = true;
   return quiet(t.move, `${enemy.def.name} MENDS +${healed} HP!`, { healed });
@@ -176,8 +199,8 @@ const MOVE_ACT: Record<MoveId, (t: Turn) => EnemyActResult> = {
 
 function enrages(battle: BattleState): boolean {
   const enemy = battle.enemy;
-  const hurt = enemy.hp < (battle.foeMark ?? enemy.maxHp);
-  battle.calm = hurt ? 0 : (battle.calm ?? 0) + 1;
+  const hurt = enemy.hp < battle.foeMark;
+  battle.calm = hurt ? 0 : battle.calm + 1;
   if (battle.calm <= ENRAGE_AFTER) {return false;}
   enemy.atk = Math.max(enemy.atk + 1, Math.round(enemy.atk * (1 + ENRAGE_STEP)));
   return true;
@@ -189,6 +212,15 @@ function markFoe(battle: BattleState, hpBefore: number): void {
   battle.foeMark = enemy.hp;
 }
 
+function burnAfter(enemy: EnemyInstance, result: EnemyActResult): EnemyActResult {
+  if (result.heroDead || result.enemyDefeated) {return result;}
+  const burnTick = foeBurnTick(enemy);
+  if (burnTick <= 0) {return result;}
+  const dead = enemy.hp <= 0;
+  const burnText = dead ? `${enemy.def.name} BURNS FOR ${String(burnTick)} AND FALLS!` : `${enemy.def.name} BURNS FOR ${String(burnTick)}`;
+  return { ...result, burnTick, burnText, enemyDefeated: dead };
+}
+
 export function enemyAct(hero: Hero, battle: BattleState, rng: Rng): EnemyActResult {
   const enemy = battle.enemy;
   const phaseChanged = checkPhase(enemy);
@@ -196,11 +228,12 @@ export function enemyAct(hero: Hero, battle: BattleState, rng: Rng): EnemyActRes
   const hpBefore = enemy.hp;
   const move = battle.intent;
   const turn: Turn = { hero, battle, d: derive(hero), move, rng };
-  const result = enemy.staggered
-    ? quiet(move, `${enemy.def.name} IS STAGGERED!`, { staggered: true })
+  const acted = enemy.staggered
+    ? quiet(move, `${enemy.def.name} IS STAGGERED AND LOSES ITS TURN`, { staggered: true })
     : MOVE_ACT[move](turn);
   advanceCycle(battle, move, phaseChanged);
   enemy.staggered = false;
+  const result = burnAfter(enemy, acted);
   markFoe(battle, hpBefore);
-  return { ...result, phaseChanged, enraged };
+  return { ...result, phaseChanged, enraged, aside: enraged ? ENRAGE_LINE : '' };
 }

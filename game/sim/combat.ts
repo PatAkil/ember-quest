@@ -24,7 +24,7 @@ import { findEffect } from './gear';
 import { derive, isGuardAction, isSpell, spellCost } from './hero';
 import { pactDamage } from './pacts';
 import { burnChance, gearPower, heroElement, riposteMult } from './power';
-import { applyBurn, heroFalls, resistOf, tickWard } from './status';
+import { applyBurn, heroBurnTick, heroFalls, resistOf, tickWard } from './status';
 import { jitter, type EffectOf } from './util';
 
 type Scope = 'ATTACK' | 'SPELL';
@@ -49,7 +49,7 @@ export function spawnEnemy(id: string, scale: FoeScale, affixes: readonly AffixI
 export function createBattle(enemy: EnemyInstance): BattleState {
   return {
     enemy, rampStacks: 0, lastScope: null, actionsTaken: 0,
-    intent: nextIntent(enemy), guarding: false, guardChain: 0, riposte: false, aegis: 0, calm: 0, foeMark: enemy.hp,
+    intent: nextIntent(enemy), guarding: false, guardChain: 0, riposte: false, aegis: 0, calm: 0, foeMark: enemy.hp, turn: 0,
   };
 }
 
@@ -277,11 +277,20 @@ function chainAfter(battle: BattleState, action: HeroAction): number {
   return dealsDamage(action) ? 0 : battle.guardChain;
 }
 
+function burnAfter(hero: Hero, result: HeroActResult): HeroActResult {
+  if (result.heroDead || result.enemyDefeated) {return result;}
+  const { burnTick, fall } = heroBurnTick(hero);
+  if (burnTick <= 0) {return result;}
+  const n = String(burnTick);
+  const burnText = fall === 'DEAD' ? `THE FLAMES TAKE YOU! (${n})` : fall === 'REVIVED' ? `THE FLAMES FELL YOU (${n}) - YOU RISE!` : `YOU BURN FOR ${n}`;
+  return { ...result, burnTick, burnText, heroDead: fall === 'DEAD', revived: result.revived || fall === 'REVIVED' };
+}
+
 export function heroAct(hero: Hero, battle: BattleState, action: HeroAction, rng: Rng): HeroActResult {
   battle.guardChain = chainAfter(battle, action);
   battle.guarding = false;
   battle.aegis = 0;
   const result = act(hero, battle, action, rng);
   tickWard(battle.enemy);
-  return backlash(hero, battle, settleBreak(hero, battle, action, result));
+  return burnAfter(hero, backlash(hero, battle, settleBreak(hero, battle, action, result)));
 }

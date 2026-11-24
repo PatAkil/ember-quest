@@ -156,7 +156,7 @@ function aegis(sim) {
   assert.ok(parry.r.parried && parry.battle.riposte, 'AEGIS parries a HEAVY');
   const f = arena(sim, { gear: [itemOf(sim, 'HOLY_GRAIL')] });
   f.hero.hp = 5;
-  assert.equal(sim.startTurn(f.hero, f.battle, 'AEGIS').hpRegen, 0, 'no regen on an AEGIS turn');
+  assert.equal(sim.startTurn(f.hero, 'AEGIS').hpRegen, 0, 'no regen on an AEGIS turn');
   const cost = arena(sim);
   cost.hero.mp = 20;
   cost.hero.baseSpells.push('AEGIS');

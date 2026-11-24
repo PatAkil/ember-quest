@@ -1,4 +1,4 @@
-import { type AffixId, type Derived, type EnemyInstance, type EnemyKind, type Hero, type LootOffer, type PactId, type Rng, type SpellId } from '../types';
+import { HEAVY_MULT, type AffixId, type Derived, type EnemyInstance, type EnemyKind, type Hero, type LootOffer, type PactId, type Rng, type SpellId } from '../types';
 import type { ActPlan } from './descent';
 import { equippedItems } from './gear';
 import { derive } from './hero';
@@ -56,7 +56,7 @@ export interface Probe {
   clears: number;
   won: boolean;
   maxHp: number; atk: number; mag: number; def: number; mdef: number; crit: number; dodge: number;
-  bossHp: number; bossAtk: number;
+  bossHp: number; bossAtk: number; heavyShare: number;
   turns: number;
   hitFrac: number;
   dpt: number;
@@ -147,15 +147,21 @@ export function countUpgradeTarget(tally: Tally, resolved: LootOffer): void {
   else {tally.upgradesPacked += 1;}
 }
 
-export function probeOf(act: number, clears: number, entry: Derived, fight: { boss: EnemyInstance; outcome: BattleOutcome }): Probe {
-  const { boss, outcome } = fight;
+function heavyShareOf(boss: EnemyInstance, atk: number, entry: Derived): number {
+  const resist = boss.def.atkType === 'PHYSICAL' ? entry.def : entry.mdef;
+  const phase2 = boss.def.phase2?.atkMult ?? 1;
+  return (atk * HEAVY_MULT * phase2 * (1 - resist / 100)) / Math.max(1, entry.maxHp);
+}
+
+export function probeOf(act: number, clears: number, entry: Derived, fight: { boss: EnemyInstance; outcome: BattleOutcome; atk: number }): Probe {
+  const { boss, outcome, atk } = fight;
   return {
     act,
     clears,
     won: outcome.won,
     maxHp: entry.maxHp, atk: entry.atk, mag: entry.mag,
     def: entry.def, mdef: entry.mdef, crit: entry.crit, dodge: entry.dodge,
-    bossHp: boss.maxHp, bossAtk: boss.atk,
+    bossHp: boss.maxHp, bossAtk: atk, heavyShare: heavyShareOf(boss, atk, entry),
     turns: outcome.turns,
     hitFrac: outcome.landed > 0 ? outcome.dmgTaken / outcome.landed / Math.max(1, entry.maxHp) : 0,
     dpt: outcome.dmgDealt / Math.max(1, outcome.turns),

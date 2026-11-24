@@ -195,6 +195,7 @@ export const WARD_BONUS = 25;
 export const WARD_CAP = 60;
 export const WARD_TURNS = 2;
 export const MEND_FRACTION = 0.1;
+export const BOSS_MEND_FRACTION = 0.06;
 export const WEAK_MULT = 1.5;
 export const RESIST_MULT = 0.5;
 export const BURN_FRACTION = 0.4;
@@ -218,8 +219,9 @@ export interface BattleState {
   guardChain: number;
   riposte: boolean;
   aegis: number;
-  calm?: number;
-  foeMark?: number;
+  calm: number;
+  foeMark: number;
+  turn: number;
 }
 export type HeroCommand = 'ATTACK' | 'GUARD' | 'BURST' | 'POTION';
 export type HeroAction = HeroCommand | SpellId;
@@ -240,6 +242,8 @@ export interface HeroActResult {
   thorns: number;
   heroDead: boolean;
   revived: boolean;
+  burnTick: number;
+  burnText: string;
 }
 export interface EnemyActResult {
   move: MoveId;
@@ -259,23 +263,32 @@ export interface EnemyActResult {
   warded: boolean;
   countered: number;
   enraged: boolean;
+  burnTick: number;
+  burnText: string;
+  aside: string;
 }
 export interface TurnStart {
   hpRegen: number;
   mpRegen: number;
   bloodLoss: number;
-  heroBurn: number;
-  enemyBurn: number;
-  heroDead: boolean;
-  enemyDefeated: boolean;
-  revived: boolean;
+}
+export type TurnOutcome = 'WON' | 'LOST' | null;
+export type TurnCause = 'HIT' | 'THORNS' | 'BURN' | 'BLOW' | 'RECOIL' | 'FOE_BURN';
+export interface TurnResult {
+  turn: number;
+  action: HeroAction;
+  start: TurnStart;
+  hero: HeroActResult;
+  enemy: EnemyActResult | null;
+  outcome: TurnOutcome;
+  cause: TurnCause | null;
 }
 
 export type Rng = () => number;
 
 export const ACTS_PER_DEPTH = 4;
 export const RUN_MAX_N = 40;
-export const DESCENT_GROWTH = 1.16;
+export const DESCENT_GROWTH = 1.15;
 export const SCORE_PER_CLEAR = 100;
 export const SCORE_PER_BOSS = 500;
 export const GLORY_PER_DEPTH = 1000;
@@ -283,6 +296,7 @@ export const HOLLOW_HP_FLOOR = 2;
 export const HOLLOW_ATK_SHARE = 0.65;
 export const HOLLOW_HP_HITS = 22;
 export const HOLLOW_HIT_CAP = 0.15;
+export const HOLLOW_HIT_FLOOR = 0.12;
 export const HOLLOW_RES_CAP = 40;
 export const HOLLOW_SWIFT_DODGE = 15;
 export const DESCENT_STAGE_MAX = 8;

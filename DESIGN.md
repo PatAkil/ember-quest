@@ -14,7 +14,7 @@ permadeath. v2 replaces the tier-upgrade gear with **skill points** and a
 | `game/data.ts` | the content import path: re-exports `game/rules/*` (ITEMS, ENEMIES, SPELLS, BIOMES, LOOT_WEIGHTS, ACT_MULT, the heal constants, `validateData`, EVENTS and their types) | `./rules/*` only |
 | `game/rules/*.ts` | the content itself: `items` (ITEMS), `enemies` (ENEMIES), `world` (SPELLS, SPELL_ORDER, BIOMES, ACT_MULT, LOOT_WEIGHTS, LOOT_COUNT, CLEAR_HEAL, BOSS_ENTRY_HEAL, SKIP_MEND, RARITY_COLOR_INDEX), `validate` (`validateData`; never imports `data.ts`), `events` (EVENTS, the effect vocabulary, `validateEvents`), `pacts` (PACTS, `validatePacts`); `enemies` also holds the descent-only THE HOLLOW | `../types`, each other |
 | `game/sim.ts` | the barrel: the only path presentation and the simulator use to reach the rules (also re-exports `validateData`, `generateMap`, `createSeededRng`, `at`) | `./sim/*`, `./data` |
-| `game/sim/*.ts` | pure rules, one concern per file: `util` (clamp, `at`, rng picks, `createSeededRng` — mulberry32 with readable state — and effect tables), `gear` (item levels, upgrades, effective mods/effects), `hero` (derived stats, skill points, heals, equip, spells), `ghost` (stats of a hypothetical equip), `describe` (item/offer/compare text, `compareFull`), `loot` (loot rolls, offers, scrolls, `resolveUpgrade`), `pack` (the pack: `stow`, `discard`, `swapIn`, `unequip`, `ownedIds`, `upgradableTargets`), `combat` (enemy scaling, battle creation, hero actions, damage), `commands` (GUARD, POTION, BURST, BREAK), `enemy-turn` (enemy moves, intent, phase), `status` (turn start, BURN, WARD, `heroFalls`), `element`, `burst`, `power` (the gear-driven damage multipliers: IMBUE element, PUNISH, LOW HP, ELEMENT BOOST, riposte power, ignite chance, the guard counter), `events` (event effects, enablement, `eventPlayable`, `pickEvent(rng, hero)`, `takePendingBurn`, preview words), `map` (**the one map generator**, `generateMap(rng, shape?)`, played by both the screens and the simulator), `model` (`Policy`, `RoomType` including `BOSS`), `scoring`, `policies`, `policy-battle` (how they fight) and `policy-choices` (how the archetypes decide; `DEFAULT_CHOICES` holds the shared pack/upgrade/prepare defaults), `descent` (`n`, `depthOf`, `actInDepth`, `actMult`, `ActPlan`, `planDepth`), `affixes`, `hollow` (`hollowOf` with its private best-loadout `armouryOf`, `spawnFoe`), `pacts` (`pactMods`, `offerPacts`, `lootCards`, `swallowedCards`), `score`, `run` (`simulateRun`), `save` / `save-read` / `save-map` / `save-battle` (the save format) and `save-sanity` (`saneSave`: the cross-field checks run after a save is read) | `../types`, `../data`, each other |
+| `game/sim/*.ts` | pure rules, one concern per file: `util` (clamp, `at`, rng picks, `createSeededRng` — mulberry32 with readable state — and effect tables), `gear` (item levels, upgrades, effective mods/effects), `hero` (derived stats, skill points, heals, equip, spells), `ghost` (stats of a hypothetical equip), `describe` (item/offer/compare text, `compareFull` — its `awaken` and `describeOffer`'s spare third line carry `awakenPreview(item, level)` = `AT +2: <awaken blurb>`, '' for legendaries and awakened items), `loot` (loot rolls, offers, scrolls, `resolveUpgrade`), `pack` (the pack: `stow`, `discard`, `swapIn`, `unequip`, `ownedIds`, `upgradableTargets`), `combat` (enemy scaling, battle creation, hero actions, damage), `commands` (GUARD, POTION, BURST, BREAK), `enemy-turn` (enemy moves, intent, phase), `status` (turn start, BURN, WARD, `heroFalls`), `turn` (`resolveTurn`: one whole turn on two per-turn rng streams, played by the game and the simulator), `element`, `burst`, `power` (the gear-driven damage multipliers: IMBUE element, PUNISH, LOW HP, ELEMENT BOOST, riposte power, ignite chance, the guard counter), `events` (event effects, enablement, `eventPlayable`, `pickEvent(rng, hero)`, `takePendingBurn`, preview words), `map` (**the one map generator**, `generateMap(rng, shape?)`, played by both the screens and the simulator), `model` (`Policy`, `RoomType` including `BOSS`), `scoring`, `policies`, `policy-battle` (how they fight) and `policy-choices` (how the archetypes decide; `DEFAULT_CHOICES` holds the shared pack/upgrade/prepare defaults), `descent` (`n`, `depthOf`, `actInDepth`, `actMult`, `ActPlan`, `planDepth`), `affixes`, `hollow` (`hollowOf` with its private best-loadout `armouryOf`, `spawnFoe`), `pacts` (`pactMods`, `offerPacts`, `lootCards`, `swallowedCards`), `score`, `run` (`simulateRun`), `save` / `save-read` / `save-map` / `save-battle` (the save format) and `save-sanity` (`saneSave`: the cross-field checks run after a save is read) | `../types`, `../data`, each other |
 | `game/sprites.ts` + `game/sprites/*.ts` | hero/enemy/icon sprites: `helpers`, `hero`, `icons`, one file per biome; `sprites.ts` re-exports them and adds `enemyAnim(id)` | `../engine` only |
 | `game/main.ts` + `app`, `state`, `flow`, `persist`, `resume`, `frame`, `mapgen`, `theme`, `backdrop`, `widgets`, `pops`, `fx-state`, `fx`, `transition`, `storage`, `lookup`, `screens/*.ts` | presentation: `main.ts` only wires; `app` creates the engine objects and fits the canvas to the window; `state` holds the one `Game` object `g` with per-screen slices; `flow` runs the run (rooms, stages, clears, acts, scene hooks); `persist` writes and deletes the save (`realRun`, the step builders, `settleRoom`); `resume` reads it back and re-enters its step; `frame` dispatches update/render; `mapgen` adapts the shared headless map to the screens (adds `stage`, `slot`, `cleared`); the **fx / transition layer** presents what the rules decided and never decides anything — `fx-state` + `fx` hold the battle-fx clock (actor poses, timed cues, lagging meters, boss banner), `screens/battle-fx` choreographs a turn on it, `screens/battle-fx-verbs` gives each battle verb its beat, `screens/battle-fx-view` draws its shots and banner, `screens/battle-menu` holds the command menu, `screens/battle-tags` the tag strips under the plates, `screens/battle-reach` measures lunges, `transition` reveals each new sub-scene; `screens/` one update file and one view file per screen (`map-view`, `loot-view`, `battle-view`; `plate` holds the shared medallions) | everything |
 | `game/devhook.ts` | the dev-only seeded hook (`?seed`, `?scene`, `&act`, `&depth`, `&hold`, `window.__ember`), never in the build | `../engine` types, `./sim`, presentation types |
@@ -76,8 +76,10 @@ fights and elites, never from bosses (`UPGRADE_CHANCE`).
 
 Rarity weights shift toward rare by act (`LOOT_WEIGHTS`). Items already
 equipped never re-roll; `minAct` gates the wildest items. The player may
-always decline for a 25 % mend. While the hero has no weapon, the first item
-offers always include a common blade or wand.
+always decline for a 25 % mend. While the hero owns no weapon (worn or packed), every
+loot offer includes a common blade or wand, and a FIGHT never rolls dry — so the run's
+first fight always drops one (review round 2: a real run reached the act-1 boss never
+offered a weapon; 4000 simulated runs now all see one before it).
 
 ### Spells and boss tables
 
@@ -122,7 +124,8 @@ fixes it instead).
   returns it.
 - **Owned items never re-roll**: `rollItems` and the boss signature exclude `ownedIds`
   (worn + packed). The starter-weapon guarantee is a rule (`rollLoot` applies it): it
-  looks at what is worn only and offers a common weapon that is not already packed. Scrolls
+  looks at every owned weapon (worn or packed — unequipping a weapon never changes a chest)
+  and offers a common weapon not already owned; with no ITEM card to replace it is added. Scrolls
   never touch the pack. A loot screen shows at most 4 offers.
 - **REVIVE charges live on the hero** (`revived`, `revivedTwice`), so swapping a spent
   REVIVE item out and in never restores a life — nor does a fresh REVIVE item after an
@@ -186,7 +189,7 @@ enemy's move, intent, cycle and phase), `status` (turn start, BURN, WARD, `heroF
   | `HEAVY` | ×2.0 hit (`HEAVY_MULT`; 2.2 before the 2026-11-24 balance pass) | `HEAVY BLOW` |
   | `WARD` | no damage; `wardTurns` = 2: resist = min(60, instance + 25) for the hero's next 2 actions (GUARD counts); never written into the instance; re-applying refreshes | `WARDS` |
   | `SCORCH` | ×0.7 hit; the hero gains BURN | `SCORCHES` |
-  | `MEND` | heals 10 % max HP once per phase; afterwards that entry acts as `STRIKE` | `MENDS` |
+  | `MEND` | heals 10 % max HP (bosses 6 %, `BOSS_MEND_FRACTION`, review round 2) once per phase; afterwards that entry acts as `STRIKE` | `MENDS` |
 
   WARD never lowers a resist already above the cap (`max(instance, min(60, instance + 25))`).
 
@@ -235,7 +238,7 @@ enemy's move, intent, cycle and phase), `status` (turn start, BURN, WARD, `heroF
   not reduced). A hit landing on a guard gives +2 MP (`GUARD_MP_GAIN`). Guarding a
   `HEAVY` (landed or dodged) is a **PARRY**: `battle.riposte`, every hit of the hero's next
   damaging action ×1.5 (`RIPOSTE_MULT`, not BURST), +15 ember. Anti-stall: HP/MP regen
-  does not tick on a turn the hero guards (`startTurn(hero, battle, action)`); a GUARD
+  does not tick on a turn the hero guards (`startTurn(hero, action)`); a GUARD
   directly after a GUARD (`battle.guardChain` > 1) is ×0.75 and gives no MP and no
   ember — unless it answers a shown `HEAVY` (full ×0.5, and it parries). **Only a
   damaging hero action (ATTACK, a damaging spell, BURST — a SWIFT miss counts) resets the
@@ -248,8 +251,32 @@ enemy's move, intent, cycle and phase), `status` (turn start, BURN, WARD, `heroF
   the previous enemy action; a hit, BURST, a burn tick, a reflect or a counter all count as
   damage; a MEND does not). From the `ENRAGE_AFTER` + 1 = 13th calm action on, the foe's
   ATK rises 10 % (`ENRAGE_STEP`, at least +1) before each action, and the result carries
-  `EnemyActResult.enraged` (the screens may announce it; nothing requires it). Any damage
-  resets the count; the raised ATK stays.
+  `EnemyActResult.enraged` and `aside` = `IT GROWS IMPATIENT - ITS BLOWS HIT HARDER`
+  (`ENRAGE_LINE`; '' otherwise). Any damage resets the count; the raised ATK stays.
+  `calm` and `foeMark` are required `BattleState` fields and are saved with a fight, so
+  reloading cannot reset the count (a rules test: the calm foe first enrages on exactly its
+  13th calm action, and `calm` survives save/load).
+- **One whole turn** (`resolveTurn(hero, battle, action, roomSeed)`, `game/sim/turn.ts`;
+  review round 2). In order: `startTurn(hero, action)` (regen, BLOOD; `TurnStart` is
+  `{ hpRegen, mpRegen, bloodLoss }`) → `heroAct` (its BREAK check, then the hero's BURN
+  tick) → unless the hero or the foe fell, `enemyAct` (phase check, enrage, the shown move,
+  then the foe's BURN tick). It returns `TurnResult { turn, action, start, hero, enemy
+  (null when the fight ended on the hero's action), outcome ('WON' | 'LOST' | null), cause
+  ('HIT' | 'THORNS' | 'BURN' | 'BLOW' | 'RECOIL' | 'FOE_BURN' | null) }` and advances
+  `battle.turn` (saved). The hero's rolls come from `turnRng(roomSeed, turn, 'HERO')`, the
+  foe's from `turnRng(roomSeed, turn, 'FOE')` (`createSeededRng(turnSeed(…))`, a murmur
+  mix of the room seed, the turn index and the stream), so the foe's turn-N roll (dodge,
+  jitter) is the same whatever the hero chose, and a reloaded turn replays exactly. The
+  simulator draws a room seed from the run rng at each fight's start and plays every turn
+  through the same function. `heroAct` / `enemyAct` stay as the internals it composes.
+- **Battle log lines** (rules text, ≤ 52 chars; the screens show them as given). A hit on
+  a GUARD reads `YOU BLOCK HALF - <FOE> STILL HITS FOR n`, a chained guard `A TIRED GUARD
+  - <FOE> STILL HITS FOR n`, a parry `PARRIED! THE BLOW ONLY GRAZES YOU FOR n` (never
+  `PARRIED FOR n`, which read as damage dealt), a dodged parry `DODGED AND PARRIED! YOUR
+  NEXT STRIKE HITS HARDER`, a burning hit ends `- YOU BURN!` when it fits; WARD `<FOE>
+  RAISES A WARD - YOUR HITS SOFTEN`; a broken foe `<FOE> IS STAGGERED AND LOSES ITS TURN`;
+  burn ticks `YOU BURN FOR n` / `THE FLAMES TAKE YOU! (n)` / `<FOE> BURNS FOR n [AND
+  FALLS!]`.
 - **Who wins a tie.** When one enemy action kills the hero and also kills the foe (REFLECT,
   AEGIS, a guard counter), the hero's death wins: the fight is lost (REVIVE still answers
   first). The game reads `heroDead` before `enemyDefeated`; the simulator's `run-battle`
@@ -287,11 +314,17 @@ enemy's move, intent, cycle and phase), `status` (turn start, BURN, WARD, `heroF
   theme; EARTH is the off-meta answer. `WEAK!` pop and a longer hit-stop on a weak hit.
 - **BURN** (the only ailment). `{ perTurn, turns }`: `perTurn` = 40 % of the hit that
   applied it (min 1, `BURN_FRACTION`), `turns` = 3; re-applying keeps the larger
-  `perTurn` and resets turns. Ticks happen in `startTurn`, at the start of each round
-  (the hero's turn), hero first, then the foe (`TurnStart.heroBurn` / `enemyBurn`); they
-  give no ember, DRAIN never heals from them, and they can kill: hero deaths all go
-  through `heroFalls` (REVIVE answers a tick), a foe killed by a tick ends the fight
-  through the normal victory path (`TurnStart.enemyDefeated`). Sources: enemy `SCORCH`,
+  `perTurn` and resets turns. **A side's BURN ticks after that side's own action resolves**
+  (review round 2; before, both ticked at the start of the round, so a potion drunk at 5 HP
+  never landed): the hero's at the end of `heroAct` (`HeroActResult.burnTick` / `burnText`;
+  skipped when the action killed the foe or the hero; BURST cleanses first, so it never
+  ticks), the foe's at the end of `enemyAct` (`EnemyActResult.burnTick` / `burnText`;
+  skipped when the hero fell; a staggered foe still ticks). They give no ember, DRAIN never
+  heals from them, and they can kill: hero deaths all go through `heroFalls` (REVIVE answers
+  a tick, `heroDead` / `revived` on the hero result), a foe killed by its tick ends the
+  fight through the normal victory path (`EnemyActResult.enemyDefeated`). The policies
+  count their own pending tick (`pendingTick`): HP − tick is what they guard and drink
+  by, and a hero the tick would kill BURSTs, drinks or MENDs unless it can kill first. Sources: enemy `SCORCH`,
   hero `BURN_ON_HIT` gear (M3), an event's pending burn. The hero's BURN ends with the
   fight it was gained in: a victory (`grantClear`), REST and `fullHeal` all clear it, so it
   never leaks into the next fight or the save.
@@ -324,8 +357,8 @@ enemy's move, intent, cycle and phase), `status` (turn start, BURN, WARD, `heroF
   like balanced. `random` picks among every affordable action, verbs included.
   `node sim/run.mjs --no-potions` adds a `noPotions` line (balanced with POTION filtered
   out) and every text run prints the naive/balanced win ratio. The simulator chooses the
-  action before `startTurn(hero, battle, action)`, exactly like the screen, so a GUARD
-  turn has no regen. Telemetry per run (`RunResult.verbs`): guards, parries, bursts,
+  action and plays it through `resolveTurn`, the same function the screen calls, so a
+  GUARD turn has no regen. Telemetry per run (`RunResult.verbs`): guards, parries, bursts,
   potions, break attempts/successes per tier, phase-2 switches, burn deaths; STALL deaths
   stay a `deathKind`. A break **attempt** is any damaging action (not GUARD or POTION)
   into a shown HEAVY that the real rule could let break: BURST, anything while
@@ -465,9 +498,10 @@ the descent (see *Balance state → The descent*).
   `storyAct(n) = min(n, 3)` (`LOOT_WEIGHTS` rows) or reads what it needs from the
   act's `ActPlan`; `minAct` compares with `n`, so in the descent it is always met.
 - **`actMult(n)`** = `ACT_MULT[n]` for n ≤ 3, else `ACT_MULT[3] × DESCENT_GROWTH^(n − 3)`,
-  `DESCENT_GROWTH` = 1.16 (tuned from 1.08 to 1.20 in M4 — 1.08 let a tank clear depth 5
-  in 84 % of its descents — and to 1.16 on 2026-11-24, when `ACT_MULT[3]` rose 3.41 → 3.8
-  and THE HOLLOW stopped being disarmable; 1.15 let one balanced run in 2000 clear depth 5). It scales
+  `DESCENT_GROWTH` = 1.15 (tuned from 1.08 to 1.20 in M4 — 1.08 let a tank clear depth 5
+  in 84 % of its descents — to 1.16 on 2026-11-24, when `ACT_MULT[3]` rose 3.41 → 3.8
+  and THE HOLLOW stopped being disarmable, and to 1.15 in review round 2, when `ACT_MULT[3]`
+  rose to 4.3: 1.16 left balanced clearing depth 3 in 5 %, 1.14 let a tank clear depth 5). It scales
   `spawnEnemy` and the event burn (`takePendingBurn`). `spawnEnemy(id, { n, clears,
   descentClears }, affixes)`: the per-clear term uses `descentClears` (the clears count
   held when the descent began) whenever it is set, so it freezes in the descent.
@@ -497,7 +531,9 @@ the descent (see *Balance state → The descent*).
   raises that stat most — so unequipping a weapon or swapping gear in GEAR before the node
   can never weaken it (before 2026-11-24 a mage who took off ARC ROD met a Hollow ~10×
   weaker). `base` = max(best ATK, best MAG) (no crit, opener, RAMP, TWIN, riposte or
-  BURST); attack kind = the kind of that stronger stat (ATK → PHYSICAL, MAG → MAGIC);
+  BURST); its own blows strike **the hero's weaker resist** (MAGIC when best DEF > best
+  MDEF, PHYSICAL when MDEF > DEF, else the kind of the stronger stat: ATK → PHYSICAL, MAG
+  → MAGIC; review round 2 — the mirror finds the crack in a DEF-stacked tank);
   ATK = `HOLLOW_ATK_SHARE` 0.7 × base × `actMult(n) / ACT_MULT[3]`; resists = the best
   DEF/MDEF capped at `HOLLOW_RES_CAP` 40; HP = `HOLLOW_HP_HITS` 30 × base × (1 − the
   resist the hero's strongest damage faces: MDEF for MAG; DEF for ATK, or the lower of the
@@ -506,9 +542,11 @@ the descent (see *Balance state → The descent*).
   VAMPIRIC, REFLECT → THORNED, dodge ≥ 15 → SWIFT, BURN_ON_HIT → SEARING; HEX adds none);
   the definition's fixed cycle `STRIKE STRIKE WINDUP HEAVY`; no weakness or resist; IRON
   raises its ATK like any foe's. Drawn as the hero's sprite, mirrored, in one dark tint.
-  **Its STRIKE is capped**: ATK = min(`HOLLOW_ATK_SHARE` × base, `HOLLOW_HIT_CAP` 0.15 ×
-  best max HP ÷ (1 − the hero's best resist to its kind)) × `actMult(n) / ACT_MULT[3]`, so
-  at depth 2 a STRIKE lands at most ~31 % of the hero's max HP (a HEAVY ~62 %); deeper it
+  **Its STRIKE is clamped**: ATK = clamp(`HOLLOW_ATK_SHARE` × base, `HOLLOW_HIT_FLOOR` 0.12,
+  `HOLLOW_HIT_CAP` 0.15 × best max HP ÷ (1 − the hero's best resist to its kind)) ×
+  `actMult(n) / ACT_MULT[3]` (the floor, review round 2, keeps a low-ATK, high-HP build from
+  meeting a harmless mirror), so at depth 2 a STRIKE lands ~19–23 % of the hero's max HP (a
+  HEAVY ~40–46 %); deeper it
   grows with `actMult`. Without the cap a glass mage (MAG ~180, max HP ~230) met a Hollow
   hitting 55 % of its HP per STRIKE and balanced cleared depth 2 in 8 % of descents.
   Tuning history: the contract's 0.5 / 8 died in two turns; M4 used 0.7 / 30 (sized off
@@ -655,9 +693,10 @@ the descent (see *Balance state → The descent*).
     its id plus every instance field: hp, maxHp, atk, resPhys/resMagic, affixes, burn,
     wardTurns, phase, phaseAt, cycleIndex, mended, staggered — and the `BattleState`
     without the foe: rampStacks, lastScope, actionsTaken, intent, guarding, guardChain,
-    riposte, aegis);
-  - `REWARD` (stage, slot, `roomSeed`, `source` FIGHT / ELITE / BOSS / EVENT, and for an
-    event item the `gift` rarity);
+    riposte, aegis, calm, foeMark, turn);
+  - `REWARD` (stage, slot, `roomSeed`, `source` FIGHT / ELITE / BOSS / EVENT, `earned` —
+    the SP the room granted, so a resumed LEVEL UP shows `+n EARNED` — and for an event item
+    the `gift` rarity);
   - `THRESHOLD`, or `PACT` (with the offers already drawn).
   Items, foes, spells and pacts are rebuilt from the content tables by id; a foe is
   re-spawned by id (`spawnFoe`, which also rebuilds THE HOLLOW off the hero) and then
@@ -665,36 +704,68 @@ the descent (see *Balance state → The descent*).
 - **When** (presentation: `game/persist.ts`): whenever the map is shown (a room resolved,
   an act or depth entered — the map is generated *before* the `… AWAITS` card), **just
   before a room's handler runs** (`selectNode`: the hero as on the map, the entered room,
-  the rng state of that instant), **every time the battle menu opens** (battle start,
-  after the boss entry heal and the event burn, and after each enemy turn — the turn-start
-  ticks come later, with the chosen action, because GUARD changes them), the instant the
-  rules report the foe dead (`REWARD`, see below) and again when the loot screen opens
-  (the hero with the SP spent), when an event is drawn (`ROOM` + `eventId`), when an
-  event's costs are paid (`REWARD` EVENT for an option that opens LEVEL UP or the gift
-  screen, otherwise the room is settled and `MAP` saved at once), on closing GEAR, when
-  THRESHOLD opens and when PACT opens. **The save is deleted the instant the rules report
-  the hero dead** (before the fall animation), and on entering GAME_OVER or WIN.
+  the rng state of that instant), when a fight opens (battle start, after the boss entry
+  heal and the event burn), **the instant the player confirms an action** (see *A chosen
+  action is final* below), the instant the rules report the foe dead (`REWARD` with the SP
+  `earned`) and again when the loot screen opens (the hero with the SP spent), **the
+  instant a loot / upgrade / scroll / keep / ASH / gift result is applied — before its
+  result card shows** (the room is settled and `MAP` saved; after a boss, `THRESHOLD` is
+  saved, or the next act is entered and its `MAP` saved, so the `EQUIPPED` card can no
+  longer be reloaded away), when an event is drawn (`ROOM` + `eventId`), when an event's
+  costs are paid (`REWARD` EVENT for an option that opens LEVEL UP — `earned` = the SP it
+  gives — or the gift screen, otherwise the room is settled and `MAP` saved at once), **on
+  every GEAR swap or take-off**, when THRESHOLD opens and when PACT opens. **The save is
+  deleted the instant the rules report the hero dead** — for a fight that is the moment
+  the action is confirmed, before any animation — and on entering GAME_OVER or WIN.
+- **A chosen action is final.** On A in the battle menu the whole turn is resolved at once
+  by the rules (`resolveTurn`: turn start → hero action → the hero's BURN tick → the foe's
+  action → its BURN tick, each side on its own per-turn rng stream derived from the room
+  seed and the turn number) on a shadow copy of the hero, the foe and the battle state
+  (`game/screens/battle-commit.ts`); the result is saved (the next turn's `ROOM` battle,
+  `REWARD` on a kill, nothing on a death) and the live state is put back, then the
+  choreography replays the same rule calls on the same streams beat by beat (so every
+  intent lean, tag and meter still reads the live state) and adopts the shadow copy when
+  the turn ends or the foe falls (a drift is reported through `reportError`). Reloading
+  mid-animation therefore lands on the next turn's menu, on the reward, or on a title
+  without CONTINUE; reloading a turn and choosing another action meets the same foe roll.
 - **Rewards depend on the room, not on the fight.** `selectNode` draws one 32-bit
   `roomSeed` from the run rng (after the `ROOM` save, so a replayed room draws the same
-  one). A fight runs on the run rng; the moment the foe dies the rng is re-seeded to
+  one). A fight's turns draw from per-turn streams of `roomSeed` (see *One whole turn*), never
+the run rng; the moment the foe dies the rng is re-seeded to
   `roomSeed ^ 0x5bd1e995` and only then are the clear (SP, score) and the loot rolled, so
   two different fights of one room give the same SP and the same offers. Chest, rest and
   event rooms replay identically from the `ROOM` save as before.
 - **Resume**: the title band becomes `CONTINUE  DEPTH n ACT n  BIOME` / `NEW RUN`;
-  NEW RUN over a save asks once (`ERASE YOUR RUN?`, A yes, B no). CONTINUE restores
-  everything and the rng state, then re-enters the step: the map; a `ROOM` with a
+  NEW RUN over a save asks `ERASE YOUR RUN?  > NO   YES` (see *Confirmations*). CONTINUE
+  first re-reads storage (see *More than one tab*), then restores
+  everything and the rng state and re-enters the step: the map; a `ROOM` with a
   `battle` re-enters that fight at that hero turn (no entrance replay, the log reads `THE
   FIGHT WITH <FOE> GOES ON`); a `ROOM` with an `eventId` reopens that event; a plain
   `ROOM` replays the room from the saved rng state (same foe, same chest, same rest; the
   boss entry heal is applied once because the save holds the hero from before it); a
-  `REWARD` opens LEVEL UP while SP is unspent, then the same loot offers (FIGHT / ELITE /
-  BOSS; a boss then continues to its act card or THRESHOLD), or for an EVENT the same
-  gift; THRESHOLD; or PACT with the same offers. Reloading cannot reroll a room, a drop,
-  an event or a pact, cannot undo a paid event cost, and cannot undo a death. **Accepted**:
-  reloading on a result card after the room was settled lands on the map (the card is
-  skipped); reloading on the loot screen lets the player choose among the same offers
-  again.
-- **Version policy**: `version` is 2 (1 had no battle, reward or event fields). A save with
+  `REWARD` opens LEVEL UP while SP is unspent (`+n EARNED` shows the step's `earned`, not
+  the whole pool), then the same loot offers (FIGHT / ELITE / BOSS; a boss then continues
+  to its act card or THRESHOLD), or for an EVENT the same gift; THRESHOLD; or PACT with
+  the same offers. **Reloading cannot reroll a room, a drop, an event or a pact, cannot
+  undo a paid event cost, a taken offer, a GEAR swap or a chosen battle action, and cannot
+  undo a death.** **Accepted**: reloading on a result card lands on the map, the next act
+  or THRESHOLD (the card is skipped); reloading on the loot screen lets the player choose
+  among the same offers again.
+- **More than one tab.** Next to the run the storage keeps a stamp
+  (`retrovibe.ember-quest.run.stamp`: a random run id + a write counter that every save
+  increments). A tab remembers the stamp it loaded or last wrote. Before every write it
+  re-reads the stamp; if the stored one is missing or differs (another tab wrote, ended or
+  deleted the run), the tab stops saving for the rest of that run (`g.saveLost`; the map
+  shows `ANOTHER TAB TOOK THIS RUN - THIS ONE NO LONGER SAVES` in orange) and never
+  deletes the save on its own death or abandon. A new run claims the slot outright. The
+  title listens to the `storage` event and refreshes or drops CONTINUE; CONTINUE itself
+  re-reads storage and refuses a save that is gone or whose stamp moved
+  (`THAT RUN HAS ENDED` in orange under the hook lines for 2.5 s, then the title offers
+  whatever save is stored now). A tab that is playing marks itself lost as soon as the
+  `storage` event shows another tab's write.
+- **Version policy**: `version` is 3 (2 had no `calm` / `foeMark` / `turn` in a battle and
+  no `earned` on REWARD; 1 had no battle, reward or event fields). An `eventId` is any id in
+  `EVENTS` or `QUIET_EVENT` (`eventById`; before, a QUIET save was rejected and the run lost). A save with
   another version, malformed JSON, an unknown item / foe / spell / pact / event id, a level
   past the item's cap, an out-of-range or non-finite number, a map whose links or step
   point outside it, or a depth plan without four acts is rejected by `loadRun` (which
@@ -715,11 +786,15 @@ the descent (see *Balance state → The descent*).
   seeds the hook's rng with 1) the hook owns the rng (`g.rngFromHook`) and saving,
   loading, deleting and the best score are all skipped (`realRun` in `game/persist.ts`).
 - **Pause**: Up/Down over `RESUME` / `ABANDON RUN`, A to choose; ABANDON asks
-  `REALLY ABANDON?  A YES  B NO` (A again confirms, B backs out); PAUSE still resumes at
+  `REALLY ABANDON?  > NO   YES` (see *Confirmations*); PAUSE still resumes at
   once. Abandoning sets `g.abandoned` and goes PAUSED → GAME_OVER directly (the scene
   machine allows it), is reported to the host as an ordinary game over (the unbanked-half
-  rule applies), and deletes the save. The overlay keeps listing the pacts. PAUSE is
-  ignored while the hero falls (`g.dying`).
+  rule applies), and deletes the save (when this tab still owns it). The overlay keeps
+  listing the pacts. PAUSE is ignored while the hero falls (`g.dying`).
+- **Confirmations** (ERASE YOUR RUN, REALLY ABANDON): one row `QUESTION  > NO   YES` on the
+  purple bar with `ARROWS PICK  SPACE CONFIRM  X NO` under it. The highlight starts on NO;
+  any arrow toggles it; A takes the highlighted answer; B is always NO. Pressing the same
+  key twice can no longer confirm.
 - **ASH in the game**: REST calls `restHero`; the card reads `REST HEALS 50%`, the HP / MP
   restored (zero gains are left out: `+12 HP  POTIONS FULL`), and either `THE ASHES OFFER
   AN UPGRADE` (A opens `UPGRADE WHICH?` through the loot chooser with a single
@@ -734,11 +809,23 @@ the descent (see *Balance state → The descent*).
 ## Arming and input (presentation rules)
 
 - **A is armed per screen.** LEVEL UP, the loot screen (and the event gift), PICK, the
-  event screen and every card ignore A until it has been released once after the screen
-  opened and 0.25 s have passed (`armA` / `takeA` in `game/state.ts`), so an A held or
-  mashed through a battle's last beat cannot spend SP, take an offer or skip a card.
-  THRESHOLD (1.0 s), PACT (0.5 s), GAME OVER and WIN (1.0 s, prompt faint until then) are
-  armed by time (`armed`).
+  event screen, every card, **the MAP, GEAR, THRESHOLD, PACT and the title menu** ignore A
+  until it has been released once after the screen opened and 0.25 s have passed (`armA`
+  / `takeA` in `game/state.ts`), so an A held or mashed through a battle's last beat or a
+  card cannot spend SP, take an offer, skip a card or walk into the next room. The title's
+  confirm re-arms when it opens. THRESHOLD (1.0 s) and PACT (0.5 s) additionally wait that
+  long, and GAME OVER and WIN (1.0 s, prompt faint until then) are armed by time
+  (`armed`). PAUSED reads plain presses (the clock is frozen there).
+- **THRESHOLD has no default.** It opens with neither row lit and the detail column reading
+  `TWO PATHS - NO TURNING BACK` / `ASCEND ENDS THE RUN` / `DESCEND GOES DEEPER` /
+  `UP/DOWN TO CHOOSE`; Up lights ASCEND, Down lights DESCEND, and only then does an armed
+  A choose. (Chosen over a second `END THE RUN HERE?` confirm: one deliberate direction
+  press is enough to stop a masher, and both paths are treated alike.)
+- **Grids** (the battle commands and the spell list, 2 columns): Left/Right step through
+  the list in reading order (Right from the right column goes to the next row's left cell,
+  wrapping from the last item to the first, across spell pages); Up/Down move within the
+  column and wrap from the bottom row to the top (in a spell list with more pages,
+  Up/Down past the edge turns the page).
 - **The kill always plays.** A pressed while the foe is dying fires its defeat cues at
   once (dissolve, `+100`, `… DEFEATED!`) and shortens the hold to 0.5 s; it never skips
   them.
@@ -753,24 +840,28 @@ the descent (see *Balance state → The descent*).
 See *v3 — battle verbs (M2)* above for moves, intents, GUARD, POTION, elements, BURN,
 BURST and BREAK; the lines below are the base turn they build on.
 
-- Hero turn: regen (chalice/necklace) → BLOOD tick → BURN ticks → action. ATTACK is free,
+- Hero turn: regen (chalice/necklace) → BLOOD tick → action → the hero's BURN tick (the
+  foe's ticks after its own action; see *One whole turn*). ATTACK is free,
   scales off ATK (or MAG for a magic weapon), deals `weaponKind` damage.
   Spells per `SPELLS`. Crit: `crit %` chance, `x critMult`.
 - Enemy resists (the instance's `resPhys`/`resMagic`, plus WARD) blunt the matching damage kind — HEX_STRIKE turns physical
   attacks into magic damage, so a physical build can beat a plated foe.
 - Enemy turn: phase check → the shown move; for a hit: dodge check → damage × move mult
   × (1 − DEF/MDEF) × guard → REFLECT → `heroFalls` (REVIVE).
-- Enemies scale `(base + perClear × clears) × actMult(n) × def.mult`; `ACT_MULT` [1.3, 1.75, 2.8, 3.8] for n ≤ 3 (see *the endless descent*); in the descent `clears` is the frozen `descentClears`.
+- Enemies scale `(base + perClear × clears) × actMult(n) × def.mult`; `ACT_MULT` [1.3, 1.8, 3.05, 4.3] for n ≤ 3 (see *the endless descent*); in the descent `clears` is the frozen `descentClears`.
 - The hero's death wins a tie (see *Who wins a tie* above).
 
 ## Difficulty targets (balance sim, sane policy)
 
 Story run, `balanced`: act 1 clear ≥ 80 %, act 2 ≈ 65 %, act 3 ≈ 50 %, full run 30–40 %.
-`random` < 8 %. `glass` and `tank` ≥ 15 %. **The game teaches before it punishes**: the
+`random` < 8 %. `glass` and `tank` ≥ 18 %. **The game teaches before it punishes**: the
 `naive` control (no GUARD, BREAK, BURST timing or weakness — the closest policy to a
 first-time player) wins ≥ 15 % and ≤ 75 % of balanced's rate, and reaches act 3 in
 ≥ 40 % of runs. Bosses: `balanced` kills the act-1 boss in ≈ 6–8 turns and the act-4 boss in
-≤ 12; one boss HEAVY ≤ ~60 % of a balanced hero's max HP at that boss; no ordinary act-N+1
+≤ 12; **for every sane archetype (balanced, naive, glass, tank, the routing pair) the median
+boss fight is ≤ 12 turns and the p90 ≤ 16 at acts 3 and 4** — a boss is decided by play,
+not attrition; a p25 build (damage per turn) still makes net progress ≥ 6 % of the boss's HP
+per turn; one boss HEAVY ≤ ~60 % of a balanced hero's max HP at that boss; no ordinary act-N+1
 normal out-HPs the act-N boss by more than ~10 %; a first-fight HEAVY takes ~25–30 % of a
 fresh hero's HP. Descent, `balanced`, of runs that beat the Seraph: ≈ 40 % (± 15) clear
 depth 2, ≈ 10 % depth 3, none clears depth 5 in 2000 runs; no pact's win-through wildly
@@ -782,7 +873,7 @@ not from stat inflation alone.
 
 Logical screen 240×160, font 4 px per char at scale 1. Battle log line
 <= 52 chars, or it wraps to two lines. Battle verbs: the plate's intent text <= 10 chars
-(`HEAVY BLOW`, `STAGGERED` 9), the band's intent hint <= 52 chars, a phase banner
+(`HEAVY BLOW`, `STAGGERED` 9), the band's intent hint <= 52 chars (the HEAVY hints are 51 and 47), a phase banner
 <= 20 chars (scale 2 beside its tag), a menu preview line <= 82 px (21 chars), a spell
 cell `NAME` + `nMP` inside 68 px, a tag strip inside its plate's 96 px (tags that do not
 fit are dropped, lowest priority last: enemy WEAK, WARD, BURN, RES, affixes; hero BURN,
@@ -792,7 +883,7 @@ and level-up panels sit beside the hero, never over him.
 Compare card: `displayName` (<= 16 chars) `>` name, `ATTACK NOW USES MAG` beside them;
 six cells of <= 18 chars (74 px columns); `LOSE:` / `GAIN:` lines <= 36 chars (blurbs
 <= 30). A loot offer's hint <= 64 px (the worn item's `displayName`). GEAR rows <= 92 px
-of name; PICK rows `NAME +n>+n+1` <= 84 px beside a <= 4-char note (`WORN`, `PACK`,
+of name; PICK rows `NAME +n→+n+1` <= 84 px (the arrow is a 4-px glyph) beside a <= 4-char note (`WORN`, `PACK`,
 `NEW`, `OLD`); PICK titles <= 30 chars; PICK detail <= 3 lines. The map readout
 `ELITE  NAME  HEXES  AFFIX +n` stays inside 224 px (the verb is dropped first when it does
 not); the map header `DEPTH n  ACT n  BIOME` <= 30 chars. Descent screens: THRESHOLD
@@ -806,12 +897,83 @@ pacts joined with ` / ` on lines <= 172 px.
 
 ## Balance state (measured with the headless simulator, 2026-11-24)
 
+### Review round 2 (2026-11-24)
+
+`node sim/run.mjs --runs 2000` (seed 1) after the round-2 rules: BURN ticks after the
+burning side's own action, `resolveTurn` with per-turn rng streams (the simulator now plays
+the game's turn function), the first-fight weapon guarantee, boss MEND 6 %, and this
+retune: `ACT_MULT` [1.3, 1.75, 2.8, 3.8] → [1.3, 1.8, 3.05, 4.3]; SAND GOLEM hpBase 195 → 115,
+atkBase 7.6 → 9.0, DEF 40 → 25; THE SERAPH hpBase 205 → 120, atkBase 5.7 → 6.2, DEF 15 → 8;
+MUMMY atkBase 5.6 → 5.3; `DESCENT_GROWTH` 1.16 → 1.15; THE HOLLOW strikes the weaker resist
+with `HOLLOW_HIT_FLOOR` 0.12. Rules and starter weapon alone (old numbers) moved balanced
+37 → 45 % and stretched tank's boss fights to a median 16 turns at the Golem (41 % of them
+over 16 turns): a human-like player met a ~860-HP Golem and a ~1500-HP Seraph that only a
+200-damage caster could beat.
+
+| policy | win | reach act 2 | act 3 | act 4 | boss clears a1/a2/a3/a4 |
+|---|---|---|---|---|---|
+| balanced | 39 % | 99 % | 91 % | 65 % | 99/97/88/76 |
+| naive (no verbs) | 15 % | 92 % | 63 % | 36 % | 93/77/76/60 |
+| glass (all offence) | 18 % | 99 % | 82 % | 45 % | 99/94/77/62 |
+| tank (HP/DEF, physical) | 35 % | 98 % | 86 % | 55 % | 99/93/79/82 |
+| elite-hungry routing | 40 % | 99 % | 91 % | 65 % | 99/97/87/76 |
+| chest-hungry routing | 30 % | 96 % | 87 % | 62 % | 98/94/85/65 |
+| random picks + points | 0 % | 20 % | 0 % | 0 % | 33/9/0/– |
+
+naive/balanced = **0.37**. 0 STALL deaths. Top killers (balanced): MUMMY 290, SERAPH 246,
+PALADIN 220, SAND GOLEM 185; (naive): YETI 375, MUMMY 298, SAND GOLEM 226. Item pick rates
+(balanced + glass + tank, `--items`) span 7 % (JADE AMULET) to 64 % (LUCKY BOOTS).
+
+Boss fights per archetype — turns, median / p90 (share over 16 turns), every fight won or
+lost; boss HP is the mean at spawn, the phase-2 HEAVY share is one HEAVY through the hero's
+DEF/MDEF over max HP at entry:
+
+| policy | DARK LORD | YETI | SAND GOLEM | THE SERAPH | p25 dmg/turn at Golem / Seraph |
+|---|---|---|---|---|---|
+| balanced | 6/10 (0 %) | 6/10 (0 %) | 6/11 (1 %) | 8/12 (3 %) | 78 / 121 |
+| naive | 7/11 (0 %) | 7/11 (0 %) | 6/10 (1 %) | 7/13 (4 %) | 78 / 114 |
+| glass | 5/8 (0 %) | 4/7 (0 %) | 4/7 (0 %) | 5/8 (0 %) | 108 / 161 |
+| tank | 8/11 (0 %) | 9/13 (1 %) | 10/15 (6 %) | 10/15 (7 %) | 48 / 93 |
+| elite-hungry | 6/10 (0 %) | 5/10 (0 %) | 6/11 (0 %) | 7/12 (2 %) | 78 / 124 |
+| chest-hungry | 7/10 (0 %) | 6/11 (1 %) | 6/12 (2 %) | 8/13 (5 %) | 72 / 110 |
+
+Boss HP 164 / 334 / 669 / 1288 (was 164 / 324 / 870 / 1544); balanced phase-2 HEAVY
+30 / 43 / 61 / 63 % of max HP (glass 89 / 80 % at the Golem / Seraph, tank 48 / 45 %). The
+p25 build nets ≥ 7 % of the boss's HP per turn at every boss (tank: 48 / 669 at the Golem,
+93 / 1288 at the Seraph). Boss MEND (6 %, once per phase) is 40 at the Golem and 77 at the
+Seraph; WARD never sits next to MEND in a cycle. Before the retune (round-2 rules, old
+numbers) the same table read: balanced Golem 8/15 (7 %), Seraph 10/17 (12 %); tank 16/23
+(41 %), 14/20 (29 %); chest-hungry 9/16, 11/18.
+
+Descent (`--descent-only`, of the runs that beat the Seraph):
+
+| policy | beat Seraph | clear d2 | d3 | d4 | d5 | deaths ELITE / BOSS / HOLLOW / THORNS / NORMAL |
+|---|---|---|---|---|---|---|
+| balanced | 789 | 39 % | 7 % | 0 % | 0 | 41 / 14 / 38 / 5 / 2 % |
+| naive | 288 | 25 % | 3 % | 0 % | 0 | 46 / 26 / 22 / 5 / 1 % |
+| glass | 357 | 24 % | 4 % | 0.3 % | 0 | 50 / 23 / 19 / 4 / 3 % |
+| tank | 721 | 63 % | 24 % | 3 % | 0 | 33 / 17 / 40 / 9 / 1 % |
+| elite-hungry | 737 | 33 % | 5 % | 0.1 % | 0 | 47 / 16 / 28 / 7 / 1 % |
+| chest-hungry | 625 | 44 % | 10 % | 0.3 % | 0 | 23 / 28 / 40 / 4 / 5 % |
+
+The tank still descends best (depth-2 clears 63 % against balanced 39 %; the gap was 68 / 40
+before). The Hollow is not what carries it: with every Hollow STRIKE pinned at 15 % of max
+HP the tank still clears depth 2 in ~65 %; it outlasts the depth's elites and bosses.
+Pact win-through pooled: ASH 41, TITHE 39, IRON 36, MISER 33, HUNTER 30, BRITTLE 29,
+STORM 23, HEX 19 %.
+
+### Before review round 2
+
 Harness: `npm run sim` (`sim/run.mjs`) bundles `game/sim.ts` with esbuild into a
 temporary directory (`sim/bundle.mjs`), then calls `simulateRun` with each of
 `POLICIES` and a seeded PRNG (`createSeededRng`; `--runs`, default 2000; `--seed`,
 default 1; `--policy`; `--json`; `--no-potions`). Same seed and same code give
 byte-identical `--json` output. The simulator replicates the drop rates, upgrade cards and
-boss tables, and plays **the same map generator as the game** (`game/sim/map.ts`).
+boss tables, and plays **the same map generator as the game** (`game/sim/map.ts`). Every
+text run also prints, per policy, the boss-fight turns (median / p90 / share over 16), the
+p25 damage per turn against each boss's HP and the phase-2 HEAVY share
+(`sim/descent-report.mjs` holds the boss and descent reports, `sim/items-report.mjs` the
+item and event ones).
 Numbers below: 2000 runs, seed 1, after the 2026-11-24 "teach before it punishes" pass
 (review round 1: the rules fixes R1–R17, the act-entry potion, the ELITE cap and the
 retune below). `--items` adds a per-item table (offered, pick rate when offered, runs

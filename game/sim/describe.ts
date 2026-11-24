@@ -11,7 +11,7 @@ import {
   type StatMods,
 } from '../types';
 import { SPELLS } from '../data';
-import { effectiveBlurb, effectiveEffect, effectiveMods, itemLevel } from './gear';
+import { effectiveBlurb, effectiveEffect, effectiveMods, itemLevel, maxLevelFor } from './gear';
 import { biggestDelta, deriveGhost, deriveWith, type DField } from './ghost';
 import { derive, knownSpells, spellCost } from './hero';
 import { reviveSpent } from './status';
@@ -230,11 +230,18 @@ export function describeOffer(hero: Hero, offer: LootOffer): string[] {
   const stats = packLines(describeItem(item, level), 30, 2);
   const blurb = reviveSpent(hero, item, level) ? SPENT_BLURB : effectiveBlurb(item, level).slice(0, 30);
   const out = [...stats, blurb];
+  const awaken = awakenPreview(item, level);
+  if (awaken && out.length < 3) {out.push(awaken);}
   return out.slice(0, 3);
 }
 
+export function awakenPreview(item: Item, level: number): string {
+  if (!item.awaken || maxLevelFor(item) < MAX_LEVEL || level >= MAX_LEVEL) {return '';}
+  return `AT +${String(MAX_LEVEL)}: ${item.awaken.blurb}`;
+}
+
 export interface CompareRow { label: string; before: string; after: string; better: boolean }
-export interface FullCompare { rows: CompareRow[]; lose: string; gain: string; kindChange: string }
+export interface FullCompare { rows: CompareRow[]; lose: string; gain: string; kindChange: string; awaken: string }
 
 const COMPARE_ORDER: DField[] = [
   'maxHp', 'atk', 'mag', 'def', 'mdef', 'crit', 'dodge', 'maxMp', 'hpRegen', 'mpRegen', 'critMult',
@@ -273,5 +280,6 @@ export function compareFull(hero: Hero, candidate: Item, level: number): FullCom
     lose: worn ? effectiveBlurb(worn, itemLevel(hero, candidate.slot)) : '',
     gain: reviveSpent(hero, candidate, level) ? SPENT_GAIN : effectiveBlurb(candidate, level),
     kindChange: kindChangeText(worn, candidate),
+    awaken: awakenPreview(candidate, level),
   };
 }

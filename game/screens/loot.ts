@@ -2,12 +2,14 @@ import { BUTTON_KEY } from '../../engine';
 import { SPELLS } from '../data';
 import type { Item, LootOffer, LootSource, OwnedItem, SpellId } from '../types';
 import {
-  applyOffer, compareOffer, describeItem, describeOffer, displayName, effectiveBlurb, noteDeclinedScrolls,
+  applyOffer, awakenPreview, compareOffer, describeItem, describeOffer, displayName, effectiveBlurb, noteDeclinedScrolls,
   resolveOverflow, resolveUpgrade, rollLoot, skipMend, upgradableTargets,
 } from '../sim';
 import type { AppliedOffer } from '../sim';
 import { actRef, armA, dirEdge, dirEdgeX, resetCursorEdge, takeA, wrapCursor } from '../state';
-import type { Game, PickRow } from '../state';
+import type { CardScreen, Game, PickRow } from '../state';
+
+type CardArt = NonNullable<CardScreen['art']>;
 import { ICON_SCROLL } from '../sprites';
 import { C_ACCENT, C_SCROLL, heroPos, rarityColor } from '../theme';
 import { noop } from '../lookup';
@@ -19,13 +21,20 @@ type ItemOffer = Extract<LootOffer, { kind: 'ITEM' }>;
 type UpgradeOffer = Extract<LootOffer, { kind: 'UPGRADE' }>;
 type TakenOffer = Exclude<LootOffer, { kind: 'UPGRADE_ANY' }>;
 
-export function startLoot(g: Game, source: LootSource, onDone: () => void): void {
+export interface LootExit { settle: () => void; done: () => void }
+
+function resultCard(g: Game, lines: string[], art?: CardArt): void {
+  g.loot.settle();
+  showCard(g, lines, g.loot.onDone, art);
+}
+
+export function startLoot(g: Game, source: LootSource, exit: LootExit): void {
   const offers = rollLoot(source, actRef(g), g.hero, g.rng);
-  g.loot = { offers, source, cursor: 0, stow: false, onDone };
+  g.loot = { offers, source, cursor: 0, stow: false, onDone: exit.done, settle: exit.settle };
   if (offers.length === 0) {
-    if (source === 'FIGHT') { onDone(); return; }
+    if (source === 'FIGHT') { exit.settle(); exit.done(); return; }
     const m = skipMend(g.hero);
-    showCard(g, ['THE CACHE IS BARE', `MENDED ${m.hp} HP AND ${m.mp} MP`], onDone);
+    resultCard(g, ['THE CACHE IS BARE', `MENDED ${m.hp} HP AND ${m.mp} MP`]);
     return;
   }
   g.subScene = 'LOOT';
@@ -42,7 +51,7 @@ function learnedScroll(g: Game, spell: SpellId): void {
   g.app.juice.flash(C_SCROLL, 0.3);
   const sp = SPELLS[spell];
   const stats = `${sp.scale} X${sp.mult.toFixed(1)}${sp.hits > 1 ? ` X${sp.hits}` : ''}  ${sp.cost} MP  ${sp.kind}`;
-  showCard(g, ['YOU LEARNED', sp.name, stats], g.loot.onDone, { icon: ICON_SCROLL, color: C_SCROLL });
+  resultCard(g, ['YOU LEARNED', sp.name, stats], { icon: ICON_SCROLL, color: C_SCROLL });
 }
 
 interface Outcome { item: Item; stowed: boolean; replaced?: OwnedItem; dropped?: OwnedItem }
@@ -57,7 +66,7 @@ function outcomeLines(o: Outcome): string[] {
 }
 
 function itemTaken(g: Game, o: Outcome): void {
-  showCard(g, outcomeLines(o), g.loot.onDone, { icon: itemIcon(o.item), color: rarityColor(o.item) });
+  resultCard(g, outcomeLines(o), { icon: itemIcon(o.item), color: rarityColor(o.item) });
 }
 
 function upgraded(g: Game, offer: UpgradeOffer, r: AppliedOffer, delta: string): void {
@@ -66,7 +75,7 @@ function upgraded(g: Game, offer: UpgradeOffer, r: AppliedOffer, delta: string):
   const awakens = offer.toLevel >= 2;
   const item = offer.item;
   const lines = [awakens ? 'AWAKENED' : 'UPGRADED', displayName(item, offer.toLevel), awakens ? r.line : delta];
-  showCard(g, lines, g.loot.onDone, { icon: itemIcon(item), color: rarityColor(item) });
+  resultCard(g, lines, { icon: itemIcon(item), color: rarityColor(item) });
 }
 
 function ownedDetail(owned: OwnedItem): string[] {
@@ -81,6 +90,7 @@ function dropRow(owned: OwnedItem, note: string): PickRow {
     color: rarityColor(owned.item),
     note,
     detail: ownedDetail(owned),
+    aside: awakenPreview(owned.item, owned.level),
   };
 }
 
@@ -128,10 +138,11 @@ function upgradeRow(g: Game, offer: UpgradeOffer): PickRow {
   const { item, toLevel, target } = offer;
   return {
     icon: itemIcon(item),
-    name: `${item.name} +${String(toLevel - 1)}>+${String(toLevel)}`,
+    name: `${item.name} +${String(toLevel - 1)}\u2192+${String(toLevel)}`,
     color: rarityColor(item),
     note: target.where,
-    detail: upgradeDetail(g, offer),
+    detail: upgradeDetail(g, offer).filter((line) => line !== awakenPreview(item, toLevel)),
+    aside: awakenPreview(item, toLevel),
   };
 }
 
@@ -154,11 +165,11 @@ export function chooseUpgrade(g: Game): void {
 }
 
 function keepGear(g: Game): void {
-  if (g.loot.ash) { g.app.audio.play('blip'); showCard(g, ['THE ASHES COOL', 'YOUR GEAR STAYS AS IT IS'], g.loot.onDone); return; }
+  if (g.loot.ash) { g.app.audio.play('blip'); resultCard(g, ['THE ASHES COOL', 'YOUR GEAR STAYS AS IT IS']); return; }
   const m = skipMend(g.hero);
   noteDeclinedScrolls(g.hero, g.loot.offers, null);
   g.app.audio.play('pickup');
-  showCard(g, ['YOU KEEP YOUR GEAR', `MENDED ${m.hp} HP AND ${m.mp} MP`], g.loot.onDone);
+  resultCard(g, ['YOU KEEP YOUR GEAR', `MENDED ${m.hp} HP AND ${m.mp} MP`]);
 }
 
 function moveLootCursor(g: Game): void {

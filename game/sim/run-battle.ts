@@ -1,12 +1,11 @@
-import type { BattleState, EnemyActResult, EnemyInstance, Hero, HeroAction, HeroActResult, Rng } from '../types';
-import { createBattle, heroAct } from './combat';
+import type { BattleState, EnemyActResult, EnemyInstance, Hero, HeroAction, HeroActResult, Rng, TurnResult } from '../types';
+import { createBattle } from './combat';
 import { elementMult } from './element';
-import { enemyAct } from './enemy-turn';
 import { battleActions, canAfford, derive } from './hero';
 import type { Policy } from './model';
 import { heroElement, punishes } from './power';
 import type { BattleOutcome, VerbTally } from './run-tally';
-import { startTurn } from './status';
+import { resolveTurn } from './turn';
 
 const TURN_CAP = 80;
 
@@ -16,7 +15,7 @@ interface Fight {
   hero: Hero;
   battle: BattleState;
   policy: Policy;
-  rng: Rng;
+  roomSeed: number;
   verbs: VerbTally;
   dmgTaken: number;
   landed: number;
@@ -56,33 +55,28 @@ function tallyReply(f: Fight, reply: EnemyActResult): void {
   f.landed += 1;
 }
 
+function tallyEnd(f: Fight, turn: TurnResult): Verdict {
+  if (turn.cause === 'BURN') {f.verbs.burnDeaths += 1;}
+  if (turn.cause === 'THORNS') {f.thorns = true;}
+  return turn.outcome;
+}
+
 function round(f: Fight): Verdict {
   const action = chooseAction(f);
-  const start = startTurn(f.hero, f.battle, action);
-  if (start.heroDead) {
-    if (start.heroBurn > 0) {f.verbs.burnDeaths += 1;}
-    return 'LOST';
-  }
-  if (start.enemyDefeated) {return 'WON';}
   const attempt = breakAttempt(f.hero, f.battle, action);
-  const result = heroAct(f.hero, f.battle, action, f.rng);
-  tallyHero(f, action, result, attempt);
-  if (result.heroDead) {
-    f.thorns = true;
-    return 'LOST';
-  }
-  if (result.enemyDefeated) {return 'WON';}
-  const reply = enemyAct(f.hero, f.battle, f.rng);
-  tallyReply(f, reply);
-  if (reply.heroDead) {return 'LOST';}
-  return reply.enemyDefeated ? 'WON' : null;
+  const turn = resolveTurn(f.hero, f.battle, action, f.roomSeed);
+  tallyHero(f, action, turn.hero, attempt);
+  if (turn.enemy) {tallyReply(f, turn.enemy);}
+  return tallyEnd(f, turn);
 }
+
+const roomSeedOf = (rng: Rng): number => Math.floor(rng() * 0x100000000) >>> 0;
 
 interface Contest { hero: Hero; enemy: EnemyInstance; policy: Policy; rng: Rng; verbs: VerbTally }
 
 export function runBattle({ hero, enemy, policy, rng, verbs }: Contest): BattleOutcome {
   const startHp = enemy.hp;
-  const f: Fight = { hero, battle: createBattle(enemy), policy, rng, verbs, dmgTaken: 0, landed: 0, thorns: false };
+  const f: Fight = { hero, battle: createBattle(enemy), policy, roomSeed: roomSeedOf(rng), verbs, dmgTaken: 0, landed: 0, thorns: false };
   const outcome = (won: boolean, turns: number, stalled = false): BattleOutcome =>
     ({ won, stalled, turns, dmgTaken: f.dmgTaken, landed: f.landed, dmgDealt: startHp - enemy.hp, thorns: f.thorns });
   for (let turn = 0; turn < TURN_CAP; turn += 1) {

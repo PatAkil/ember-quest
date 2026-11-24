@@ -63,6 +63,13 @@ function drawBigChoices(ctx: Ctx, cursor: number, ready: boolean): void {
   });
 }
 
+const UNCHOSEN: readonly Ink[] = [
+  { text: 'TWO PATHS - NO TURNING BACK', color: C_TEXT },
+  { text: 'ASCEND ENDS THE RUN', color: C_DIM },
+  { text: 'DESCEND GOES DEEPER', color: C_DIM },
+  { text: 'UP/DOWN TO CHOOSE', color: C_ACCENT },
+];
+
 function headline(depth: number): string {
   return depth <= 1 ? 'THE SERAPH IS NO MORE' : `DEPTH ${String(depth)} CONQUERED`;
 }
@@ -101,6 +108,7 @@ export function renderThreshold(g: Game): void {
   ]);
   drawCommandBand(ctx);
   drawBigChoices(ctx, t.cursor, ready);
-  const choice = THRESHOLD_CHOICES[t.cursor] ?? 'ASCEND';
-  drawDetail(ctx, [...choiceLines(g, choice), promptInk(g, ready, 'CHOOSE')], DETAIL_X);
+  const choice = THRESHOLD_CHOICES[t.cursor];
+  const lines = choice ? [...choiceLines(g, choice), promptInk(g, ready, 'CHOOSE')] : UNCHOSEN;
+  drawDetail(ctx, lines, DETAIL_X);
 }

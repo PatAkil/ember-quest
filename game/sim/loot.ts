@@ -134,16 +134,29 @@ function starterWeapons(hero: Hero, act: number): Item[] {
     i.slot === 'WEAPON' && i.rarity === 'COMMON' && !i.bossOnly && !owned.has(i.id) && (i.minAct ?? 0) <= act);
 }
 
+const ownsWeapon = (hero: Hero): boolean =>
+  hero.equipment.WEAPON !== undefined || hero.pack.some((o) => o.item.slot === 'WEAPON');
+
 export function ensureStarterWeapon(offers: LootOffer[], hero: Hero, act: number, rng: Rng): void {
-  if (hero.equipment.WEAPON) {return;}
+  if (ownsWeapon(hero)) {return;}
   if (offers.some((o) => o.kind === 'ITEM' && o.item.slot === 'WEAPON')) {return;}
-  const lastItem = offers.reduce((last, o, i) => (o.kind === 'ITEM' ? i : last), -1);
   const starters = starterWeapons(hero, act);
-  if (lastItem < 0 || !isNonEmpty(starters)) {return;}
-  offers[lastItem] = { kind: 'ITEM', item: pick(starters, rng) };
+  if (!isNonEmpty(starters)) {return;}
+  const lastItem = offers.reduce((last, o, i) => (o.kind === 'ITEM' ? i : last), -1);
+  const slot = lastItem >= 0 ? lastItem : Math.min(offers.length, MAX_OFFERS - 1);
+  offers[slot] = { kind: 'ITEM', item: pick(starters, rng) };
 }
 
 const noDrop = (mods: PactTotals): boolean => mods.fightDrops <= 0;
+
+function fightWithheld(hero: Hero, rng: Rng): boolean {
+  if (noDrop(pactMods(hero))) {return true;}
+  if (!ownsWeapon(hero)) {
+    hero.dryFights = 0;
+    return false;
+  }
+  return fightIsDry(hero, rng);
+}
 
 const cardsFor = (source: LootSource, mods: PactTotals): number => Math.min(MAX_OFFERS, lootCards(source, mods));
 
@@ -152,7 +165,7 @@ function bossOffers(ref: ActRef, hero: Hero, rng: Rng): LootOffer[] {
 }
 
 export function rollLoot(source: LootSource, ref: ActRef, hero: Hero, rng: Rng): LootOffer[] {
-  if (source === 'FIGHT' && (noDrop(pactMods(hero)) || fightIsDry(hero, rng))) {return [];}
+  if (source === 'FIGHT' && fightWithheld(hero, rng)) {return [];}
   const offers = source === 'BOSS' ? bossOffers(ref, hero, rng) : rollRoomLoot(source, ref.n, hero, rng);
   ensureStarterWeapon(offers, hero, ref.n, rng);
   return offers.slice(0, MAX_OFFERS);

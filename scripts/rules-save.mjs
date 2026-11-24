@@ -34,7 +34,7 @@ const battleFixture = () => ({
     id: 'GOBLIN', hp: 31, maxHp: 44, atk: 6, resPhys: 20, resMagic: 0, affixes: ['THORNED'], burn: { perTurn: 3, turns: 2 },
     wardTurns: 1, phase: 1, cycleIndex: -1, mended: false, staggered: true,
   },
-  state: { rampStacks: 2, lastScope: 'SPELL', actionsTaken: 4, intent: 'HEAVY', guarding: false, guardChain: 1, riposte: true, aegis: 0 },
+  state: { rampStacks: 2, lastScope: 'SPELL', actionsTaken: 4, intent: 'HEAVY', guarding: false, guardChain: 1, riposte: true, aegis: 0, calm: 7, foeMark: 31, turn: 5 },
 });
 
 function liveRun(sim, depth) {
@@ -69,6 +69,38 @@ function roundTrip(sim) {
     assert.deepEqual(JSON.parse(sim.saveRun(back)), JSON.parse(text), `depth ${depth}: saving the restored run changes the save`);
   }
   return 'depth 1 and 2: rich hero, map, plan and step round-trip; next 200 draws, rollLoot and generateMap identical';
+}
+
+function stepRoundTrip(sim, what, edit) {
+  const { snapshot } = liveRun(sim, 2);
+  edit(snapshot);
+  const loaded = sim.loadRun(sim.saveRun(snapshot));
+  assert.ok(loaded, `${what}: rejected`);
+  assert.deepEqual(sim.fromSaved(loaded), snapshot, `${what}: the restored run differs`);
+  return loaded;
+}
+
+function stepRules(sim) {
+  const spot = { stage: 1, slot: 0, roomSeed: 99 };
+  const reward = stepRoundTrip(sim, 'REWARD', (s) => { s.step = { at: 'REWARD', ...spot, source: 'ELITE', earned: 3 }; });
+  assert.equal(reward.step.earned, 3, 'REWARD lost the earned SP');
+  stepRoundTrip(sim, 'REWARD gift', (s) => { s.step = { at: 'REWARD', ...spot, source: 'EVENT', earned: 0, gift: 'EPIC' }; });
+  for (const eventId of [sim.QUIET_EVENT.id, sim.EVENTS[0].id]) {
+    stepRoundTrip(sim, `event ${eventId}`, (s) => { s.step = { at: 'ROOM', ...spot, eventId }; });
+    assert.equal(sim.eventById(eventId)?.id, eventId, `eventById(${eventId})`);
+  }
+  stepRoundTrip(sim, 'THRESHOLD', (s) => { s.run.n = 7; s.step = { at: 'THRESHOLD' }; });
+  stepRoundTrip(sim, 'PACT', (s) => {
+    s.run.n = 4;
+    s.step = { at: 'PACT', offers: Object.keys(sim.PACTS).filter((id) => !s.hero.pacts.includes(id)).slice(0, 3) };
+  });
+  const battle = stepRoundTrip(sim, 'battle', () => undefined).step.battle.state;
+  assert.deepEqual([battle.calm, battle.foeMark, battle.turn], [7, 31, 5], 'calm / foeMark / turn did not survive the save');
+  const noEarned = corrupt(sim.saveRun(liveRun(sim, 2).snapshot), (d) => { d.step = { at: 'REWARD', ...spot, source: 'FIGHT' }; });
+  assert.equal(sim.loadRun(noEarned), null, 'a REWARD without earned SP was accepted');
+  const noCalm = corrupt(sim.saveRun(liveRun(sim, 2).snapshot), (d) => { delete d.step.battle.state.calm; });
+  assert.equal(sim.loadRun(noCalm), null, 'a battle without calm was accepted');
+  return `version ${String(sim.SAVE_VERSION)}: REWARD (earned SP, gift), QUIET and drawn eventIds, THRESHOLD and PACT steps round-trip; calm/foeMark/turn saved and required`;
 }
 
 const SAMPLE_MUTATIONS = 600;
@@ -176,5 +208,5 @@ function fuzz(sim) {
 }
 
 export function saveRules(sim) {
-  return [roundTrip(sim), rejections(sim), fuzz(sim)].join('; ');
+  return [roundTrip(sim), stepRules(sim), rejections(sim), fuzz(sim)].join('; ');
 }

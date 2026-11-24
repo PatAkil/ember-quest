@@ -4,10 +4,10 @@ import { SPELLS } from '../data';
 import { canAfford, knownSpells, spellCost } from '../sim';
 import { noteText } from '../fx';
 import type { Game } from '../state';
-import { BAND_Y, C_ACCENT, C_DIM, C_EMBER, C_FAINT, C_SEL_BAR, C_TEXT, C_WARN, H, W } from '../theme';
+import { BAND_Y, C_ACCENT, C_DIM, C_EMBER, C_FAINT, C_GOOD, C_SEL_BAR, C_TEXT, C_WARN, H, W } from '../theme';
 import { accentHz } from '../widgets';
 import { MENU_COLS, PAGE_SIZE, TOP_COMMANDS, pageCount } from './battle-menu';
-import { intentLook, previewSpell, previewTop } from './battle-preview';
+import { attackWeak, intentHint, previewSpell, previewTop, weakSpells } from './battle-preview';
 import type { PreviewLine, TopCommand } from './battle-preview';
 
 type Ctx = CanvasRenderingContext2D;
@@ -24,7 +24,7 @@ const INFO_W = W - SAFE_MARGIN - INFO_X;
 const SEG_GAP = 4;
 const BAND_BOTTOM = H - SAFE_MARGIN;
 
-interface Cell { label: string; note: string; color: string; sel: boolean }
+interface Cell { label: string; note: string; color: string; sel: boolean; noteColor?: string; inset?: number }
 
 function cellAt(i: number): { x: number; y: number } {
   return { x: GRID_X + (i % MENU_COLS) * COL_W, y: ROW_Y + Math.floor(i / MENU_COLS) * ROW_PITCH };
@@ -34,7 +34,8 @@ function drawCell(ctx: Ctx, i: number, cell: Cell): void {
   const { x, y } = cellAt(i);
   if (cell.sel) { ctx.fillStyle = C_SEL_BAR; ctx.fillRect(x + 1, y - 2, COL_W - 2, 9); }
   drawText(ctx, (cell.sel ? '> ' : '  ') + cell.label, { x: x + 3, y }, { color: cell.color, shadow: cell.sel });
-  if (cell.note) {drawText(ctx, cell.note, { x: x + COL_W - 3 - textWidth(cell.note, 1), y }, { color: cell.sel ? C_TEXT : C_DIM });}
+  const noteX = x + COL_W - 3 - (cell.inset ?? 0) - textWidth(cell.note, 1);
+  if (cell.note) {drawText(ctx, cell.note, { x: noteX, y }, { color: cell.noteColor ?? (cell.sel ? C_TEXT : C_DIM) });}
 }
 
 function labelColor(sel: boolean, ready: boolean, warm = false): string {
@@ -43,20 +44,33 @@ function labelColor(sel: boolean, ready: boolean, warm = false): string {
   return warm ? C_EMBER : C_TEXT;
 }
 
+const WEAK_NOTE = { note: 'WEAK', noteColor: C_GOOD };
+
+function weakNote(g: Game, cmd: TopCommand): { note: string; noteColor?: string } {
+  const e = g.battle.enemy;
+  if (!e) {return { note: '' };}
+  if (cmd === 'ATTACK' && attackWeak(g.hero, e)) {return WEAK_NOTE;}
+  return cmd === 'MAGIC' && weakSpells(g.hero, e).length > 0 ? WEAK_NOTE : { note: '' };
+}
+
 function topCell(g: Game, cmd: TopCommand, sel: boolean): Cell {
   const hero = g.hero;
+  const inset = sel && hasColumnHint(g.battle.topCursor) ? 5 : 0;
   if (cmd === 'POTION') {return { label: `POTION X${hero.potions}`, note: '', color: labelColor(sel, hero.potions > 0), sel };}
   if (cmd === 'BURST') {return { label: 'BURST', note: '', color: labelColor(sel, hero.ember >= EMBER_MAX, true), sel };}
-  if (cmd === 'MAGIC') {return { label: 'MAGIC', note: '', color: labelColor(sel, knownSpells(hero).length > 0), sel };}
-  return { label: cmd, note: '', color: labelColor(sel, true), sel };
+  if (cmd === 'MAGIC') {return { label: 'MAGIC', ...weakNote(g, cmd), color: labelColor(sel, knownSpells(hero).length > 0), sel, inset };}
+  return { label: cmd, ...weakNote(g, cmd), color: labelColor(sel, true), sel, inset };
+}
+
+function hasColumnHint(cursor: number): boolean {
+  const other = cursor + (cursor % MENU_COLS === 0 ? 1 : -1);
+  return other >= 0 && other < TOP_COMMANDS.length;
 }
 
 function drawColumnHint(ctx: Ctx, cursor: number): void {
-  const col = cursor % MENU_COLS;
-  const other = cursor + (col === 0 ? 1 : -1);
-  if (other < 0 || other >= TOP_COMMANDS.length) {return;}
+  if (!hasColumnHint(cursor)) {return;}
   const { x, y } = cellAt(cursor);
-  drawText(ctx, col === 0 ? '>' : '<', { x: x + COL_W - 6, y }, { color: C_DIM });
+  drawText(ctx, cursor % MENU_COLS === 0 ? '>' : '<', { x: x + COL_W - 6, y }, { color: C_DIM });
 }
 
 function drawTop(g: Game): void {
@@ -68,11 +82,13 @@ function drawTop(g: Game): void {
 function drawMagic(g: Game): void {
   const ctx = g.app.pc.ctx;
   const spells = knownSpells(g.hero);
+  const weak = g.battle.enemy ? weakSpells(g.hero, g.battle.enemy) : [];
   const page = Math.floor(g.battle.magicCursor / PAGE_SIZE);
   spells.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE).forEach((id, i) => {
     const sel = page * PAGE_SIZE + i === g.battle.magicCursor;
     const ready = canAfford(g.hero, id);
-    drawCell(ctx, i, { label: SPELLS[id].name, note: `${spellCost(g.hero, id)}MP`, color: labelColor(sel, ready), sel });
+    const color = ready && !sel && weak.includes(id) ? C_GOOD : labelColor(sel, ready);
+    drawCell(ctx, i, { label: SPELLS[id].name, note: `${spellCost(g.hero, id)}MP`, color, sel });
   });
 }
 
@@ -122,7 +138,7 @@ function drawHint(g: Game): void {
   const { enemy: e, state } = g.battle;
   if (note) { drawTextCentered(ctx, note, { width: W, y: HINT_Y }, { color: C_WARN, shadow: true }); return; }
   if (!e || !state) {return;}
-  const look = intentLook(e, state);
+  const look = intentHint(e, state, g.hero);
   const color = look.hot && accentHz(g.clock, 2, 0.5) ? C_TEXT : look.color;
   drawTextCentered(ctx, look.hint, { width: W, y: HINT_Y }, { color, shadow: true });
 }

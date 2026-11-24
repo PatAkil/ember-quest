@@ -16,6 +16,8 @@ const ROW_Y = 21;
 const ROW_PITCH = 10;
 const MENU_H = 42;
 
+const pressedA = (g: Game): boolean => g.app.input.pressed('A');
+
 function resume(g: Game): void {
   g.app.scenes.to('PLAYING');
   resetCursorEdge(g);
@@ -23,7 +25,7 @@ function resume(g: Game): void {
 
 export function updatePaused(g: Game): void {
   if (g.app.input.pressed('PAUSE')) { g.app.audio.play('blip'); resume(g); return; }
-  const chosen = stepMenu(g, g.pause, { rows: PAUSE_ROWS.length, guarded: ABANDON_ROW });
+  const chosen = stepMenu(g, g.pause, { rows: PAUSE_ROWS.length, guarded: ABANDON_ROW, readA: pressedA });
   if (chosen === null) {return;}
   if (chosen === ABANDON_ROW) { abandonRun(g); return; }
   resume(g);
@@ -32,7 +34,7 @@ export function updatePaused(g: Game): void {
 function drawPauseMenu(g: Game, top: number, barW: number): void {
   const ctx = g.app.pc.ctx;
   if (g.pause.confirm) {
-    drawConfirm(ctx, 'REALLY ABANDON?', { y: top + ROW_Y + ROW_PITCH / 2, barW });
+    drawConfirm(ctx, 'REALLY ABANDON?', { y: top + ROW_Y, barW, selected: g.pause.yes, hintY: top + ROW_Y + ROW_PITCH });
     return;
   }
   PAUSE_ROWS.forEach((label, i) => {

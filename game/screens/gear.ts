@@ -1,7 +1,7 @@
 import { SLOTS } from '../types';
 import type { OwnedItem, Slot } from '../types';
 import { itemLevel, swapIn, unequip } from '../sim';
-import { dirEdge, dirEdgeX, resetCursorEdge, wrapCursor } from '../state';
+import { armA, dirEdge, dirEdgeX, resetCursorEdge, takeA, wrapCursor } from '../state';
 import type { Game } from '../state';
 import { rarityColor } from '../theme';
 import { persist } from '../persist';
@@ -12,6 +12,7 @@ export function openGear(g: Game): void {
   g.gear = { cursor: 0, refusedAt: -1 };
   g.subScene = 'GEAR';
   resetCursorEdge(g);
+  armA(g);
 }
 
 const gearRowCount = (g: Game): number => SLOTS.length + g.hero.pack.length;
@@ -30,7 +31,7 @@ export const refusalShowing = (g: Game): boolean => g.gear.refusedAt >= 0 && g.c
 function closeGear(g: Game): void {
   g.subScene = 'MAP';
   resetCursorEdge(g);
-  persist(g, { at: 'MAP' });
+  armA(g);
 }
 
 function packRowFor(g: Game, cursor: number): number {
@@ -76,9 +77,15 @@ function actOnSlot(g: Game, slot: Slot): void {
     if (unequip(g.hero, slot)) {g.app.audio.play('pickup');} else {refuse(g);}
     return;
   }
-  const fitting = g.hero.pack.findIndex((o) => o.item.slot === slot);
-  if (fitting < 0) { g.app.audio.play('blip'); return; }
-  wearFromPack(g, fitting);
+  const fits = fittingRows(g, slot);
+  const [only] = fits;
+  if (only === undefined) { g.app.audio.play('blip'); return; }
+  if (fits.length > 1) { g.gear.cursor = SLOTS.length + only; g.app.audio.play('blip'); return; }
+  wearFromPack(g, only);
+}
+
+export function fittingRows(g: Game, slot: Slot): number[] {
+  return g.hero.pack.flatMap((o, i) => (o.item.slot === slot ? [i] : []));
 }
 
 function actOnRow(g: Game): void {
@@ -91,5 +98,5 @@ function actOnRow(g: Game): void {
 export function updateGear(g: Game): void {
   moveCursor(g);
   if (g.app.input.pressed('B')) { g.app.audio.play('blip'); closeGear(g); return; }
-  if (g.app.input.pressed('A')) {actOnRow(g);}
+  if (takeA(g)) { actOnRow(g); persist(g, { at: 'MAP' }); }
 }

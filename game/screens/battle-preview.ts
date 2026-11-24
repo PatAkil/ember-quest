@@ -1,9 +1,9 @@
 import { BREAK_AT, BURST_MULT, EMBER_MAX, GUARD_MP_GAIN, POTION_HEAL } from '../types';
 import type { BattleState, DamageKind, Derived, EnemyInstance, Hero, MoveId, SpellId } from '../types';
 import { SPELLS } from '../data';
-import { burstPower, canAfford, derive, elementMult, gearPower, heroElement, knownSpells, punishes, resistOf, riposteMult, spellCost } from '../sim';
+import { burstPower, canAfford, derive, elementMult, gearPower, heroElement, knownSpells, pendingTick, punishes, resistOf, riposteMult, spellCost } from '../sim';
 import type { Game } from '../state';
-import { C_ACCENT, C_DIM, C_EMBER, C_GOOD, C_HEX, C_TEXT, C_WARD, C_WARN } from '../theme';
+import { C_ACCENT, C_DIM, C_EMBER, C_GOOD, C_HEX, C_LOG_HURT, C_TEXT, C_WARD, C_WARN } from '../theme';
 import { hasHex, magicWeapon } from './battle-fx';
 
 export interface Seg { text: string; color: string }
@@ -16,13 +16,20 @@ const look = (short: string, hint: string, color: string, hot = false): IntentLo
 const INTENT: Record<MoveId, IntentLook> = {
   STRIKE: look('STRIKES', 'IT READIES A BLOW', C_TEXT),
   WINDUP: look('WINDS UP', 'IT WINDS UP (LIGHT HIT) - A HEAVY BLOW FOLLOWS', C_WARN),
-  HEAVY: look('HEAVY BLOW', 'HEAVY BLOW COMING - GUARD IT OR BREAK IT', C_WARN, true),
+  HEAVY: look('HEAVY BLOW', 'HEAVY NEXT: GUARD, OR BREAK WITH A WEAK HIT OR BURST', C_WARN, true),
   WARD: look('WARDS', 'IT RAISES A WARD - RESISTS RISE FOR 2 TURNS', C_WARD),
   SCORCH: look('SCORCHES', 'IT GATHERS FLAME - THE HIT WILL BURN', C_EMBER),
   MEND: look('MENDS', 'IT WILL MEND ITS WOUNDS', C_GOOD),
 };
 const HEX_INTENT = look('HEXES', 'IT READIES A HEX', C_HEX);
 const STAGGER_INTENT = look('STAGGERED', 'IT IS STAGGERED - IT LOSES ITS TURN', C_DIM);
+
+const PUNISH_HEAVY = look('HEAVY BLOW', 'HEAVY NEXT: GUARD, OR BREAK IT WITH A STRONG HIT', C_WARN, true);
+
+export function intentHint(e: EnemyInstance, state: BattleState, hero: Hero): IntentLook {
+  const shown = intentLook(e, state);
+  return shown === INTENT.HEAVY && punishes(hero) ? PUNISH_HEAVY : shown;
+}
 
 export function intentLook(e: EnemyInstance, state: BattleState): IntentLook {
   if (e.staggered) {return STAGGER_INTENT;}
@@ -125,13 +132,34 @@ function guardPreview(c: Ctx): PreviewLine[] {
   return [line('HALVES THE NEXT HIT', C_TEXT), line(`+${GUARD_MP_GAIN} MP IF STRUCK`, C_DIM)];
 }
 
+function burnAfter(c: Ctx, healed: number): PreviewLine | null {
+  const tick = pendingTick(c.hero);
+  if (tick <= 0) {return null;}
+  return c.hero.hp + healed - tick <= 0 ? line(`BURN ${tick} KILLS YOU`, C_LOG_HURT) : line(`THEN YOU BURN -${tick}`, C_WARN);
+}
+
+function withBurn(lines: PreviewLine[], burn: PreviewLine | null): PreviewLine[] {
+  return burn ? [lines[0] ?? [], lines[1] ?? [], burn] : lines;
+}
+
+const healOf = (c: Ctx, fraction: number): number => Math.min(roomHp(c), Math.round(c.d.maxHp * fraction));
+
+function lethalOnly(c: Ctx, lines: PreviewLine[]): PreviewLine[] {
+  const burn = burnAfter(c, 0);
+  return burn && c.hero.hp - pendingTick(c.hero) <= 0 ? withBurn(lines, burn) : lines;
+}
+
 function potionPreview(c: Ctx): PreviewLine[] {
   const left = c.hero.potions > 0 ? line(`${c.hero.potions} LEFT`, C_DIM) : line('NONE LEFT', C_WARN);
-  return [line(`HEAL ${Math.round(POTION_HEAL * 100)}% HP`, C_GOOD), healLine(c, POTION_HEAL), left];
+  return withBurn([line(`HEAL ${Math.round(POTION_HEAL * 100)}% HP`, C_GOOD), healLine(c, POTION_HEAL), left], burnAfter(c, healOf(c, POTION_HEAL)));
+}
+
+function emberPct(hero: Hero): string {
+  return `EMBER ${String(Math.floor((100 * Math.min(hero.ember, EMBER_MAX)) / EMBER_MAX))}%`;
 }
 
 function burstPreview(c: Ctx): PreviewLine[] {
-  if (c.hero.ember < EMBER_MAX) {return [line(`EMBER ${Math.floor(c.hero.ember)}/${EMBER_MAX}`, C_DIM), line('FILLS AS YOU FIGHT', C_DIM)];}
+  if (c.hero.ember < EMBER_MAX) {return [line(emberPct(c.hero), C_EMBER), line(`X${burstMult(c.hero).toFixed(1)} IGNORES ARMOR`, C_DIM), line('FILLS AS YOU FIGHT', C_DIM)];}
   const third = breakLine(c, burstTotal(c), true) ?? line('EMPTIES THE EMBER', C_DIM);
   return [line(`${burstStat(c.d)} X${burstMult(c.hero).toFixed(1)}`, C_TEXT), line('IGNORES ARMOR+WARDS', C_TEXT), third];
 }
@@ -147,12 +175,20 @@ function magicPreview(c: Ctx): PreviewLine[] {
 export type TopCommand = 'ATTACK' | 'MAGIC' | 'GUARD' | 'BURST' | 'POTION';
 
 const TOP_PREVIEW: Record<TopCommand, (c: Ctx) => PreviewLine[]> = {
-  ATTACK: (c) => strikePreview(c, 'ATTACK'),
-  MAGIC: magicPreview,
-  GUARD: guardPreview,
-  BURST: burstPreview,
+  ATTACK: (c) => lethalOnly(c, strikePreview(c, 'ATTACK')),
+  MAGIC: (c) => lethalOnly(c, magicPreview(c)),
+  GUARD: (c) => withBurn(guardPreview(c), burnAfter(c, 0)),
+  BURST: (c) => lethalOnly(c, burstPreview(c)),
   POTION: potionPreview,
 };
+
+export function weakSpells(hero: Hero, e: EnemyInstance): SpellId[] {
+  return knownSpells(hero).filter((id) => elementMult(e.def, SPELLS[id].element) > 1);
+}
+
+export const attackWeak = (hero: Hero, e: EnemyInstance): boolean => elementMult(e.def, heroElement(hero, 'ATTACK')) > 1;
+
+export const hasWeakAnswer = (hero: Hero, e: EnemyInstance): boolean => attackWeak(hero, e) || weakSpells(hero, e).length > 0;
 
 function context(g: Game): Ctx | null {
   const { enemy: e, state } = g.battle;
@@ -168,5 +204,8 @@ export function previewTop(g: Game, cmd: TopCommand): PreviewLine[] {
 
 export function previewSpell(g: Game, id: SpellId): PreviewLine[] {
   const c = context(g);
-  return c ? spellPreview(c, id) : [];
+  if (!c) {return [];}
+  const heal = SPELLS[id].heal;
+  const lines = spellPreview(c, id);
+  return heal === undefined ? lethalOnly(c, lines) : withBurn(lines, burnAfter(c, healOf(c, heal)));
 }

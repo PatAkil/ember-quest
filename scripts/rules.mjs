@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict';
 import { withSim } from '../sim/bundle.mjs';
-import { foeRules } from './rules-foe.mjs';
+import { foeRules, turnRules } from './rules-foe.mjs';
 import { itemRules } from './rules-items.mjs';
 import { verbRules } from './rules-verbs.mjs';
 import { eventRules } from './rules-events.mjs';
-import { descentRules } from './rules-descent.mjs';
-import { depthRules } from './rules-depth.mjs';
+import { depthRules, descentRules } from './rules-descent.mjs';
 import { affixRules } from './rules-affixes.mjs';
 import { pactEffectRules } from './rules-pacts.mjs';
 import { saveRules } from './rules-save.mjs';
@@ -299,6 +298,7 @@ const GROUPS = [
   ['affixes', affixRules],
   ['pacts', pactEffectRules],
   ['save', saveRules],
+  ['turn', turnRules],
 ];
 
 await withSim((sim) => {

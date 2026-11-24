@@ -162,10 +162,12 @@ function expectedHollow(sim, hero, n) {
   const hex = ownedBySlot(hero).flat().some((o) => o && sim.effectiveEffect(o.item, o.level).kind === 'HEX_STRIKE');
   const faced = kind === 'MAGIC' ? resMagic : hex ? Math.min(resPhys, resMagic) : resPhys;
   const hp = Math.max(1, Math.round(sim.HOLLOW_HP_HITS * base * (1 - faced / 100)), Math.round(sim.HOLLOW_HP_FLOOR * best.maxHp));
-  const guard = kind === 'MAGIC' ? best.mdef : best.def;
-  const capped = (sim.HOLLOW_HIT_CAP * best.maxHp) / Math.max(0.05, 1 - guard / 100);
-  const atk = Math.max(1, Math.round((Math.min(sim.HOLLOW_ATK_SHARE * base, capped) * sim.actMult(n)) / sim.ACT_MULT[3]));
-  return { kind, hp, atk, resPhys, resMagic };
+  const strikeKind = best.def > best.mdef ? 'MAGIC' : best.mdef > best.def ? 'PHYSICAL' : kind;
+  const guard = strikeKind === 'MAGIC' ? best.mdef : best.def;
+  const perHp = best.maxHp / Math.max(0.05, 1 - guard / 100);
+  const strike = Math.min(Math.max(sim.HOLLOW_ATK_SHARE * base, sim.HOLLOW_HIT_FLOOR * perHp), sim.HOLLOW_HIT_CAP * perHp);
+  const atk = Math.max(1, Math.round((strike * sim.actMult(n)) / sim.ACT_MULT[3]));
+  return { kind: strikeKind, hp, atk, resPhys, resMagic };
 }
 
 function richOwner(sim) {
@@ -196,7 +198,7 @@ function checkHollow(sim, hero, n, affixes) {
   const h = sim.hollowOf(hero, n);
   const want = expectedHollow(sim, hero, n);
   assert.deepEqual([h.maxHp, h.hp, h.atk, h.resPhys, h.resMagic], [want.hp, want.hp, want.atk, want.resPhys, want.resMagic], `hollow n=${n} numbers`);
-  assert.equal(h.def.atkType, want.kind, 'hollow attack kind is the kind of the stronger stat');
+  assert.equal(h.def.atkType, want.kind, 'hollow strikes at the weaker resist (ties: the kind of the stronger stat)');
   assert.deepEqual(h.affixes, affixes, 'hollow affixes read off the gear');
   assert.equal(h.def.kind, 'BOSS', 'hollow is a boss');
   assert.ok(!h.def.weak && !h.def.resists && !h.def.phase2, 'hollow has a weakness, resist or phase 2');
@@ -231,7 +233,7 @@ function hollow(sim) {
   glassMage.alloc.MAG = 60;
   const mirrored = sim.hollowOf(glassMage, 7);
   assert.ok(mirrored.atk < Math.round((sim.HOLLOW_ATK_SHARE * sim.derive(glassMage).mag * sim.actMult(7)) / sim.ACT_MULT[3]), 'a glass mage\'s hollow was not capped by max HP');
-  return `hollowOf: ATK ${sim.HOLLOW_ATK_SHARE} x best-loadout max(ATK, MAG) (a STRIKE capped at ${sim.HOLLOW_HIT_CAP} x max HP through the hero's resist) x actMult/ACT_MULT[3], HP ${sim.HOLLOW_HP_HITS} hits through the resist faced (floor ${sim.HOLLOW_HP_FLOOR} x max HP), resists capped ${sim.HOLLOW_RES_CAP}, gear affixes in order (max 3) | ${swapProof(sim)}`;
+  return `hollowOf: ATK ${sim.HOLLOW_ATK_SHARE} x best-loadout max(ATK, MAG) (a STRIKE landing ${sim.HOLLOW_HIT_FLOOR}-${sim.HOLLOW_HIT_CAP} x max HP through the weaker resist) x actMult/ACT_MULT[3], HP ${sim.HOLLOW_HP_HITS} hits through the resist faced (floor ${sim.HOLLOW_HP_FLOOR} x max HP), resists capped ${sim.HOLLOW_RES_CAP}, gear affixes in order (max 3) | ${swapProof(sim)}`;
 }
 
 export function affixRules(sim) {

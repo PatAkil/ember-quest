@@ -39,9 +39,29 @@ export function storeBest(best: BestRecord): boolean {
 }
 
 const RUN_KEY = 'retrovibe.ember-quest.run.v1';
+const STAMP_KEY = 'retrovibe.ember-quest.run.stamp';
 
-export function storeRun(text: string): boolean {
+export interface RunStamp { id: string; writes: number }
+
+export const sameStamp = (a: RunStamp | null, b: RunStamp | null): boolean =>
+  a === b || (a !== null && b !== null && a.id === b.id && a.writes === b.writes);
+
+export const isRunKey = (key: string | null): boolean => key === null || key === RUN_KEY || key === STAMP_KEY;
+
+export function newStamp(): RunStamp {
+  return { id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 0x100000000).toString(36)}`, writes: 0 };
+}
+
+function parseStamp(raw: string): RunStamp | null {
+  const data: unknown = JSON.parse(raw);
+  if (typeof data !== 'object' || data === null) {return null;}
+  const s = data as Partial<Record<keyof RunStamp, unknown>>;
+  return typeof s.id === 'string' && typeof s.writes === 'number' && Number.isFinite(s.writes) ? { id: s.id, writes: s.writes } : null;
+}
+
+export function storeRun(text: string, stamp: RunStamp): boolean {
   try {
+    localStorage.setItem(STAMP_KEY, JSON.stringify(stamp));
     localStorage.setItem(RUN_KEY, text);
     return true;
   } catch {
@@ -49,9 +69,14 @@ export function storeRun(text: string): boolean {
   }
 }
 
-export function loadStoredRun(): string | null {
+interface StoredRun { text: string; stamp: RunStamp | null }
+
+export function loadStoredRun(): StoredRun | null {
   try {
-    return localStorage.getItem(RUN_KEY);
+    const text = localStorage.getItem(RUN_KEY);
+    if (text === null) {return null;}
+    const raw = localStorage.getItem(STAMP_KEY);
+    return { text, stamp: raw === null ? null : parseStamp(raw) };
   } catch {
     return null;
   }
@@ -60,6 +85,7 @@ export function loadStoredRun(): string | null {
 export function clearRun(): void {
   try {
     localStorage.removeItem(RUN_KEY);
+    localStorage.removeItem(STAMP_KEY);
   } catch {
     return;
   }

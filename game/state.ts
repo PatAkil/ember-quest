@@ -1,4 +1,4 @@
-import type { AffixId, BattleState, EnemyInstance, FoeScale, Hero, LootOffer, LootSource, PactId, Rng } from './types';
+import type { AffixId, BattleState, EnemyInstance, FoeScale, Hero, LootOffer, LootSource, PactId, Rng, TurnResult } from './types';
 import { BIOMES, EVENTS } from './data';
 import type { EventDef } from './data';
 import { createHero, createSeededRng, planOf, storyPlan } from './sim';
@@ -8,7 +8,7 @@ import type { App } from './app';
 import { BIOME_LOOK, C_TEXT } from './theme';
 import type { BiomeLook } from './theme';
 import { loadBest } from './storage';
-import type { BestRecord } from './storage';
+import type { BestRecord, RunStamp } from './storage';
 import { at, noop, pickOneIndex } from './lookup';
 import { createFx, createReveal } from './fx-state';
 import type { FxState, Reveal } from './fx-state';
@@ -31,6 +31,8 @@ type BattlePhase = 'MENU' | 'QUEUE';
 export type BattleMenu = 'TOP' | 'MAGIC';
 type Outcome = 'NONE' | 'WON' | 'LOST';
 interface QueueStep { hold: number; run: () => void }
+export interface TurnLedger { hero: Hero; enemy: EnemyInstance; state: BattleState; clears: number; bosses: number; score: number; rng: number }
+export interface CommittedTurn { result: TurnResult; after: TurnLedger }
 export interface BattleWin { kill: () => void; done: () => void }
 export interface BattleScreen {
   enemy: EnemyInstance | null;
@@ -49,21 +51,23 @@ export interface BattleScreen {
   text: string;
   color: string;
   bufferedA: boolean;
+  committed: CommittedTurn | null;
 }
 
 export interface CardScreen { lines: string[]; onDone: () => void; art?: { icon: Sprite; color: string } }
 export interface LevelUpScreen { cursor: number; earned: number; onDone: () => void }
-export interface LootScreen { offers: LootOffer[]; cursor: number; source: LootSource; stow: boolean; gift?: boolean; ash?: boolean; onDone: () => void }
+export interface LootScreen { offers: LootOffer[]; cursor: number; source: LootSource; stow: boolean; gift?: boolean; ash?: boolean; onDone: () => void; settle: () => void }
 export type DeathCause = 'BLOW' | 'BURN' | 'THORNS' | 'BLOOD' | '';
 export interface DeathRecord { killerId: string; killerName: string; elite: boolean; move: string; damage: number; lastLines: string[]; cause: DeathCause }
 export const emptyDeath = (): DeathRecord => ({ killerId: '', killerName: '', elite: false, move: '', damage: 0, lastLines: [], cause: '' });
 export interface GearScreen { cursor: number; refusedAt: number }
-export interface PickRow { icon?: Sprite; name: string; color: string; note: string; detail: string[] }
+export interface PickRow { icon?: Sprite; name: string; color: string; note: string; detail: string[]; aside?: string }
 export interface EventScreen { def: EventDef; cursor: number; refusedAt: number; onDone: () => void }
 export type ThresholdChoice = 'ASCEND' | 'DESCEND';
 export interface ThresholdScreen { cursor: number; openedAt: number; choose: (choice: ThresholdChoice) => void }
 export interface PactScreen { offers: PactId[]; cursor: number; openedAt: number; onDone: () => void }
-export interface MenuScreen { cursor: number; confirm: boolean }
+export interface MenuScreen { cursor: number; confirm: boolean; yes: boolean }
+export interface Notice { text: string; at: number }
 export interface PickScreen { title: string; rows: PickRow[]; cursor: number; locked?: boolean; onPick: (i: number) => void; onCancel: () => void }
 
 export interface Game {
@@ -83,6 +87,10 @@ export interface Game {
   banked: number;
   descentClears: number | null;
   resume: SavedRun | null;
+  resumeStamp: RunStamp | null;
+  saveStamp: RunStamp | null;
+  saveLost: boolean;
+  notice: Notice | null;
   abandoned: boolean;
   subScene: SubScene;
   prevDirY: number;
@@ -133,6 +141,10 @@ export function createGame(app: App): Game {
     banked: 0,
     descentClears: null,
     resume: null,
+    resumeStamp: null,
+    saveStamp: null,
+    saveLost: false,
+    notice: null,
     abandoned: false,
     subScene: 'MAP',
     prevDirY: 0,
@@ -152,18 +164,18 @@ export function createGame(app: App): Game {
     map: { stages: [], curStage: -1, reachable: [0, 1], cursor: 0, pendingNode: null },
     battle: {
       enemy: null, state: null, phase: 'MENU', menuCursor: 0, menu: 'TOP', topCursor: 0, magicCursor: 0, magicPage: 0, outcome: 'NONE', onKill: noop, onWon: noop,
-      queue: [], timer: 0, text: '', color: C_TEXT, bufferedA: false,
+      queue: [], timer: 0, text: '', color: C_TEXT, bufferedA: false, committed: null,
     },
     card: { lines: [], onDone: noop },
     levelUp: { cursor: 0, earned: 0, onDone: noop },
-    loot: { offers: [], cursor: 0, source: 'FIGHT', stow: false, onDone: noop },
+    loot: { offers: [], cursor: 0, source: 'FIGHT', stow: false, onDone: noop, settle: noop },
     gear: { cursor: 0, refusedAt: -1 },
     pick: { title: '', rows: [], cursor: 0, onPick: noop, onCancel: noop },
     event: { def: at(EVENTS, 0), cursor: 0, refusedAt: -1, onDone: noop },
     threshold: { cursor: 0, openedAt: 0, choose: noop },
     pact: { offers: [], cursor: 0, openedAt: 0, onDone: noop },
-    title: { cursor: 0, confirm: false },
-    pause: { cursor: 0, confirm: false },
+    title: { cursor: 0, confirm: false, yes: false },
+    pause: { cursor: 0, confirm: false, yes: false },
   };
 }
 

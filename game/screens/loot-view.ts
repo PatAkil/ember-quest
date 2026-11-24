@@ -2,7 +2,7 @@ import { BUTTON_KEY, SAFE_MARGIN, drawPanel, drawSprite, drawText, textWidth } f
 import type { Sprite } from '../../engine';
 import { SPELLS } from '../data';
 import type { LootOffer, LootSource } from '../types';
-import { compareOffer, describeOffer, displayName, itemLevel, packSize } from '../sim';
+import { awakenPreview, compareOffer, describeOffer, displayName, itemLevel, packSize } from '../sim';
 import { ICON_SCROLL, ROOM_ART } from '../sprites';
 import { renderTableau } from '../backdrop';
 import type { Game } from '../state';
@@ -88,9 +88,10 @@ function packLine(g: Game): CardLine {
 }
 
 function offerCardText(g: Game, offer: LootOffer, face: OfferFace): CardText {
+  const awaken = offer.kind === 'ITEM' || offer.kind === 'UPGRADE' ? awakenPreview(offer.item, offer.kind === 'UPGRADE' ? offer.toLevel : 0) : '';
   const said = describeOffer(g.hero, offer);
-  const last = said.length - 1;
-  const lines = said.map((text, i) => ({ text, color: i === last ? blurbColor(offer) : C_TEXT }));
+  const last = said.filter((text) => text !== awaken).length - 1;
+  const lines = said.map((text, i) => ({ text, color: awaken && text === awaken ? C_DIM : i === last ? blurbColor(offer) : C_TEXT }));
   const tail = g.loot.stow && choosesStow(g, offer) ? packLine(g) : { text: compareOffer(g.hero, offer), color: C_DIM };
   return { name: face.name, color: face.color, lines: [...lines, tail] };
 }
@@ -122,7 +123,7 @@ function drawDetail(g: Game, ctx: CanvasRenderingContext2D): void {
     return;
   }
   if (offer.kind === 'ITEM' && choosesStow(g, offer) && !g.loot.stow) {
-    drawCompare(ctx, g.hero, { item: offer.item, level: 0 });
+    drawCompare(ctx, g.hero, { item: offer.item, level: 0 }, g.clock);
     return;
   }
   const face = offerFace(g, offer);

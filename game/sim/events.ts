@@ -74,6 +74,9 @@ export const eventOptionEnabled = (hero: Hero, option: EventOption): boolean => 
 
 export const eventPlayable = (hero: Hero, event: EventDef): boolean => event.options.some((o) => eventOptionEnabled(hero, o));
 
+export const eventById = (id: string): EventDef | undefined =>
+  (id === QUIET_EVENT.id ? QUIET_EVENT : EVENTS.find((e) => e.id === id));
+
 export function pickEvent(rng: Rng, hero: Hero): EventDef {
   const playable = EVENTS.filter((e) => eventPlayable(hero, e));
   return playable[pickOneIndex(rng, playable.length)] ?? QUIET_EVENT;

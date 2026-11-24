@@ -1,6 +1,7 @@
 import { withSim } from './bundle.mjs';
 import { endRun, isPicker, mergeTallies, newItemTally, printItems, watchPicks } from './items-report.mjs';
-import { addEvents, eventShares, newEventTally, printEvents } from './events-report.mjs';
+import { addEvents, eventShares, newEventTally, printEvents } from './items-report.mjs';
+import { newBossTurns, printBossTurns, summarizeBossTurns, tallyBossTurns } from './descent-report.mjs';
 import { newDescent, pooledPacts, printDescent, printPooled, summarizeDescent, tallyDescent } from './descent-report.mjs';
 
 const args = process.argv.slice(2);
@@ -40,7 +41,7 @@ const pct = (n, d) => (d === 0 ? '  - ' : `${((100 * n) / d).toFixed(0).padStart
 const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
 const newStats = () => ({ runs: RUNS, won: 0, reach: [0, 0, 0, 0, 0], bossFought: [0, 0, 0, 0, 0], bossWon: [0, 0, 0, 0, 0],
-  clears: 0, deathKind: {}, deathBy: {}, elites: 0, chests: 0, upgrades: 0, items: 0, ttk4: [], hit4: [],
+  clears: 0, deathKind: {}, deathBy: {}, elites: 0, chests: 0, upgrades: 0, items: 0, ttk4: [], hit4: [], bossTurns: newBossTurns(),
   stowed: 0, packEnd: 0, drops: 0, swaps: 0, upWorn: 0, upPacked: 0,
   verbs: { guards: 0, parries: 0, bursts: 0, potions: 0, phase2: 0, burnDeaths: 0,
     breakTry: { NORMAL: 0, ELITE: 0, BOSS: 0 }, breakHit: { NORMAL: 0, ELITE: 0, BOSS: 0 } } });
@@ -55,6 +56,7 @@ function tallyProbe(s, p) {
   s.bossFought[p.act + 1]++;
   if (p.won) {s.bossWon[p.act + 1]++;}
   if (p.act === 3) { s.ttk4.push(p.ttk); s.hit4.push(p.hitFrac); }
+  tallyBossTurns(s.bossTurns, p);
 }
 
 const bump = (counts, key) => { counts[key] = (counts[key] ?? 0) + 1; };
@@ -99,6 +101,7 @@ function summarize(s) {
       breakTry: Object.fromEntries(TIERS.map((t) => [t, s.verbs.breakTry[t] / RUNS])),
       breakHit: Object.fromEntries(TIERS.map((t) => [t, s.verbs.breakHit[t] / RUNS])),
     },
+    bossTurns: summarizeBossTurns(s.bossTurns),
     deathKind: s.deathKind,
     topKillers: Object.entries(s.deathBy).sort((a, b) => b[1] - a[1]).slice(0, 5),
   };
@@ -120,6 +123,7 @@ function printText(name, s, r) {
   console.log(`${''.padEnd(12)} verbs/run: guard ${v.guards.toFixed(2)}  parry ${v.parries.toFixed(2)}  burst ${v.bursts.toFixed(2)}` +
     `  potion ${v.potions.toFixed(2)}  break n/e/b ${breaks}  phase2 ${v.phase2.toFixed(2)}` +
     `  burn deaths ${v.burnDeaths}  stalls ${s.deathKind.STALL ?? 0}`);
+  printBossTurns(name, r.bossTurns);
 }
 
 const withoutPotions = (policy) => ({ ...policy, act: (hero, d, battle, actions) => policy.act(hero, d, battle, actions.filter((a) => a !== 'POTION')) });

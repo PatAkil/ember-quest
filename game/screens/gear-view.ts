@@ -1,14 +1,14 @@
 import { BUTTON_KEY, PICO8, SAFE_MARGIN, drawFrame, drawPanel, drawSprite, drawText, textWidth } from '../../engine';
-import { SLOTS, type OwnedItem, type Slot } from '../types';
-import { describeItem, displayName, effectiveBlurb, effectiveEffect, packSize } from '../sim';
+import { SLOTS, type Item, type OwnedItem, type Slot } from '../types';
+import { awakenPreview, describeItem, displayName, effectiveBlurb, effectiveEffect, packSize } from '../sim';
 import { renderBiomeBackdrop } from '../backdrop';
 import { ICON_EMPTY } from '../sprites';
 import type { Game } from '../state';
 import { C_ACCENT, C_BORDER, C_DIM, C_FAINT, C_PANEL, C_SEL_BAR, C_TEXT, C_WARN, W, rarityColor } from '../theme';
 import { blinkHz, drawCommandBand, fitText, itemIcon } from '../widgets';
 import { drawCompare, drawItemCard } from './compare-view';
-import type { CardText } from './compare-view';
-import { packedAt, refusalShowing, wornAt } from './gear';
+import type { CardLine, CardText } from './compare-view';
+import { fittingRows, packedAt, refusalShowing, wornAt } from './gear';
 
 const COL_W = (W - 2 * SAFE_MARGIN) / 2;
 const PANEL_Y = 16;
@@ -76,6 +76,11 @@ function drawColumns(g: Game, ctx: CanvasRenderingContext2D): void {
   }
 }
 
+function awakenLine(item: Item, level: number): CardLine[] {
+  const text = awakenPreview(item, level);
+  return text ? [{ text, color: C_DIM }] : [];
+}
+
 function ownCard(owned: OwnedItem): CardText {
   const { item, level } = owned;
   const blurbColor = effectiveEffect(item, level).kind === 'NONE' ? C_DIM : rarityColor(item);
@@ -85,6 +90,7 @@ function ownCard(owned: OwnedItem): CardText {
     lines: [
       ...describeItem(item, level).map((text) => ({ text, color: C_TEXT })),
       { text: effectiveBlurb(item, level), color: blurbColor },
+      ...awakenLine(item, level),
       { text: 'WORN NOW', color: C_DIM },
     ],
   };
@@ -100,11 +106,19 @@ function drawBand(g: Game, ctx: CanvasRenderingContext2D): void {
   drawCommandBand(ctx);
   const { cursor } = g.gear;
   const packed = packedAt(g, cursor);
-  if (packed) { drawCompare(ctx, g.hero, packed); return; }
+  if (packed) { drawCompare(ctx, g.hero, packed, g.clock); return; }
   const worn = wornAt(g, cursor);
   if (worn) { drawItemCard(ctx, { icon: itemIcon(worn.item), px: 3 }, ownCard(worn)); return; }
   const slot = SLOTS[cursor];
   if (slot) {drawItemCard(ctx, { icon: ICON_EMPTY, px: 2 }, emptyCard(g, slot));}
+}
+
+function emptySlotHint(g: Game, slot: Slot): string {
+  const fits = fittingRows(g, slot);
+  const [only] = fits;
+  const owned = only === undefined ? undefined : g.hero.pack[only];
+  if (!owned) {return '';}
+  return fits.length > 1 ? `${BUTTON_KEY.A.hint} PICK FROM PACK` : `${BUTTON_KEY.A.hint} WEAR ${displayName(owned.item, owned.level)}`;
 }
 
 function actionHint(g: Game): string {
@@ -112,7 +126,7 @@ function actionHint(g: Game): string {
   if (packedAt(g, cursor)) {return `${BUTTON_KEY.A.hint} WEAR IT`;}
   if (wornAt(g, cursor)) {return `${BUTTON_KEY.A.hint} TO PACK`;}
   const slot = SLOTS[cursor];
-  return g.hero.pack.some((o) => o.item.slot === slot) ? `${BUTTON_KEY.A.hint} WEAR FROM PACK` : '';
+  return slot ? emptySlotHint(g, slot) : '';
 }
 
 function drawHeader(g: Game, ctx: CanvasRenderingContext2D): void {

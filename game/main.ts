@@ -3,7 +3,7 @@ import { actInDepth, depthOf, derive, describeSave, heroActions, validateData } 
 import { HOLD, installDevHook } from './devhook';
 import { createApp } from './app';
 import { enterAct, selectNode, startRun, wireScenes } from './flow';
-import { loadResume, offerResume } from './resume';
+import { loadResume, offerResume, watchStorage } from './resume';
 import { render, update } from './frame';
 import { at } from './lookup';
 import { createGame, installRng, resetCursorEdge, stageAt } from './state';
@@ -40,6 +40,7 @@ function view(game: Game) {
     descent: { won: game.won, banked: game.banked, bosses: game.bosses, descentClears: game.descentClears, plan: game.plan },
     pacts: game.pact.offers,
     menu: menuView(game),
+    save: { lost: game.saveLost, notice: game.notice?.text ?? null },
   };
 }
 
@@ -63,4 +64,5 @@ const dev = import.meta.env.DEV ? installDevHook({
   offerResume: () => { offerResume(g); },
 }) : null;
 loadResume(g);
+watchStorage(g);
 createLoop(dev ?? { update: tick, render: draw }).start();

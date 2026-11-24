@@ -1,11 +1,12 @@
-import { BUTTON_KEY, SAFE_MARGIN, drawText, drawTextCentered, hudText, textWidth } from '../../engine';
+import { BUTTON_KEY, PICO8, SAFE_MARGIN, drawText, drawTextCentered, hudText, textWidth } from '../../engine';
 import { renderBiomeBackdrop } from '../backdrop';
 import { selectNode } from '../flow';
 import { at } from '../lookup';
-import { biome, dirEdge, stageAt } from '../state';
+import { biome, dirEdge, stageAt, takeA } from '../state';
 import type { Game, MapNode, RoomType } from '../state';
 import { ENEMIES, HOLLOW_ID } from '../data';
-import { actInDepth, depthOf } from '../sim';
+import { POTIONS_MAX } from '../types';
+import { actInDepth, depthOf, derive, pactMods } from '../sim';
 import { C_ACCENT, C_DIM, C_LOG_HURT, C_TEXT, C_WARN, H, W } from '../theme';
 import { openGear } from './gear';
 import { drawEdges, drawHeroMarker, drawNodes } from './map-view';
@@ -33,7 +34,7 @@ export function updateMap(g: Game): void {
   const dy = dirEdge(g);
   if (dy) {moveCursor(g, dy);}
   if (g.app.input.pressed('B')) { g.app.audio.play('blip'); openGear(g); return; }
-  if (g.app.input.pressed('A') && g.map.reachable.length) {
+  if (takeA(g) && g.map.reachable.length) {
     g.app.audio.play('blip');
     selectNode(g, at(stageAt(g, g.map.curStage + 1), g.map.cursor));
   }
@@ -72,7 +73,28 @@ function readoutParts(g: Game, node: MapNode): Ink[] {
   const head = { text: node.type, color: C_ACCENT };
   const id = node.type === 'BOSS' ? g.plan.boss : node.enemyId;
   const foe = node.type === 'FIGHT' || node.type === 'ELITE' || node.type === 'BOSS' ? foeParts(id, node.affixes) : [];
-  return foe.length ? fitParts([head, ...foe]) : [head, { text: ROOM_BLURB[node.type], color: C_DIM }];
+  if (foe.length) {return fitParts([head, ...foe]);}
+  return node.type === 'REST' && restWasted(g) ? [head, REST_WASTED] : [head, { text: ROOM_BLURB[node.type], color: C_DIM }];
+}
+
+const REST_WASTED: Ink = { text: 'YOU ARE ALREADY AT FULL STRENGTH', color: C_WARN };
+
+function restWasted(g: Game): boolean {
+  const { hero } = g;
+  const d = derive(hero);
+  return pactMods(hero).restUpgrade <= 0 && hero.hp >= d.maxHp && hero.mp >= d.maxMp && hero.potions >= POTIONS_MAX;
+}
+
+const LOST_NOTICE = 'ANOTHER TAB TOOK THIS RUN - THIS ONE NO LONGER SAVES';
+const NOTICE_Y = 97;
+
+function drawLostNotice(g: Game): void {
+  if (!g.saveLost) {return;}
+  const ctx = g.app.pc.ctx;
+  const w = textWidth(LOST_NOTICE, 1);
+  ctx.fillStyle = PICO8[0];
+  ctx.fillRect(Math.round((W - w) / 2) - 2, NOTICE_Y - 1, w + 4, 7);
+  drawTextCentered(ctx, LOST_NOTICE, { width: W, y: NOTICE_Y }, { color: C_WARN });
 }
 
 function mapHeader(g: Game): string {
@@ -107,6 +129,7 @@ export function renderMap(g: Game): void {
   drawNodes(g);
   drawHeroMarker(g);
   drawStatusPanel(g, H - SAFE_MARGIN - STATUS_PANEL_H);
+  drawLostNotice(g);
   hudText(pc, `SCORE ${g.score}`, { h: 'right', v: 'top' }, { color: C_TEXT });
   hudText(pc, `${BUTTON_KEY.B.hint} GEAR`, { h: 'left', v: 'top' }, { color: C_DIM });
 }

@@ -1,6 +1,6 @@
 import { PICO8 } from '../../engine';
 import { at } from '../lookup';
-import { armed, dirEdge, resetCursorEdge, wrapCursor } from '../state';
+import { armA, armed, dirEdge, resetCursorEdge, takeA, wrapCursor } from '../state';
 import type { Arming, Game, ThresholdChoice } from '../state';
 import { C_ACCENT, W } from '../theme';
 
@@ -11,19 +11,28 @@ export const PACT_ARM = 0.5;
 interface ChoiceStep { cursor: number; chosen: boolean }
 export const END_ARM = 1.0;
 
+const NO_CHOICE = -1;
+
+function nextChoice(cursor: number, dy: number, count: number): number {
+  if (cursor === NO_CHOICE) {return dy < 0 ? 0 : count - 1;}
+  return wrapCursor(cursor, dy, count);
+}
+
 export function stepChoice(g: Game, cursor: number, count: number, arming: Arming): ChoiceStep {
   const dy = dirEdge(g);
   if (dy) {g.app.audio.play('blip');}
-  const ready = armed(g, arming);
-  return { cursor: dy ? wrapCursor(cursor, dy, count) : cursor, chosen: ready && g.app.input.pressed('A') };
+  const next = dy ? nextChoice(cursor, dy, count) : cursor;
+  const taken = takeA(g);
+  return { cursor: next, chosen: taken && armed(g, arming) && next !== NO_CHOICE };
 }
 
 export function startThreshold(g: Game, choose: (choice: ThresholdChoice) => void): void {
-  g.threshold = { cursor: 0, openedAt: g.clock, choose };
+  g.threshold = { cursor: NO_CHOICE, openedAt: g.clock, choose };
   g.subScene = 'THRESHOLD';
   g.app.audio.play('pickup');
   g.app.juice.flash(C_ACCENT, 0.35);
   resetCursorEdge(g);
+  armA(g);
 }
 
 const PLUNGE_AT = { x: 176, y: 84 };

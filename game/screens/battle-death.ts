@@ -1,4 +1,4 @@
-import type { EnemyActResult, EnemyInstance, MoveId, TurnStart } from '../types';
+import type { EnemyActResult, EnemyInstance, MoveId } from '../types';
 import { emptyDeath } from '../state';
 import type { DeathCause, Game } from '../state';
 
@@ -46,7 +46,6 @@ export function recordThorns(g: Game, e: EnemyInstance, thorns: number): void {
   record(g, e, { cause: 'THORNS', move: 'THORNS', damage: thorns });
 }
 
-export function recordTurnDeath(g: Game, e: EnemyInstance, turn: TurnStart): void {
-  const burned = turn.heroBurn > 0;
-  record(g, e, { cause: burned ? 'BURN' : 'BLOOD', move: burned ? 'BURN' : 'BLOOD PRICE', damage: burned ? turn.heroBurn : turn.bloodLoss });
+export function recordBurn(g: Game, e: EnemyInstance, damage: number): void {
+  record(g, e, { cause: 'BURN', move: 'BURN', damage });
 }

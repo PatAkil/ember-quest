@@ -4,7 +4,6 @@ import {
   WARD_BONUS,
   WARD_CAP,
   WARD_TURNS,
-  type BattleState,
   type Burn,
   type DamageKind,
   type Derived,
@@ -110,20 +109,23 @@ function regen(hero: Hero, d: Derived, action: HeroAction | undefined): { hpRege
   return { hpRegen, mpRegen };
 }
 
-export function startTurn(hero: Hero, battle: BattleState, action?: HeroAction): TurnStart {
+export function startTurn(hero: Hero, action?: HeroAction): TurnStart {
   const d = derive(hero);
   const { hpRegen, mpRegen } = regen(hero, d, action);
   let blood = 0;
   for (const eff of allEffects(hero, 'BLOOD')) {blood += eff.hpPerTurn;}
   const bloodLoss = Math.min(blood, Math.max(0, hero.hp - 1));
   hero.hp -= bloodLoss;
-  const heroBurn = tickBurn(hero);
-  const fall = heroFalls(hero, d);
-  const enemyBurn = fall === 'DEAD' ? 0 : tickBurn(battle.enemy);
-  return {
-    hpRegen, mpRegen, bloodLoss, heroBurn, enemyBurn,
-    heroDead: fall === 'DEAD',
-    enemyDefeated: fall !== 'DEAD' && battle.enemy.hp <= 0,
-    revived: fall === 'REVIVED',
-  };
+  return { hpRegen, mpRegen, bloodLoss };
 }
+
+interface HeroTick { burnTick: number; fall: Fall }
+
+export function heroBurnTick(hero: Hero): HeroTick {
+  const burnTick = tickBurn(hero);
+  return { burnTick, fall: burnTick > 0 ? heroFalls(hero) : 'STANDING' };
+}
+
+export const foeBurnTick = (enemy: EnemyInstance): number => tickBurn(enemy);
+
+export const pendingTick = (hero: Hero): number => hero.burn?.perTurn ?? 0;

@@ -90,3 +90,45 @@ export function printPooled(pooled) {
   const rows = Object.entries(pooled).sort((a, b) => b[1].through - a[1].through);
   console.log(`pacts pooled (non-random): ${rows.map(([id, p]) => `${id} ${p.taken} (${pct(p.through, 1)})`).join('  ')}`);
 }
+
+const BOSS_ACTS = [0, 1, 2, 3];
+const LONG_FIGHT = 16;
+
+export const newBossTurns = () => BOSS_ACTS.map(() => ({ turns: [], dpt: [], hp: [], heavy: [] }));
+
+export function tallyBossTurns(table, probe) {
+  const row = table[probe.act];
+  if (!row) {return;}
+  row.turns.push(probe.turns);
+  row.dpt.push(probe.dpt);
+  row.hp.push(probe.bossHp);
+  row.heavy.push(probe.heavyShare);
+}
+
+function quantile(xs, q) {
+  if (xs.length === 0) {return null;}
+  const sorted = [...xs].sort((a, b) => a - b);
+  return sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))];
+}
+
+const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+
+export function summarizeBossTurns(table) {
+  return table.map((row) => ({
+    fights: row.turns.length,
+    median: quantile(row.turns, 0.5),
+    p90: quantile(row.turns, 0.9),
+    long: row.turns.length ? row.turns.filter((t) => t > LONG_FIGHT).length / row.turns.length : null,
+    dptP25: quantile(row.dpt, 0.25),
+    bossHp: mean(row.hp),
+    heavyShare: mean(row.heavy),
+  }));
+}
+
+const cell = (r) => (r.fights === 0 ? '      -       ' : `${String(r.median).padStart(2)}/${String(r.p90).padStart(2)} ${(100 * r.long).toFixed(0).padStart(3)}%`);
+
+export function printBossTurns(name, rows) {
+  const dpt = rows.map((r) => (r.dptP25 === null ? '-' : `${r.dptP25.toFixed(0)}/${(r.bossHp ?? 0).toFixed(0)}`)).join(' ');
+  const heavy = rows.map((r) => (r.heavyShare === null ? '-' : `${(100 * r.heavyShare).toFixed(0)}%`)).join('/');
+  console.log(`${''.padEnd(12)} boss turns med/p90 >${LONG_FIGHT} a1..a4 ${rows.map(cell).join(' | ')}  p25 dmg/turn / boss HP ${dpt}  phase-2 HEAVY ${heavy}`);
+}

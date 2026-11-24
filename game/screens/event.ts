@@ -82,7 +82,7 @@ function afterScreen(g: Game, applied: readonly AppliedEffect[]): () => void {
 }
 
 function openUpgrade(g: Game, option: EventOption): void {
-  g.loot = { offers: [], source: 'LOOT', cursor: 0, stow: false, onDone: noop };
+  g.loot = { offers: [], source: 'LOOT', cursor: 0, stow: false, onDone: noop, settle: () => { settleRoom(g); } };
   chooseUpgrade(g);
   const takeRow = g.pick.onPick;
   g.pick.onCancel = () => { backToEvent(g); };
@@ -119,7 +119,7 @@ function openDrop(g: Game, option: EventOption): void {
 export function offerGift(g: Game, rarity: Rarity, done: () => void): void {
   const item = rollEventItem(g.hero, rarity, g.n, g.rng);
   if (!item) { done(); return; }
-  g.loot = { offers: [{ kind: 'ITEM', item }], source: 'LOOT', cursor: 0, stow: false, gift: true, onDone: done };
+  g.loot = { offers: [{ kind: 'ITEM', item }], source: 'LOOT', cursor: 0, stow: false, gift: true, onDone: done, settle: () => { settleRoom(g); } };
   g.subScene = 'LOOT';
   resetCursorEdge(g);
   armA(g);
@@ -132,12 +132,12 @@ function choose(g: Game, option: EventOption): void {
   const applied = payCosts(g, option);
   if (screen?.kind === 'sp') {
     g.hero.sp += screen.amount;
-    persistReward(g, 'EVENT');
+    persistReward(g, { source: 'EVENT', earned: screen.amount });
     startLevelUp(g, screen.amount, afterScreen(g, applied));
     return;
   }
   if (screen?.kind === 'item') {
-    persistReward(g, 'EVENT', screen.rarity);
+    persistReward(g, { source: 'EVENT', earned: 0, gift: screen.rarity });
     offerGift(g, screen.rarity, afterScreen(g, applied));
     return;
   }
